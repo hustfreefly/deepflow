@@ -1,95 +1,153 @@
 # DeepFlow 架构设计说明
 
-> **文档版本**: 1.0  
+> **文档版本**: 1.1  
 > **日期**: 2026-04-24  
 > **作者**: 姬忠礼  
-> **状态**: 基于通用框架的垂直场景适配
+> **状态**: 基于 V3.0 蓝图的投资分析场景适配
 
 ---
 
 ## 📋 文档目的
 
 本文档说明 DeepFlow 的架构设计演进：
-1. **原始蓝图设计**：通用多 Agent 协作框架的设计理念
-2. **当前实现（0.1.0）**：针对投资分析场景的适配与取舍
-3. **差异分析**：客观对比设计与实现的偏差
+1. **原始蓝图设计（V3.0）**：配置驱动声明式多 Agent 协作平台
+2. **当前实现（V4.0 / 0.1.0）**：针对投资分析场景的适配与取舍
+3. **差异分析**：客观对比 V3.0 设计与 V4.0 实现的偏差
+
+**参考文档**：
+- `docs/deepdive_ARCHITECTURE_DESIGN_FINAL_COMPLETE.md` — V3.0 完整架构设计（37KB）
+- `docs/deepdive_ARCHITECTURE_FINAL_REPORT.md` — V3.0 架构最终报告（43KB）
 
 ---
 
-## 第一部分：原始蓝图设计（通用多 Agent 协作框架）
+## 第一部分：原始蓝图设计（Deep Dive V3.0）
 
 ### 1.1 设计背景
 
-**日期**: 2026-03-14  
-**位置**: `~/.openclaw/workspace/.multi-agent-framework/`  
-**目标**: 构建通用的多 Agent 协作工作流框架，不限定于任何垂直领域。
+**日期**: 2026-04-11  
+**来源**: `memory/cold/projects/deep-dive-v3.0-architecture-final-2026-04-11/`  
+**目标**: 构建配置驱动的声明式多 Agent 协作平台，加一个领域 = 加一份 YAML 配置（80% 场景）。
 
-### 1.2 核心架构
+**设计哲学**:
+> **"配置驱动，声明编排，智能控制反转，渐进交付，可观测优先，四层容错"**
+
+**核心定位**: 从硬编码管线转变为配置驱动的声明式多 Agent 协作平台。
+
+### 1.2 核心架构（三层架构）
 
 ```
-┌─────────────────────────────────────────────┐
-│         多 Agent 协作框架（通用层）           │
-│  ┌──────────────────────────────────────┐   │
-│  │   MultiAgentOrchestrator（协调器）    │   │
-│  │   - Python 类，代码控制流程           │   │
-│  │   - 顺序/并行执行模式                 │   │
-│  │   - 质量门禁（quality_gate）          │   │
-│  │   - 迭代重试（max_iterations）        │   │
-│  └──────────────────────────────────────┘   │
-│                    │                        │
-│     ┌──────────────┼──────────────┐         │
-│     ▼              ▼              ▼         │
-│  ┌──────┐    ┌──────┐    ┌──────┐         │
-│  │Workflow│   │AgentTask│  │Template│       │
-│  └──────┘    └──────┘    └──────┘         │
-│     │              │              │         │
-│     ▼              ▼              ▼         │
-│  ┌────────┐  ┌────────┐  ┌────────┐       │
-│  │顺序执行 │  │质量门禁 │  │预定义   │       │
-│  │并行执行 │  │迭代重试 │  │工作流   │       │
-│  └────────┘  └────────┘  └────────┘       │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    配置层（Configuration Layer）                 │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐               │
+│  │   domains/  │ │  pipelines/ │ │   prompts/  │               │
+│  │   *.yaml    │ │   *.yaml    │ │   *.md      │               │
+│  └─────────────┘ └─────────────┘ └─────────────┘               │
+└────────────────────────────┬────────────────────────────────────┘
+                             │声明式加载
+┌────────────────────────────▼────────────────────────────────────┐
+│                    运行时层（Runtime Layer）                     │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │              PipelineEngine（Python ~300行）              │ │
+│  │   Stage调度 │ Convergence │ Quality │ Checkpoint          │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐              │
+│  │   iterative │ │    audit    │ │    gated    │              │
+│  │    管线     │ │    管线     │ │    管线     │              │
+│  └─────────────┘ └─────────────┘ └─────────────┘              │
+└────────────────────────────┬────────────────────────────────────┘
+                             │sessions_spawn
+┌────────────────────────────▼────────────────────────────────────┐
+│                    平台层（Platform Layer）                      │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐   │
+│  │ planner ││researcher││ auditor ││ fixer   ││summarizer│   │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │           Blackboard（文件共享 + shared_state）         │   │
+│  │   ~/.openclaw/workspace/.v3/blackboard/{session_id}/   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### 1.3 核心机制
 
 | 机制 | 说明 | 目的 |
 |:---|:---|:---|
-| **Workflow** | 工作流定义（顺序/并行） | 灵活编排 Agent 执行顺序 |
-| **AgentTask** | 单个任务定义（prompt、input_key、output_key） | 标准化 Agent 输入输出 |
-| **质量门禁** | `quality_gate` 函数，返回 bool | 确保每阶段输出质量达标 |
-| **迭代重试** | `max_iterations` 参数 | 质量不通过时自动重试 |
-| **状态持久化** | JSON 状态文件 | 支持断点续传和故障恢复 |
-| **模板系统** | 预定义工作流模板 | 快速复用常见模式 |
+| **PipelineEngine** | YAML 声明式 + 轻量 Python 引擎 | 兼顾灵活性与可维护性 |
+| **IntentParser** | 自动解析用户意图 → DomainConfig | 自动匹配领域配置 |
+| **PipelineSelector** | 选择管线模板（iterative/audit/gated） | 覆盖 6 大应用场景 |
+| **质量门禁** | `QualityAssessor` 多维度评分 | 确保每阶段输出质量达标 |
+| **收敛检测** | `ConvergenceChecker` 边际收益检测 | 自动迭代优化 |
+| **渐进交付** | 30s/2min/8min/30min 分层 | 解决用户耐心上限 |
+| **检查点** | `CheckpointManager` 每阶段保存 | 支持断点续传和故障恢复 |
+| **故障隔离** | L1-L4 四层防护（Agent→Stage→Pipeline→System） | 生产级容错 |
+| **人机回环** | HITL 门控节点（仅 gated 管线） | 关键决策点人工确认 |
 
 ### 1.4 设计哲学
 
 > **"框架层通用，应用层垂直"**
 
-- **框架不负责领域知识**：框架只提供编排能力，领域逻辑由 AgentTask 的 prompt 承载。
-- **代码控制优于 LLM 控制**：Orchestrator 是 Python 类，流程由代码决定，而非 LLM 自主决策。
-- **质量是强制要求**：没有质量门禁，管线不能进入下一阶段。
+**五大设计原则**:
+1. **配置驱动**：80%场景纯YAML配置，20%复杂场景可扩展
+2. **向后兼容**：现有4领域100%不损坏，自动化迁移零成本
+3. **渐进交付**：洋葱式分层，用户可控，耐心上限管理
+4. **故障隔离**：单Agent失败不影响全局，L1-L4四层防护
+5. **可观测优先**：Phase 1纳入日志/指标/追踪，非事后补充
 
-### 1.5 示例工作流
+**Intelligent Inversion of Control**:
+- 传统命令式：`代码 → 调用Agent → 等待结果 → 处理结果`
+- V3.0声明式：`YAML声明期望状态 → PipelineEngine协调 → Agent自报告状态 → 自动状态转换`
 
-```python
-# 系统设计模板
-Product（需求分析）
-  → Programmer（架构设计）
-  → Programmer（代码实现）
-  → Auditor（质量审计，>= 8分通过）
-  → [不通过则返回 Programmer 重试，最多3次]
+### 1.5 FSM 状态机
+
+```
+                    ┌─────────────┐
+         ┌─────────│   FAILED    │◄──── 任何状态异常/超时
+         │         └──────┬──────┘      或L1-L4故障无法恢复
+         │                │
+         │                │ 恢复（从Checkpoint）
+         ▼                ▼
+┌──────────┐    ┌─────────────┐    ┌─────────────┐
+│   INIT   │───►│  PLANNING   │───►│  EXECUTING  │
+└──────────┘    └─────────────┘    └──────┬──────┘
+                                          │
+                                          ▼
+┌──────────┐    ┌─────────────┐    ┌─────────────┐
+│   DONE   │◄───│  DELIVERING │◄───│  CHECKING   │
+└──────────┘    └──────┬──────┘    └──────┬──────┘
+                       │        未收敛    │ 已收敛
+                       │            ┌────┘
+                       │            ▼
+                       │    ┌─────────────┐
+                       └────│   FIXING    │
+                            └─────────────┘
+                                          │
+                                          ▼
+                            ┌─────────────┐
+                            │   HITL      │◄──── gated管线特有
+                            │ 人工干预     │      人工确认/拒绝
+                            └─────────────┘
+```
+
+### 1.6 渐进交付设计
+
+```
+T+30s   → 🚀 快速预览（意图解析结果 + 执行计划大纲 + 预估总时间）
+T+2min  → 📄 初稿（核心框架/结构 + 关键发现Top 3 + 置信度评估）
+T+8min  → 📊 完整报告（详细分析 + 多角度论证 + 可执行建议）
+T+30min → 🔬 深度研究（全面覆盖 + 证据链完整 + 风险模拟）
+[超时未完成的进入异步执行，完成后飞书推送通知]
 ```
 
 ---
 
-## 第二部分：当前实现（DeepFlow 0.1.0）
+## 第二部分：当前实现（DeepFlow V4.0 / 0.1.0）
 
 ### 2.1 实现背景
 
 **日期**: 2026-04-24  
-**版本**: 0.1.0  
-**目标**: 将通用框架适配到"投资分析"垂直场景，快速验证端到端可行性。
+**版本**: 0.1.0（内部代号 V4.0）
+**目标**: 将 V3.0 蓝图适配到"投资分析"垂直场景，快速验证端到端可行性。
 
 ### 2.2 当前架构
 
@@ -135,36 +193,49 @@ Product（需求分析）
 
 ### 3.1 架构层级差异
 
-| 维度 | 通用框架（蓝图） | DeepFlow 0.1.0（实现） | 偏差说明 |
+| 维度 | Deep Dive V3.0（蓝图） | DeepFlow V4.0（实现） | 偏差说明 |
 |:---|:---|:---|:---|
-| **Orchestrator 实现** | Python 类（`orchestrator.py`） | Agent 指南文本（`orchestrator_agent.py`） | 🔴 核心偏差：代码控制 → LLM 自主 |
-| **质量门禁** | `quality_gate` 函数（强制） | **无** | 🔴 缺失：无收敛检测 |
-| **迭代重试** | `max_iterations`（自动） | **无** | 🔴 缺失：无自动重试 |
-| **模板系统** | JSON 模板（通用） | `domains/` 目录（领域特定） | 🟡 简化：无通用模板层 |
-| **状态持久化** | JSON 状态文件（细粒度） | Blackboard 文件（粗粒度） | 🟢 等效：实现方式不同 |
-| **模块间依赖** | 零依赖 | Task Builder 依赖 DataManager | 🟡 偏离：task_builder 导入 data_manager_worker |
+| **Orchestrator 实现** | `PipelineEngine` Python 类（~300行） | Agent 指南文本（`orchestrator_agent.py`） | 🔴 核心偏差：代码控制 → LLM 自主 |
+| **质量门禁** | `QualityAssessor` 多维度评分（强制） | **无** | 🔴 缺失：无收敛检测 |
+| **收敛检测** | `ConvergenceChecker` 边际收益检测 | **无** | 🔴 缺失：无自动迭代 |
+| **渐进交付** | 30s/2min/8min/30min 分层 | 单一最终报告 | 🟡 用户体验差距 |
+| **检查点恢复** | `CheckpointManager` 每阶段保存 | **无** | 🟡 故障后需重做 |
+| **意图解析** | `IntentParser` 自动识别领域/深度 | 手动参数传递 | 🟡 灵活性降低 |
+| **管线模板** | 3种模板（iterative/audit/gated） | 单一硬编码流程 | 🟡 无法复用 |
+| **状态机** | FSM平铺结构（Task级+Stage级） | **无** | 🟡 状态不可追踪 |
+| **故障隔离** | L1-L4 四层防护矩阵 | Worker失败不阻断管线 | 🟢 等效：实现方式不同 |
+| **配置体系** | 完整 YAML Schema（领域/Agent/质量/收敛） | `domains/` 目录（部分配置） | 🟡 简化：无通用模板层 |
 
 ### 3.2 设计理念差异
 
-#### 蓝图设计："代码控制流程"
+#### 蓝图设计（V3.0）："配置驱动声明式编排"
 ```python
-# 通用框架：Orchestrator 是 Python 类
-class MultiAgentOrchestrator:
-    def run(self):
-        for task in self.workflow.tasks:
-            result = self.execute_task(task)
-            if not task.quality_gate(result):
-                for _ in range(task.max_iterations):
-                    result = self.retry(task)
-                    if task.quality_gate(result):
-                        break
+# V3.0：PipelineEngine 是 Python 类，FSM驱动状态流转
+class PipelineEngine:
+    def execute(self, blackboard: Blackboard) -> ExecutionResult:
+        while self.state not in [DONE, FAILED]:
+            stage_config = self.get_current_stage()
+            result = self.execute_stage(stage_config, blackboard)
+            self.state = self.transition(self.state, result)
+            
+            # 质量评估
+            scores = QualityAssessor.assess(stage_output)
+            if not scores.passed:
+                self.state = FIXING
+            
+            # 收敛检测
+            converged = ConvergenceChecker.check(scores)
+            if converged:
+                self.state = DELIVERING
+            
+            CheckpointManager.save(blackboard)
 ```
 
-#### 当前实现："LLM 自主调度"
+#### 当前实现（V4.0）："LLM 自主调度"
 ```python
-# DeepFlow 0.1.0：Orchestrator 是 Agent 指南
+# V4.0：Orchestrator 是 Agent 指南文本
 # Agent 读取指南后，自主决定 spawn 哪些 Workers
-# 无代码级质量门禁，无自动迭代
+# 无代码级质量门禁，无自动迭代，无检查点恢复
 ```
 
 ### 3.3 取舍分析
@@ -194,10 +265,12 @@ class MultiAgentOrchestrator:
 
 ### 4.2 中期（0.3.0）
 
-- [ ] **回归 Blueprint 设计**：将 Orchestrator 从 Agent 指南改为 Python 类
-- [ ] **质量门禁接入**：引入 `QualityGate` 模块（代码已存在，但未调用）
-- [ ] **迭代机制**：`max_iterations` + 收敛检测
-- [ ] **模板系统**：通用模板 + 领域覆盖
+- [ ] **对齐 V3.0 设计**：将 Orchestrator 从 Agent 指南改为 `PipelineEngine` Python 类
+- [ ] **质量门禁接入**：引入 `QualityAssessor` 模块（V3.0 设计已完整）
+- [ ] **收敛检测机制**：`ConvergenceChecker` + `max_iterations` 自动迭代
+- [ ] **检查点恢复**：`CheckpointManager` 每阶段保存，支持断点续传
+- [ ] **渐进交付**：30s/2min/8min 分层返回，非单一最终报告
+- [ ] **配置体系完善**：通用模板 + 领域 YAML 配置
 
 ### 4.3 长期（1.0.0）
 
@@ -213,21 +286,22 @@ class MultiAgentOrchestrator:
 
 | 文档 | 位置 | 说明 |
 |:---|:---|:---|
-| 通用框架 README | `~/.openclaw/workspace/.multi-agent-framework/README.md` | 原始蓝图 |
-| 通用框架 Orchestrator | `~/.openclaw/workspace/.multi-agent-framework/orchestrator.py` | Python 实现 |
+| **V3.0 架构设计最终版** | `docs/deepdive_ARCHITECTURE_DESIGN_FINAL_COMPLETE.md` | V3.0 完整架构设计（37KB） |
+| **V3.0 架构最终报告** | `docs/deepdive_ARCHITECTURE_FINAL_REPORT.md` | V3.0 架构论证报告（43KB） |
+| V3.0 架构图 | `~/.openclaw/canvas/v3-architecture-diagram.html` | 交互式架构图（6张核心图） |
 | V1 蓝图 | `.deepflow/V1_BLUEPRINT.md` | 早期架构设计 |
 | V4 架构计划 | `.deepflow/docs/V4_ARCHITECTURE_PLAN.md` | V4 重构方案 |
 | 开发规范 | `.deepflow/DEVELOPMENT_RULES.md` | 契约笼子规范 |
 
 ### B. 版本对照表
 
-| 版本 | 日期 | 定位 | Orchestrator | 质量门禁 |
-|:---:|:---:|:---:|:---:|:---:|
-| 通用框架 1.0 | 2026-03-14 | 通用 | Python 类 | ✅ |
-| V1 蓝图 | 2026-04-18 | 投资场景 | Python 类（设计） | ✅（设计） |
-| V3 协议 | 2026-04-15 | 投资场景 | Coordinator 类 | ✅（设计） |
-| **0.1.0** | **2026-04-24** | **投资场景** | **Agent 指南** | **❌** |
+| 版本 | 日期 | 定位 | Orchestrator | 质量门禁 | 收敛检测 | 渐进交付 | 检查点 |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Deep Dive V3.0** | **2026-04-11** | **通用平台** | **PipelineEngine 类** | **✅ 多维度** | **✅ 边际收益** | **✅ 分层** | **✅ 每阶段** |
+| V1 蓝图 | 2026-04-18 | 投资场景 | Python 类（设计） | ✅（设计） | ⚠️（设计） | ❌ | ⚠️（设计） |
+| V3 协议 | 2026-04-15 | 投资场景 | Coordinator 类 | ✅（设计） | ⚠️（设计） | ⚠️（设计） | ⚠️（设计） |
+| **DeepFlow V4.0** | **2026-04-24** | **投资场景** | **Agent 指南** | **❌** | **❌** | **❌** | **❌** |
 
 ---
 
-*本文档客观记录 DeepFlow 的架构演进，承认当前实现与蓝图的偏差，并为未来对齐提供路线图。*
+*本文档客观记录 DeepFlow 的架构演进：以 Deep Dive V3.0 为蓝图基准，承认当前 V4.0 实现与蓝图的偏差，并为未来对齐提供路线图。*
