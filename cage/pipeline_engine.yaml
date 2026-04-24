@@ -1,0 +1,156 @@
+module: "pipeline_engine"
+version: "1.1"
+complexity: "complex"
+
+interface:
+  "__init__": "domain: str, session_id: str, config: Optional[Dict] = None, spawn_fn: Optional[callable] = None -> None"
+  "run": "() -> Dict[str, Any]"
+  "run_stage": "stage_id: str -> StageResult"
+  "spawn_agent": "stage: PipelineStage -> str"
+  "collect_results": "stage_ids: List[str] -> List[StageResult]"
+  "check_convergence": "() -> Tuple[bool, str]"
+  "checkpoint": "() -> Path"
+  "resume": "checkpoint_path: Path -> PipelineState"
+  "reset": "() -> None"
+  "_run_pipeline": "() -> PipelineResult"
+  "_run_iteration_stages": "stages: List[PipelineStage], iteration: int -> bool"
+  "_should_skip_stage_in_iteration": "stage: PipelineStage, iteration: int -> bool"
+
+behavior:
+  __init__:
+    input:
+      domain: "str，领域名称"
+      session_id: "str，会话ID"
+      config: "Optional[Dict]，可选配置覆盖"
+    output:
+      type: "None"
+    success: "初始化PipelineEngine，加载配置，创建blackboard"
+    failure: "配置加载失败→ValueError"
+  run:
+    input: {}
+    output:
+      type: "Dict[str, Any]"
+    success: "执行完整管线，返回结构化 JSON（含 status、scores、iterations、stages_executed、agent_results）"
+    failure: "执行失败→返回包含error字段的字典"
+  run_stage:
+    input:
+      stage_id: "str，阶段ID"
+    output:
+      type: "StageResult"
+    success: "执行单个阶段，返回结果"
+    failure: "阶段不存在→ValueError"
+  spawn_agent:
+    input:
+      stage: "PipelineStage，阶段配置（包含agent, task, timeout等）"
+    output:
+      type: "str"
+    success: "使用sessions_spawn真实创建Agent，返回Agent ID。Agent完成任务后返回结果"
+    failure: "无可用的真实 spawn 环境→抛出 RuntimeError（禁止静默失败）"
+  collect_results:
+    input:
+      stage_ids: "List[str]，阶段ID列表"
+    output:
+      type: "List[StageResult]"
+    success: "收集所有阶段结果（支持并行阶段）"
+    failure: "不会抛异常，失败阶段返回错误结果"
+  check_convergence:
+    input: {}
+    output:
+      type: "Tuple[bool, str]"
+    success: "返回(是否收敛, 原因)"
+    failure: "不会抛异常"
+  checkpoint:
+    input: {}
+    output:
+      type: "Path"
+    success: "保存检查点到文件，返回路径"
+    failure: "IO错误→返回空Path"
+  resume:
+    input:
+      checkpoint_path: "Path，检查点文件路径"
+    output:
+      type: "PipelineState"
+    success: "从检查点恢复，返回恢复后的状态"
+    failure: "检查点无效→返回INIT状态"
+  reset:
+    input: {}
+    output:
+      type: "None"
+    success: "重置PipelineEngine状态"
+    failure: "不会抛异常"
+  _run_pipeline:
+    input: {}
+    output:
+      type: "PipelineResult"
+      constraints:
+        - "iterations >= min_iterations"
+        - "iterations <= max_iterations"
+    success: "执行至少 min_iterations 轮迭代，支持 audit→fix→verify 循环收敛"
+    failure: "stage 失败 → 返回 FAILED 状态"
+  _run_iteration_stages:
+    input:
+      stages: "List[PipelineStage]，所有 stages"
+      iteration: "int，当前迭代轮次（0-based）"
+    output:
+      type: "bool"
+    success: "执行未跳过的 stages，全部成功返回 True"
+    failure: "任一 stage 失败返回 False"
+  _should_skip_stage_in_iteration:
+    input:
+      stage: "PipelineStage"
+      iteration: "int"
+    output:
+      type: "bool"
+    success: "iteration=0 返回 False；iteration>0 对 data_manager/planner/researcher 返回 True"
+    failure: "不会抛异常"
+
+boundaries:
+  - "Agent spawn 无可用环境 → 抛 RuntimeError，由 ResilienceManager 重试/熔断处理"
+  - "Agent spawn 临时失败 → ResilienceManager 分类错误，可恢复则重试"
+  - "HITL阶段 → 状态变为WAITING_HITL，暂停管线"
+  - "收敛检测通过 → 状态变为CONVERGED，提前结束（必须≥2轮或score≥target_score）"
+  - "达到max_iterations → 状态变为MAX_ITERATIONS，结束"
+  - "检查点保存失败 → 记录warning，继续执行"
+  - "depth-2 Agent尝试spawn → 应失败（OpenClaw限制）"
+  - "Worker 输出必须写入 Blackboard 文件，禁止跳过数据通道"
+  # DataManager Agent 集成边界（2026-04-22 更新）
+  - "PipelineEngine 必须通过 spawn_agent 创建 DataManager Agent，不得本地执行"
+  - "DataManager Agent 作为第一个 stage 执行，完成后才进入后续 stages"
+  - "DataManager Agent 完成后必须写入 data_manager_completed.json"
+  - "如果 data_manager_completed.json 不存在，PipelineEngine 应等待或报错"
+  # iterative 管线执行约束
+  - "必须从领域配置文件（domains/{domain}.yaml）读取 agents 列表，按顺序执行"
+  - "auditor 必须并行执行（parallel=all），不得串行"
+  - "fixer 必须在 auditor 完成后执行，传入审计意见"
+  - "verifier 必须在 fixer 完成后执行"
+  - "收敛检测必须使用领域配置的 target_score 和 convergence_threshold"
+  - "最低迭代轮数：2 轮（除非分数 >= 0.95 且 verifier 100% 通过）"
+  - "summarizer 必须在收敛后才能执行"
+  # 审计与验证增强规则（2026-04-19）
+  - "审计 Agent 必须支持主动验证（web_fetch/exec），不得仅凭 LLM 记忆判断"
+  - "审计必须分为 3 视角：factual（事实）、upside_risk（挑战保守）、downside_risk（挑战乐观）"
+  - "财务预测必须包含估值模块（PE/PB/DCF/综合目标价）"
+  - "summarizer 必须输出三情景（乐观/基准/悲观）+ 分歧分析"
+  - "所有引用数据必须标注来源，禁止使用 LLM 训练数据中的数字"
+  - "数据层（DataManager）采集的数据为事实依据，Agent 可独立验证"
+  # Orchestrator 执行顺序约束（2026-04-19 新增）
+  - "Orchestrator 必须在 spawn Worker 前执行 DataManager.bootstrap()"
+  - "Orchestrator 必须执行统一搜索（Gemini CLI），结果写入 Blackboard"
+  - "所有 Worker Agent 必须被告知数据请求机制"
+  - "动态数据采集规则使用 gemini_cli provider，禁止使用 web_fetch 爬财经网站"
+  - "审计 Agent 可独立搜索验证数据"
+  # Phase 1 数据与搜索层修复（2026-04-19）
+  - "Orchestrator 必须在 spawn Worker 前执行统一搜索（Gemini CLI → DuckDuckGo → Tushare → web_fetch）"
+  - "搜索结果必须写入 Blackboard/data/05_supplement/ 目录"
+  - "审计/研究 Agent 可独立搜索验证数据（exec 权限）"
+  - "禁止使用 web_fetch 爬取财经网站（验证码/反爬问题）"
+
+dependencies:
+  - "pipeline_engine.PipelineEngine"
+  - "pipeline_engine.PipelineResult"
+  - "pipeline_engine.AgentPendingException"
+  # DataManager 集成依赖
+  - "data_manager.DataEvolutionLoop"
+  - "data_manager.ConfigDrivenCollector"
+
+notes: "PipelineEngine是Agent Orchestrator（depth-1）。关键要求：1)spawn_agent必须真实调用sessions_spawn 2)AgentPendingException正确处理 3)ResilienceManager集成重试/熔断 4)DataManager作为Agent spawn（不再本地执行）5)必须按领域配置的agents列表执行管线 6)auditor必须3视角并行 7)收敛检测必须使用配置的target_score 8)审计必须支持主动验证 9)财务必须包含估值模块 10)summarizer必须输出三情景"

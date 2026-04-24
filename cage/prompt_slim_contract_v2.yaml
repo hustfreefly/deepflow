@@ -1,0 +1,65 @@
+# Prompt 瘦身契约 V2.0（契约笼子方法）
+# 日期: 2026-04-19
+# 目标: pipeline_engine_orchestrator.md 瘦身
+
+## interface
+  input:
+    path: prompts/pipeline_engine_orchestrator.md
+    size_current: 18048
+    backup: prompts/pipeline_engine_orchestrator.md.bak.20260419
+  output:
+    path: prompts/pipeline_engine_orchestrator.md
+    size_target: 15000-15500
+    compression_ratio: 14-17%
+
+## behavior
+
+### 必须保留的核心内容（任何删减=失败）
+  core_instructions:
+    - 身份定义与职责边界
+    - 管线执行强制顺序（STEP 1/2/3）
+    - 10步管线流程列表
+    - 6条关键执行规则
+    - sessions_spawn 完整调用示例（至少2个不同角色的示例）
+    - Label 强制规则和命名规则表
+    - Fallback 模型策略完整代码块
+    - 搜索工具优先级代码示例
+    - 收敛检测条件（≥2轮、target_score 0.92）
+    - Blackboard 数据流契约
+    - 输出 JSON Schema
+    - 禁止清单（mock/跳过/硬编码）
+
+### 可删除的重复内容
+  removable:
+    - "数据采集层"章节中与 STEP 1 完全重复的代码
+    - "搜索工具优先级"第二处文字描述（保留代码示例）
+    - Worker Agent 映射表（独立章节，与管线列表重复）
+    - 身份声明和必复述的重复段落
+
+### 可精简但不删除的内容
+  compressible:
+    - 代码注释：删除逐行中文注释，保留关键逻辑说明
+    - docstring：保留单行说明，删除冗长多行
+    - 错误示例：保留核心禁止项，删除详细代码示例
+
+## boundaries
+  max_size: 15500
+  min_size: 14500
+  
+  # 禁止操作
+  forbidden:
+    - 删除任何核心指令或契约约束
+    - 修改收敛检测的数字（0.92, 2轮）
+    - 删除 JSON Schema 的任何字段
+    - 删除 Fallback 代码块改用注释
+    - 删除迭代间数据更新 API
+
+## verification
+  checks:
+    - size_check: "wc -c 在 14500-15500 之间"
+    - keyword_check: "grep 检查所有 core_instructions 关键词存在"
+    - completeness_check: "sessions_spawn 示例至少2个完整"
+    - no_duplication: "重复章节已删除"
+
+## rollback_plan
+  if_failed: "cp pipeline_engine_orchestrator.md.bak.20260419 pipeline_engine_orchestrator.md"

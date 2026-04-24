@@ -1,0 +1,37 @@
+module: "protocols"
+version: "1.0"
+complexity: "simple"
+
+interface:
+  "scale_01_to_100": "value: float -> float"
+  "scale_100_to_01": "value: float -> float"
+
+behavior:
+  scale_01_to_100:
+    input:
+      value: "float，0-1范围的分数"
+    output:
+      type: "float"
+      constraints:
+        - "返回值在0-100范围"
+        - "value*100.0的精确计算"
+    success: "返回0-100范围的对应值"
+    failure: "输入越界时仍计算，不抛异常（调用方负责校验）"
+  scale_100_to_01:
+    input:
+      value: "float，0-100范围的分数"
+    output:
+      type: "float"
+      constraints:
+        - "返回值在0-1范围"
+        - "value/100.0的精确计算"
+    success: "返回0-1范围的对应值"
+    failure: "输入越界时仍计算，不抛异常（调用方负责校验）"
+
+boundaries:
+  - "输入值 < 0 或 > 1（scale_01_to_100）→ 仍计算，结果可能越界"
+  - "输入值 < 0 或 > 100（scale_100_to_01）→ 仍计算，结果可能越界"
+  - "浮点精度问题 → 使用round(x, 2)处理展示"
+
+dependencies: []
+notes: "轻量级协议层，仅保留尺度转换工具。Interface Protocol已移除（V1.0用类型注解替代）"

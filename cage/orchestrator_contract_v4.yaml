@@ -1,0 +1,143 @@
+# V4.0 契约笼子 - Orchestrator Agent（重写版）
+# 阶段1: 契约定义
+
+module: orchestrator_agent_v4
+version: "4.0-rewrite"
+phase: 1
+date: "2026-04-23"
+
+## 核心设计
+
+orchestrator_agent.py 是 Orchestrator Agent 的**执行脚本 + 指南**。
+
+Orchestrator Agent 的工作方式：
+1. 先执行 Python 代码（初始化、生成 Tasks）
+2. 保存 Tasks 到文件
+3. 然后使用 sessions_spawn 工具调用创建 Workers
+4. 使用 sessions_yield 等待完成
+
+## 执行流程契约
+
+execution_flow:
+  step_1_init:
+    type: python_execution
+    description: "执行 Python 初始化代码"
+    actions:
+      - 生成 session_id
+      - 创建 blackboard 目录
+      - 调用 Task Builder 生成所有 Worker Tasks
+      - 保存 Tasks 到 blackboard/{session_id}/tasks.json
+    
+  step_2_data_manager:
+    type: tool_call
+    tool: sessions_spawn
+    description: "读取 DataManager Task，创建 Worker"
+    input_source: "tasks.json[data_manager]"
+    timeout: 300
+    
+  step_3_planner:
+    type: tool_call
+    tool: sessions_spawn
+    description: "读取 Planner Task，创建 Worker"
+    input_source: "tasks.json[planner]"
+    timeout: 180
+    
+  step_4_researchers:
+    type: tool_call
+    tool: sessions_spawn
+    parallel: true
+    workers: [finance, tech, market, macro_chain, management, sentiment]
+    input_source: "tasks.json[researchers]"
+    timeout: 300
+    
+  step_5_auditors:
+    type: tool_call
+    tool: sessions_spawn
+    parallel: true
+    workers: [factual, upside, downside]
+    input_source: "tasks.json[auditors]"
+    timeout: 240
+    
+  step_6_fixer:
+    type: tool_call
+    tool: sessions_spawn
+    optional: true
+    input_source: "tasks.json[fixer]"
+    timeout: 180
+    
+  step_7_summarizer:
+    type: tool_call
+    tool: sessions_spawn
+    input_source: "tasks.json[summarizer]"
+    timeout: 240
+
+## 关键契约
+
+key_contracts:
+  # 1. Python 执行和工具调用的分离
+  python_vs_tools:
+    python_can: ["计算", "文件读写", "模块导入", "数据处理"]
+    python_cannot: ["spawn workers"]
+    tools_can: ["spawn workers", "yield wait"]
+    separation: "Python 只生成 Tasks，工具调用负责 spawn"
+    
+  # 2. Task 传递方式
+  task_transfer:
+    method: "文件传递"
+    path: "blackboard/{session_id}/tasks.json"
+    format: "JSON，key 为 worker 名称"
+    
+  # 3. Orchestrator Agent 会话连续性
+  session_continuity:
+    principle: "同一个 Agent 会话中先执行 Python，再使用工具"
+    python_state: "不持久化（执行完即释放）"
+    file_state: "持久化（用于传递 Tasks）"
+
+## 输出契约
+
+output:
+  files:
+    - path: "blackboard/{session_id}/tasks.json"
+      description: "所有 Worker Tasks"
+      required: true
+    - path: "blackboard/{session_id}/execution_plan.json"
+      description: "执行计划"
+      required: true
+    - path: "blackboard/{session_id}/final_report.md"
+      description: "最终报告"
+      required: true
+
+## 错误处理契约
+
+error_handling:
+  python_execution_error:
+    action: "记录错误，尝试降级方案（手动构建 Tasks）"
+    must_not: "阻断整个流程"
+    
+  worker_spawn_failure:
+    action: "记录失败，继续执行其他 Workers"
+    must_not: "阻塞管线"
+    
+  task_file_missing:
+    action: "报错终止，因为无法获取 Task 内容"
+    severity: "critical"
+
+## 验证脚本接口
+
+verify:
+  script: "cage/check_orchestrator_v4.py"
+  checks:
+    - python_syntax              # Python 语法正确
+    - task_generation            # 能生成 Tasks
+    - task_file_format           # tasks.json 格式正确
+    - execution_plan_valid       # 执行计划有效
+    - tool_call_instructions     # 包含工具调用说明
+
+## 完成标准
+
+completion_criteria:
+  - Python 代码语法正确
+  - 能生成完整的 Tasks
+  - Tasks 保存到文件
+  - 包含明确的工具调用步骤说明
+  - 错误处理覆盖主要场景

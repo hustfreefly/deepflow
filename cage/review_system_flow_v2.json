@@ -1,0 +1,150 @@
+{
+  "review_type": "system_flow_v2",
+  "timestamp": "2026-04-23T19:00:00+08:00",
+  "execution_simulation": {
+    "phases": [
+      {
+        "phase": 1,
+        "name": "Master Agent / Initialization",
+        "estimated_time_seconds": 5,
+        "failure_modes": [
+          "Python syntax errors in orchestrator_agent.py (e.g., full-width characters)",
+          "Missing core modules (task_builder, data_manager)",
+          "Permission denied on blackboard directory creation"
+        ],
+        "mitigation": "Syntax validation via check_orchestrator_v4.py; robust error handling in task_builder."
+      },
+      {
+        "phase": 2,
+        "name": "Orchestrator Agent Startup",
+        "estimated_time_seconds": 10,
+        "failure_modes": [
+          "Session ID extraction failure from tasks.json or environment",
+          "Malformed tasks.json preventing worker dispatch"
+        ],
+        "mitigation": "Multiple fallback methods for session_id retrieval; JSON schema validation."
+      },
+      {
+        "phase": 3,
+        "name": "DataManager Worker",
+        "estimated_time_seconds": 300,
+        "failure_modes": [
+          "External dependency failure (Tushare API rate limit, Gemini CLI unreachable)",
+          "Network timeout during bootstrap or supplement search",
+          "Data format mismatch in key_metrics.json"
+        ],
+        "mitigation": "Dependency checks at startup; fallback to DuckDuckGo if Gemini fails; minimal key_metrics generation."
+      },
+      {
+        "phase": 4,
+        "name": "Planner & Researchers (Parallel)",
+        "estimated_time_seconds": 300,
+        "failure_modes": [
+          "Worker timeout due to complex analysis requirements",
+          "Insufficient context passed to researchers (missing key_metrics)",
+          "Model quota exhaustion (Circuit Breaker trigger)"
+        ],
+        "mitigation": "Three-level model fallback chain (Primary -> Fallback -> Emergency); Blackboard-based context sharing."
+      },
+      {
+        "phase": 5,
+        "name": "Auditors, Fixer & Summarizer",
+        "estimated_time_seconds": 240,
+        "failure_modes": [
+          "Auditor detects critical factual errors requiring re-research",
+          "Fixer unable to resolve contradictions between researchers",
+          "Summarizer fails to produce final_report.md"
+        ],
+        "mitigation": "Optional Fixer phase; Summarizer designed to handle partial inputs with 'data gap' annotations."
+      }
+    ],
+    "total_estimated_time_minutes": 15
+  },
+  "risk_assessment": {
+    "high_risks": [
+      {
+        "risk": "DataManager Bootstrap Failure",
+        "probability": "medium",
+        "impact": "Subsequent Workers lack foundational financial data, leading to generic reports.",
+        "mitigation": "Unified search fallback and minimal key_metrics generation ensure pipeline continuity.",
+        "remaining_exposure": "Report quality will be significantly lower without real-time market data."
+      },
+      {
+        "risk": "Model Chain Exhaustion (Circuit Breaker)",
+        "probability": "low",
+        "impact": "Entire pipeline terminates if all three models (qwen3.5-plus, kimi-k2.5, kimi-code) fail.",
+        "mitigation": "Async retry logic with exponential backoff implemented in ModelChain class.",
+        "remaining_exposure": "In case of widespread provider outage, the system cannot recover."
+      }
+    ],
+    "medium_risks": [
+      {
+        "risk": "Researcher Timeout",
+        "probability": "medium",
+        "impact": "Auditors receive incomplete inputs, potentially missing specific angles (e.g., Tech or Macro).",
+        "mitigation": "Parallel execution allows remaining researchers to finish; Auditors can flag missing sections.",
+        "remaining_exposure": "Unbalanced report depth across different research dimensions."
+      }
+    ],
+    "low_risks": [
+      {
+        "risk": "Orchestrator Spawn Failure",
+        "probability": "low",
+        "impact": "Workers are not triggered.",
+        "mitigation": "Master Agent validates task generation before handing off to Orchestrator.",
+        "remaining_exposure": "Minimal; initialization checks catch most spawn-related issues."
+      }
+    ]
+  },
+  "data_flow_analysis": {
+    "reliable_paths": [
+      "Master Agent -> tasks.json (Local file I/O)",
+      "Researchers -> Auditor Inputs (Blackboard stages/ directory)"
+    ],
+    "fragile_paths": [
+      "DataManager -> key_metrics.json (Dependent on external APIs)",
+      "Planner -> Researcher Focus (Requires accurate parsing of planner_output.json)"
+    ],
+    "single_points_of_failure": [
+      "key_metrics.json: If this file is malformed, Planner and Researchers may crash or produce irrelevant content.",
+      "session_id: Must be consistent across all phases for Blackboard path resolution."
+    ]
+  },
+  "expected_outcomes": {
+    "best_case": {
+      "probability": "30%",
+      "quality": "high",
+      "description": "All data sources respond, convergence achieved in 2-3 iterations, producing a comprehensive investment report with real-time metrics."
+    },
+    "typical_case": {
+      "probability": "50%",
+      "quality": "medium",
+      "description": "Some external searches fail, but fallback mechanisms provide enough context. Report is solid but may lack some niche competitor insights."
+    },
+    "worst_case": {
+      "probability": "20%",
+      "quality": "low_or_none",
+      "description": "API failures lead to empty key_metrics. The system produces a template-based report with significant data gaps marked as 'Unknown'."
+    }
+  },
+  "improvement_from_v1": {
+    "reliability_score_before": 0.5,
+    "reliability_score_after": 0.85,
+    "key_improvements": [
+      "Refactored root directory structure for better module isolation.",
+      "Implemented three-level model fallback chain to prevent quota-related crashes.",
+      "Enhanced DataManager with unified search fallbacks.",
+      "Standardized prompt loading with multi-layer protection (Standard -> Backup -> Default)."
+    ],
+    "remaining_gaps": [
+      "Dependency on external network connectivity remains a hard constraint.",
+      "Complex convergence logic still requires manual tuning of score thresholds."
+    ]
+  },
+  "overall_assessment": "DeepFlow V4.0 demonstrates a mature architecture with robust fault tolerance. The separation of concerns between Master, Orchestrator, and Workers, combined with the Blackboard pattern, ensures that single-point failures do not collapse the entire pipeline. The recent fixes to template variables and syntax have stabilized the initialization phase.",
+  "recommendations": [
+    "Implement a 'dry-run' mode to validate data source connectivity before starting the full pipeline.",
+    "Add a caching layer for key_metrics to reduce redundant API calls during re-runs.",
+    "Enhance the Auditor's ability to trigger targeted re-research for specific failed sections."
+  ]
+}

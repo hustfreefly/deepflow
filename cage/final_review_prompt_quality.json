@@ -1,0 +1,93 @@
+{
+  "review_type": "final_prompt_quality",
+  "timestamp": "2026-04-23T19:16:00+08:00",
+  "template_variables": {
+    "consistent_naming": false,
+    "variables_used": ["code", "name", "session_id", "iteration", "task_description", "AUDIT_PERSPECTIVE", "industry"],
+    "inconsistent_files": [
+      {
+        "file": "researcher_macro_chain.md",
+        "issue": "使用了额外变量 {{industry}}（第1行角色定位），其他 researcher 文件未使用此变量"
+      },
+      {
+        "file": "summarizer.md",
+        "issue": "输出 JSON 结构存在重复定义（第275-350行和第352-430行有两个不同的 key_findings 和完整 JSON 结构），导致格式混乱"
+      },
+      {
+        "file": "fixer.md",
+        "issue": "硬编码绝对路径 '/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/'，应使用相对路径或变量化路径"
+      }
+    ]
+  },
+  "prompt_quality": {
+    "planner": {
+      "score": 9,
+      "issues": [
+        "✅ 角色定义清晰（第3-11行）",
+        "✅ 输入/输出规范明确（第13-110行 JSON 结构）",
+        "✅ 强制检查清单完整（第132-150行）",
+        "⚠️ 建议：data_requests 字段在输出 JSON 中定义为空数组但未说明填充逻辑"
+      ]
+    },
+    "auditor": {
+      "score": 9,
+      "issues": [
+        "✅ 角色定义清晰（第3-11行）",
+        "✅ 审计视角变量 {{AUDIT_PERSPECTIVE}} 正确使用（第11行、第157行）",
+        "✅ 输入/输出规范明确（第13-95行 JSON 结构）",
+        "✅ 强制检查清单完整（第117-135行）",
+        "✅ 搜索工具优先级明确（第23-42行）"
+      ]
+    },
+    "fixer": {
+      "score": 7,
+      "issues": [
+        "✅ 角色定义清晰（第3-5行）",
+        "✅ 修正流程步骤明确（Step 1-4）",
+        "❌ 硬编码绝对路径（第18-22行、第88行），不利于跨环境部署",
+        "❌ 缺少强制检查清单章节",
+        "❌ 输出 JSON 结构示例不完整（第65-85行），缺少 session_id、timestamp 等标准字段",
+        "❌ 缺少 quality_self_assessment 字段定义",
+        "⚠️ 禁止行为列表较短（仅4项），不如其他 prompt 完善"
+      ]
+    },
+    "summarizer": {
+      "score": 6,
+      "issues": [
+        "✅ 角色定义清晰（第3-5行）",
+        "✅ '论点驱动'结构创新且清晰（第28-65行 Step 1-4）",
+        "❌ 严重问题：输出 JSON 结构重复定义（第275-350行 和 第352-430行有两套不同的 JSON 示例）",
+        "❌ 第352行开始的第二个 JSON 结构与第275行的结构不一致，会导致 Agent 困惑",
+        "❌ Markdown 报告模板（第433-480行）与 JSON 输出契约关系不清晰",
+        "⚠️ 文件过长（约500行），信息密度不均，关键契约被重复内容稀释",
+        "⚠️ 缺少统一的强制检查清单（虽有质量标准但分散在多处）"
+      ]
+    },
+    "researchers": {
+      "score": 8,
+      "issues": [
+        "✅ 所有 6 个 researcher 文件结构高度一致（角色定义、数据读取、搜索工具、Blackboard规则、强制检查、禁止行为）",
+        "✅ 每个 researcher 都有明确的输出 JSON 结构示例",
+        "✅ 统一使用 {{code}}、{{name}}、{{session_id}}、{{iteration}}、{{task_description}} 变量",
+        "⚠️ researcher_macro_chain.md 额外使用 {{industry}} 变量（第1行），需在 Orchestrator 调用时确保传入",
+        "⚠️ 所有 researcher 的 quality_self_assessment 默认值相同（87.7），建议根据实际分析深度动态计算",
+        "⚠️ researcher_finance.md 结构与其他 5 个 researcher 略有不同（更简洁，缺少部分标准章节如'强制执行规则'的详细检查清单）"
+      ]
+    }
+  },
+  "overall_prompt_score": 0.78,
+  "is_ready_to_run": false,
+  "confidence": "high",
+  "recommendations": [
+    "【P0 - 必须修复】summarizer.md：删除重复的 JSON 结构定义（第352-430行），保留一套完整的输出契约",
+    "【P0 - 必须修复】fixer.md：将硬编码绝对路径改为相对路径或变量化路径，例如使用 blackboard_base_path 变量",
+    "【P0 - 必须修复】fixer.md：补充完整的强制检查清单章节（执行前/执行后验证）",
+    "【P0 - 必须修复】fixer.md：补全输出 JSON 结构，添加 session_id、timestamp、quality_self_assessment 等标准字段",
+    "【P1 - 强烈建议】summarizer.md：明确 JSON 输出与 Markdown 报告的关系（是同时输出两种格式，还是只输出 JSON？）",
+    "【P1 - 强烈建议】所有 researcher：统一 quality_self_assessment 的计算逻辑，避免硬编码固定值 87.7",
+    "【P2 - 建议优化】researcher_macro_chain.md：在 Orchestrator 层确保 {{industry}} 变量的正确传递，或在 prompt 中添加 fallback 逻辑",
+    "【P2 - 建议优化】planner.md：补充 data_requests 字段的填充逻辑说明（何时为空、何时需要请求数据）",
+    "【P2 - 建议优化】所有 prompt：在'禁止行为'章节增加'不得臆造不存在的数据'这一条",
+    "【文档改进】建议为所有 prompt 添加版本号（如 v1.0），便于追踪变更历史"
+  ]
+}

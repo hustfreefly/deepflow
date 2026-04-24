@@ -1,0 +1,33 @@
+# 契约笼子：Git清理与初始化
+# 方法：按建议顺序执行，每步验证
+
+contract:
+  name: "Git Cleanup & Initialize"
+  version: "1.0"
+  date: "2026-04-23"
+  
+phases:
+  - id: 1
+    name: "敏感数据审查"
+    action: "检查并清理敏感数据"
+    verification: "确认无敏感数据泄露"
+    
+  - id: 2
+    name: "缓存清理"
+    action: "删除 __pycache__ / .DS_Store / .pytest_cache"
+    verification: "find 命令确认无残留"
+    
+  - id: 3
+    name: "执行清理脚本"
+    action: "bash cleanup_plan.sh --execute"
+    verification: "确认文件已删除"
+    
+  - id: 4
+    name: "创建Git必备文件"
+    action: "创建 .gitignore / README.md / CHANGELOG.md"
+    verification: "文件存在且内容正确"
+    
+  - id: 5
+    name: "Git初始化"
+    action: "git init / add / commit"
+    verification: "git status 确认干净"

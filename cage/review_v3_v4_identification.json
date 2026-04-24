@@ -1,0 +1,1314 @@
+{
+  "review_type": "v3_v4_identification",
+  "timestamp": "2026-04-23T16:20:13.288653",
+  "files": [
+    {
+      "filename": ".safe_agent_launcher.py",
+      "v3_indicators": [],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v4_current",
+      "action": "keep",
+      "confidence": 0.85,
+      "notes": ""
+    },
+    {
+      "filename": "add_one_plus_one.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "advanced_hybrid_search.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "coordinator.py",
+      "v3_indicators": [
+        "PipelineEngine",
+        "Coordinator",
+        "HITLState"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": true,
+      "duplicate_in_core": false,
+      "verdict": "v3_but_used",
+      "action": "migrate",
+      "confidence": 0.8,
+      "notes": "被多个run_*.py文件导入"
+    },
+    {
+      "filename": "coordinator_optimized.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "dedup_engine.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "deep_dive_monitor.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "deepdive_self_analysis.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "deepdive_self_improve.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "mixed",
+      "action": "review",
+      "confidence": 0.7,
+      "notes": ""
+    },
+    {
+      "filename": "deepdive_self_improvement.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "dinglong_financial_model.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "entry.py",
+      "v3_indicators": [],
+      "v4_indicators": [
+        "sessions_spawn",
+        "blackboard",
+        "PipelineOrchestrator",
+        "PipelineConfig",
+        "DeepDiveResult"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v4_current",
+      "action": "keep",
+      "confidence": 0.85,
+      "notes": ""
+    },
+    {
+      "filename": "fibonacci.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "file_manager.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "get_changchuan_finance.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "huafeng_analysis.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "huafeng_analysis_v2.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "jingyi_688652_finance_analysis.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "launch_smart_summarizer_analysis.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "multi_scenario_test.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "performance_analysis_test.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "pipeline_engine.py",
+      "v3_indicators": [
+        "PipelineEngine",
+        "QualityGate",
+        "ResilienceManager",
+        "WAITING_AGENT"
+      ],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": true,
+      "duplicate_in_core": false,
+      "verdict": "mixed",
+      "action": "review",
+      "confidence": 0.7,
+      "notes": "被coordinator.py导入"
+    },
+    {
+      "filename": "research_changchuan.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "run_arch_stability_analysis.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "run_deep_dive_analysis.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "run_deep_dive_self_analysis.py",
+      "v3_indicators": [],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v4_current",
+      "action": "keep",
+      "confidence": 0.85,
+      "notes": ""
+    },
+    {
+      "filename": "run_deep_dive_test.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "likely_v3",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "run_deep_research_analysis.py",
+      "v3_indicators": [],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v4_current",
+      "action": "keep",
+      "confidence": 0.85,
+      "notes": ""
+    },
+    {
+      "filename": "run_deep_research_analysis_v2.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "run_deep_research_deep_dive.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "run_deep_research_final_analysis.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "likely_v3",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "run_deep_research_stress_test.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "run_l2_test.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "mixed",
+      "action": "review",
+      "confidence": 0.7,
+      "notes": ""
+    },
+    {
+      "filename": "run_multi_agent_review.py",
+      "v3_indicators": [],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v4_current",
+      "action": "keep",
+      "confidence": 0.85,
+      "notes": ""
+    },
+    {
+      "filename": "run_p0_fix.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "run_p0p1_review.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "run_p1_optimization_analysis.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "likely_v3",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "run_smart_summarizer_analysis.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "likely_v3",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "run_smart_summarizer_correct.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "run_smart_summarizer_direct.py",
+      "v3_indicators": [],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v4_current",
+      "action": "keep",
+      "confidence": 0.85,
+      "notes": ""
+    },
+    {
+      "filename": "run_v24_self_eval.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "run_v25_audit.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "likely_v3",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "run_v25_expert_review.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "search_postprocess.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "send_deep_research_report.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "likely_v3",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "send_p0_reports.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "send_p0_reports_v2.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "simple_add.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "smart_code_extraction.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "smartest_code_generation.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "mixed",
+      "action": "review",
+      "confidence": 0.7,
+      "notes": ""
+    },
+    {
+      "filename": "sqlite_memory_store.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "stock_monitor_fixed.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "string_processor.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "test_agents_comparison.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_auditor_minimal.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_auditor_output.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_auditor_realistic.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_coordinator_fix.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_coordinator_simple.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_deep_dive.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_deep_dive_async.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [
+        "DeepDiveResult"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "mixed",
+      "action": "review",
+      "confidence": 0.7,
+      "notes": ""
+    },
+    {
+      "filename": "test_deep_dive_comprehensive.py",
+      "v3_indicators": [],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v4_current",
+      "action": "keep",
+      "confidence": 0.85,
+      "notes": ""
+    },
+    {
+      "filename": "test_deep_dive_direct.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_deep_dive_flow.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_deep_dive_p0.py",
+      "v3_indicators": [
+        "Coordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_deep_dive_quick.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "mixed",
+      "action": "review",
+      "confidence": 0.7,
+      "notes": ""
+    },
+    {
+      "filename": "test_deep_dive_realistic.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_deep_dive_simple.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_deep_dive_ultra_simple.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_deep_dive_v22.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_deepdive_real_task.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_domain_config_fix.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_filter_debug.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_fixes_validation.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_full_flow.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_full_flow_debug.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_l2_cli.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [
+        "sessions_spawn"
+      ],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "mixed",
+      "action": "review",
+      "confidence": 0.7,
+      "notes": ""
+    },
+    {
+      "filename": "test_l2_single.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_lru_cache.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_p0_fix.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_p0_p1_complete.py",
+      "v3_indicators": [
+        "Coordinator",
+        "resume()",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_p0_replay.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_p0_simple.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_p1_checkpoint.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_parallel_critics.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_phase3_mock.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_phase3_simple.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_phases_diagnostic.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_planner_debug.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_real_no_mock.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_researcher_real.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_rollback_simple.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_rollback_validation.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_spawn.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_subprocess_debug.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "test_file",
+      "action": "review",
+      "confidence": 0.6,
+      "notes": ""
+    },
+    {
+      "filename": "test_subprocess_quick.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "test_v2_workflow.py",
+      "v3_indicators": [
+        "Coordinator",
+        "DeepDiveCoordinator"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "thread_safe_lru_cache.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "unified_memory_server.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    },
+    {
+      "filename": "v3_contract_validator.py",
+      "v3_indicators": [
+        "PipelineEngine",
+        "Coordinator",
+        "QualityGate",
+        "ResilienceManager"
+      ],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "v3_legacy",
+      "action": "delete",
+      "confidence": 0.9,
+      "notes": ""
+    },
+    {
+      "filename": "verify_p1_optimizations.py",
+      "v3_indicators": [],
+      "v4_indicators": [],
+      "used_by_v4": false,
+      "duplicate_in_core": false,
+      "verdict": "uncertain",
+      "action": "review",
+      "confidence": 0.5,
+      "notes": ""
+    }
+  ],
+  "summary": {
+    "total_files": 101,
+    "v3_legacy": 42,
+    "v4_current": 7,
+    "v3_but_used": 1,
+    "mixed": 7,
+    "test_file": 16,
+    "likely_v3": 6,
+    "uncertain": 22
+  }
+}

@@ -1,0 +1,89 @@
+# V4.0 P0 修复契约笼子
+# 阶段1: 契约定义
+
+module: p0_fix
+version: "4.0-p0"
+date: "2026-04-23"
+
+## P0 问题清单
+
+p0_issues:
+  - id: "P0-1"
+    file: "orchestrator_agent.py"
+    problem: "当前是 Python 类实现，应该是 Agent 指南（文本）"
+    fix: "重写为纯文本指南，供 LLM 读取后使用工具调用 spawn Workers"
+    
+  - id: "P0-2"
+    file: "master_agent.py"
+    problem: "文件不存在"
+    fix: "创建主Agent 初始化脚本，负责生成 Tasks 和 spawn Orchestrator"
+    
+  - id: "P0-3"
+    file: "data_manager_worker.py"
+    problem: "文件不存在"
+    fix: "创建 DataManager Worker 实现，负责 bootstrap + 统一搜索"
+
+## 修复标准
+
+fix_criteria:
+  - orchestrator_agent.py:
+      type: "text_guide"
+      must_contain:
+        - "Orchestrator Agent 身份说明"
+        - "执行步骤（Phase 0-6）"
+        - "sessions_spawn 工具调用示例"
+        - "sessions_yield 等待说明"
+        - "错误处理指引"
+      must_not_contain:
+        - "class OrchestratorV4"
+        - "def __init__"
+        - "Python 类定义"
+        
+  - master_agent.py:
+      type: "python_script"
+      must_execute:
+        - "生成 session_id"
+        - "创建目录"
+        - "调用 Task Builder"
+        - "保存 tasks.json"
+        - "生成 orchestrator_task.txt"
+      output:
+        - "blackboard/{session_id}/tasks.json"
+        - "blackboard/{session_id}/orchestrator_task.txt"
+        
+  - data_manager_worker.py:
+      type: "python_script"
+      must_execute:
+        - "bootstrap_phase(context)"
+        - "统一搜索（行业趋势、竞品、券商预期、风险）"
+        - "保存数据到 blackboard"
+      output:
+        - "blackboard/{session_id}/data/INDEX.json"
+        - "blackboard/{session_id}/data/key_metrics.json"
+        - "blackboard/{session_id}/data/05_supplement/*.json"
+
+## 验证标准
+
+verify:
+  pre_execution:
+    - check_file_exists: "orchestrator_agent.py"
+    - check_file_exists: "master_agent.py"
+    - check_file_exists: "data_manager_worker.py"
+    
+  syntax_check:
+    - python_syntax: "master_agent.py"
+    - python_syntax: "data_manager_worker.py"
+    - text_format: "orchestrator_agent.py"
+    
+  content_check:
+    - orchestrator_contains_tool_calls: true
+    - master_generates_tasks: true
+    - data_manager_has_bootstrap: true
+
+## 完成标准
+
+completion_criteria:
+  - 所有 P0 文件存在
+  - 语法正确
+  - 内容符合契约
+  - 可以通过验证脚本

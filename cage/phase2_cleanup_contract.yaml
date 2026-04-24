@@ -1,0 +1,33 @@
+# 契约笼子：Phase 2 保守清理
+# 方案A：只删除明显过时文件，保留历史价值内容
+
+contract:
+  name: "Phase 2 Conservative Cleanup"
+  version: "1.0"
+  date: "2026-04-23"
+  
+phases:
+  - id: 1
+    name: "删除旧版本文件"
+    action: "删除 orchestrator_agent_v2.py, orchestrator_cage_agent.py, orchestrator_changchuan.py"
+    verification: "确认这些文件不在V4架构中"
+    
+  - id: 2
+    name: "删除临时运行脚本"
+    action: "删除所有 run_*.py 文件（根目录）"
+    verification: "保留 tests/ 目录下的测试代码"
+    
+  - id: 3
+    name: "删除测试输出和状态"
+    action: "删除 output/*.md, state/test_*, test_*.py（根目录）"
+    verification: "确认这些为运行时生成或可重建"
+    
+  - id: 4
+    name: "清理备份文件"
+    action: "删除 prompts/*.bak* 文件"
+    verification: "确认这些是自动生成的备份"
+    
+  - id: 5
+    name: "验证文档准确性"
+    action: "检查 README.md, CHANGELOG.md 内容是否正确"
+    verification: "确保文档与当前代码一致"

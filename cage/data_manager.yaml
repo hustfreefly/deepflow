@@ -1,0 +1,121 @@
+module: "data_manager"
+version: "1.0"
+complexity: "complex"
+
+interface:
+  "__init__": "config_path: str, blackboard: BlackboardManager -> None"
+  "bootstrap": "context: Dict -> Dict[str, Any]"
+  "collect_requests": "agent_outputs: List[Dict] -> List[DataRequest]"
+  "fulfill_requests": "requests: List[DataRequest] -> Dict[str, Any]"
+  "ingest_findings": "agent_outputs: List[Dict] -> Dict[str, Any]"
+  "update_blackboard": "new_data: Dict[str, Any] -> None"
+  "is_data_fresh": "dataset_id: str, max_age_hours: int -> bool"
+  "get_dataset": "dataset_id: str, version: str -> Optional[Dict]"
+  "list_datasets": "domain: Optional[str] -> List[str]"
+
+behavior:
+  __init__:
+    input:
+      config_path: "str，数据源配置 YAML 文件路径"
+      blackboard: "BlackboardManager 实例"
+    output:
+      type: "None"
+    success: "初始化 DataManager，加载配置，注册 Provider"
+    failure: "配置文件不存在/格式错误→ValueError"
+  bootstrap:
+    input:
+      context: "Dict，领域上下文（如 {code, name, industry}）"
+    output:
+      type: "Dict[str, Any]"
+    success: "执行 bootstrap 配置中的所有采集任务，写入 Blackboard/data/v0/"
+    failure: "采集任务全部失败→返回空 Dict 并记录 error"
+  collect_requests:
+    input:
+      agent_outputs: "List[Dict]，Worker Agent 输出列表"
+    output:
+      type: "List[DataRequest]"
+    success: "提取所有 Agent 的 data_requests，去重后返回"
+    failure: "无 data_requests→返回空列表"
+  fulfill_requests:
+    input:
+      requests: "List[DataRequest]，Agent 提出的数据需求"
+    output:
+      type: "Dict[str, Any]"
+    success: "按优先级执行补充采集，返回新数据"
+    failure: "所有请求失败→返回空 Dict"
+  ingest_findings:
+    input:
+      agent_outputs: "List[Dict]，Worker Agent 输出列表"
+    output:
+      type: "Dict[str, Any]"
+    success: "验证并合并 Agent 发现的数据，去重后返回"
+    failure: "无 findings→返回空 Dict"
+  update_blackboard:
+    input:
+      new_data: "Dict[str, Any]，需要写入的新数据"
+    output:
+      type: "None"
+    success: "原子写入 Blackboard/data/vN/，更新 INDEX.json"
+    failure: "IO 错误→记录 error，不部分写入"
+  is_data_fresh:
+    input:
+      dataset_id: "str，数据集 ID"
+      max_age_hours: "int，最大允许年龄（小时）"
+    output:
+      type: "bool"
+    success: "返回数据是否在有效期内"
+    failure: "数据集不存在→返回 False"
+  get_dataset:
+    input:
+      dataset_id: "str，数据集 ID（如 'financials.key_metrics'）"
+      version: "str，版本号（'latest' 或 'v0'）"
+    output:
+      type: "Optional[Dict]"
+    success: "返回数据集内容"
+    failure: "数据集不存在→返回 None"
+  list_datasets:
+    input:
+      domain: "Optional[str]，可选的领域过滤"
+    output:
+      type: "List[str]"
+    success: "返回可用数据集 ID 列表"
+    failure: "不会抛异常"
+
+boundaries:
+  - "DataProvider 接口完全通用，不包含任何领域术语（symbol/financials 等）"
+  - "bootstrap 采集失败不阻断管线（记录 error，继续执行）"
+  - "数据版本更新使用原子写入（tmp → rename），失败自动回滚"
+  - "summary_template 变量缺失时使用 Jinja2 default 过滤器，不崩溃"
+  - "dynamic_rules condition 使用 JMESPath 表达式，沙箱求值"
+  - "Agent data_requests 受配额限制（默认 max 10/session）"
+  - "findings 必须经过 validate_finding（source 存在 + 来源可信 + 数值合理）"
+  - "数据过期策略：fresh → stale（80% TTL）→ expired（拒绝访问）"
+  - "INDEX.md 由 INDEX.json 自动生成，不手动维护"
+  - "Extractor Agent 解析研报，DataManager 只负责采集原始内容"
+  # 动态数据采集 Provider（2026-04-19 确认）
+  - "动态数据采集规则使用 gemini_cli provider，禁止使用 web_fetch 爬财经网站"
+
+dependencies:
+  - "blackboard_manager.BlackboardManager"
+  - "observability.Observability"
+
+extractors:
+  - id: report_parser
+    type: agent
+    trigger: "new_research_report"
+    prompt_file: "prompts/report_extractor.md"
+    output: "05_research_reports/parsed/"
+
+data_sources:
+  investment: "data_sources/investment.yaml"
+  code: "data_sources/code.yaml"
+  architecture: "data_sources/architecture.yaml"
+  general: "data_sources/general.yaml"
+
+# Bootstrap 数据源配置（确认包含 forecast）
+bootstrap:
+  - id: analyst_forecasts
+    provider: tushare
+    api: forecast
+
+notes: "DataManager 是通用基础设施层（depth-0 工具模块）。核心原则：1)采集与解析分离（DataManager 采，Extractor Agent 解析） 2)配置驱动（YAML 定义采集策略） 3)原子写入（版本管理） 4)数据质量（时效性+来源验证）。新增领域只需写 data_sources/{domain}.yaml + DataProvider 实现。"

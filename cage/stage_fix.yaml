@@ -1,0 +1,37 @@
+# Stage Contract - Fix
+stage: fix
+domain: investment
+cage_version: "2.0"
+
+# 接口契约
+interface:
+  input:
+    context:
+      required: [code, name]
+  
+  output:
+    schema:
+      type: object
+      required: [success, fixes_applied, remaining_issues]
+      properties:
+        success: {type: boolean}
+        fixes_applied:
+          type: array
+          items: {type: string}
+        remaining_issues:
+          type: array
+          items: {type: string}
+        fix_count:
+          type: integer
+          minimum: 0
+
+# 行为契约
+behavior:
+  timeout: 120
+  retry:
+    max_attempts: 2
+  failure_mode: "warn_and_continue"
+
+# 数据契约
+data:
+  output_path: "blackboard/{session_id}/stages/fix/"

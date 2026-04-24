@@ -1,0 +1,99 @@
+# DeepFlow V1.0 契约 Schema 定义
+# 用于验证契约文件的结构和内容
+
+schema_version: "1.0"
+
+# 契约文件大小限制（分级）
+# 估算：方法数 × 150 字符（interface + behavior + boundaries）
+size_limits:
+  simple: 2000    # ≤10 方法，约200行代码
+  medium: 6000    # 10-20 方法，约350行代码（预留1KB余量给详细契约）
+  complex: 10000  # >20 方法，约500行代码
+
+# 复杂度预检：文件 >1500 字符建议升级为 medium
+complexity_hint: "契约文件 >1500 字符时建议设为 medium，避免验证失败"
+
+# 必需字段（所有契约必须包含）
+required_fields:
+  - module           # 模块名（str）
+  - version          # 版本号（str）
+  - interface        # 接口签名（dict）
+  - behavior         # 行为契约（dict）
+  - boundaries       # 边界条件（list）
+
+# 可选字段
+optional_fields:
+  - dependencies     # 依赖模块（list）
+  - examples         # 使用示例（dict）
+  - complexity       # 复杂度分级：simple/medium/complex
+  - author           # 契约责任人
+  - created_at       # 创建时间
+  - updated_at       # 最后更新时间
+
+# 字段类型定义
+field_types:
+  module:
+    type: str
+    description: "模块名，如 config_loader"
+
+  version:
+    type: str
+    description: "语义化版本号，如 '1.0'"
+
+  complexity:
+    type: str
+    enum: ["simple", "medium", "complex"]
+    default: "simple"
+    description: "模块复杂度，决定大小限制"
+
+  interface:
+    type: dict
+    description: "方法签名定义"
+    format: "method_name(param: type) -> ReturnType"
+
+  behavior:
+    type: dict
+    description: "行为契约定义"
+    structure:
+      method_name:
+        input:
+          param: "类型 + 约束描述"
+        output:
+          type: "返回类型"
+          constraints: ["约束条件列表"]
+        success: "成功时的行为描述"
+        failure: "失败时的行为描述"
+
+  boundaries:
+    type: list
+    description: "边界条件列表"
+    items:
+      type: str
+      description: "单个边界条件描述"
+
+  dependencies:
+    type: list
+    description: "依赖的其他模块方法"
+    items:
+      type: str
+      format: "module.method"
+
+  examples:
+    type: dict
+    description: "使用示例"
+    format: "method_name: 代码示例文本"
+
+# 验证规则
+validation_rules:
+  # 接口签名必须与方法名对应
+  interface_methods: "interface 中的方法名必须在 behavior 中存在"
+  # 行为契约必须覆盖所有接口方法
+  behavior_coverage: "behavior 必须包含 interface 中定义的所有方法"
+  # 边界条件至少 1 条
+  boundaries_min: "boundaries 至少包含 1 条边界条件"
+  # 输入输出必须有类型
+  typed_params: "behavior 中的 input 和 output 必须指定类型"
+  # 成功失败路径必须定义
+  paths_defined: "behavior 中的 success 和 failure 字段必须存在"
+  # 依赖必须实际调用
+  dependencies_used: "dependencies 中声明的依赖必须在代码中实际调用"

@@ -1,0 +1,49 @@
+cage_version: "2.0"
+entry_type: unified
+
+# 接口契约
+interface:
+  input:
+    schema:
+      type: object
+      required: [domain]
+      properties:
+        domain:
+          type: string
+          enum: [investment, code, general]  # 支持扩展
+        context:
+          type: object
+          # 由具体领域定义
+  output:
+    schema:
+      type: object
+      required: [status, domain, session_id]
+      properties:
+        status: {enum: [completed, failed]}
+        domain: {type: string}
+        session_id: {type: string}
+        final_score: {type: number}
+
+# 领域注册契约
+domains:
+  investment:
+    module: "domains.investment"
+    class: "InvestmentOrchestrator"
+    required_context: [code, name]
+  
+  # 预留扩展
+  code:
+    module: "domains.code"
+    class: "CodeOrchestrator"
+    required_context: [file_path]
+  
+  general:
+    module: "domains.general"
+    class: "GeneralOrchestrator"
+    required_context: [topic]
+
+# 行为契约
+behavior:
+  domain_validation: "strict"  # 严格模式，未知领域报错
+  context_validation: true     # 验证上下文完整性
+  fallback_domain: null        # 不支持 fallback

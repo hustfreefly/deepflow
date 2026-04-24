@@ -1,0 +1,79 @@
+# ConfigLoader 契约
+# 职责：加载 YAML 配置文件（domain/pipeline/prompt）
+
+module: "config_loader"
+version: "1.0"
+complexity: "simple"  # 简单模块，3 个方法
+
+# =============================================================================
+# L1: 接口契约
+# =============================================================================
+
+interface:
+  load_domain(domain: str) -> DomainConfig
+  load_pipeline(name: str) -> PipelineTemplate
+  get_prompt(name: str) -> str
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+
+behavior:
+  load_domain:
+    input:
+      domain: "必填，str，必须是 domains/ 目录下存在的文件名（不含 .yaml）"
+    output:
+      type: "DomainConfig"
+      constraints:
+        - "quality 阈值统一 0-100 尺度"
+        - "dimensions 不为空"
+    success: "返回 DomainConfig 对象，包含领域配置和质量阈值"
+    failure: "文件不存在 → FileNotFoundError"
+
+  load_pipeline:
+    input:
+      name: "必填，str，必须是 pipelines/ 目录下存在的文件名（不含 .yaml）"
+    output:
+      type: "PipelineTemplate"
+      constraints:
+        - "stages 不为空"
+        - "type 必须是 iterative/audit/gated 之一"
+    success: "返回 PipelineTemplate 对象，包含管线阶段定义"
+    failure: "文件不存在 → FileNotFoundError"
+
+  get_prompt:
+    input:
+      name: "必填，str，必须是 prompts/ 目录下存在的文件名（不含 .md）"
+    output:
+      type: "str（markdown 内容）"
+      constraints:
+        - "内容不为空"
+    success: "返回 prompt 文本"
+    failure: "文件不存在 → FileNotFoundError"
+
+# =============================================================================
+# L3: 边界条件
+# =============================================================================
+
+boundaries:
+  - "domain/name 为空字符串 → ValueError"
+  - "YAML 格式错误 → yaml.YAMLError"
+  - "文件读取权限不足 → PermissionError"
+  - "文件编码错误 → UnicodeDecodeError"
+
+# =============================================================================
+# 可选：依赖关系
+# =============================================================================
+
+dependencies:
+  - "protocols.scale_01_to_100"  # 尺度转换（兼容旧配置）
+
+# =============================================================================
+# 可选：使用示例
+# =============================================================================
+
+examples:
+  load_domain: |
+    cl = ConfigLoader(base_dir=".deepflow")
+    config = cl.load_domain("investment")
+    assert config.quality.auto_pass_threshold >= 80

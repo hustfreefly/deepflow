@@ -1,0 +1,66 @@
+# 契约笼子：修复P0和P1执行问题
+# 目标：提升DeepFlow执行可靠性
+
+contract:
+  name: "Fix P0 and P1 Execution Issues"
+  version: "1.0"
+  date: "2026-04-23"
+  
+issues:
+  p0:
+    - id: 1
+      name: "模板变量替换"
+      problem: "planner.md中的{{code}}等变量未被替换"
+      fix: "task_builder.py中使用str.replace替换模板变量"
+      
+    - id: 2
+      name: "Worker环境PYTHONPATH"
+      problem: "Worker执行时可能找不到deepflow模块"
+      fix: "在DataManager Task的Python代码中显式设置sys.path"
+      
+  p1:
+    - id: 3
+      name: "外部依赖检查"
+      problem: "gemini CLI和duckduckgo_search可能未安装"
+      fix: "在DataManager Worker中添加可用性检查，优雅降级"
+      
+    - id: 4
+      name: "Worker错误处理"
+      problem: "缺少try/except，单点故障影响整体"
+      fix: "在DataManager Worker的run()方法中添加异常处理"
+
+phases:
+  - id: 1
+    name: "修复模板变量"
+    file: "core/task_builder.py"
+    changes:
+      - "build_planner_task: 添加replace_template_vars调用"
+      
+  - id: 2
+    name: "注入PYTHONPATH"
+    file: "core/task_builder.py"
+    changes:
+      - "build_data_manager_task: 确保sys.path.insert(0, DEEPFLOW_BASE)存在"
+      
+  - id: 3
+    name: "添加依赖检查"
+    file: "core/data_manager_worker.py"
+    changes:
+      - "添加check_dependencies()方法"
+      - "在run()开始时调用"
+      
+  - id: 4
+    name: "添加错误处理"
+    file: "core/data_manager_worker.py"
+    changes:
+      - "run_bootstrap: 添加try/except"
+      - "run_supplement_search: 添加try/except"
+      - "ensure_key_metrics: 添加try/except"
+      
+  - id: 5
+    name: "验证"
+    action: "python3 -m py_compile验证语法"
+    
+  - id: 6
+    name: "Git提交"
+    message: "fix: 修复P0/P1执行问题（模板变量、PYTHONPATH、错误处理）"

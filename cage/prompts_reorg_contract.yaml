@@ -1,0 +1,58 @@
+# 契约笼子：prompts/ 按领域分类
+# 目标：将40+个prompt文件按领域分类到子目录
+
+contract:
+  name: "prompts directory reorganization"
+  version: "1.0"
+  date: "2026-04-23"
+  
+phases:
+  - id: 1
+    name: "创建领域子目录"
+    directories:
+      - prompts/architecture/
+      - prompts/code/
+      - prompts/general/
+      - prompts/system/
+    
+  - id: 2
+    name: "移动投资领域prompts"
+    action: "将根目录 investment_*.md 移至 prompts/investment/"
+    note: "investment/ 已存在，保留 orchestrator/ 子目录"
+    
+  - id: 3
+    name: "移动其他领域prompts"
+    architecture:
+      source: "architecture_*.md"
+      target: "prompts/architecture/"
+    code:
+      source: "code_*.md"
+      target: "prompts/code/"
+    general:
+      source: "general_*.md"
+      target: "prompts/general/"
+    system:
+      source: "pipeline_engine_*.md, report_extractor.md, summarizer.md"
+      target: "prompts/system/"
+    
+  - id: 4
+    name: "更新代码引用"
+    files_to_update:
+      - core/task_builder.py
+      - core/cage_loader.py
+    changes:
+      - "investment_*.md → investment/*.md"
+      - "architecture_*.md → architecture/*.md"
+      - "code_*.md → code/*.md"
+      - "general_*.md → general/*.md"
+    
+  - id: 5
+    name: "验证"
+    checks:
+      - "所有prompt文件都在子目录中"
+      - "根目录无零散 .md 文件"
+      - "import/引用路径正确"
+    
+  - id: 6
+    name: "Git提交"
+    message: "refactor: prompts按领域分类"

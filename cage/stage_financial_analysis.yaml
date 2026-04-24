@@ -1,0 +1,40 @@
+# Stage Contract - Financial Analysis
+stage: financial_analysis
+domain: investment
+cage_version: "2.0"
+
+# 接口契约
+interface:
+  input:
+    context:
+      required: [code, name]
+  
+  output:
+    schema:
+      type: object
+      required: [success, metrics, analysis]
+      properties:
+        success: {type: boolean}
+        metrics:
+          type: object
+          properties:
+            revenue_growth: {type: number}
+            profit_margin: {type: number}
+            roe: {type: number}
+            debt_ratio: {type: number}
+        analysis:
+          type: string
+        risk_factors:
+          type: array
+          items: {type: string}
+
+# 行为契约
+behavior:
+  timeout: 120
+  retry:
+    max_attempts: 2
+  failure_mode: "warn_and_continue"
+
+# 数据契约
+data:
+  output_path: "blackboard/{session_id}/stages/financial_analysis/"

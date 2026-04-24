@@ -1,0 +1,43 @@
+module: "quality_gate"
+version: "1.0"
+complexity: "medium"
+
+interface:
+  "__init__": "config: Optional[Dict] = None -> None"
+  "evaluate": "content: str, dimensions: Optional[List[str]] = None -> QualityReport"
+  "evaluate_4d": "content: str -> Dict[str, float]"
+  "gate_decision": "score: float -> str"
+  "check_convergence": "scores: List[float], window: int = 2, threshold: float = 0.02 -> Tuple[bool, Optional[float]]"
+  "hitl_trigger": "score: float, human_threshold: float = 0.75 -> bool"
+  "get_config": "() -> Dict"
+  "reset_history": "() -> None"
+
+behavior:
+  evaluate:
+    input:
+      content: "str，待评估内容"
+      dimensions: "Optional[List[str]]，评估维度（如 ['accuracy', 'completeness', 'depth', 'elegance']）"
+    output:
+      type: "QualityReport"
+    success: "返回质量报告，包含各维度得分和总分"
+    failure: "内容为空→ValueError"
+  check_convergence:
+    input:
+      scores: "List[float]，历史得分列表"
+      window: "int，检查窗口大小（默认2）"
+      threshold: "float，收敛阈值（默认0.02）"
+    output:
+      type: "Tuple[bool, Optional[float]]"
+    success: "返回(是否收敛, 收敛时得分)"
+    failure: "scores长度<window→(False, None)"
+
+boundaries:
+  - "score超出0-1范围→自动裁剪到[0,1]并记录warning"
+  - "dimensions包含无效维度→ValueError"
+  - "scores为空列表→convergence=False"
+  - "window <= 0 → ValueError"
+  - "多线程调用evaluate→线程安全（内部锁保护）"
+
+dependencies: []
+
+notes: "QualityGate支持4维质量评估。投资领域使用accuracy(0.40)/completeness(0.30)/depth(0.20)/elegance(0.10)。代码领域使用correctness(0.35)/security(0.25)/performance(0.20)/maintainability(0.20)。"

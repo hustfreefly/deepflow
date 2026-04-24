@@ -1,0 +1,48 @@
+# 契约笼子：修复 key_metrics 数据缺失问题
+# 目标：防止 Finance Researcher 因数据缺失而耗时33分钟
+
+contract:
+  name: "Fix key_metrics data missing"
+  version: "1.0"
+  date: "2026-04-23"
+  
+issues:
+  p1:
+    - id: 1
+      name: "Finance Researcher Prompt 缺少 fallback"
+      problem: "key_metrics 中 PE/PB/PS/市值为 null 时，Agent 被迫自行搜索"
+      fix: "在 researcher_finance.md 中添加数据缺失时的 fallback 策略"
+      file: "prompts/investment/researcher_finance.md"
+      
+  p2:
+    - id: 2
+      name: "Task Builder 缺少数据缺失检测"
+      problem: "task_builder 生成任务时未检测 key_metrics 数据完整性"
+      fix: "在 build_researcher_task 中检测 null 字段并添加预警"
+      file: "core/task_builder.py"
+
+phases:
+  - id: 1
+    name: "修复 researcher_finance.md Prompt"
+    action: "添加数据缺失 fallback 策略"
+    changes:
+      - "在输入数据部分添加：如果 key_metrics 中估值指标为 null，使用预定义默认值"
+      - "添加明确的搜索优先级：先查东方财富实时API，再查新浪财经"
+      - "添加数据验证步骤：搜索后验证数据合理性"
+    
+  - id: 2
+    name: "修复 task_builder.py 数据检测"
+    action: "在生成任务前检测 key_metrics 数据完整性"
+    changes:
+      - "extract_data_summary 中检测 null 字段比例"
+      - "如果 null 比例 > 50%，在任务中添加警告提示"
+      - "添加数据质量评分（data_quality_score）"
+    
+  - id: 3
+    name: "验证修复"
+    action: "检查语法和逻辑"
+    verification: "py_compile 通过"
+    
+  - id: 4
+    name: "Git提交"
+    message: "fix: 修复 key_metrics 数据缺失导致的 Finance Researcher 超时"

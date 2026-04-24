@@ -1,0 +1,155 @@
+name: architecture
+version: "1.0"
+description: 架构设计领域配置（高可靠性要求）
+
+pipeline: iterative
+
+max_iterations: 10
+target_score: 0.90
+convergence_threshold: 0.02
+
+quality:
+  target_score: 0.90
+  auto_pass_threshold: 0.92
+  human_gate_threshold: 0.80
+  dimensions:
+    - name: correctness
+      weight: 0.30
+      threshold: 0.90
+    - name: security
+      weight: 0.25
+      threshold: 0.90
+    - name: performance
+      weight: 0.20
+      threshold: 0.85
+    - name: maintainability
+      weight: 0.15
+      threshold: 0.80
+    - name: scalability
+      weight: 0.10
+      threshold: 0.75
+
+agents:
+  - role: planner
+    model: bailian/qwen3.5-plus
+    timeout: 120
+    retry: 2
+    temperature: 0.7
+    prompt: prompts/architecture_planner.md
+    
+  - role: researcher
+    model: bailian/qwen3.5-plus
+    timeout: 180
+    retry: 2
+    temperature: 0.7
+    prompt: prompts/architecture_researcher.md
+    
+  - role: auditor
+    model: kimi/kimi-code
+    timeout: 180
+    retry: 2
+    temperature: 0.3
+    parallel: all
+    prompt: prompts/architecture_auditor.md
+    instances:
+      - name: auditor_1
+        angle: 架构合理性审计
+      - name: auditor_2
+        angle: 可行性审计
+      - name: auditor_3
+        angle: 风险评估
+    
+  - role: correctness
+    model: kimi/kimi-code
+    timeout: 180
+    retry: 2
+    temperature: 0.3
+    parallel: true
+    prompt: prompts/architecture_correctness.md
+    instances:
+      - name: correctness_1
+        angle: 逻辑正确性审计
+      - name: correctness_2
+        angle: 边界条件审计
+      - name: correctness_3
+        angle: 异常处理审计
+      - name: correctness_4
+        angle: 数据流审计
+      
+  - role: security
+    model: kimi/kimi-code
+    timeout: 180
+    retry: 2
+    temperature: 0.3
+    parallel: true
+    prompt: prompts/architecture_security.md
+    instances:
+      - name: security_1
+        angle: 注入风险审计
+      - name: security_2
+        angle: 权限控制审计
+      - name: security_3
+        angle: 数据泄露审计
+      - name: security_4
+        angle: 依赖安全审计
+      
+  - role: performance
+    model: kimi/kimi-code
+    timeout: 180
+    retry: 2
+    temperature: 0.3
+    parallel: true
+    prompt: prompts/architecture_performance.md
+    instances:
+      - name: performance_1
+        angle: 时间复杂度审计
+      - name: performance_2
+        angle: 内存使用审计
+      - name: performance_3
+        angle: 并发性能审计
+      - name: performance_4
+        angle: 资源效率审计
+      
+  - role: verifier
+    model: bailian/qwen3.5-plus
+    timeout: 120
+    retry: 2
+    temperature: 0.3
+    prompt: prompts/verifier.md
+    
+  - role: fixer
+    model: bailian/qwen3.5-plus
+    timeout: 180
+    retry: 2
+    temperature: 0.5
+    prompt: prompts/architecture_fixer.md
+    
+  - role: summarizer
+    model: bailian/qwen3.5-plus
+    timeout: 120
+    retry: 1
+    temperature: 0.5
+    prompt: prompts/summarizer.md
+
+delivery:
+  progressive: true
+  checkpoints:
+    - round: 3
+      deliver: partial
+    - round: 6
+      deliver: partial
+    - round: 9
+      deliver: final
+
+resilience:
+  circuit_breaker:
+    failure_threshold: 3
+    recovery_timeout: 60
+  retry_policy:
+    max_attempts: 3
+    base_delay: 2.0
+    max_delay: 30.0
+  checkpoint:
+    enabled: true
+    interval: 1
+    freeze_on_pass: true

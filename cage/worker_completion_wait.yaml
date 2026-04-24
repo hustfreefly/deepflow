@@ -1,0 +1,63 @@
+# Worker 完成等待机制修复契约
+# 解决历史 bug：Orchestrator spawn Worker 后未正确等待完成
+
+module: "worker_completion_wait"
+version: "1.0"
+complexity: "simple"
+
+# =============================================================================
+# L1: 接口契约
+# =============================================================================
+
+interface:
+  "_wait_for_worker_completion": "agent_id: str, stage: PipelineStage, timeout: int -> Dict[str, Any]"
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+
+behavior:
+  _wait_for_worker_completion:
+    input:
+      agent_id: "str，spawn 返回的 Agent ID"
+      stage: "PipelineStage 对象，包含 stage.id 等信息"
+      timeout: "int，最大等待时间（秒），默认 300"
+    output:
+      type: "Dict[str, Any]"
+      constraints:
+        - "success=True 时，output 包含实质性分析内容"
+        - "success=False 时，error 字段说明失败原因"
+        - "绝不能返回 spawn 元数据（status: accepted）作为成功结果"
+    success: |
+      1. 轮询检查 blackboard/{session_id}/stages/{stage.id}_output.json 是否存在
+      2. 文件存在后，验证内容不是 spawn 元数据（无 status: accepted）
+      3. 验证内容包含实质输出（analysis/findings/output 等字段）
+      4. 返回 {"success": True, "output": data}
+    failure: |
+      1. 超时（timeout 秒内未找到有效输出）→ 返回 {"success": False, "error": "timeout"}
+      2. 文件读取失败 → 返回 {"success": False, "error": "read_error"}
+      3. JSON 解析失败 → 返回 {"success": False, "error": "parse_error"}
+
+# =============================================================================
+# L3: 边界条件
+# =============================================================================
+
+boundaries:
+  - "输出文件包含 status: accepted → 识别为 spawn 元数据，继续等待"
+  - "输出文件存在但为空 → 继续等待"
+  - "输出文件损坏（无效 JSON）→ 返回失败"
+  - "超时前 Worker 完成 → 正常返回"
+  - "超时后 Worker 仍未完成 → 返回失败，不阻塞后续流程"
+
+# =============================================================================
+# 修复内容
+# =============================================================================
+
+changes:
+  file: "pipeline_engine.py"
+  method: "_wait_for_worker_completion"
+  key_fixes:
+    - "检测 spawn 元数据（status: accepted）并过滤"
+    - "验证输出内容实质性（必须包含 analysis/findings/output/recommendation 等）"
+    - "增加详细日志，便于调试"
+    - "超时后返回降级结果，不抛异常"

@@ -1,0 +1,53 @@
+# 契约笼子：Worker 输出路径修复
+# 问题：Workers 使用相对路径写入，Orchestrator 在绝对路径查找
+# 修复：强制使用绝对路径
+
+contract:
+  name: "Worker Output Path Fix"
+  version: "1.0.0"
+  date: "2026-04-23"
+  
+problem:
+  description: "Workers 使用相对路径 'blackboard/...' 写入文件，实际写入 Worker 自己的工作目录，Orchestrator 在绝对路径 '/Users/allen/.openclaw/workspace/.deepflow/blackboard/...' 查找时找不到文件"
+  evidence:
+    - "Workers 报告 '已完成' 并声称写入了文件"
+    - "Orchestrator 检查文件不存在"
+    - "Summarizer 也遇到同样问题，Orchestrator 手动重新生成报告"
+  
+fix_requirements:
+  - id: 1
+    component: "task_builder.py"
+    file: "core/task_builder.py"
+    change: "所有 Worker Task 的输出路径必须使用绝对路径"
+    before: "blackboard/{session_id}/stages/xxx_output.json"
+    after: "/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/xxx_output.json"
+    
+  - id: 2
+    component: "task_builder.py"
+    file: "core/task_builder.py"  
+    change: "所有 Worker Task 的输入路径必须使用绝对路径"
+    before: "blackboard/{session_id}/data/xxx.json"
+    after: "/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/data/xxx.json"
+    
+  - id: 3
+    component: "task_builder.py"
+    file: "core/task_builder.py"
+    change: "DataManager Task 中的 blackboard 初始化路径"
+    before: "BlackboardManager('{session_id}')"
+    after: "BlackboardManager('{session_id}', base_path='/Users/allen/.openclaw/workspace/.deepflow/blackboard')"
+
+validation:
+  - step: 1
+    name: "语法检查"
+    command: "python3 -m py_compile core/task_builder.py"
+    expect: "无错误"
+    
+  - step: 2
+    name: "导入测试"
+    command: "python3 -c 'from core.task_builder import *'"
+    expect: "无错误"
+    
+  - step: 3
+    name: "路径验证"
+    command: "python3 -c 'from core.task_builder import build_researcher_task; t = build_researcher_task(\"test\", \"finance\", \"688981.SH\", \"test\"); assert \"/Users/allen/.openclaw/workspace/.deepflow/blackboard\" in t'"
+    expect: "通过"

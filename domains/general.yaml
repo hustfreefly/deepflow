@@ -1,0 +1,92 @@
+name: general
+version: "1.0"
+description: 通用研究领域配置（兜底配置）
+
+pipeline: iterative
+
+max_iterations: 6
+target_score: 0.80
+convergence_threshold: 0.03
+
+quality:
+  target_score: 0.80
+  auto_pass_threshold: 0.85
+  human_gate_threshold: 0.70
+  dimensions:
+    - name: accuracy
+      weight: 0.40
+      threshold: 0.80
+    - name: completeness
+      weight: 0.35
+      threshold: 0.75
+    - name: clarity
+      weight: 0.25
+      threshold: 0.70
+
+agents:
+  - role: planner
+    model: bailian/qwen3.5-plus
+    timeout: 120
+    retry: 2
+    temperature: 0.7
+    prompt: prompts/general_planner.md
+    
+  - role: researcher
+    model: bailian/qwen3.5-plus
+    timeout: 180
+    retry: 2
+    temperature: 0.5
+    prompt: prompts/general_researcher.md
+    instances:
+      - name: researcher_1
+        angle: 资料搜集
+      - name: researcher_2
+        angle: 交叉验证
+      
+  - role: auditor
+    model: bailian/qwen3.5-plus
+    timeout: 120
+    retry: 1
+    temperature: 0.3
+    parallel: all
+    prompt: prompts/general_auditor.md
+    instances:
+      - name: auditor_1
+        angle: 事实准确性审计
+      - name: auditor_2
+        angle: 逻辑一致性审计
+      
+  - role: fixer
+    model: bailian/qwen3.5-plus
+    timeout: 180
+    retry: 2
+    temperature: 0.5
+    prompt: prompts/general_fixer.md
+    
+  - role: verifier
+    model: bailian/qwen3.5-plus
+    timeout: 120
+    retry: 1
+    temperature: 0.3
+    prompt: prompts/general_verifier.md
+    
+  - role: summarizer
+    model: bailian/qwen3.5-plus
+    timeout: 120
+    retry: 1
+    temperature: 0.5
+    prompt: prompts/summarizer.md
+
+delivery:
+  progressive: false
+  
+resilience:
+  circuit_breaker:
+    failure_threshold: 5
+    recovery_timeout: 60
+  retry_policy:
+    max_attempts: 3
+    base_delay: 2.0
+    max_delay: 30.0
+  checkpoint:
+    enabled: false

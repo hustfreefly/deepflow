@@ -1,0 +1,116 @@
+{
+  "review_type": "worker_reliability_v2",
+  "timestamp": "2026-04-23T18:57:00+08:00",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "fix_verification",
+      "description": "check_dependencies() 方法缺少 tushare token 配置检查，仅检查包是否导入成功，无法确认 API 可用性",
+      "line_reference": "data_manager_worker.py:59-67",
+      "recommendation": "在 tushare 导入检查后添加 token 验证：import tushare; ts.set_token('xxx'); pro = ts.pro_api(); pro.query('stock_basic', limit=1)"
+    },
+    {
+      "severity": "medium",
+      "category": "fix_verification",
+      "description": "run() 方法的 try/except 包裹虽然存在，但每个步骤失败后仍继续执行后续步骤，可能导致依赖前序步骤数据的操作失败",
+      "line_reference": "data_manager_worker.py:267-300",
+      "recommendation": "在 bootstrap 失败时，补充搜索可能缺少上下文；建议在关键步骤间添加依赖检查，或记录明确的警告信息"
+    },
+    {
+      "severity": "low",
+      "category": "fix_verification",
+      "description": "结果文件保存有错误处理（try/except），但失败时仅打印日志，未将错误添加到 self.results['errors']",
+      "line_reference": "data_manager_worker.py:308-311",
+      "recommendation": "在 except 块中添加：self.results['errors'].append(f'save_result_failed: {str(e)}')"
+    },
+    {
+      "severity": "high",
+      "category": "execution_environment",
+      "description": "sys.path.insert(0, DEEPFLOW_BASE) 假设 Worker 环境与主 Agent 共享文件系统路径，若 Worker 是独立 container 或沙箱环境，该路径可能不存在",
+      "line_reference": "data_manager_worker.py:20",
+      "recommendation": "添加路径存在性检查：if not os.path.exists(DEEPFLOW_BASE): raise EnvironmentError(f'DEEPFLOW_BASE path not found: {DEEPFLOW_BASE}')"
+    },
+    {
+      "severity": "medium",
+      "category": "execution_environment",
+      "description": "Worker 作为字符串 Task 被 spawn 时，Agent 需要能够识别并执行 Python 代码；当前实现依赖 sessions_spawn 的 runtime='subagent' 模式，但未明确说明如何传递 Python 代码字符串",
+      "line_reference": "data_manager_worker.py:1-15 (docstring)",
+      "recommendation": "在 docstring 中明确说明调用方式：应通过 sessions_spawn(task='python /path/to/data_manager_worker.py --session-id xxx ...') 或通过 ACP harness 执行"
+    },
+    {
+      "severity": "medium",
+      "category": "execution_environment",
+      "description": "从 core/ 目录导入模块（如 data_providers.investment、data_manager、blackboard_manager）依赖这些模块已安装在 Worker 环境的 Python path 中，若 Worker 是全新进程且未设置 PYTHONPATH，import 会失败",
+      "line_reference": "data_manager_worker.py:93-95",
+      "recommendation": "在 import 前添加 sys.path 扩展逻辑，确保 DEEPFLOW_BASE/core 和 DEEPFLOW_BASE 都在 path 中；或在 Worker 启动脚本中预先设置 PYTHONPATH"
+    },
+    {
+      "severity": "low",
+      "category": "prompt_quality",
+      "description": "planner.md 中的模板变量 {{code}}、{{name}}、{{session_id}}、{{iteration}} 需要在运行时被替换，但 prompt 文件中未说明替换机制由谁负责（Orchestrator 还是 Worker）",
+      "line_reference": "planner.md:214-217",
+      "recommendation": "在 planner.md 开头添加说明：'本 prompt 由 Orchestrator 在 spawn Worker 前进行模板变量替换'"
+    },
+    {
+      "severity": "low",
+      "category": "prompt_quality",
+      "description": "planner.md 的输出 JSON 结构中，stages 列表包含多个 researcher 角色，但未明确说明这些角色是否需要并行 spawn 以及如何处理并行结果聚合",
+      "line_reference": "planner.md:68-80",
+      "recommendation": "在 stages 定义中添加注释：'parallel: true 表示这些 agent 可以并行执行，Orchestrator 负责结果聚合'"
+    },
+    {
+      "severity": "medium",
+      "category": "prompt_quality",
+      "description": "summarizer.md 虽然提到了'论点驱动'结构，但在 Step 1-4 的描述中存在重复和混乱，例如 Step 2 出现了两次（一次是构建投资逻辑，一次是提取关键信息并包含大量代码示例）",
+      "line_reference": "summarizer.md:56-120",
+      "recommendation": "重构 summarizer.md 的 Step 编号，消除重复；将代码示例移至附录或单独的 implementation_guide.md"
+    },
+    {
+      "severity": "low",
+      "category": "prompt_quality",
+      "description": "summarizer.md 中的输出 JSON 结构存在重复定义（key_findings、financial_analysis 等字段出现两次），可能导致解析歧义",
+      "line_reference": "summarizer.md:145-230",
+      "recommendation": "合并重复的 JSON 结构定义，确保每个字段只出现一次"
+    },
+    {
+      "severity": "high",
+      "category": "dependency_risk",
+      "description": "gemini CLI 在 Worker 环境中可能不可用，unified_search() 虽然有 fallback 到 duckduckgo，但若两者都失败，仅返回 {'source': 'failed'}，未触发任何告警或重试机制",
+      "line_reference": "data_manager_worker.py:145-161",
+      "recommendation": "在 unified_search 返回 failed 时，记录警告并考虑重试策略（最多 2 次）；或在 run_supplement_search 中统计失败率，若超过 50% 则标记为 partial 并告警"
+    },
+    {
+      "severity": "medium",
+      "category": "dependency_risk",
+      "description": "duckduckgo_search 包的 DDGS().text() 调用未设置超时，若网络缓慢可能导致 Worker 长时间阻塞",
+      "line_reference": "data_manager_worker.py:133-139",
+      "recommendation": "为 duckduckgo_search 添加超时控制，可使用 signal.alarm（Unix）或 threading.Timer；或迁移到支持超时的 HTTP 客户端"
+    },
+    {
+      "severity": "medium",
+      "category": "dependency_risk",
+      "description": "tushare token 未在 check_dependencies() 中验证，若 token 未配置或过期，后续使用 tushare 的代码会静默失败",
+      "line_reference": "data_manager_worker.py:59-67",
+      "recommendation": "在 check_dependencies 中添加 tushare token 验证逻辑，尝试调用 pro.query('stock_basic', limit=1) 确认 API 可用"
+    },
+    {
+      "severity": "low",
+      "category": "dependency_risk",
+      "description": "降级策略存在但不充分：若 gemini 和 duckduckgo 都失败，unified_search 返回 failed，但 run_supplement_search 仍会继续执行其他搜索任务，未提供本地缓存或离线数据选项",
+      "line_reference": "data_manager_worker.py:145-161",
+      "recommendation": "添加离线数据源 fallback，如从 blackboard/data/05_supplement/ 读取历史搜索结果；或在 INDEX.json 中标记哪些数据集可作为替代"
+    }
+  ],
+  "fix_verification": {
+    "check_dependencies": "partial",
+    "error_handling": "complete",
+    "graceful_degradation": "partial"
+  },
+  "prompt_analysis": {
+    "planner_template_vars": "all_replaced",
+    "summarizer_structure": "argument_driven",
+    "checklists_present": true
+  },
+  "reliability_score": 0.72,
+  "confidence": "high"
+}

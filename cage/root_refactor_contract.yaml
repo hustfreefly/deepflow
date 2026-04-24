@@ -1,0 +1,53 @@
+# 契约笼子：根目录完全重构（方案B）
+# 目标：清理V3遗留 + 重组目录结构
+
+contract:
+  name: "Root Directory Full Refactor"
+  version: "1.0"
+  date: "2026-04-23"
+  
+phases:
+  - id: 1
+    name: "删除V3遗留文件"
+    files:
+      - pipeline_engine.py
+      - coordinator.py
+      - resilience_manager.py
+      - protocols.py
+      - data_collection_task.py
+      - init_session.py
+      - init_smic.py
+      - check_pipeline_engine_fix.py
+    verification: "确认这些文件不再被V4代码引用"
+    
+  - id: 2
+    name: "移动V4核心文件到core/"
+    files:
+      - blackboard_manager.py
+      - data_manager.py
+      - config_loader.py
+      - quality_gate.py
+      - observability.py
+    target: "core/"
+    verification: "更新所有import路径"
+    
+  - id: 3
+    name: "更新import路径"
+    action: "更新引用这些文件的代码中的import语句"
+    files_to_update:
+      - domains/investment/__init__.py
+      - domains/investment/orchestrator.py
+      - domains/investment/cage_orchestrator.py
+      - core/task_builder.py
+      - tests/**/*.py
+    verification: "python -m py_compile 验证语法"
+    
+  - id: 4
+    name: "验证核心功能"
+    action: "验证V4核心代码仍可正常导入"
+    verification: "python3 -c 'from core.master_agent import *; print(OK)'"
+    
+  - id: 5
+    name: "Git提交"
+    action: "提交所有变更"
+    message: "refactor: 重组根目录结构，清理V3遗留"

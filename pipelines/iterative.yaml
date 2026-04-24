@@ -1,0 +1,139 @@
+# ============================================================
+# Deep Dive V3.0 — Iterative管线模板
+# 文件: pipelines/iterative.yaml
+# 说明: 迭代生成管线 — Plan→Execute→Critique→Fix→循环收敛
+# 适用场景: 代码审查、投资分析、通用研究（V2.4已有4个领域）
+# ============================================================
+
+template:
+  name: iterative
+  version: "3.0"
+  description: |
+    迭代生成管线：
+    1. Plan: 规划阶段，制定执行计划
+    2. Execute: 执行阶段，生成初稿
+    3. Critique: 评审阶段，多Agent并行审查
+    4. Check: 收敛检测
+    5. Fix: 修复阶段（未收敛时）
+    6. Summarize: 汇总阶段，输出最终报告
+    
+    循环：Critique → Check → (Fix → Execute) → Critique ...
+    直到收敛或达到max_iterations
+
+# --- FSM状态定义 ---
+states:
+  - INIT
+  - PLANNING
+  - EXECUTING
+  - CRITIQUING
+  - CHECKING
+  - FIXING
+  - SUMMARIZING
+  - DONE
+  - FAILED
+
+# --- 阶段定义 ---
+stages:
+  - id: plan
+    name: "规划"
+    type: agent
+    agent: planner
+    description: "分析需求，制定执行计划"
+    input: []  # 初始无输入
+    output: plan.md
+    next: execute
+    timeout_factor: 1.0
+    
+  - id: execute
+    name: "执行"
+    type: agent
+    agent: researcher
+    description: "根据计划执行任务，生成初稿"
+    input: [plan.md]
+    output: execution.md
+    next: critique
+    timeout_factor: 1.2
+    
+  - id: critique
+    name: "评审"
+    type: agent
+    agent: auditor
+    description: "多Agent并行审查，输出评审意见"
+    input: [execution.md, plan.md]
+    output: "critique_{instance_name}.md"
+    parallel: true  # 多实例并行
+    next: check
+    timeout_factor: 1.0
+    
+  - id: check
+    name: "收敛检测"
+    type: check
+    description: "检测是否收敛（质量达标/改进停滞/最大轮次）"
+    input: [execution.md, critique_*.md]
+    on_converged: summarize
+    on_not_converged: fix
+    on_max_iterations: summarize  # 强制收敛
+    timeout_factor: 0.2
+    
+  - id: fix
+    name: "修复"
+    type: agent
+    agent: fixer
+    description: "根据评审意见修复/优化"
+    input: [execution.md, critique_*.md]
+    output: fixed.md
+    next: verify  # 修复后先验证
+    timeout_factor: 1.0
+    
+  - id: verify
+    name: "验证"
+    type: agent
+    agent: verifier
+    description: "验证修复效果"
+    input: [fixed.md, critique_*.md]
+    output: verification.md
+    next: critique  # 验证后回到评审
+    timeout_factor: 0.8
+    
+  - id: summarize
+    name: "汇总"
+    type: agent
+    agent: summarizer
+    description: "汇总所有迭代结果，生成最终报告"
+    input: [plan.md, execution.md, fixed.md, verification.md]
+    output: final_report.md
+    next: done
+    timeout_factor: 0.5
+
+# --- 收敛条件配置 ---
+convergence:
+  methods:
+    - quality_threshold      # 达到目标分数
+    - improvement_threshold  # 边际改进低于阈值
+    - max_iterations         # 达到最大迭代次数
+    - oscillation_detection  # 震荡检测
+    - stagnation_detection   # 停滞检测
+  
+  quality_threshold: 0.88
+  improvement_threshold: 0.02
+  oscillation_limit: 3
+  stagnation_limit: 2
+
+# --- 质量门控 ---
+quality_gates:
+  - stage: check
+    auto_pass: 
+      condition: "score >= auto_pass_threshold"
+      action: goto_summarize
+    human_gate:
+      condition: "score >= human_gate_threshold && score < auto_pass_threshold"
+      action: wait_for_hitl
+    reject:
+      condition: "score < human_gate_threshold"
+      action: goto_fix
+
+# --- 容错配置 ---
+fault_tolerance:
+  agent_failure: retry_then_degrade
+  stage_failure: rollback_to_checkpoint
+  timeout_action: save_checkpoint_then_fail

@@ -1,0 +1,63 @@
+# Stage Contract - Data Collection
+stage: data_collection
+domain: investment
+cage_version: "2.0"
+
+# 接口契约
+interface:
+  input:
+    context:
+      required: [code, name]
+    config: "data_sources/investment.yaml"
+  
+  output:
+    schema:
+      type: object
+      required: [datasets, count, verification]
+      properties:
+        datasets:
+          type: array
+          items:
+            type: string
+        count:
+          type: integer
+          minimum: 0
+        verification:
+          type: object
+          required: [index, financials, market]
+          properties:
+            index: {type: boolean}
+            financials: {type: boolean}
+            market: {type: boolean}
+    
+    assertions:
+      - "output.count >= 3"
+      - "output.verification.index == true"
+
+# 行为契约
+behavior:
+  timeout: 120
+  retry:
+    max_attempts: 2
+    backoff: "exponential"
+  
+  failure_mode: "warn_and_continue"
+  
+  collectors:
+    - tushare
+    - akshare
+    - sina_finance
+    - web_search
+
+# 数据契约
+data:
+  output_path: "blackboard/{session_id}/data/"
+  files:
+    INDEX: "INDEX.json"
+    financials: "01_financials/key_metrics.json"
+    market: "02_market_quote/key_metrics.json"
+  
+  validation:
+    - "file_exists(INDEX)"
+    - "json_valid(INDEX)"
+    - "file_not_empty(financials)"

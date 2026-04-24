@@ -1,0 +1,91 @@
+module: "coordinator"
+version: "1.0"
+complexity: "complex"
+
+interface:
+  "__init__": "config: Optional[Dict] = None -> None"
+  "run": "user_input: str, session_id: Optional[str] = None, spawn_fn: Optional[callable] = None -> Dict[str, Any]"
+  "parse_intent": "user_input: str -> Tuple[str, float]"
+  "select_domain": "intent: str, confidence: float -> str"
+  "start_pipeline": "domain: str, session_id: str -> PipelineResult"
+  "handle_hitl": "pending_stage: str, context: Dict -> str"
+  "resume_pipeline": "session_id: str, user_response: str -> PipelineResult"
+  "format_output": "result: PipelineResult -> str"
+
+behavior:
+  __init__:
+    input:
+      config: "Optional[Dict]，可选配置"
+    output:
+      type: "None"
+    success: "初始化Coordinator，加载配置"
+    failure: "配置错误→ValueError"
+  run:
+    input:
+      user_input: "str，用户输入"
+      session_id: "Optional[str]，可选会话ID"
+      spawn_fn: "Optional[callable]，可选的外部注入 Agent spawn 函数，用于真实 Agent 调用"
+    output:
+      type: "Dict[str, Any]"
+    success: "完整执行流程：解析→选择领域→执行管线→返回结果"
+    failure: "返回包含error和state的字典"
+  parse_intent:
+    input:
+      user_input: "str，用户原始输入"
+    output:
+      type: "Tuple[str, float]"
+    success: "返回(意图类型, 置信度)，如('code', 0.95)"
+    failure: "返回('unknown', 0.0)"
+  select_domain:
+    input:
+      intent: "str，解析出的意图"
+      confidence: "float，置信度"
+    output:
+      type: "str"
+    success: "返回领域名称，如'code'、'investment'等"
+    failure: "返回'general'作为默认"
+  start_pipeline:
+    input:
+      domain: "str，选择的领域"
+      session_id: "str，会话ID"
+    output:
+      type: "PipelineResult"
+    success: "启动PipelineEngine并执行，返回结果"
+    failure: "返回FAILED状态的结果"
+  handle_hitl:
+    input:
+      pending_stage: "str，暂停的阶段ID"
+      context: "Dict，上下文信息"
+    output:
+      type: "str"
+    success: "生成询问用户的消息，返回提示文本"
+    failure: "返回默认提示"
+  resume_pipeline:
+    input:
+      session_id: "str，会话ID"
+      user_response: "str，用户回复"
+    output:
+      type: "PipelineResult"
+    success: "从检查点恢复管线执行，返回最终结果"
+    failure: "返回FAILED状态的结果"
+  format_output:
+    input:
+      result: "PipelineResult，管线执行结果"
+    output:
+      type: "str"
+    success: "格式化结果为可读的Markdown/文本"
+    failure: "返回错误提示字符串"
+
+boundaries:
+  - "AgentPendingException → 捕获并转为HITL暂停状态"
+  - "用户超时未响应 → 保存检查点，返回等待状态"
+  - "Pipeline执行失败 → 返回友好错误信息"
+  - "未知意图 → 使用general领域兜底"
+  - "检查点不存在 → 重新开始执行"
+
+dependencies:
+  - "pipeline_engine.PipelineEngine"
+  - "pipeline_engine.PipelineResult"
+  - "pipeline_engine.AgentPendingException"
+
+notes: "Coordinator是DeepFlow入口层（depth-0），负责用户交互、意图解析、HITL管理。必须正确处理AgentPendingException，实现完整的run→pause→resume循环。行数放宽（800-1200），功能完整优先。"

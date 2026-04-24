@@ -1,0 +1,112 @@
+name: code
+version: "1.0"
+description: 代码开发领域配置（最高质量要求）
+
+pipeline: iterative
+
+max_iterations: 10
+target_score: 0.92
+convergence_threshold: 0.02
+
+quality:
+  target_score: 0.92
+  auto_pass_threshold: 0.95
+  human_gate_threshold: 0.85
+  dimensions:
+    - name: correctness
+      weight: 0.35
+      threshold: 0.95
+    - name: security
+      weight: 0.25
+      threshold: 0.90
+    - name: performance
+      weight: 0.20
+      threshold: 0.85
+    - name: maintainability
+      weight: 0.20
+      threshold: 0.80
+
+agents:
+  - role: planner
+    model: kimi/kimi-code
+    timeout: 120
+    retry: 2
+    temperature: 0.7
+    prompt: prompts/code_planner.md
+    
+  - role: correctness
+    model: kimi/kimi-code
+    timeout: 180
+    retry: 2
+    temperature: 0.3
+    parallel: all
+    prompt: prompts/code_correctness.md
+    instances:
+      - name: correctness_1
+        angle: 逻辑正确性审计
+      - name: correctness_2
+        angle: 边界条件审计
+      - name: correctness_3
+        angle: 异常处理审计
+      - name: correctness_4
+        angle: 类型安全审计
+      
+  - role: security
+    model: kimi/kimi-code
+    timeout: 180
+    retry: 2
+    temperature: 0.3
+    parallel: all
+    prompt: prompts/code_security.md
+    instances:
+      - name: security_1
+        angle: 输入验证审计
+      - name: security_2
+        angle: 注入风险审计
+      - name: security_3
+        angle: 敏感数据审计
+      - name: security_4
+        angle: 依赖安全审计
+      
+  - role: fixer
+    model: kimi/kimi-code
+    timeout: 240
+    retry: 2
+    temperature: 0.5
+    prompt: prompts/code_fixer.md
+    
+  - role: verifier
+    model: kimi/kimi-code
+    timeout: 180
+    retry: 1
+    temperature: 0.3
+    prompt: prompts/code_verifier.md
+    
+  - role: summarizer
+    model: bailian/qwen3.5-plus
+    timeout: 120
+    retry: 1
+    temperature: 0.5
+    prompt: prompts/summarizer.md
+
+delivery:
+  progressive: true
+  checkpoints:
+    - round: 3
+      deliver: partial
+    - round: 6
+      deliver: partial
+    - round: 9
+      deliver: final
+
+resilience:
+  circuit_breaker:
+    failure_threshold: 2
+    recovery_timeout: 60
+  retry_policy:
+    max_attempts: 3
+    base_delay: 2.0
+    max_delay: 30.0
+  checkpoint:
+    enabled: true
+    interval: 1

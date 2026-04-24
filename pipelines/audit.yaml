@@ -1,0 +1,112 @@
+# ============================================================
+# Deep Dive V3.0 — Audit管线模板
+# 文件: pipelines/audit.yaml
+# 说明: 纯审查管线 — Plan→Collect→Critique→Summarize（无Fix阶段）
+# 适用场景: 系统审查、合规检查、代码审计（只报告问题，不修改）
+# ============================================================
+
+template:
+  name: audit
+  version: "3.0"
+  description: |
+    纯审查管线：
+    1. Plan: 规划审查范围和重点
+    2. Collect: 收集信息和证据
+    3. Critique: 多Agent并行审查
+    4. Summarize: 汇总审查报告
+    
+    特点：无Fix阶段，纯审查，不修改被审查对象
+    适用：系统审查、合规检查、安全审计
+
+# --- FSM状态定义 ---
+states:
+  - INIT
+  - PLANNING
+  - COLLECTING
+  - CRITIQUING
+  - SUMMARIZING
+  - DONE
+  - FAILED
+
+# --- 阶段定义 ---
+stages:
+  - id: plan
+    name: "规划审查"
+    type: agent
+    agent: planner
+    description: "制定审查计划，确定审查范围和重点"
+    input: []
+    output: audit_plan.md
+    next: collect
+    timeout_factor: 1.0
+    
+  - id: collect
+    name: "信息收集"
+    type: agent
+    agent: researcher
+    description: "收集被审查对象的相关信息"
+    input: [audit_plan.md]
+    output: collected_info.md
+    next: critique
+    timeout_factor: 1.0
+    
+  - id: critique
+    name: "审查"
+    type: agent
+    agent: auditor
+    description: "多Agent并行审查，输出审查意见"
+    input: [collected_info.md, audit_plan.md]
+    output: "audit_critique_{instance_name}.md"
+    parallel: true
+    next: check  # 检查是否收集足够
+    timeout_factor: 1.2
+    
+  - id: check
+    name: "收敛检测"
+    type: check
+    description: "检查审查是否充分"
+    input: [collected_info.md, audit_critique_*.md]
+    on_converged: summarize
+    on_not_converged: collect  # 信息不足，继续收集
+    on_max_iterations: summarize
+    timeout_factor: 0.2
+    
+  - id: summarize
+    name: "审查报告"
+    type: agent
+    agent: summarizer
+    description: "汇总所有审查结果，生成审计报告"
+    input: [audit_plan.md, collected_info.md, audit_critique_*.md]
+    output: audit_report.md
+    next: done
+    timeout_factor: 0.8
+
+# --- 收敛条件配置（简化版） ---
+convergence:
+  methods:
+    - coverage_threshold     # 覆盖度达标
+    - max_iterations         # 达到最大迭代次数
+    - no_new_findings        # 无新发现
+  
+  coverage_threshold: 0.85
+  max_iterations: 5
+
+# --- 质量门控（audit专用） ---
+quality_gates:
+  - stage: check
+    auto_pass:
+      condition: "coverage >= coverage_threshold"
+      action: goto_summarize
+    continue:
+      condition: "coverage < coverage_threshold"
+      action: goto_collect
+
+# --- 输出格式 ---
+output:
+  format: markdown
+  sections:
+    - executive_summary    # 执行摘要
+    - findings             # 发现问题
+    - evidence             # 证据链
+    - risk_assessment      # 风险评估
+    - recommendations      # 建议（仅建议，不强制修改）

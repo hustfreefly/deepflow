@@ -1,0 +1,246 @@
+module: orchestrator_agent
+version: "2.0"
+complexity: "medium"
+
+# =============================================================================
+# 启动协议（2026-04-22 修复版）
+# 问题：主 Agent 手动拼 task 参数 → Orchestrator 执行简化版 → 管线不完整
+# 规则：主 Agent 不得自定义 task，必须通过 orchestrator_agent.py 加载完整 Prompt
+# =============================================================================
+
+launch_protocol:
+  correct_flow: |
+    主 Agent (depth-0) 必须通过 orchestrator_agent.py 启动 Orchestrator：
+    1. 主 Agent spawn Orchestrator 时，task 必须执行 orchestrator_agent.py 代码
+    2. Orchestrator Agent 在代码中加载 pipeline_engine_orchestrator.md 作为 prompt
+    3. Orchestrator Agent 创建 PipelineEngine 并执行完整管线
+    4. 所有 Worker spawn 由 PipelineEngine 内部管理，不由主 Agent 干预
+
+  spawn_task_format: |
+    主 Agent spawn Orchestrator 的 task 必须是：
+    ```
+    你是 DeepFlow Orchestrator Agent。
+    你的任务是执行 /Users/allen/.openclaw/workspace/.deepflow/orchestrator_agent.py 中的代码。
+    
+    ## 环境变量
+    DEEPFLOW_DOMAIN=investment
+    DEEPFLOW_CODE=688652.SH
+    DEEPFLOW_NAME=京仪装备
+    
+    ## 执行步骤
+    1. 读取 /Users/allen/.openclaw/workspace/.deepflow/orchestrator_agent.py
+    2. 按代码逻辑执行：
+       - 初始化 OrchestratorAgent（从环境变量读取配置）
+       - 调用 agent.run() 执行完整管线
+       - agent.run() 内部会：
+         a. step1: 委托 PipelineEngine 执行 DataManager
+         b. step2: PipelineEngine.run() 执行所有 stages
+         c. step3: 保存结果
+    3. 所有 sessions_spawn 调用必须设置 label 参数
+    4. 最终报告写入 blackboard/{session_id}/final_report.md
+    
+    ## 禁止
+    - 不得跳过 PipelineEngine，手动 spawn Workers
+    - 不得简化或改写执行流程
+    - 不得自行生成报告替代 Summarizer
+    ```
+
+  forbidden: |
+    ❌ 主 Agent 不得手动拼 sessions_spawn 的 task 参数（让 Orchestrator 作为通用 Agent）
+    ❌ 主 Agent 不得简化/提炼/改写 pipeline_engine_orchestrator.md 的内容
+    ❌ 主 Agent 不得自定义 STEP 1/2/3 指令
+    ❌ Orchestrator 不得绕过 PipelineEngine，手动 spawn Workers
+    ❌ Orchestrator 不得自行写报告替代 Summarizer Agent
+
+  required: |
+    ✅ Orchestrator 必须执行 orchestrator_agent.py 的代码逻辑
+    ✅ Orchestrator 必须创建 PipelineEngine 并调用 engine.run()
+    ✅ PipelineEngine 必须自动执行所有 stages（包括 data_manager 作为第一个 stage）
+    ✅ 所有管线阶段（planner → researchers → analysts → auditors → fixer → verifier → summarizer）
+    ✅ 收敛检测（≥2 轮，target_score 0.88）
+
+# =============================================================================
+# L1: 接口契约（方法签名）
+# =============================================================================
+
+interface:
+  # OrchestratorAgent 类
+  "OrchestratorAgent.__init__": "() -> None"
+  "OrchestratorAgent.log": "msg: str -> None"
+  "OrchestratorAgent.step1_data_collection": "() -> bool"
+  "OrchestratorAgent._generate_key_metrics": "bootstrap_data: Dict[str, Any] -> None"
+  "OrchestratorAgent.step2_pipeline_execution": "() -> PipelineResult"
+  "OrchestratorAgent.step3_save_results": "result: PipelineResult -> None"
+  "OrchestratorAgent.run": "() -> int"
+  # 独立函数
+  "main": "() -> int"
+
+# =============================================================================
+# L2: 行为契约（输入/输出/成功/失败）
+# =============================================================================
+
+behavior:
+  OrchestratorAgent.__init__:
+    input: {}
+    output:
+      type: "None"
+      constraints: []
+    success: |
+      从环境变量读取 DEEPFLOW_DOMAIN, DEEPFLOW_CODE, DEEPFLOW_NAME
+      加载领域配置 (ConfigLoader)
+      生成 session_id
+      初始化组件引用 (coordinator, engine, blackboard = None)
+    failure: |
+      配置加载失败 → 使用默认配置，继续初始化
+      环境变量缺失 → 使用默认值
+
+  OrchestratorAgent.log:
+    input:
+      msg: "str, 日志消息内容"
+    output:
+      type: "None"
+      constraints: []
+    success: "打印格式: [Orchestrator] {msg}"
+    failure: "无（print 不会失败）"
+
+  OrchestratorAgent.step1_data_collection:
+    input: {}
+    output:
+      type: "bool"
+      constraints:
+        - "True 表示成功"
+        - "False 表示失败"
+    success: |
+      1. 构建 DataManager Agent task（包含 session_id, company_code, company_name）
+      2. 使用 sessions_spawn 创建 DataManager Agent（depth-2）
+      3. 等待 data_manager_completed.json 完成信号（最多60秒）
+      4. 检查数据目录存在性
+      5. 返回 True（即使完成信号未找到，数据目录存在也继续）
+    failure: |
+      DataManager Agent spawn 失败 → 打印警告，尝试继续（返回 True）
+      数据目录不存在 → 返回 False
+
+  OrchestratorAgent._generate_key_metrics:
+    input:
+      bootstrap_data: "Dict[str, Any], DataManager bootstrap 采集的原始数据"
+    output:
+      type: "None"
+      constraints: []
+    success: |
+      1. 从 bootstrap_data 提取 daily_basics 最新记录
+      2. 从 bootstrap_data 提取 realtime_quote 当前股价
+      3. 构建精简指标字典（current_price, pe_ttm, pb, analysis_date 等）
+      4. 写入 blackboard/{session_id}/data/key_metrics.json
+      5. 打印日志确认生成成功
+    failure: |
+      任何异常 → 打印警告日志，不阻断流程（继续执行）
+
+  OrchestratorAgent.step2_pipeline_execution:
+    input: {}
+    output:
+      type: "PipelineResult"
+      constraints:
+        - "必须包含 state, iterations, final_score, outputs"
+    success: |
+      1. 创建 PipelineEngine
+      2. 调用 engine.run()
+      3. 返回 PipelineResult
+    failure: |
+      PipelineEngine 创建失败 → 抛出异常
+      engine.run() 失败 → 返回包含 error 的 PipelineResult
+
+  OrchestratorAgent.step3_save_results:
+    input:
+      result: "PipelineResult, 执行结果"
+    output:
+      type: "None"
+      constraints: []
+    success: |
+      1. 创建 blackboard/{session_id}/orchestrator_result.json
+      2. 写入 JSON 格式的结果数据
+    failure: |
+      目录创建失败 → 抛出 OSError
+      JSON 序列化失败 → 抛出 TypeError
+
+  OrchestratorAgent.run:
+    input: {}
+    output:
+      type: "int"
+      constraints:
+        - "0 表示成功"
+        - "1 表示失败"
+    success: |
+      按顺序执行：step1 → step2 → step3
+      输出执行总结
+      返回 0
+    failure: |
+      任何步骤抛出异常 → 打印错误和堆栈，返回 1
+
+  main:
+    input: {}
+    output:
+      type: "int"
+      constraints:
+        - "0 表示成功"
+        - "1 表示失败"
+    success: |
+      1. 读取环境变量
+      2. 加载领域配置
+      3. 生成 session_id
+      4. 创建 OrchestratorAgent 实例
+      5. 调用 agent.run()
+      6. 返回 run() 的结果
+    failure: |
+      环境准备失败 → 打印错误，返回 1
+      agent.run() 返回 1 → 返回 1
+
+# =============================================================================
+# L3: 边界条件
+# =============================================================================
+
+boundaries:
+  - "环境变量 DEEPFLOW_CODE/DEEPFLOW_NAME 为空 → session_id 使用 uuid 生成"
+  - "ConfigLoader 加载失败 → 使用默认配置，继续执行"
+  - "DataManager bootstrap 失败 → 打印警告，继续执行（数据采集中断不致命）"
+  - "_generate_key_metrics 失败 → 打印警告，继续执行（不阻断管线）"
+  - "Blackboard 目录已存在 → 不报错，继续使用"
+  - "PipelineResult 为 None → 在 step3_save_results 中处理"
+  - "key_metrics.json 已存在 → 覆盖写入（原子写入）"
+
+# =============================================================================
+# 依赖关系
+# =============================================================================
+
+dependencies:
+  - config_loader.ConfigLoader
+  - config_loader.DomainConfig
+  - blackboard_manager.BlackboardManager
+  - pipeline_engine.PipelineEngine
+  - pipeline_engine.PipelineResult
+  - data_manager.DataEvolutionLoop
+  - data_manager.ConfigDrivenCollector
+  - data_providers.investment.register_providers
+  - quality_gate.QualityGate
+  - resilience_manager.ResilienceManager
+  - observability.Observability
+
+# =============================================================================
+# 使用示例
+# =============================================================================
+
+examples:
+  main: |
+    # 设置环境变量
+    export DEEPFLOW_DOMAIN=investment
+    export DEEPFLOW_CODE=300604.SZ
+    export DEEPFLOW_NAME=长川科技
+
+    # 执行
+    python orchestrator_agent.py
+    # 输出:
+    # ✅ 领域配置加载成功: investment
+    # [Orchestrator] Domain: investment
+    # [Orchestrator] Company: 长川科技 (300604.SZ)
+    # [Orchestrator] Session: 长川科技_300604_7216b977
+    # ... 管线执行日志 ...
+    # ✅ 管线执行成功！

@@ -1,0 +1,59 @@
+# Prompt分层契约 V2.0
+# 日期: 2026-04-20
+# 目标: 将18K单体Prompt重构为分层架构，保持Agent执行方式
+
+cage_version: "2.0"
+domain: investment
+
+# 分层结构
+layers:
+  core:
+    file: "prompts/investment/orchestrator/core.md"
+    size_limit: "3K"
+    always_load: true
+    content:
+      - 身份定义
+      - 强制契约（5条）
+      - 收敛规则
+      - 输出Schema
+  
+  steps:
+    - name: data_collection
+      file: "prompts/investment/orchestrator/step1_data.md"
+      size_limit: "2K"
+      trigger: "INIT"
+      completion_signal: "[PHASE_COMPLETE: data_collection]"
+    
+    - name: search
+      file: "prompts/investment/orchestrator/step2_search.md"
+      size_limit: "2K"
+      trigger: "[PHASE_COMPLETE: data_collection]"
+      completion_signal: "[PHASE_COMPLETE: search]"
+    
+    - name: worker_dispatch
+      file: "prompts/investment/orchestrator/step3_dispatch.md"
+      size_limit: "3K"
+      trigger: "[PHASE_COMPLETE: search]"
+      iterative: true
+      max_iterations: 10
+
+# Worker配置
+workers:
+  researcher:
+    count: 6
+    parallel: true
+    model: "bailian/qwen3.5-plus"
+    timeout: 300
+  
+  auditor:
+    count: 3
+    parallel: true
+    model: "bailian/kimi-k2.5"
+    timeout: 180
+
+# 收敛规则
+convergence:
+  min_iterations: 2
+  max_iterations: 10
+  target_score: 0.92
+  stall_threshold: 0.02

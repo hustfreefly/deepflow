@@ -1,0 +1,33 @@
+# DeepFlow 全局配置
+# 配置文件加载优先级（从高到低）：
+# 1. 环境变量
+# 2. 本文件 (global_config.yaml)
+# 3. 各模块配置文件
+# 4. 代码默认值
+
+# 配置文件目录
+config_dirs:
+  - "./config"
+  - "~/.deepflow/config"
+  
+# 热加载
+hot_reload:
+  enabled: true
+  interval: 30s  # 30秒检查一次配置变更
+
+# 日志
+logging:
+  level: "INFO"
+  format: "json"
+  output: "./logs/deepflow.log"
+  
+# 性能
+performance:
+  max_concurrent_agents: 5      # 最大并行Agent数
+  max_memory_mb: 4096           # 最大内存使用
+  
+# 监控
+monitoring:
+  enabled: true
+  metrics_interval: 60s
+  report_stats: true

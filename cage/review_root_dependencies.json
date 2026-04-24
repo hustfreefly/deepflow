@@ -1,0 +1,273 @@
+{
+  "review_type": "root_dependencies",
+  "timestamp": "2026-04-23T16:07:00+08:00",
+  "files": [
+    {
+      "filename": "blackboard_manager.py",
+      "location": "root",
+      "status": "used",
+      "imported_by": [
+        "core/task_builder.py (在生成的字符串模板中)",
+        "data_collection_task.py",
+        "domains/investment/__init__.py",
+        "domains/investment/orchestrator.py",
+        "domains/investment/cage_orchestrator.py"
+      ],
+      "imports": ["json", "tempfile", "pathlib", "typing"],
+      "v3_v4": "v4",
+      "safe_to_delete": false,
+      "recommendation": "保留 - V4 DataManager Worker 通过 task_builder 生成的代码使用"
+    },
+    {
+      "filename": "data_manager.py",
+      "location": "root",
+      "status": "used",
+      "imported_by": [
+        "pipeline_engine.py",
+        "core/task_builder.py (在生成的字符串模板中)",
+        "data_collection_task.py",
+        "domains/investment/__init__.py",
+        "domains/investment/orchestrator.py",
+        "domains/investment/cage_orchestrator.py"
+      ],
+      "imports": ["json", "os", "tempfile", "time", "abc", "dataclasses", "datetime", "pathlib", "typing", "yaml", "observability"],
+      "v3_v4": "v4",
+      "safe_to_delete": false,
+      "recommendation": "保留 - V4 DataManager Worker 和 domains/investment 使用"
+    },
+    {
+      "filename": "pipeline_engine.py",
+      "location": "root",
+      "status": "unused",
+      "imported_by": [
+        "coordinator.py",
+        "tests/unit/check_pipeline_engine.py",
+        "tests/unit/test_regression.py",
+        "tests/contract/test_coordinator.py",
+        "check_pipeline_engine_fix.py"
+      ],
+      "imports": ["json", "time", "dataclasses", "enum", "pathlib", "typing", "config_loader", "blackboard_manager", "quality_gate", "resilience_manager", "observability", "data_manager"],
+      "v3_v4": "v3",
+      "safe_to_delete": true,
+      "recommendation": "删除 - V3 遗留，V4 使用 core/master_agent.py + core/orchestrator_agent.py 替代"
+    },
+    {
+      "filename": "coordinator.py",
+      "location": "root",
+      "status": "unused",
+      "imported_by": [
+        "tests/unit/check_coordinator_blackboards.py",
+        "tests/unit/check_pipeline_resume.py",
+        "tests/unit/test_e2e_production.py",
+        "tests/unit/test_coordinator.py"
+      ],
+      "imports": ["json", "time", "uuid", "dataclasses", "enum", "pathlib", "typing", "pipeline_engine"],
+      "v3_v4": "v3",
+      "safe_to_delete": true,
+      "recommendation": "删除 - V3 遗留，V4 使用 core/orchestrator_agent.py 替代"
+    },
+    {
+      "filename": "config_loader.py",
+      "location": "root",
+      "status": "used",
+      "imported_by": [
+        "pipeline_engine.py",
+        "domains/investment/__init__.py",
+        "tests/unit/test_e2e_production.py",
+        "tests/unit/check_config_loader.py"
+      ],
+      "imports": ["dataclasses", "pathlib", "typing", "yaml", "observability"],
+      "v3_v4": "v3/v4混合",
+      "safe_to_delete": false,
+      "recommendation": "保留 - domains/investment/__init__.py 仍在使用，但 pipeline_engine.py 是 V3 遗留"
+    },
+    {
+      "filename": "quality_gate.py",
+      "location": "root",
+      "status": "used",
+      "imported_by": [
+        "pipeline_engine.py",
+        "domains/investment/__init__.py",
+        "tests/unit/fixtures/test_helpers.py",
+        "tests/unit/test_regression.py",
+        "tests/contract/test_quality_gate.py"
+      ],
+      "imports": ["re", "dataclasses", "enum", "typing", "observability"],
+      "v3_v4": "v3/v4混合",
+      "safe_to_delete": false,
+      "recommendation": "保留 - domains/investment/__init__.py 仍在使用，但 pipeline_engine.py 是 V3 遗留"
+    },
+    {
+      "filename": "resilience_manager.py",
+      "location": "root",
+      "status": "unused",
+      "imported_by": [
+        "pipeline_engine.py",
+        "tests/unit/test_resilience_simulation.py",
+        "tests/unit/test_resilience_manager.py"
+      ],
+      "imports": ["json", "os", "tempfile", "threading", "time", "dataclasses", "enum", "pathlib", "typing", "observability"],
+      "v3_v4": "v3",
+      "safe_to_delete": true,
+      "recommendation": "删除 - 仅被 V3 pipeline_engine.py 引用，V4 未使用"
+    },
+    {
+      "filename": "observability.py",
+      "location": "root",
+      "status": "used",
+      "imported_by": [
+        "pipeline_engine.py",
+        "config_loader.py",
+        "quality_gate.py",
+        "resilience_manager.py",
+        "data_manager.py",
+        "tests/unit/coding_standards.py",
+        "tests/contract/test_observability.py"
+      ],
+      "imports": ["json", "logging", "threading", "time", "uuid", "typing"],
+      "v3_v4": "v3/v4混合",
+      "safe_to_delete": false,
+      "recommendation": "保留 - 被多个文件引用，包括 data_manager.py 和 config_loader.py"
+    },
+    {
+      "filename": "protocols.py",
+      "location": "root",
+      "status": "unused",
+      "imported_by": [
+        "tests/contract/test_protocols.py"
+      ],
+      "imports": ["enum", "typing"],
+      "v3_v4": "v3",
+      "safe_to_delete": true,
+      "recommendation": "删除 - 仅被测试文件引用，V4 未使用"
+    },
+    {
+      "filename": "data_collection_task.py",
+      "location": "root",
+      "status": "unused",
+      "imported_by": [],
+      "imports": ["sys", "os", "json", "subprocess"],
+      "v3_v4": "v3",
+      "safe_to_delete": true,
+      "recommendation": "删除 - 独立脚本，未被其他文件引用，功能已被 core/data_manager_worker.py 替代"
+    },
+    {
+      "filename": "init_session.py",
+      "location": "root",
+      "status": "unused",
+      "imported_by": [],
+      "imports": [],
+      "v3_v4": "v3",
+      "safe_to_delete": true,
+      "recommendation": "删除 - 空文件或旧版初始化，已被 core/master_agent.py 替代"
+    },
+    {
+      "filename": "init_smic.py",
+      "location": "root",
+      "status": "unused",
+      "imported_by": [],
+      "imports": ["sys", "os", "uuid", "json", "time", "core.task_builder"],
+      "v3_v4": "v3",
+      "safe_to_delete": true,
+      "recommendation": "删除 - 特定测试脚本，功能已被 core/master_agent.py 替代"
+    },
+    {
+      "filename": "check_pipeline_engine_fix.py",
+      "location": "root",
+      "status": "unused",
+      "imported_by": [],
+      "imports": ["sys", "pathlib", "pipeline_engine", "inspect"],
+      "v3_v4": "v3",
+      "safe_to_delete": true,
+      "recommendation": "删除 - 旧版检查脚本，V4 不再需要"
+    }
+  ],
+  "deletion_plan": {
+    "safe_to_delete": [
+      "pipeline_engine.py",
+      "coordinator.py",
+      "resilience_manager.py",
+      "protocols.py",
+      "data_collection_task.py",
+      "init_session.py",
+      "init_smic.py",
+      "check_pipeline_engine_fix.py"
+    ],
+    "must_keep": [
+      "blackboard_manager.py",
+      "data_manager.py",
+      "config_loader.py",
+      "quality_gate.py",
+      "observability.py"
+    ],
+    "move_to_core": [],
+    "risks": [
+      "删除 pipeline_engine.py 会导致 tests/ 目录下的测试失败（6个测试文件引用）",
+      "删除 coordinator.py 会导致 tests/ 目录下的测试失败（4个测试文件引用）",
+      "删除 resilience_manager.py 会导致 tests/ 目录下的测试失败（2个测试文件引用）",
+      "删除 protocols.py 会导致 tests/contract/test_protocols.py 失败",
+      "config_loader.py 和 quality_gate.py 被 domains/investment/__init__.py 引用，如果删除会影响投资领域编排器",
+      "observability.py 被多个文件引用，删除会导致 import 错误",
+      "blackboard_manager.py 和 data_manager.py 被 core/task_builder.py 生成的代码使用，删除会导致 DataManager Worker 失败"
+    ]
+  },
+  "dependency_graph": {
+    "blackboard_manager.py": {
+      "imported_by": ["core/task_builder.py", "data_collection_task.py", "domains/investment/__init__.py", "domains/investment/orchestrator.py", "domains/investment/cage_orchestrator.py"],
+      "imports": []
+    },
+    "data_manager.py": {
+      "imported_by": ["pipeline_engine.py", "core/task_builder.py", "data_collection_task.py", "domains/investment/__init__.py", "domains/investment/orchestrator.py", "domains/investment/cage_orchestrator.py"],
+      "imports": ["observability.py"]
+    },
+    "pipeline_engine.py": {
+      "imported_by": ["coordinator.py", "tests/*"],
+      "imports": ["config_loader.py", "blackboard_manager.py", "quality_gate.py", "resilience_manager.py", "observability.py", "data_manager.py"]
+    },
+    "coordinator.py": {
+      "imported_by": ["tests/*"],
+      "imports": ["pipeline_engine.py"]
+    },
+    "config_loader.py": {
+      "imported_by": ["pipeline_engine.py", "domains/investment/__init__.py", "tests/*"],
+      "imports": ["observability.py"]
+    },
+    "quality_gate.py": {
+      "imported_by": ["pipeline_engine.py", "domains/investment/__init__.py", "tests/*"],
+      "imports": ["observability.py"]
+    },
+    "resilience_manager.py": {
+      "imported_by": ["pipeline_engine.py", "tests/*"],
+      "imports": ["observability.py"]
+    },
+    "observability.py": {
+      "imported_by": ["pipeline_engine.py", "config_loader.py", "quality_gate.py", "resilience_manager.py", "data_manager.py", "tests/*"],
+      "imports": []
+    },
+    "protocols.py": {
+      "imported_by": ["tests/*"],
+      "imports": []
+    }
+  },
+  "circular_dependencies": [],
+  "v3_vs_v4_summary": {
+    "v3_only": [
+      "pipeline_engine.py",
+      "coordinator.py",
+      "resilience_manager.py",
+      "protocols.py",
+      "data_collection_task.py",
+      "init_session.py",
+      "init_smic.py",
+      "check_pipeline_engine_fix.py"
+    ],
+    "v4_only": [],
+    "v3_v4_mixed": [
+      "blackboard_manager.py",
+      "data_manager.py",
+      "config_loader.py",
+      "quality_gate.py",
+      "observability.py"
+    ]
+  }
+}

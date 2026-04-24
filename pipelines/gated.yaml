@@ -1,0 +1,185 @@
+# ============================================================
+# Deep Dive V3.0 — Gated管线模板
+# 文件: pipelines/gated.yaml
+# 说明: 递进门控管线 — Stage1→Gate→Stage2→Gate，支持HITL人工确认
+# 适用场景: 系统构建（架构设计→代码实现）、重大项目、高风险变更
+# ============================================================
+
+template:
+  name: gated
+  version: "3.0"
+  description: |
+    递进门控管线：
+    
+    阶段1（架构设计）:
+    1. Plan: 架构规划
+    2. Design: 架构设计
+    3. Review: 架构评审
+    4. Gate1: 架构门控（人工确认）
+       - 通过 → 进入阶段2
+       - 不通过 → 重新设计
+       
+    阶段2（代码实现）:
+    5. Implement: 代码实现（基于已冻结的架构）
+    6. CodeReview: 代码评审
+    7. Gate2: 代码门控（人工确认）
+       - 通过 → 进入汇总
+       - 不通过 → 修复代码
+       
+    8. Summarize: 汇总交付物
+    
+    特点：
+    - 阶段间有质量门控
+    - 支持人工确认（HITL）
+    - 前一阶段通过后"冻结"，后一阶段基于冻结版本
+    - 适用于高风险、高价值交付
+
+# --- FSM状态定义 ---
+states:
+  - INIT
+  - PLANNING
+  - DESIGNING
+  - REVIEWING
+  - GATE1_WAITING
+  - IMPLEMENTING
+  - CODE_REVIEWING
+  - GATE2_WAITING
+  - SUMMARIZING
+  - DONE
+  - FAILED
+
+# --- 阶段定义 ---
+stages:
+  # ===== 阶段1: 架构设计 =====
+  - id: plan
+    name: "架构规划"
+    type: agent
+    agent: planner
+    description: "分析需求，制定架构规划"
+    input: []
+    output: architecture_plan.md
+    next: design
+    
+  - id: design
+    name: "架构设计"
+    type: agent
+    agent: researcher  # 架构师角色
+    description: "根据规划进行架构设计"
+    input: [architecture_plan.md]
+    output: architecture_design.md
+    next: review
+    
+  - id: review
+    name: "架构评审"
+    type: agent
+    agent: auditor
+    description: "多Agent并行评审架构设计"
+    input: [architecture_design.md]
+    output: "arch_review_{instance_name}.md"
+    parallel: true
+    next: gate1
+    
+  - id: gate1
+    name: "架构门控"
+    type: gate
+    description: "架构评审通过后才能进入实现阶段"
+    input: [arch_review_*.md, architecture_design.md]
+    criteria:
+      min_score: 0.85
+      required_approvals: 2
+    on_pass: implement
+    on_fail: design  # 不通过则重新设计
+    on_max_fail: escalate  # 3次未通过则升级
+    max_attempts: 3
+    hitl_enabled: true  # 人工确认
+    
+  # ===== 阶段2: 代码实现 =====
+  - id: implement
+    name: "代码实现"
+    type: agent
+    agent: researcher  # 程序员角色
+    description: "基于已冻结的架构设计进行代码实现"
+    input: [architecture_design.md]  # 使用冻结的架构
+    frozen_inputs: [architecture_design.md]  # 冻结，不可修改
+    output: code_implementation.md
+    next: code_review
+    
+  - id: code_review
+    name: "代码评审"
+    type: agent
+    agent: auditor
+    description: "审查代码实现质量"
+    input: [code_implementation.md, architecture_design.md]
+    output: "code_review_{instance_name}.md"
+    parallel: true
+    next: gate2
+    
+  - id: gate2
+    name: "代码门控"
+    type: gate
+    description: "代码评审通过后才能交付"
+    input: [code_review_*.md, code_implementation.md]
+    criteria:
+      min_score: 0.90
+      required_approvals: 1
+    on_pass: summarize
+    on_fail: fix_code
+    on_max_fail: escalate
+    max_attempts: 5
+    hitl_enabled: true
+    
+  - id: fix_code
+    name: "代码修复"
+    type: agent
+    agent: fixer
+    description: "根据评审意见修复代码"
+    input: [code_implementation.md, code_review_*.md]
+    output: fixed_code.md
+    next: code_review  # 修复后重新评审
+    
+  - id: summarize
+    name: "汇总"
+    type: agent
+    agent: summarizer
+    description: "汇总架构设计和代码实现"
+    input: [architecture_design.md, code_implementation.md]
+    output: final_deliverable.md
+    next: done
+
+# --- 门控配置 ---
+gates:
+  - id: gate1
+    name: "架构门控"
+    description: "架构设计评审"
+    freeze_on_pass: true  # 通过后冻结输入
+    hitl_prompt: |
+      架构设计已评审，评分：{score}
+      
+      是否通过并进入代码实现阶段？
+      - /approve: 通过，进入实现
+      - /reject: 不通过，重新设计
+      - /comment: 添加修改意见
+      
+  - id: gate2
+    name: "代码门控"
+    description: "代码实现评审"
+    freeze_on_pass: false  # 最终交付，无需冻结
+    hitl_prompt: |
+      代码实现已评审，评分：{score}
+      
+      是否通过并交付？
+      - /approve: 通过，完成交付
+      - /reject: 不通过，返回修复
+      - /comment: 添加修改意见
+
+# --- 冻结机制 ---
+frozen_artifacts:
+  - stage: gate1
+    artifacts: [architecture_design.md]
+    reason: "架构设计一旦通过门控即冻结，代码实现基于冻结版本"
+
+# --- 升级机制 ---
+escalation:
+  trigger: "max_failures_reached"
+  action: "notify_admin"
+  message: "门控多次未通过，需要人工介入"

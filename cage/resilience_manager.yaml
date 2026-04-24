@@ -1,0 +1,107 @@
+module: "resilience_manager"
+version: "1.0"
+complexity: "medium"
+
+interface:
+  "__init__": "config: Optional[Dict] = None -> None"
+  "execute_with_retry": "task: Callable, max_retries: int = 2, backoff: str = 'exponential' -> Result"
+  "circuit_breaker_check": "service: str -> bool"
+  "circuit_breaker_record": "service: str, success: bool -> None"
+  "checkpoint_save": "session_id: str, stage: str, state: Dict -> Path"
+  "checkpoint_load": "session_id: str, stage: str -> Optional[Dict]"
+  "rollback": "session_id: str, to_stage: str -> bool"
+  "get_error_classifier": "() -> ErrorClassifier"
+  "classify_error": "error: Exception -> ErrorCategory"
+  "should_retry": "error: Exception, attempt: int, max_retries: int -> bool"
+
+behavior:
+  __init__:
+    input:
+      config: "Optional[Dict]，包含timeout/retries/circuit_breaker配置"
+    output:
+      type: "None"
+    success: "初始化韧性管理器，配置L1-L3参数"
+    failure: "配置格式错误→ValueError"
+  execute_with_retry:
+    input:
+      task: "Callable，可执行任务"
+      max_retries: "int，最大重试次数，默认2"
+      backoff: "str，退避策略linear/exponential，默认exponential"
+    output:
+      type: "Result"
+    success: "执行成功返回Result(success=True)；失败返回Result(success=False, error=...)"
+    failure: "不会抛异常（内部捕获）"
+  circuit_breaker_check:
+    input:
+      service: "str，服务标识"
+    output:
+      type: "bool"
+    success: "熔断器CLOSED→True允许通过；OPEN→False拒绝"
+    failure: "不会抛异常"
+  circuit_breaker_record:
+    input:
+      service: "str，服务标识"
+      success: "bool，调用是否成功"
+    output:
+      type: "None"
+    success: "记录调用结果，更新熔断器状态"
+    failure: "不会抛异常"
+  checkpoint_save:
+    input:
+      session_id: "str，会话ID"
+      stage: "str，阶段名"
+      state: "Dict，阶段状态"
+    output:
+      type: "Path"
+    success: "原子写入检查点文件，返回文件路径"
+    failure: "IO错误→记录error并返回None"
+  checkpoint_load:
+    input:
+      session_id: "str，会话ID"
+      stage: "str，阶段名"
+    output:
+      type: "Optional[Dict]"
+    success: "返回检查点状态，不存在→None"
+    failure: "文件损坏→None并记录warning"
+  rollback:
+    input:
+      session_id: "str，会话ID"
+      to_stage: "str，回滚目标阶段"
+    output:
+      type: "bool"
+    success: "成功回滚到目标阶段→True"
+    failure: "检查点不存在→False"
+  get_error_classifier:
+    input: {}
+    output:
+      type: "ErrorClassifier"
+    success: "返回错误分类器实例"
+    failure: "不会抛异常"
+  classify_error:
+    input:
+      error: "Exception，异常实例"
+    output:
+      type: "ErrorCategory"
+    success: "返回RECOVERABLE/RETRY_LIMIT/CRITICAL分类"
+    failure: "不会抛异常（兜底UNKNOWN）"
+  should_retry:
+    input:
+      error: "Exception，异常实例"
+      attempt: "int，当前尝试次数"
+      max_retries: "int，最大重试次数"
+    output:
+      type: "bool"
+    success: "根据错误类型和尝试次数判断是否重试"
+    failure: "不会抛异常"
+
+boundaries:
+  - "max_retries < 0 → 视为0不重试"
+  - "backoff不是linear/exponential → 使用exponential"
+  - "熔断器连续失败5次 → 进入OPEN状态5分钟"
+  - "检查点文件损坏 → 返回None而非抛异常"
+  - "回滚目标阶段不存在 → 返回False"
+  - "多线程操作熔断器 → 线程安全（内部锁保护）"
+  - "checkpoint_save原子性失败 → 回滚临时文件"
+
+dependencies:
+  - "observability.get_logger"

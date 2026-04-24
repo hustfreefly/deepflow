@@ -1,0 +1,140 @@
+# Orchestrator Task 构建增强 + 模板变量替换修复 契约
+# 版本: 1.0 | 日期: 2026-04-22
+# 目标: 修复 Worker 提示词缺少上下文和模板变量未替换问题
+
+module: "orchestrator_task_enhancement"
+version: "1.0"
+complexity: "medium"
+
+# =============================================================================
+# L1: 架构契约
+# =============================================================================
+
+architecture:
+  problem: |
+    当前 Orchestrator 给 Worker 的 task 过于简单：
+    "读取 prompts/xxx.md 并按指令执行"
+    
+    导致 Worker：
+    1. 不知道分析哪家公司（模板变量 {{code}} 未替换）
+    2. 没有研究重点（缺少 Planner 输出注入）
+    3. 没有数据摘要（缺少 DataManager 核心数据注入）
+    
+  solution: |
+    1. Orchestrator 读取提示词模板文件
+    2. 替换模板变量（{{code}}, {{name}}, {{session_id}} 等）
+    3. 注入上下文（公司信息、研究重点、数据摘要）
+    4. 将完整的提示词作为 task 传给 Worker
+
+# =============================================================================
+# L2: 接口契约
+# =============================================================================
+
+interface:
+  "build_worker_task": "agent_role: str, context: dict -> str"
+  "replace_template_vars": "prompt_text: str, variables: dict -> str"
+  "extract_context_for_worker": "session_id: str, agent_role: str -> dict"
+
+# =============================================================================
+# L3: 行为契约
+# =============================================================================
+
+behavior:
+  build_worker_task:
+    input:
+      agent_role: "str, Worker角色（如 researcher_finance）"
+      context:
+        company_code: "str, 股票代码"
+        company_name: "str, 公司名称"
+        session_id: "str, 会话ID"
+        planner_output: "dict, Planner输出摘要"
+        data_summary: "dict, DataManager数据摘要"
+    output:
+      type: "str"
+      constraints:
+        - "必须包含具体公司名称和股票代码"
+        - "必须包含研究重点"
+        - "必须包含输入数据路径"
+        - "必须包含输出路径"
+        - "不能包含未替换的 {{variable}}"
+    success: |
+      1. 读取提示词模板文件
+      2. 替换所有模板变量
+      3. 注入上下文信息
+      4. 返回完整的 task 文本
+    failure: |
+      模板文件不存在 → 使用默认提示词
+      变量缺失 → 保留变量名并记录警告
+
+  replace_template_vars:
+    input:
+      prompt_text: "str, 原始提示词文本"
+      variables: "dict, 变量名→值的映射"
+    output:
+      type: "str"
+      constraints:
+        - "所有 {{var}} 格式的变量必须被替换"
+        - "如果变量不存在于 mappings 中，保留原样并记录警告"
+    success: |
+      输入: "股票代码: {{code}}, 公司: {{name}}"
+      变量: {"code": "688652.SH", "name": "京仪装备"}
+      输出: "股票代码: 688652.SH, 公司: 京仪装备"
+
+# =============================================================================
+# L4: 边界条件
+# =============================================================================
+
+boundaries:
+  - "模板文件不存在 → 使用默认提示词并记录警告"
+  - "变量缺失 → 保留 {{var}} 格式并记录警告"
+  - "提示词 > 32K tokens → 截断并记录警告"
+  - "注入的上下文过大 → 只保留关键字段"
+
+# =============================================================================
+# 关键变更点
+# =============================================================================
+
+changes:
+  files:
+    - "orchestrator_agent.py": 
+        change: "增强 Task 构建逻辑，注入完整上下文"
+        functions_added: ["build_worker_task", "replace_template_vars", "extract_context_for_worker"]
+    - "prompts/investment_researcher_*.md":
+        change: "修复模板变量和过时指令"
+    - "prompts/investment_auditor.md":
+        change: "修复模板变量和过时指令"
+    - "prompts/investment_fixer.md":
+        change: "修复模板变量和过时指令"
+    - "prompts/investment_summarizer.md":
+        change: "修复模板变量和过时指令"
+
+# =============================================================================
+# 执行流程
+# =============================================================================
+
+execution_flow: |
+  1. Orchestrator Agent 生成 session_id
+  2. Orchestrator Agent 创建 blackboard 目录
+  3. Orchestrator Agent 运行 DataManager（基础 task）
+  4. DataManager 完成后，读取 key_metrics.json 提取数据摘要
+  5. Orchestrator Agent 运行 Planner（注入数据摘要）
+  6. Planner 完成后，读取 planner_output.json 提取研究计划
+  7. 对于每个 Worker：
+     a. 读取对应的提示词模板文件
+     b. 替换模板变量（{{code}}, {{name}}, {{session_id}}）
+     c. 注入上下文（公司信息、研究重点、数据摘要）
+     d. 构建完整的 task 文本
+     e. 调用 sessions_spawn 创建 Worker
+  8. 等待所有 Workers 完成
+
+# =============================================================================
+# 验证清单
+# =============================================================================
+
+verification:
+  - "Worker task 包含具体公司名称"
+  - "Worker task 包含股票代码"
+  - "Worker task 不包含未替换的 {{variable}}"
+  - "Worker task 包含输入数据路径"
+  - "Worker task 包含输出路径"
+  - "提示词文件不包含过时指令（如调用 sessions_spawn）"

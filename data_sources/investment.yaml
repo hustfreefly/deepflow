@@ -1,0 +1,274 @@
+# ============================================================
+# 投资领域数据采集配置
+# 文件: data_sources/investment.yaml
+# ============================================================
+
+domain: investment
+
+# --- 第一层：基础采集（bootstrap）---
+bootstrap:
+  - id: financials
+    name: "财务数据（Tushare Pro 付费版）"
+    provider: tushare
+    config:
+      api: "fina_indicator"
+      params:
+        ts_code: "{code}"
+        start_date: "20210101"
+        end_date: "20251231"
+        fields: "ts_code,end_date,gross_margin,netprofit_margin,roe,roa"
+    schedule: "once"
+    ttl: "30d"
+    output: "01_financials/"
+
+  - id: income_statement
+    name: "利润表"
+    provider: tushare
+    depends_on: []  # 独立采集
+    config:
+      api: "income"
+      params:
+        ts_code: "{code}"
+        start_date: "20210101"
+        end_date: "20251231"
+        fields: "ts_code,end_date,revenue,net_profit"
+    schedule: "once"
+    ttl: "30d"
+    output: "01_financials/"
+
+  - id: balance_sheet
+    name: "资产负债表"
+    provider: tushare
+    depends_on: []
+    config:
+      api: "balancesheet"
+      params:
+        ts_code: "{code}"
+        start_date: "20210101"
+        end_date: "20251231"
+        fields: "ts_code,end_date,total_assets,total_liab,total_hldr_eqy_exc_min_int"
+    schedule: "once"
+    ttl: "30d"
+    output: "01_financials/"
+
+  - id: cashflow_statement
+    name: "现金流量表"
+    provider: tushare
+    depends_on: []
+    config:
+      api: "cashflow"
+      params:
+        ts_code: "{code}"
+        start_date: "20210101"
+        end_date: "20251231"
+        fields: "ts_code,end_date,net_cash_flows_oper_act,net_cash_flows_inv_act,net_cash_flows_fnc_act"
+    schedule: "once"
+    ttl: "30d"
+    output: "01_financials/"
+
+  - id: daily_basics
+    name: "每日指标（PE/PB/市值）"
+    provider: tushare
+    depends_on: []
+    config:
+      api: "daily_basic"
+      params:
+        ts_code: "{code}"
+        start_date: "20250101"
+        end_date: "20251231"
+        fields: "ts_code,end_date,pe,pe_ttm,pb,ps,total_mv,circ_mv"
+    schedule: "once"
+    ttl: "1d"
+    output: "02_market_quote/"
+
+  - id: realtime_quote
+    name: "实时行情"
+    provider: sina_finance
+    config:
+      symbol: "{code}"
+    schedule: "once"
+    ttl: "1m"
+    output: "02_market_quote/"
+
+  - id: industry_data
+    name: "行业数据"
+    provider: web_fetch
+    depends_on: financials  # P0-2: 依赖财务数据（使用 industry 字段）
+    config:
+      url: "https://stock.eastmoney.com/a/cgszb.html"
+      type: "{{ financials.industry | default('未知行业') }}"  # P0-3: Jinja2 默认值
+    schedule: "once"
+    ttl: "7d"
+    output: "03_industry/"
+
+  - id: recent_news
+    name: "新闻舆情"
+    provider: web_fetch
+    depends_on: [financials, realtime_quote]  # P0-2: 多依赖
+    config:
+      url: "https://finance.sina.com.cn/realstock/company/{exchange_lower}{code_num}/nc.shtml"
+      type: "{{ financials.name | default('未知公司') }} 相关新闻"  # P0-3: Jinja2 默认值
+    schedule: "once"
+    ttl: "1d"
+    output: "04_news/"
+
+  - id: analyst_forecasts
+    name: "券商一致性预期"
+    provider: tushare
+    config:
+      api: "forecast"
+      params:
+        ts_code: "{code}"
+    schedule: "once"
+    ttl: "7d"
+    output: "01_financials/"
+
+  - id: research_reports
+    name: "券商研报全文"
+    provider: web_fetch
+    config:
+      url: "https://data.eastmoney.com/report/stock,{code_num}.html"
+      type: "研报列表页"
+    schedule: "once"
+    ttl: "7d"
+    output: "05_research_reports/list/"
+
+  - id: research_report_content
+    name: "研报全文抓取"
+    provider: web_fetch
+    depends_on: research_reports
+    config:
+      url_pattern: "https://data.eastmoney.com/report/view/{report_id}"
+      type: "研报全文"
+      count: 5
+    schedule: "once"
+    ttl: "7d"
+    output: "05_research_reports/content/"
+
+# --- 第二层：研报解析（Extractor Agent）---
+extractors:
+  - id: report_parser
+    name: "研报解析器"
+    type: agent
+    trigger: "new_research_report_content"
+    timeout: 180
+    prompt_file: "prompts/report_extractor.md"
+    output: "05_research_reports/parsed/"
+
+# --- 市场一致预期数据源 ---
+market_consensus:
+  tushare_forecast: "01_financials/analyst_forecasts.json"
+  broker_reports: "05_research_reports/parsed/"
+  real_time_quote: "02_market_quote/"
+
+# --- 第三层：动态补充采集规则 ---
+# 动态数据采集规则（Agent 按需请求）
+dynamic_rules:
+  - trigger: "Agent 请求行业数据"
+    condition:
+      eq: ["data_request.type", "industry"]
+    action:
+      provider: gemini_cli
+      config:
+        query: "{query}"
+    output: "05_supplement/industry_{query}.json"
+
+  - trigger: "Agent 请求竞品数据"
+    condition:
+      eq: ["data_request.type", "competitor"]
+    action:
+      provider: gemini_cli
+      config:
+        query: "{query}"
+    output: "05_supplement/competitor_{query}.json"
+
+  - trigger: "Agent 请求研报全文"
+    condition:
+      eq: ["data_request.type", "report"]
+    action:
+      provider: gemini_cli
+      config:
+        query: "{query}"
+    output: "05_supplement/report_{query}.json"
+
+  - trigger: "Agent 请求宏观数据"
+    condition:
+      eq: ["data_request.type", "macro"]
+    action:
+      provider: akshare
+      config:
+        api: "macro_china_gdp"
+        params:
+          indicator: "{query}"
+    output: "05_supplement/macro_{query}.json"
+
+  - trigger: "Agent 请求新闻"
+    condition:
+      eq: ["data_request.type", "news"]
+    action:
+      provider: gemini_cli
+      config:
+        query: "{query}"
+    output: "05_supplement/news_{query}.json"
+
+# --- 核心指标定义（用于 key_metrics.json 抽取）---
+key_metrics_definitions:
+  financials:
+    - revenue
+    - net_profit
+    - gross_margin
+    - netprofit_margin
+    - roe
+    - roa
+    - debt_to_asset_ratio
+  market_quote:
+    - current
+    - open
+    - high
+    - low
+    - volume
+    - amount
+  industry:
+    - market_size
+    - growth_rate
+    - market_share_top3
+
+# --- 数据质量约束 ---
+quality_rules:
+  max_data_requests_per_session: 10
+  min_finding_confidence: 0.7
+  financial_data_max_age_days: 180
+  report_max_age_days: 30
+  news_max_age_days: 7
+
+# --- P0-3: 摘要模板（Jinja2 风格，变量缺失时使用默认值）---
+summary_templates:
+  financials_summary: |
+    公司：{{ financials.name | default('N/A') }}
+    行业：{{ financials.industry | default('未知行业') }}
+    营收：{{ financials.revenue | default('N/A') }}
+    净利润：{{ financials.net_profit | default('N/A') }}
+    ROE：{{ financials.roe | default('N/A') }}%
+  
+  market_summary: |
+    股票：{{ realtime_quote.name | default(code) }}
+    当前价：{{ realtime_quote.current | default('N/A') }}
+    涨跌幅：{{ realtime_quote.change_pct | default('N/A') }}%
+  
+  competitor_analysis: |
+    目标公司：{{ financials.name | default(query) }}
+    竞品分析基于：{{ industry_data.market_share_top3 | default('暂无数据') }}
+
+# --- 共识配置 ---
+consensus:
+  enabled: true
+  min_teams: 2
+  divergence_thresholds:
+    revenue: 0.10      # 营收偏差 > 10% 触发分歧
+    net_profit: 0.20   # 净利润偏差 > 20% 触发分歧
+    net_margin: 0.03   # 净利率偏差 > 3pct 触发分歧
+    pe_ratio: 5.0      # PE 偏差 > 5x 触发分歧
+  challenger:
+    enabled: true
+    model: "bailian/qwen3.5-plus"
+    prompt: "对比两团队的预测，指出不合理的假设"

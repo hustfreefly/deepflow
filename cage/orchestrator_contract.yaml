@@ -1,0 +1,182 @@
+# V4.0 契约笼子 - Orchestrator Agent
+# 阶段1: 契约定义
+
+module: orchestrator_v4
+version: "4.0"
+phase: 1
+
+## 身份契约
+
+identity:
+  role: "Orchestrator Agent (depth-1)"
+  responsibility: "纯调度，不采集数据，不执行分析"
+  
+capabilities:
+  - generate_session_id          # 生成唯一会话ID
+  - create_blackboard_dirs       # 创建目录结构
+  - spawn_workers               # 使用 sessions_spawn 创建 Workers
+  - wait_for_workers            # 使用 sessions_yield 等待完成
+  - check_convergence           # 检查收敛条件
+
+limitations:
+  - must_not_collect_data       # 禁止采集数据
+  - must_not_search             # 禁止执行搜索
+  - must_not_analyze            # 禁止执行分析
+  - must_not_modify_outputs     # 禁止修改 Worker 输出
+
+## 输入契约
+
+input:
+  company_code: str             # 股票代码，如 "688652.SH"
+  company_name: str             # 公司名称，如 "京仪装备"
+  industry: str                 # 行业，如 "半导体设备"
+  max_iterations: int           # 最大迭代次数，默认 3
+
+## 输出契约
+
+output:
+  session_id: str               # 生成的会话ID
+  blackboard_base: str          # Blackboard 基础路径
+  execution_plan: dict          # 执行计划
+  final_report: str             # 最终报告路径
+
+## 执行管线契约
+
+pipeline:
+  phase_0_init:
+    order: 0
+    name: "初始化"
+    local: true                  # Orchestrator 本地执行
+    outputs:
+      - session_id
+      - blackboard directories
+    
+  phase_1_data_manager:
+    order: 1
+    name: "DataManager"
+    worker: "data_manager"
+    spawn: true                  # 使用 sessions_spawn
+    timeout: 300                 # 5分钟
+    dependencies: [phase_0_init]
+    required_outputs:
+      - data/key_metrics.json
+      - data/INDEX.json (或数据目录)
+    failure_action: "继续执行（使用降级方案）"
+    
+  phase_2_planner:
+    order: 2
+    name: "Planner"
+    worker: "planner"
+    spawn: true
+    timeout: 180
+    dependencies: [phase_1_data_manager]
+    required_outputs:
+      - stages/planner_output.json
+    
+  phase_3_researchers:
+    order: 3
+    name: "Researchers"
+    workers:
+      - researcher_finance
+      - researcher_tech
+      - researcher_market
+      - researcher_macro_chain
+      - researcher_management
+      - researcher_sentiment
+    spawn: parallel              # 并行 spawn
+    timeout: 300
+    dependencies: [phase_2_planner]
+    min_completion: 4/6          # 至少4个完成
+    
+  phase_4_auditors:
+    order: 4
+    name: "Auditors"
+    workers:
+      - auditor_factual
+      - auditor_upside
+      - auditor_downside
+    spawn: parallel
+    timeout: 240
+    dependencies: [phase_3_researchers]
+    min_completion: 2/3
+    
+  phase_5_fixer:
+    order: 5
+    name: "Fixer"
+    worker: "fixer"
+    spawn: true
+    timeout: 180
+    dependencies: [phase_4_auditors]
+    optional: true               # 可选，失败不阻断
+    
+  phase_6_summarizer:
+    order: 6
+    name: "Summarizer"
+    worker: "summarizer"
+    spawn: true
+    timeout: 240
+    dependencies: [phase_3_researchers, phase_4_auditors]
+    required_outputs:
+      - stages/summarizer_output.json
+      - final_report.md
+
+## 收敛检测契约
+
+convergence:
+  check_interval: 1              # 每轮后检查
+  max_iterations: 3
+  
+  criteria:
+    - quality_score >= 80        # 质量分≥80
+    - no_p0_issues               # 无P0问题
+    - consecutive_no_change: 2   # 连续2轮无变化
+    
+  actions:
+    not_converged:
+      - spawn_fixer              # 触发修复
+      - increment_iteration      # 增加迭代计数
+      
+    converged:
+      - generate_final_report    # 生成最终报告
+      - terminate_pipeline       # 终止管线
+      
+    max_iterations_reached:
+      - generate_final_report    # 生成报告（标注未收敛）
+      - terminate_pipeline
+
+## 错误处理契约
+
+error_handling:
+  worker_timeout:
+    action: "记录失败，继续执行其他 Workers"
+    must_not: "阻塞整个管线"
+    
+  worker_failure:
+    action: "记录错误，尝试降级方案"
+    critical_workers:             # 关键 Workers，失败会显著影响质量
+      - data_manager
+      - researcher_finance
+      - summarizer
+      
+  data_missing:
+    action: "使用占位符，标注数据缺口"
+    must_not: "阻塞执行"
+
+## 验证脚本接口
+
+verify:
+  script: "cage/check_orchestrator_v4.py"
+  checks:
+    - pipeline_structure          # 管线结构正确
+    - dependencies_valid          # 依赖关系有效
+    - timeouts_reasonable         # 超时设置合理
+    - error_handling_defined      # 错误处理已定义
+
+## 完成标准
+
+completion_criteria:
+  - 所有阶段定义完整
+  - 依赖关系无循环
+  - 收敛条件明确
+  - 错误处理覆盖主要场景
+  - 最终报告已生成

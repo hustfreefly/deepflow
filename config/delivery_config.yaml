@@ -1,0 +1,43 @@
+# DeepFlow 报告交付配置
+# 确保完整报告送达
+
+delivery:
+  # 默认交付方式：feishu_doc|feishu_msg|email|file
+  default_method: "feishu_doc"
+  
+  # 飞书文档交付（推荐）
+  feishu_doc:
+    enabled: true
+    auto_create: true
+    title_template: "【AI研报】{stock_code}_{stock_name}_{date}"
+    summary_length: 500  # 摘要字数
+    full_report: true     # 发送完整报告
+    
+  # 飞书消息（仅摘要）
+  feishu_msg:
+    enabled: false
+    max_length: 2000      # 消息长度限制
+    include_attachment: false
+    
+  # 邮件交付
+  email:
+    enabled: false
+    recipients: []        # 从外部配置读取
+    cc: []
+    subject_template: "【研报】{stock_name}深度分析"
+    max_attachment_size: 20MB
+    
+  # 本地文件
+  file:
+    enabled: true
+    output_dir: "./reports"
+    format: ["md", "pdf"]  # 输出格式
+    
+# 交付前检查
+pre_delivery_check:
+  min_report_length: 10000   # 最少1万字
+  required_sections:
+    - "核心结论"
+    - "估值分析"
+    - "风险提示"
+  verifier_pass_required: false  # 是否必须通过Verifier

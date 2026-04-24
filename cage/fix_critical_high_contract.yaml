@@ -1,0 +1,80 @@
+# 契约笼子：修复 CRITICAL + HIGH 问题（V2评审发现）
+# 目标：修复模板变量替换和Worker环境可靠性
+
+contract:
+  name: "Fix CRITICAL and HIGH issues from V2 review"
+  version: "1.0"
+  date: "2026-04-23"
+  
+issues:
+  critical:
+    - id: 1
+      name: "build_data_manager_task f-string"
+      problem: "使用普通三引号字符串，{session_id}等变量未被替换"
+      fix: "改为f-string或在字符串生成后调用format()"
+      file: "core/task_builder.py"
+      lines: "76-227"
+      
+  high:
+    - id: 2
+      name: "build_researcher_task 模板变量"
+      problem: "未调用replace_template_vars替换{{code}}等变量"
+      fix: "添加replace_template_vars调用"
+      file: "core/task_builder.py"
+      lines: "272-295"
+      
+    - id: 3
+      name: "build_auditor_task 模板变量"
+      problem: "未调用replace_template_vars替换{{code}}等变量"
+      fix: "添加replace_template_vars调用"
+      file: "core/task_builder.py"
+      lines: "298-315"
+      
+    - id: 4
+      name: "Worker环境路径检查"
+      problem: "sys.path假设共享文件系统，container环境可能失败"
+      fix: "添加路径存在性检查"
+      file: "core/data_manager_worker.py"
+      lines: "20"
+      
+    - id: 5
+      name: "搜索失败无重试"
+      problem: "gemini+duckduckgo都失败时无告警或重试"
+      fix: "添加重试机制和失败告警"
+      file: "core/data_manager_worker.py"
+      lines: "145-161"
+
+phases:
+  - id: 1
+    name: "修复 build_data_manager_task f-string"
+    action: "将三引号字符串改为f-string"
+    verification: "确认{session_id}等变量被正确替换"
+    
+  - id: 2
+    name: "修复 build_researcher_task 模板变量"
+    action: "添加replace_template_vars调用"
+    verification: "确认{{code}}等变量被替换"
+    
+  - id: 3
+    name: "修复 build_auditor_task 模板变量"
+    action: "添加replace_template_vars调用"
+    verification: "确认{{code}}等变量被替换"
+    
+  - id: 4
+    name: "修复 Worker 环境路径检查"
+    action: "添加os.path.exists检查"
+    verification: "确认路径不存在时抛出清晰错误"
+    
+  - id: 5
+    name: "修复搜索失败重试"
+    action: "添加重试机制和失败统计"
+    verification: "确认搜索失败时重试2次"
+    
+  - id: 6
+    name: "验证所有修复"
+    action: "py_compile + 单元测试"
+    verification: "所有模块导入成功"
+    
+  - id: 7
+    name: "Git提交"
+    message: "fix: 修复CRITICAL和HIGH问题（模板变量、路径检查、搜索重试）"

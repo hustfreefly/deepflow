@@ -1,0 +1,212 @@
+# V4.0 契约笼子 - 主Agent → Orchestrator → Workers 完整管线
+# 阶段1: 契约定义
+
+module: pipeline_v4
+version: "4.0"
+date: "2026-04-23"
+
+## 架构契约
+
+architecture:
+  layers:
+    - name: "主Agent (depth-0)"
+      role: "Python 执行环境"
+      capabilities:
+        - 执行 Python 代码
+        - 生成所有 Worker Tasks
+        - 保存 Tasks 到文件
+        - 使用 sessions_spawn 工具创建 Orchestrator Agent
+      cannot:
+        - 直接 spawn Workers（必须经由 Orchestrator）
+        
+    - name: "Orchestrator Agent (depth-1)"
+      role: "调度中心"
+      capabilities:
+        - 读取 tasks.json 文件
+        - 使用 sessions_spawn 工具创建 Workers
+        - 使用 sessions_yield 等待 Workers 完成
+        - 检查收敛条件
+      cannot:
+        - 执行 Python 代码（不依赖）
+        - 直接采集数据
+        
+    - name: "Workers (depth-2)"
+      role: "任务执行"
+      capabilities:
+        - 执行分析任务
+        - 读写 Blackboard 文件
+      cannot:
+        - spawn 其他 Workers
+
+## 主Agent 契约
+
+master_agent:
+  input:
+    company_code: str      # 股票代码
+    company_name: str      # 公司名称
+    industry: str          # 行业
+    
+  output:
+    session_id: str
+    tasks_file: "blackboard/{session_id}/tasks.json"
+    
+  steps:
+    step_1:
+      name: "生成 Session ID"
+      action: "Python: uuid + 格式化"
+      
+    step_2:
+      name: "创建 Blackboard 目录"
+      action: "Python: os.makedirs"
+      
+    step_3:
+      name: "调用 Task Builder 生成 Tasks"
+      action: "Python: from core.task_builder import *"
+      workers:
+        - data_manager
+        - planner
+        - researcher_finance
+        - researcher_tech
+        - researcher_market
+        - researcher_macro_chain
+        - researcher_management
+        - researcher_sentiment
+        - auditor_factual
+        - auditor_upside
+        - auditor_downside
+        - fixer
+        - summarizer
+        
+    step_4:
+      name: "保存 Tasks 到文件"
+      action: "Python: json.dump(tasks, 'tasks.json')"
+      
+    step_5:
+      name: "Spawn Orchestrator Agent"
+      action: "工具调用: sessions_spawn"
+      task: "Orchestrator Agent 指南（见下方）"
+      timeout: 3600  # 1小时
+
+## Orchestrator Agent 契约
+
+orchestrator_agent:
+  input:
+    tasks_file: "blackboard/{session_id}/tasks.json"
+    execution_plan: "blackboard/{session_id}/execution_plan.json"
+    
+  steps:
+    step_1:
+      name: "读取 Tasks"
+      action: "读取 tasks.json 文件"
+      
+    step_2:
+      name: "Phase 1: DataManager"
+      action: "sessions_spawn(DataManager Task)"
+      timeout: 300
+      wait: "sessions_yield()"
+      
+    step_3:
+      name: "Phase 2: Planner"
+      action: "sessions_spawn(Planner Task)"
+      timeout: 180
+      wait: "sessions_yield()"
+      
+    step_4:
+      name: "Phase 3: Researchers ×6"
+      action: "并行 sessions_spawn(6个 Tasks)"
+      timeout: 300
+      wait: "sessions_yield()"  # 等待全部完成
+      
+    step_5:
+      name: "Phase 4: Auditors ×3"
+      action: "并行 sessions_spawn(3个 Tasks)"
+      timeout: 240
+      wait: "sessions_yield()"
+      
+    step_6:
+      name: "Phase 5: Fixer"
+      action: "sessions_spawn(Fixer Task)"
+      timeout: 180
+      optional: true
+      wait: "sessions_yield()"
+      
+    step_7:
+      name: "Phase 6: Summarizer"
+      action: "sessions_spawn(Summarizer Task)"
+      timeout: 240
+      wait: "sessions_yield()"
+      
+    step_8:
+      name: "检查最终报告"
+      action: "检查 final_report.md 是否存在"
+
+## 数据流契约
+
+data_flow:
+  # 主Agent → Orchestrator
+  tasks_transfer:
+    method: "文件传递"
+    path: "blackboard/{session_id}/tasks.json"
+    format: "JSON"
+    
+  # Orchestrator → Workers
+  task_injection:
+    method: "sessions_spawn task 参数"
+    format: "字符串（完整的 Task 文本）"
+    
+  # Workers → Blackboard
+  output_write:
+    path: "blackboard/{session_id}/stages/"
+    format: "JSON + Markdown"
+
+## 错误处理契约
+
+error_handling:
+  tasks_generation_failure:
+    layer: "主Agent"
+    action: "报错终止"
+    reason: "Tasks 是管线基础，无法生成则无法继续"
+    
+  orchestrator_spawn_failure:
+    layer: "主Agent"
+    action: "重试或报错"
+    
+  worker_timeout:
+    layer: "Orchestrator"
+    action: "记录失败，继续执行其他 Workers"
+    must_not: "阻塞管线"
+    
+  data_manager_failure:
+    layer: "Orchestrator"
+    action: "尝试降级方案（直接搜索）"
+    critical: true
+    
+  all_workers_failure:
+    layer: "Orchestrator"
+    action: "报错终止，生成错误报告"
+
+## 验证脚本接口
+
+verify:
+  pre_execution:
+    - check_tasks_json_format      # tasks.json 格式正确
+    - check_all_tasks_present      # 所有 Worker Tasks 存在
+    - check_execution_plan         # 执行计划有效
+    
+  during_execution:
+    - check_orchestrator_spawn     # Orchestrator 成功 spawn
+    - check_workers_completion     # Workers 完成状态
+    - check_blackboard_outputs     # 输出文件存在
+    
+  post_execution:
+    - check_final_report           # 最终报告存在
+    - check_data_quality           # 数据质量达标
+
+## 完成标准
+
+completion_criteria:
+  - tasks.json 已生成且格式正确
+  - Orchestrator Agent 成功 spawn
+  - 至少 DataManager + Summarizer 完成
+  - final_report.md 存在
+  - 错误不阻塞管线

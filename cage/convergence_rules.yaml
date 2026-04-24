@@ -1,0 +1,53 @@
+# Convergence Contract
+domain: investment
+cage_version: "2.0"
+
+# 收敛规则定义
+rules:
+  # 规则1: 最少迭代次数
+  min_iterations:
+    value: 2
+    hard: true
+    message: "至少2轮才能收敛"
+  
+  # 规则2: 最大迭代次数
+  max_iterations:
+    value: 10
+    action: "force_converge"
+    message: "达到最大迭代次数，强制收敛"
+  
+  # 规则3: 高分快速收敛
+  high_score:
+    threshold: 0.95
+    immediate: true
+    message: "分数≥0.95，立即收敛"
+  
+  # 规则4: 目标分 + 停滞
+  target_score:
+    value: 0.92
+    stall_threshold: 0.02
+    consecutive_rounds: 2
+    message: "达目标分且连续2轮提升<0.02"
+  
+  # 规则5: 震荡检测
+  oscillation:
+    window: 3
+    threshold: 0.02
+    action: "force_converge"
+    message: "检测到震荡，强制收敛"
+
+# 验证规则
+validation:
+  score_range: [0.0, 1.0]
+  required_fields: [score, iteration, convergence_reason]
+  
+# 输出契约
+output:
+  schema:
+    type: object
+    required: [converged, reason, iteration, score]
+    properties:
+      converged: {type: boolean}
+      reason: {type: string}
+      iteration: {type: integer, minimum: 1}
+      score: {type: number, minimum: 0, maximum: 1}

@@ -1,0 +1,33 @@
+# 契约笼子：创建 pyproject.toml
+# 目标：为 DeepFlow 添加 Python 项目标准配置
+
+contract:
+  name: "create pyproject.toml"
+  version: "1.0"
+  date: "2026-04-23"
+  
+phases:
+  - id: 1
+    name: "分析项目依赖"
+    action: "扫描所有Python文件，识别第三方库依赖"
+    expected_dependencies:
+      - pyyaml (yaml)
+    dev_dependencies:
+      - pytest
+    
+  - id: 2
+    name: "创建 pyproject.toml"
+    content:
+      project_name: "deepflow"
+      version: "0.1.0"
+      description: "全自动多Agent协作研究管线"
+      dependencies:
+        - "pyyaml>=6.0"
+    
+  - id: 3
+    name: "验证语法"
+    action: "使用 python -m pyproject.toml 验证"
+    
+  - id: 4
+    name: "Git提交"
+    message: "chore: 添加 pyproject.toml 项目配置"

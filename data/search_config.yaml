@@ -1,0 +1,104 @@
+# DeepFlow 搜索配置
+# 仅包含搜索策略和搜索源配置
+# 凭证配置请见 credentials.yaml
+# 输出配置请见 output_config.yaml
+
+search:
+  strategy: "quality_first"  # quality_first / speed_first / cost_first
+  
+  sources:
+    gemini:
+      enabled: true
+      weight: 100
+      model: "gemini-2.5-flash"
+      # 凭证从 credentials.yaml 读取
+      features:
+        - grounding      # Google 搜索增强
+        - citations      # 引用来源
+        - realtime       # 实时信息
+    
+    duckduckgo:
+      enabled: true
+      weight: 80
+      features:
+        - realtime       # 实时搜索
+        - free           # 免费
+        - anonymous      # 匿名
+    
+    web_fetch:
+      enabled: true
+      weight: 60
+      features:
+        - direct         # 直接抓取
+        - fallback       # 最后 fallback
+
+# 领域特定覆盖
+domains:
+  investment:
+    search:
+      strategy: "data_driven"
+      sources:
+        tushare:
+          enabled: true
+          weight: 100
+          # 凭证从 credentials.yaml 读取
+          features:
+            - financial_data   # 财务数据
+            - realtime         # 实时行情
+            - cn_market        # 中国市场
+        
+        gemini:
+          weight: 70
+          features:
+            - grounding
+            - analysis         # 分析能力
+        
+        duckduckgo:
+          weight: 50
+          features:
+            - realtime
+            - news             # 新闻搜索
+  
+  code:
+    search:
+      strategy: "tech_focused"
+      sources:
+        gemini:
+          weight: 90
+          features:
+            - grounding
+            - code_understanding
+        
+        duckduckgo:
+          weight: 80
+          features:
+            - realtime
+            - github           # GitHub 搜索
+        
+        web_fetch:
+          weight: 60
+          features:
+            - direct
+            - docs             # 文档抓取
+
+# 报告输出配置
+output:
+  feishu:
+    enabled: true
+    # 飞书目标用户 OpenID
+    # 获取方式：飞书用户个人资料 → 复制链接中的 open_id
+    target_open_id: "${FEISHU_USER_OPEN_ID}"
+    # 报告发送方式
+    # - doc: 创建飞书文档（推荐，手机可读）
+    # - text: 发送文本摘要
+    # - link: 发送文档链接（需先创建文档）
+    send_mode: "doc"
+  
+  # 邮件配置（可选）
+  email:
+    enabled: false
+    smtp_host: "smtp.example.com"
+    smtp_port: 587
+    username: "${EMAIL_USER}"
+    password: "${EMAIL_PASS}"
+    to: "${EMAIL_TO}"

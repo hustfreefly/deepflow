@@ -1,0 +1,55 @@
+# DeepFlow 输出/通知配置
+
+# 飞书通知配置
+feishu:
+  enabled: true
+  
+  # 目标用户 OpenID
+  # 获取方式：飞书用户个人资料 → 复制链接中的 open_id
+  # 或从 openclaw.json 的 feishu.appSecret 对应配置中查找
+  target_open_id: "${FEISHU_USER_OPEN_ID}"
+  
+  # 报告发送方式
+  # - doc: 创建飞书文档（推荐，手机可读，支持富文本）
+  # - text: 发送纯文本摘要（简单，但格式受限）
+  # - link: 发送外部链接（需先将报告上传至可访问的服务器）
+  send_mode: "doc"
+  
+  # 文档权限设置
+  doc_permission:
+    # 文档创建后是否允许编辑
+    editable: false
+    # 文档分享范围
+    # - tenant: 企业内部可见
+    # - anyone: 互联网上获得链接的人可见
+    share_scope: "tenant"
+
+# 邮件通知配置（可选）
+email:
+  enabled: false
+  smtp_host: "${SMTP_HOST}"
+  smtp_port: 587
+  username: "${EMAIL_USER}"
+  password: "${EMAIL_PASS}"
+  to: "${EMAIL_TO}"
+  # 邮件主题模板
+  subject_template: "[DeepFlow] {company_name}({company_code}) 投资分析报告"
+
+# 桌面通知配置（可选，macOS）
+desktop:
+  enabled: false
+  # macOS 通知标题
+  title_template: "DeepFlow 分析完成"
+  # 通知正文
+  body_template: "{company_name}({company_code}) 分析报告已生成，评级：{rating}"
+
+# 报告保存配置
+storage:
+  # 报告保存位置
+  report_dir: "${DEEPFLOW_BASE}/reports"
+  # 是否保留历史报告
+  keep_history: true
+  # 历史报告保留数量
+  max_history: 10
+  # 报告文件名模板
+  filename_template: "{company_name}_{company_code}_{date}.md"

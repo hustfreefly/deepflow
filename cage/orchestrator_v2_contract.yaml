@@ -1,0 +1,140 @@
+# Orchestrator Agent 架构重构契约
+# 版本: 2.0 | 日期: 2026-04-22
+# 核心变更: Orchestrator 从 Python 执行改为 Agent 工具调用
+
+module: "orchestrator_agent"
+version: "2.0"
+complexity: "complex"
+
+# =============================================================================
+# L1: 架构契约
+# =============================================================================
+
+architecture:
+  before: |
+    主Agent(depth-0)
+      └── sessions_spawn → Orchestrator Python脚本(depth-1)
+            └── Python代码尝试import sessions_spawn → ❌ 失败
+  
+  after: |
+    主Agent(depth-0)
+      └── sessions_spawn → Orchestrator Agent(depth-1)
+            └── Orchestrator LLM读取执行计划
+            └── Orchestrator LLM调用 sessions_spawn 工具 → ✅ 成功
+                  └── Workers(depth-2)执行分析任务
+
+# =============================================================================
+# L2: 接口契约
+# =============================================================================
+
+interface:
+  "orchestrator_task": "-> str"
+  "execute_stage": "stage_id: str -> StageResult"
+
+# =============================================================================
+# L3: 行为契约
+# =============================================================================
+
+behavior:
+  orchestrator_task:
+    input: {}
+    output:
+      type: "str"
+      constraints:
+        - "必须读取 /Users/allen/.openclaw/workspace/.deepflow/orchestrator_agent.py"
+        - "必须按文件中的步骤执行"
+        - "必须使用 sessions_spawn 工具（不是Python函数）"
+    success: |
+      1. Orchestrator Agent启动
+      2. 读取orchestrator_agent.py中的执行计划
+      3. 依次调用sessions_spawn工具执行每个stage
+      4. 等待Worker完成（通过文件检测）
+      5. 最终summarizer完成，生成报告
+    failure: |
+      任一stage失败 → 记录错误，继续执行后续stage
+      最终报告包含失败的stage信息
+
+  execute_stage:
+    input:
+      stage_id: "str，stage标识符"
+    output:
+      type: "StageResult"
+      constraints:
+        - "success=True 表示stage完成"
+        - "success=False 表示stage失败"
+    success: |
+      1. 调用sessions_spawn工具创建Worker Agent
+      2. Worker Agent执行分析任务
+      3. Worker Agent将结果写入blackboard
+      4. Orchestrator检测到文件存在
+      5. 返回成功
+    failure: |
+      Worker超时 → 返回失败
+      Worker异常 → 返回失败
+
+# =============================================================================
+# L4: 边界条件
+# =============================================================================
+
+boundaries:
+  - "sessions_spawn工具调用失败 → 重试3次"
+  - "Worker超时 → 标记失败，继续后续stage"
+  - "所有Worker失败 → 生成部分报告，标注缺失"
+  - "Orchestrator自身异常 → 主Agent捕获并报告"
+
+# =============================================================================
+# 关键变更点
+# =============================================================================
+
+changes:
+  file: "orchestrator_agent.py"
+  change_type: "架构重构"
+  
+  old_behavior: |
+    - 作为Python脚本执行
+    - 尝试from openclaw import sessions_spawn
+    - Python代码直接管理Pipeline
+    
+  new_behavior: |
+    - 作为Agent执行指南
+    - Orchestrator LLM读取文件内容
+    - LLM调用sessions_spawn工具（不是Python函数）
+    - LLM管理Pipeline执行流程
+
+# =============================================================================
+# 执行流程
+# =============================================================================
+
+execution_flow: |
+  1. 主Agent spawn Orchestrator Agent
+     sessions_spawn(
+       runtime="subagent",
+       mode="run", 
+       label="orchestrator",
+       task="""
+       你是 DeepFlow Orchestrator Agent。
+       
+       执行步骤：
+       1. 读取 /Users/allen/.openclaw/workspace/.deepflow/orchestrator_agent.py
+       2. 按文件中的执行计划，依次执行每个stage
+       3. 每个stage使用 sessions_spawn 工具调用
+       4. 等待Worker完成（检查blackboard文件）
+       
+       环境变量已设置：
+       DEEPFLOW_DOMAIN=investment
+       DEEPFLOW_CODE=688652.SH  
+       DEEPFLOW_NAME=京仪装备
+       """
+     )
+  
+  2. Orchestrator Agent读取orchestrator_agent.py
+  
+  3. Orchestrator Agent按步骤执行：
+     a. 调用 sessions_spawn 创建 data_manager Worker
+     b. 等待 data_manager 完成
+     c. 调用 sessions_spawn 创建 planner Worker
+     d. ...（依此类推）
+  
+  4. 最终调用 sessions_spawn 创建 summarizer Worker
+  
+  5. 报告生成完成

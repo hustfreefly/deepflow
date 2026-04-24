@@ -1,0 +1,40 @@
+# Stage Contract - Summarize
+stage: summarize
+domain: investment
+cage_version: "2.0"
+
+# 接口契约
+interface:
+  input:
+    context:
+      required: [code, name]
+  
+  output:
+    schema:
+      type: object
+      required: [success, summary, recommendations]
+      properties:
+        success: {type: boolean}
+        summary:
+          type: string
+        recommendations:
+          type: array
+          items: {type: string}
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        key_risks:
+          type: array
+          items: {type: string}
+
+# 行为契约
+behavior:
+  timeout: 120
+  retry:
+    max_attempts: 2
+  failure_mode: "warn_and_continue"
+
+# 数据契约
+data:
+  output_path: "blackboard/{session_id}/stages/summarize/"

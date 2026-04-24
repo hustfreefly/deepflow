@@ -1,0 +1,69 @@
+# Worker Contract - Fixer
+worker: fixer
+domain: investment
+cage_version: "2.0"
+
+# 角色定义
+roles:
+  - fixer_general
+
+# 接口契约
+interface:
+  input:
+    prompt: "prompts/investment/workers/{role}.md"
+    context:
+      required: [stock_code, stock_name, audit_findings]
+      injection: "blackboard_data"
+  
+  output:
+    format: "markdown_with_json_block"
+    schema:
+      type: object
+      required: [fixes_applied, remaining_issues, success]
+      properties:
+        fixes_applied:
+          type: array
+          items: {type: string}
+        remaining_issues:
+          type: array
+          items: {type: string}
+        success: {type: boolean}
+        fix_count:
+          type: integer
+          minimum: 0
+
+# 行为契约
+behavior:
+  count: 1
+  parallel: false
+  max_concurrency: 1
+  
+  timeout: 600
+  retry: 2
+  
+  fallback:
+    model_chain: [bailian/qwen3.5-plus, bailian/kimi-k2.5]
+    on_failure: "fail_and_report"
+  
+  label_format: "{role}_{iteration}"
+
+# 契约检查
+checks:
+  pre_spawn:
+    - "validate_context_schema"
+    - "check_audit_findings_exists"
+  
+  post_complete:
+    - "validate_output_schema"
+    - "check_no_mock_result"
+    - "write_to_blackboard"
+
+# 数据契约
+data:
+  blackboard:
+    write:
+      path: "blackboard/{session_id}/stages/fix/{role}_output.json"
+      format: "json"
+    
+    read:
+      - "blackboard/{session_id}/stages/audit/*_output.json"

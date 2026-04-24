@@ -1,0 +1,64 @@
+cage_version: "3.0"
+task: system_refactor_v1_to_v2
+
+# 目标：保留V1.0成功要素 + 保持V2.0分层架构
+objectives:
+  - "恢复pipeline_engine.py真实调用（删除cage_orchestrator.py的mock实现）"
+  - "完善prompts/目录下所有角色文件（12个）"
+  - "统一入口调用PipelineEngine"
+  - "保持分层加载（Core + Steps）但内容来自18K Prompt"
+
+# 成功标准（必须全部满足）
+acceptance_criteria:
+  - "无mock代码（grep 'asyncio.sleep' 和 'simulated' 返回0）"
+  - "12个角色prompt文件完整（investment_planner/researcher×6/auditor×3/fixer/verifier/summarizer）"
+  - "PipelineEngine真实调用sessions_spawn"
+  - "收敛检测≥2轮"
+  - "unified_entry.py → PipelineEngine"
+  - "长川科技测试用例跑通"
+
+# 角色Prompt契约
+prompt_structure:
+  required_sections:
+    - "角色定位"
+    - "数据读取（强制）"
+    - "搜索工具优先级（Gemini/DuckDuckGo/Tushare/web_fetch）"
+    - "输出格式（JSON）"
+    - "Blackboard数据流（读/写路径）"
+    - "数据请求指引"
+    - "强制执行规则"
+  
+  files:
+    investment_planner.md: "规划师角色"
+    investment_researcher_enhanced.md: "财务研究"
+    investment_researcher_macro_chain.md: "宏观/产业链"
+    investment_researcher_management.md: "管理层"
+    investment_researcher_sentiment.md: "舆情"
+    investment_researcher_tech.md: "技术研究"
+    investment_researcher_market.md: "市场研究"
+    investment_auditor.md: "审计（三视角）"
+    investment_fixer.md: "修复"
+    investment_verifier.md: "验证"
+    investment_summarizer_enhanced.md: "汇总"
+    investment_financial.md: "财务分析"
+
+# 验证契约
+verification:
+  tests:
+    - name: "no_mock_code"
+      check: "grep返回0"
+      patterns: ["asyncio.sleep", "simulated", "mock_output"]
+    
+    - name: "all_prompts_exist"
+      check: "12个prompt文件存在"
+      expected_count: 12
+    
+    - name: "pipeline_engine_uses_sessions_spawn"
+      check: "包含sessions_spawn调用"
+      min_count: 3
+    
+    - name: "convergence_check_exists"
+      check: "收敛检测≥2轮"
+    
+    - name: "unified_entry_calls_pipeline_engine"
+      check: "unified_entry.py导入PipelineEngine"

@@ -1,0 +1,81 @@
+# Worker Contract - Auditor
+worker: auditor
+domain: investment
+cage_version: "2.0"
+
+# 角色定义
+roles:
+  - auditor_correctness
+  - auditor_security
+  - auditor_performance
+
+# 接口契约
+interface:
+  input:
+    prompt: "prompts/investment/workers/{role}.md"
+    context:
+      required: [stock_code, stock_name, stage_outputs]
+      injection: "blackboard_data"
+  
+  output:
+    format: "markdown_with_json_block"
+    schema:
+      type: object
+      required: [findings, issues, severity_counts]
+      properties:
+        findings:
+          type: array
+          items:
+            type: object
+            properties:
+              category: {type: string}
+              severity: {type: string, enum: [P0, P1, P2, P3]}
+              description: {type: string}
+              recommendation: {type: string}
+        issues:
+          type: array
+          items: {type: string}
+        severity_counts:
+          type: object
+          properties:
+            P0: {type: integer}
+            P1: {type: integer}
+            P2: {type: integer}
+            P3: {type: integer}
+
+# 行为契约
+behavior:
+  count: 3
+  parallel: true
+  max_concurrency: 3
+  
+  timeout: 360
+  retry: 1
+  
+  fallback:
+    model_chain: [bailian/qwen3.5-plus, bailian/kimi-k2.5]
+    on_failure: "continue_with_partial"
+  
+  label_format: "{role}_{iteration}"
+
+# 契约检查
+checks:
+  pre_spawn:
+    - "validate_context_schema"
+    - "check_blackboard_data_exists"
+  
+  post_complete:
+    - "validate_output_schema"
+    - "check_no_mock_result"
+    - "write_to_blackboard"
+
+# 数据契约
+data:
+  blackboard:
+    write:
+      path: "blackboard/{session_id}/stages/audit/{role}_output.json"
+      format: "json"
+    
+    read:
+      - "blackboard/{session_id}/stages/research/*_output.json"
+      - "blackboard/{session_id}/stages/financial_analysis/output.json"

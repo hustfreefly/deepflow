@@ -1,0 +1,75 @@
+# domains/investment.yaml 精简契约
+# 删除多余的 financial、market、risk、verifier stages
+
+module:"investment_domain"
+version:"1.1"
+complexity:"simple"
+
+# =============================================================================
+# L1: 接口契约（agents 列表）
+# =============================================================================
+
+interface:
+  "agents":"List[AgentConfig] -> 按顺序执行的 Agent 列表"
+  "pipeline.stages":"List[PipelineStage] -> 管线阶段定义"
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+
+behavior:
+  agents:
+    input:{}
+    output:
+      type:"List[AgentConfig]"
+      constraints:
+        - "第1个必须是 data_manager"
+        - "第2个必须是 planner"
+        - "第3-8个必须是 researcher_*（6个并行）"
+        - "第9-11个必须是 auditor_*（3个并行）"
+        - "第12个必须是 fixer"
+        - "第13个必须是 summarizer"
+        - "不允许出现 financial、market、risk、verifier"
+    success:"精简后的 agents 列表共 13 个"
+    failure:"包含多余 agent → 流程不符合预期"
+
+  pipeline.stages:
+    input:{}
+    output:
+      type:"List[PipelineStage]"
+      constraints:
+        - "Stage 1: data_collection"
+        - "Stage 2: search（可选）"
+        - "Stage 3: planning"
+        - "Stage 4: research（6个 researcher 并行）"
+        - "Stage 5: audit（3个 auditor 并行）"
+        - "Stage 6: fix（fixer）"
+        - "Stage 7: summarize（summarizer）"
+        - "不允许出现 financial_analysis、verify 阶段"
+    success:"精简后的 pipeline 共 7 个 stages"
+    failure:"包含多余 stage → 流程不符合预期"
+
+# =============================================================================
+# L3: 边界条件
+# =============================================================================
+
+boundaries:
+  - "agents 数量 ≠ 13 → 配置错误"
+  - "出现 financial/market/risk/verifier → 配置错误"
+  - "pipeline stages 数量 ≠ 7 → 配置错误"
+
+# =============================================================================
+# 修改内容
+# =============================================================================
+
+changes:
+  file:"domains/investment.yaml"
+  action:"删除以下 agent 配置："
+  removed_agents:
+    - "financial"
+    - "market"
+    - "risk"
+    - "verifier"
+  removed_stages:
+    - "financial_analysis"
+    - "verify"

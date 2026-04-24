@@ -1,0 +1,140 @@
+name: "创新药"
+description: "创新药研发和商业化公司"
+
+research_topics:
+  macro_policy_chain:
+    macro:
+      - key: "医疗支出趋势"
+        description: "人口老龄化驱动医疗需求增长"
+        data_sources: ["卫健委", "医保局"]
+        questions:
+          - "中国60岁以上人口增速及医疗支出占比？"
+          - "医保基金收支压力对创新药支付的影响？"
+
+      - key: "利率/流动性"
+        description: "影响生物科技公司估值"
+        data_sources: ["央行", "美联储"]
+        questions:
+          - "利率环境对未盈利生物科技公司估值的影响？"
+
+      - key: "汇率波动"
+        description: "海外临床/授权收入"
+        data_sources: ["央行汇率中间价"]
+        questions:
+          - "海外临床成本（美元计价）受汇率影响？"
+          - "License-out 收入受汇率影响？"
+
+    policy:
+      - key: "NMPA审批政策"
+        description: "药品审评审批速度和标准"
+        data_sources: ["NMPA", "CDE"]
+        questions:
+          - "创新药审批平均时长变化趋势？"
+          - "优先审评/突破性治疗认定政策？"
+
+      - key: "医保谈判"
+        description: "国谈降价幅度影响商业化"
+        data_sources: ["医保局", "医药魔方"]
+        questions:
+          - "近年国谈平均降价幅度？"
+          - "标的公司核心品种进入医保的可能性？"
+
+      - key: "带量采购"
+        description: "仿制药集采压缩利润空间"
+        data_sources: ["医保局公告", "行业报告"]
+        questions:
+          - "标的公司是否有品种面临集采风险？"
+          - "集采对竞品价格的影响？"
+
+      - key: "医保目录调整"
+        description: "年度医保目录调整对品种的影响"
+        data_sources: ["医保局", "医药魔方"]
+        questions:
+          - "标的公司核心品种是否在医保目录内？"
+          - "新适应症纳入医保的可能性？"
+
+    chain:
+      - key: "CRO/CDMO 依赖度"
+        description: "临床前/临床外包依赖"
+        data_sources: ["药明康德", "康龙化成财报"]
+        questions:
+          - "标的公司研发外包比例？"
+          - "CRO/CDMO 供应商集中度风险？"
+
+      - key: "医院准入"
+        description: "进院速度影响商业化"
+        data_sources: ["医院采购数据", "公司公告"]
+        questions:
+          - "核心品种已进院数量？"
+          - "进院速度是否达预期？"
+
+      - key: "竞品管线"
+        description: "同靶点/同机制竞品进展"
+        data_sources: ["ClinicalTrials.gov", "医药魔方"]
+        questions:
+          - "同靶点在研管线数量？"
+          - "竞品临床进展是否领先？"
+
+      - key: "供应链"
+        description: "原料药/中间体供应风险"
+        data_sources: ["供应商年报", "海关数据"]
+        questions:
+          - "原料药供应商是否单一？"
+          - "进口原料药依赖度？"
+
+  management:
+    - key: "核心团队背景"
+      description: "科学团队研发能力"
+      questions:
+        - "CEO/CSO的科学背景及历史研发成功率？"
+        - "是否有跨国药企高管加盟？"
+
+    - key: "股权结构"
+      description: "控制权稳定性"
+      questions:
+        - "创始人持股比例及控制权稳定性？"
+        - "是否有知名机构投资背书？"
+
+    - key: "管线兑现率"
+      description: "临床里程碑达成情况"
+      questions:
+        - "历史临床里程碑是否按期达成？"
+        - "IND/NDA 申报进度是否按计划？"
+
+    - key: "现金跑道"
+      description: "资金可持续性"
+      questions:
+        - "当前现金储备可支撑多久运营？"
+        - "是否需要定增/配股融资？"
+
+  sentiment:
+    - key: "临床进展公告"
+      description: "临床试验结果披露"
+      data_sources: ["公司公告", "ClinicalTrials.gov"]
+      questions:
+        - "最近是否有临床数据读出公告？"
+        - "数据是否达到主要终点？"
+
+    - key: "分析师评级变化"
+      description: "券商上调/下调评级"
+      data_sources: ["Wind", "同花顺"]
+      questions:
+        - "近30天分析师评级变化？"
+        - "一致预期目标价变化？"
+
+    - key: "License-out 动态"
+      description: "海外授权交易"
+      data_sources: ["公司公告", "行业新闻"]
+      questions:
+        - "是否有海外授权交易？交易金额？"
+        - "合作方背景及合作前景？"
+
+    - key: "行业政策影响"
+      description: "行业重大政策影响"
+      data_sources: ["医保局", "NMPA"]
+      questions:
+        - "近30天行业重大政策？"
+        - "对标的公司的正面/负面影响？"
+
+# 小维度研究问题（轻量评估）
+# 已合并到上方 management 和 sentiment 中

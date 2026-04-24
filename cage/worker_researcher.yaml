@@ -1,0 +1,93 @@
+# Worker Contract - Researcher
+worker: researcher
+domain: investment
+cage_version: "2.0"
+
+# 角色定义
+roles:
+  - researcher_finance
+  - researcher_tech
+  - researcher_market
+  - researcher_macro
+  - researcher_management
+  - researcher_sentiment
+
+# 接口契约
+interface:
+  input:
+    prompt: "prompts/investment/workers/{role}.md"
+    context:
+      required: [stock_code, stock_name, stage_outputs]
+      injection: "blackboard_data"
+  
+  output:
+    format: "markdown_with_json_block"
+    schema:
+      type: object
+      required: [analysis, conclusions, data_sources]
+      properties:
+        analysis:
+          type: string
+          minLength: 100
+        conclusions:
+          type: array
+          items: {type: string}
+        data_sources:
+          type: array
+          items: {type: string}
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+
+# 行为契约
+behavior:
+  count: 6
+  parallel: true
+  max_concurrency: 3
+  
+  timeout: 300
+  retry: 1
+  
+  fallback:
+    model_chain: [bailian/qwen3.5-plus, bailian/kimi-k2.5, kimi/kimi-code]
+    on_failure: "continue_with_partial"
+  
+  label_format: "{role}_{iteration}"
+
+# 契约检查
+checks:
+  pre_spawn:
+    - "validate_context_schema"
+    - "check_blackboard_data_exists"
+  
+  post_complete:
+    - "validate_output_schema"
+    - "check_no_mock_result"
+    - "write_to_blackboard"
+
+# 数据契约
+data:
+  blackboard:
+    write:
+      path: "blackboard/{session_id}/stages/research/{role}_output.json"
+      format: "json"
+    
+    read:
+      - "blackboard/{session_id}/data/INDEX.json"
+      - "blackboard/{session_id}/data/01_financials/*.json"
+
+# Worker 输出写入契约（P0 修复）
+output_write:
+  required: true
+  path: "blackboard/{session_id}/stages/{role}_output.json"
+  schema:
+    type: object
+    required: [role, analysis, conclusions]
+    properties:
+      role: {type: string}
+      analysis: {type: string, minLength: 100}
+      conclusions: {type: array, items: {type: string}, minItems: 1}
+      data_sources: {type: array, items: {type: string}}
+      confidence: {type: number, minimum: 0, maximum: 1}
+  validation: "文件必须存在且符合 schema"

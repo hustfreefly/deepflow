@@ -1,0 +1,24 @@
+# DeepFlow 超时配置
+# 优先级：code > config > default
+
+researcher:
+  industry_analyst: 300s
+  financial_modeler: 600s      # 财务模型复杂，延长到10分钟
+  valuation_analyst: 300s
+  risk_auditor: 300s
+  
+auditor:
+  default: 300s
+  parallel_mode: true           # 并行审计
+  
+fixer:
+  default: 600s                 # 修复任务延长到10分钟
+  max_iterations: 3
+  
+verifier:
+  default: 180s
+  
+# 全局熔断
+circuit_breaker:
+  timeout_threshold: 900s       # 15分钟全局熔断
+  retry_enabled: true

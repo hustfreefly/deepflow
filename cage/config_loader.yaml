@@ -1,0 +1,68 @@
+module: "config_loader"
+version: "1.0"
+complexity: "medium"
+
+interface:
+  "__init__": "v3_dir: Optional[Path] = None -> None"
+  "load_domain": "domain: str -> DomainConfig"
+  "load_pipeline": "pipeline_type: str -> PipelineTemplate"
+  "list_domains": "() -> List[str]"
+  "list_pipelines": "() -> List[str]"
+  "clear_cache": "() -> None"
+
+behavior:
+  __init__:
+    input:
+      v3_dir: "Optional[Path]，.deepflow目录路径，默认~/.openclaw/workspace/.deepflow"
+    output:
+      type: "None"
+    success: "初始化dir引用和空缓存"
+    failure: "路径不存在时不报错，延迟到加载时"
+  load_domain:
+    input:
+      domain: "str，领域名，不能为空"
+    output:
+      type: "DomainConfig"
+    success: "返回DomainConfig（从YAML或默认值），结果缓存"
+    failure: "YAML格式错误→ValueError"
+  load_pipeline:
+    input:
+      pipeline_type: "str，管线类型，不能为空"
+    output:
+      type: "PipelineTemplate"
+    success: "返回PipelineTemplate（从YAML或内置默认），结果缓存"
+    failure: "未知类型→ValueError"
+  list_domains:
+    input: {}
+    output:
+      type: "List[str]"
+      constraints:
+        - "返回domains/目录下所有.yaml文件的stem列表"
+        - "目录不存在时返回空列表"
+    success: "返回可用领域名列表"
+    failure: "不会抛异常"
+  list_pipelines:
+    input: {}
+    output:
+      type: "List[str]"
+      constraints:
+        - "返回pipelines/目录下所有.yaml文件的stem列表"
+        - "目录不存在时返回空列表"
+    success: "返回可用管线类型列表"
+    failure: "不会抛异常"
+  clear_cache:
+    input: {}
+    output:
+      type: "None"
+    success: "清空domain和pipeline缓存"
+    failure: "不会抛异常"
+
+boundaries:
+  - "YAML文件为空 → ValueError"
+  - "YAML格式错误 → ValueError（带文件路径和解析错误信息）"
+  - "domain字段缺失 → 使用传入的domain参数作为fallback"
+  - "目录不存在时 list_domains/pipelines 返回空列表而非抛异常"
+  - "同一domain重复load_domain → 返回缓存（不重新读取）"
+
+dependencies:
+  - "observability.get_logger"

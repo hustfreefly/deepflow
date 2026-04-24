@@ -1,0 +1,149 @@
+module: data_manager_agent
+version: "1.0"
+complexity: "medium"
+
+# =============================================================================
+# L1: 接口契约（方法签名）
+# =============================================================================
+
+interface:
+  "DataManagerAgent.__init__": "session_id: str -> None"
+  "DataManagerAgent.run": "() -> bool"
+  "DataManagerAgent.register_providers": "() -> None"
+  "DataManagerAgent.bootstrap_collection": "() -> Dict[str, Any]"
+  "DataManagerAgent.search_supplement": "() -> Dict[str, Any]"
+  "DataManagerAgent.generate_key_metrics": "() -> None"
+  "DataManagerAgent.write_completion_signal": "() -> None"
+
+# =============================================================================
+# L2: 行为契约（输入/输出/成功/失败）
+# =============================================================================
+
+behavior:
+  DataManagerAgent.__init__:
+    input:
+      session_id: "str, Orchestrator 传递的 session_id"
+    output:
+      type: "None"
+      constraints: []
+    success: |
+      初始化 DataManager Agent
+      设置 blackboard_base_path = /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}
+    failure: "session_id 为空 → ValueError"
+
+  DataManagerAgent.run:
+    input: {}
+    output:
+      type: "bool"
+      constraints:
+        - "True 表示成功"
+        - "False 表示失败"
+    success: |
+      按顺序执行：
+      1. register_providers()
+      2. bootstrap_collection()
+      3. search_supplement()
+      4. generate_key_metrics()
+      5. write_completion_signal()
+      返回 True
+    failure: |
+      任何步骤异常 → 记录错误，返回 False
+      但必须确保 write_completion_signal() 被调用（即使失败）
+
+  DataManagerAgent.register_providers:
+    input: {}
+    output:
+      type: "None"
+      constraints: []
+    success: "注册 Tushare/Sina/Web 数据源"
+    failure: "打印警告，继续执行"
+
+  DataManagerAgent.bootstrap_collection:
+    input: {}
+    output:
+      type: "Dict[str, Any]"
+      constraints:
+        - "必须包含至少 5 个数据集"
+    success: |
+      执行 ConfigDrivenCollector bootstrap_phase
+      写入 blackboard/{session_id}/data/v0/
+      写入 blackboard/{session_id}/data/INDEX.json
+    failure: "部分数据源失败 → 记录警告，返回已采集数据"
+
+  DataManagerAgent.search_supplement:
+    input: {}
+    output:
+      type: "Dict[str, Any]"
+      constraints: []
+    success: |
+      搜索行业趋势、竞品对比、券商预期
+      写入 blackboard/{session_id}/data/05_supplement/
+    failure: "搜索失败 → 返回空 dict"
+
+  DataManagerAgent.generate_key_metrics:
+    input: {}
+    output:
+      type: "None"
+      constraints: []
+    success: |
+      从 daily_basics/realtime_quote 提取关键指标
+      写入 blackboard/{session_id}/data/key_metrics.json
+      格式与原先完全一致
+    failure: "打印警告，继续执行"
+
+  DataManagerAgent.write_completion_signal:
+    input: {}
+    output:
+      type: "None"
+      constraints: []
+    success: |
+      写入 blackboard/{session_id}/data/data_manager_completed.json
+      包含：completed=True, timestamp, datasets_count
+    failure: "打印错误，但返回码仍为 True"
+
+# =============================================================================
+# L3: 边界条件
+# =============================================================================
+
+boundaries:
+  - "session_id 为空 → ValueError"
+  - "blackboard 目录不存在 → os.makedirs 创建"
+  - "bootstrap 部分失败 → 继续执行其他数据源"
+  - "搜索全部失败 → 返回空 dict，不阻断流程"
+  - "key_metrics 生成失败 → 打印警告，继续执行"
+  - "完成信号写入失败 → 打印错误，返回 True"
+
+# =============================================================================
+# 依赖关系
+# =============================================================================
+
+dependencies:
+  - config_loader.ConfigLoader
+  - data_manager.DataEvolutionLoop
+  - data_manager.ConfigDrivenCollector
+  - data_providers.investment.register_providers
+  - blackboard_manager.BlackboardManager
+
+# =============================================================================
+# 使用示例
+# =============================================================================
+
+examples:
+  run: |
+    # Orchestrator spawn DataManager Agent
+    sessions_spawn(
+        runtime="subagent",
+        mode="run",
+        label="data_manager",
+        task="读取 prompts/data_manager_agent.md 并执行",
+        timeout_seconds=300,
+    )
+    
+    # DataManager Agent 内部执行
+    agent = DataManagerAgent(session_id="京仪装备_688652_xxxx")
+    agent.run()  # 返回 True/False
+    
+    # Orchestrator 检查完成信号
+    signal_path = f"blackboard/{session_id}/data/data_manager_completed.json"
+    if os.path.exists(signal_path):
+        print("DataManager 完成")

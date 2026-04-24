@@ -1,0 +1,55 @@
+# PipelineEngine 单轮模式修复契约
+# 支持 max_iterations=1 时正确执行，状态为 DONE 而非 MAX_ITERATIONS
+
+module: "pipeline_engine"
+version: "1.1.1"
+complexity: "simple"
+
+# =============================================================================
+# L1: 接口契约
+# =============================================================================
+
+interface:
+  "_run_pipeline": "() -> PipelineResult"
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+
+behavior:
+  _run_pipeline:
+    input: {}
+    output:
+      type: "PipelineResult"
+      constraints:
+        - "max_iterations == 1 时，执行 1 轮后返回 state=DONE"
+        - "max_iterations == 1 时，不触发收敛检测"
+        - "max_iterations > 1 时，保持原有迭代逻辑不变"
+    success: |
+      1. 读取 domain_config.max_iterations
+      2. 若为 1：执行一轮 stages，设置 state=DONE，直接返回
+      3. 若 >1：执行原有迭代循环（min_iterations 检查 + 收敛检测）
+    failure: "代码异常 → 返回 FAILED 状态"
+
+# =============================================================================
+# L3: 边界条件
+# =============================================================================
+
+boundaries:
+  - "max_iterations <= 0 → 按 1 处理"
+  - "max_iterations == 1 → state=DONE，不是 MAX_ITERATIONS"
+  - "max_iterations > 1 → 原有逻辑不变"
+
+# =============================================================================
+# 修改点
+# =============================================================================
+
+changes:
+  file: "pipeline_engine.py"
+  location: "_run_pipeline() 方法内，收敛检测部分"
+  lines: "约 5 行新增"
+  code: |
+    # 单轮模式：跳过收敛检测
+    if self._domain_config.max_iterations == 1:
+        self._state = PipelineState.DONE
+        break

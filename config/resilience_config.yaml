@@ -1,0 +1,49 @@
+# DeepFlow 弹性配置
+# 超时重试和降级策略
+
+# 任务超时重试
+timeout_retry:
+  enabled: true
+  max_attempts: 2                    # 最多重试2次
+  backoff_strategy: "exponential"    # 指数退避
+  initial_delay: 30s
+  max_delay: 300s
+  
+# 按任务类型配置重试
+task_specific_retry:
+  financial_modeler:
+    max_attempts: 2
+    timeout: 600s
+    on_timeout: "degrade"            # 超时后降级
+    
+  researcher:
+    max_attempts: 1
+    timeout: 300s
+    
+  auditor:
+    max_attempts: 1                  # 不重试，直接进Fixer
+    timeout: 300s
+
+# 降级策略
+degradation:
+  # 财务模型超时降级
+  financial_modeler_timeout:
+    action: "use_simplified_model"   # 使用简化模型
+    fallback_data: "historical_pe"   # 回退到历史PE估值
+    
+  # 数据获取失败降级
+  data_fetch_failure:
+    action: "use_cached_data"        # 使用缓存数据
+    max_cache_age: 7d                # 缓存7天内有效
+    
+  # 任意Researcher失败
+  researcher_failure:
+    action: "continue_with_partial"  # 继续执行（部分数据）
+    min_researchers_required: 3      # 最少需要3个Researcher成功
+
+# 熔断机制
+circuit_breaker:
+  enabled: true
+  failure_threshold: 3               # 连续失败3次熔断
+  timeout: 900s                      # 15分钟熔断
+  half_open_requests: 1              # 半开时允许1个测试请求

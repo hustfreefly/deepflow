@@ -1,0 +1,36 @@
+# Stage Contract - Planning
+stage: planning
+domain: investment
+cage_version: "2.0"
+
+# 接口契约
+interface:
+  input:
+    context:
+      required: [code, name]
+  
+  output:
+    schema:
+      type: object
+      required: [success, plan, milestones]
+      properties:
+        success: {type: boolean}
+        plan:
+          type: string
+        milestones:
+          type: array
+          items: {type: string}
+        estimated_iterations:
+          type: integer
+          minimum: 1
+
+# 行为契约
+behavior:
+  timeout: 120
+  retry:
+    max_attempts: 2
+  failure_mode: "warn_and_continue"
+
+# 数据契约
+data:
+  output_path: "blackboard/{session_id}/stages/planning/"

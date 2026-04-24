@@ -1,0 +1,50 @@
+module: "ci_scripts"
+version: "1.0"
+complexity: "simple"
+
+interface:
+  "run_ci": "() -> int"
+  "validate_all": "() -> bool"
+  "check_standards_all": "() -> bool"
+  "run_contract_tests": "() -> bool"
+  "run_unit_tests": "() -> bool"
+
+behavior:
+  run_ci:
+    input: {}
+    output:
+      type: "int"
+    success: "返回0（全部通过）或1（有失败）"
+    failure: "脚本执行错误返回非0退出码"
+  validate_all:
+    input: {}
+    output:
+      type: "bool"
+    success: "所有契约文件通过validate.py"
+    failure: "任一契约验证失败返回False"
+  check_standards_all:
+    input: {}
+    output:
+      type: "bool"
+    success: "所有模块P0=0"
+    failure: "存在P0违规返回False"
+  run_contract_tests:
+    input: {}
+    output:
+      type: "bool"
+    success: "契约测试全部通过"
+    failure: "任一测试失败返回False"
+  run_unit_tests:
+    input: {}
+    output:
+      type: "bool"
+    success: "单元测试全部通过"
+    failure: "任一测试失败返回False"
+
+boundaries:
+  - "Python环境缺失 → 返回False并打印错误"
+  - "契约文件不存在 → validate_all失败"
+  - "测试依赖未安装 → pytest跳过而非失败"
+
+dependencies: []
+notes: "CI脚本支持本地(ci.sh)和GitHub Actions(.github/workflows/ci.yml)"

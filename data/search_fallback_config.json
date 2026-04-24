@@ -1,0 +1,42 @@
+{
+  "search_fallback_chain": {
+    "industry_trend": [
+      {"name": "gemini_search", "type": "cli", "command": "gemini -p '{query}'", "timeout": 30},
+      {"name": "duckduckgo_search", "type": "python", "module": "duckduckgo_search", "timeout": 20},
+      {"name": "eastmoney_industry", "type": "web_fetch", "url": "https://push2.eastmoney.com/api/qt/clist/get", "timeout": 15}
+    ],
+    "company_news": [
+      {"name": "sina_news", "type": "web_fetch", "url": "https://finance.sina.com.cn/realstock/company/{code}/nc.shtml", "timeout": 15},
+      {"name": "eastmoney_news", "type": "web_fetch", "url": "https://push2.eastmoney.com/api/qt/stock/get", "timeout": 15},
+      {"name": "tushare_news", "type": "python", "module": "tushare", "api": "major_news", "timeout": 20}
+    ],
+    "valuation_data": [
+      {"name": "tushare_daily_basic", "type": "python", "module": "tushare", "api": "daily_basic", "timeout": 20},
+      {"name": "eastmoney_quote", "type": "web_fetch", "url": "https://push2.eastmoney.com/api/qt/stock/get", "timeout": 15},
+      {"name": "sina_quote", "type": "web_fetch", "url": "https://hq.sinajs.cn/list={code}", "timeout": 10}
+    ],
+    "institutional_holding": [
+      {"name": "tushare_holder", "type": "python", "module": "tushare", "api": "top10_holders", "timeout": 20},
+      {"name": "sina_holder", "type": "web_fetch", "url": "https://vip.stock.finance.sina.com.cn/corp/view/vCI_HoldStockState.php?stockid={code}", "timeout": 15}
+    ]
+  },
+  "field_mappings": {
+    "tushare": {
+      "daily_basic": {
+        "current_price": "close",
+        "pe_ttm": "pe_ttm",
+        "pb_ratio": "pb",
+        "ps_ratio": "ps",
+        "market_cap": "total_mv",
+        "total_shares": "total_share"
+      }
+    },
+    "eastmoney": {
+      "pe_ttm": "f162",
+      "pb_ratio": "f163",
+      "ps_ratio": "f164",
+      "market_cap": "f170",
+      "current_price": "f43"
+    }
+  }
+}

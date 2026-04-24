@@ -1,0 +1,124 @@
+{
+  "review_type": "execution_path_v2",
+  "timestamp": "2026-04-23T18:57:00+08:00",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "fix_verification",
+      "description": "build_data_manager_task 使用普通三引号字符串而非 f-string，导致 {session_id}, {company_code}, {company_name}, {industry}, {today} 等变量未被替换。Task 中所有单花括号变量保持原样，Worker 执行时会失败。",
+      "line_reference": "task_builder.py:76-227",
+      "recommendation": "将 build_data_manager_task 的 task 字符串改为 f-string（在开头三引号前加 f），或手动调用 replace_template_vars 进行替换。"
+    },
+    {
+      "severity": "high",
+      "category": "fix_verification",
+      "description": "build_researcher_task 未调用 replace_template_vars，导致 researcher_*.md prompt 文件中的 {{code}}, {{name}}, {{session_id}}, {{iteration}}, {{task_description}} 等模板变量未被替换。",
+      "line_reference": "task_builder.py:272-295",
+      "recommendation": "在 build_researcher_task 中添加 replace_template_vars 调用，传入 variables 字典（包含 code, name, session_id, iteration, task_description）。"
+    },
+    {
+      "severity": "high",
+      "category": "fix_verification",
+      "description": "build_auditor_task 未调用 replace_template_vars，导致 auditor.md 中的 {{code}}, {{name}}, {{session_id}}, {{iteration}}, {{task_description}}, {{AUDIT_PERSPECTIVE}} 等变量未被替换。",
+      "line_reference": "task_builder.py:298-315",
+      "recommendation": "在 build_auditor_task 中添加 replace_template_vars 调用，传入 variables 字典（包含 code, name, session_id, iteration, task_description, AUDIT_PERSPECTIVE）。"
+    },
+    {
+      "severity": "medium",
+      "category": "data_flow",
+      "description": "extract_data_summary() 在 DataManager 完成前返回默认值（如 '未知'），但 build_planner_task 和 build_summarizer_task 直接使用这些默认值构建上下文。如果 DataManager 尚未执行，Planner 和 Summarizer 会收到不完整的数据。",
+      "line_reference": "task_builder.py:44-53, 230-265",
+      "recommendation": "这是设计上的时序问题。MasterAgent 在 DataManager 执行前就生成所有 Tasks，因此 extract_data_summary 必然返回默认值。需要在 Orchestrator 层面确保执行顺序：DataManager → Planner → Researchers → Auditors → Fixer → Summarizer。当前 execution_plan.json 已定义此顺序，但需验证 Orchestrator 是否严格遵守。"
+    },
+    {
+      "severity": "medium",
+      "category": "data_flow",
+      "description": "extract_planner_focus() 在 Planner 完成前返回 '综合分析'，但 build_researcher_task 在 MasterAgent 初始化阶段就被调用。此时 Planner 尚未执行，focus 必然是默认值。",
+      "line_reference": "task_builder.py:56-65, 272-295",
+      "recommendation": "同上，这是时序问题。Researcher Tasks 在生成时无法获取 Planner 的真实输出。建议：1) 接受默认值 '综合分析' 作为初始 focus；2) 或在 Orchestrator 执行 Phase 3 时动态重新生成 Researcher Tasks（需要额外的 Task 更新机制）。"
+    },
+    {
+      "severity": "low",
+      "category": "code_quality",
+      "description": "replace_template_vars 函数实现正确，能处理 {{var_name}} 格式的模板变量。测试验证通过。",
+      "line_reference": "task_builder.py:56-59",
+      "recommendation": "无需修复，但建议在 docstring 中添加示例说明支持的格式。"
+    },
+    {
+      "severity": "low",
+      "category": "code_quality",
+      "description": "build_planner_task 正确调用了 replace_template_vars，传入了 code, name, session_id, iteration, task_description 五个变量。验证通过。",
+      "line_reference": "task_builder.py:230-265",
+      "recommendation": "无需修复。"
+    },
+    {
+      "severity": "medium",
+      "category": "execution_order",
+      "description": "init_session() 生成的 session_id 格式为 '{company_name}_{code_clean}_{uuid_hex_8chars}'，例如 '中芯国际_688981_3d9b486a'。格式正确，无特殊字符，适合作为目录名。",
+      "line_reference": "master_agent.py:35-43",
+      "recommendation": "无需修复。"
+    },
+    {
+      "severity": "low",
+      "category": "execution_order",
+      "description": "generate_tasks() 中各 Task 的生成顺序合理：先 DataManager，再 Planner，然后 Researchers，Auditors，Fixer，最后 Summarizer。这与 execution_plan.json 中的 phase 定义一致。",
+      "line_reference": "master_agent.py:46-75",
+      "recommendation": "无需修复。"
+    },
+    {
+      "severity": "low",
+      "category": "execution_order",
+      "description": "execution_plan.json 的 phase 定义与 tasks.json 结构匹配：Phase 1 (data_manager), Phase 2 (planner), Phase 3 (researchers: 6个), Phase 4 (auditors: 3个), Phase 5 (fixer), Phase 6 (summarizer)。",
+      "line_reference": "master_agent.py:93-107",
+      "recommendation": "无需修复。"
+    },
+    {
+      "severity": "low",
+      "category": "code_quality",
+      "description": "DataManager Task 中包含完整的 Python 代码：bootstrap_phase、补充搜索（Gemini + DuckDuckGo fallback）、key_metrics.json 生成/更新。逻辑完整。",
+      "line_reference": "task_builder.py:76-227",
+      "recommendation": "修复 f-string 问题后无需其他修改。"
+    },
+    {
+      "severity": "low",
+      "category": "code_quality",
+      "description": "Researcher Tasks 都包含 angle 参数（finance, tech, market, macro_chain, management, sentiment），共 6 个，与 execution_plan.json 一致。",
+      "line_reference": "master_agent.py:63-67",
+      "recommendation": "无需修复。"
+    },
+    {
+      "severity": "low",
+      "category": "code_quality",
+      "description": "未发现硬编码路径问题。所有路径都通过 DEEPFLOW_BASE 常量或参数传递。",
+      "line_reference": "task_builder.py:18",
+      "recommendation": "无需修复。"
+    },
+    {
+      "severity": "low",
+      "category": "code_quality",
+      "description": "未发现明显的重复代码。各 build_*_task 函数职责清晰，无冗余。",
+      "line_reference": "task_builder.py:全文件",
+      "recommendation": "无需修复。"
+    },
+    {
+      "severity": "low",
+      "category": "code_quality",
+      "description": "异常处理基本完整：extract_data_summary 和 extract_planner_focus 都有 try-except 返回默认值。DataManager Task 中的 bootstrap_phase 也有异常捕获。",
+      "line_reference": "task_builder.py:44-65, task_builder.py:108-112",
+      "recommendation": "建议为 build_*_task 函数添加顶层异常处理，防止文件读取失败时崩溃。"
+    }
+  ],
+  "fix_verification": {
+    "replace_template_vars": "working",
+    "planner_task_vars": ["code", "name", "session_id", "iteration", "task_description"],
+    "remaining_issues": [
+      "build_data_manager_task 未使用 f-string，变量未替换（HIGH）",
+      "build_researcher_task 未调用 replace_template_vars（HIGH）",
+      "build_auditor_task 未调用 replace_template_vars（HIGH）",
+      "extract_data_summary 在 DataManager 执行前返回默认值（MEDIUM，设计问题）",
+      "extract_planner_focus 在 Planner 执行前返回默认值（MEDIUM，设计问题）"
+    ]
+  },
+  "execution_score": 0.45,
+  "confidence": "high"
+}

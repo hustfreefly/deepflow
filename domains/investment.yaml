@@ -1,0 +1,236 @@
+# DeepFlow Domain Configuration - Investment (投资研究)
+# Version: 2026-04-20-v1
+
+domain: investment
+name: "投资研究"
+description: "股票/基金投资分析，包括财务研究、技术分析、市场研究、风险评估"
+
+# 上下文 Schema（定义该领域需要的字段）
+context:
+  schema:
+    required: ["code", "name"]
+    optional: ["price", "market", "industry"]
+  example:
+    code: "300604.SZ"
+    name: "长川科技"
+    price: 154.0
+    market: "创业板"
+    industry: "半导体设备"
+
+# Agents 列表（PipelineEngine 从这里读取，按顺序执行）
+agents:
+  - role: data_manager
+    prompt: "prompts/data_manager_agent.md"
+    timeout: 300
+    model: "bailian/qwen3.5-plus"
+  
+  - role: planner
+    prompt: "prompts/investment_planner.md"
+    timeout: 180
+    model: "bailian/qwen3.5-plus"
+  
+  - role: researcher_finance
+    prompt: "prompts/investment_researcher_enhanced.md"
+    timeout: 300
+    model: "bailian/qwen3.5-plus"
+    parallel: all
+  
+  - role: researcher_tech
+    prompt: "prompts/investment_researcher_tech.md"
+    timeout: 300
+    parallel: all
+  
+  - role: researcher_market
+    prompt: "prompts/investment_researcher_market.md"
+    timeout: 300
+    parallel: all
+  
+  - role: researcher_macro_chain
+    prompt: "prompts/investment_researcher_macro_chain.md"
+    timeout: 300
+    parallel: all
+  
+  - role: researcher_management
+    prompt: "prompts/investment_researcher_management.md"
+    timeout: 180
+    parallel: all
+  
+  - role: researcher_sentiment
+    prompt: "prompts/investment_researcher_sentiment.md"
+    timeout: 180
+    parallel: all
+  
+  - role: auditor_factual
+    prompt: "prompts/investment_auditor.md"
+    timeout: 180
+    parallel: all
+  
+  - role: auditor_upside
+    prompt: "prompts/investment_auditor.md"
+    timeout: 180
+    parallel: all
+  
+  - role: auditor_downside
+    prompt: "prompts/investment_auditor.md"
+    timeout: 180
+    parallel: all
+  
+  - role: fixer
+    prompt: "prompts/investment_fixer.md"
+    timeout: 240
+  
+  - role: summarizer
+    prompt: "prompts/investment_summarizer_enhanced.md"
+    timeout: 300
+
+# Pipeline 阶段定义
+pipeline:
+  stages:
+    # Stage 1: 数据采集
+    - name: data_collection
+      type: data_manager
+      config: "data_sources/investment.yaml"
+      description: "采集财务数据、行情数据、行业数据"
+    
+    # Stage 2: 统一搜索（补充数据）
+    - name: search
+      type: single_worker
+      workers:
+        - role: search_coordinator
+          timeout: 120
+      description: "执行统一搜索，补充研报、新闻等数据"
+    
+    # Stage 3: 规划阶段
+    - name: planning
+      type: single_worker
+      workers:
+        - role: planner
+          timeout: 180
+      description: "制定研究计划，分配研究任务"
+    
+    # Stage 4: 研究阶段（6个researcher并行）
+    - name: research
+      type: parallel_workers
+      workers:
+        - role: researcher_finance
+          count: 1
+          timeout: 300
+          model: "bailian/qwen3.5-plus"
+        - role: researcher_tech
+          count: 1
+          timeout: 300
+        - role: researcher_market
+          count: 1
+          timeout: 300
+        - role: researcher_macro
+          count: 1
+          timeout: 300
+        - role: researcher_management
+          count: 1
+          timeout: 180
+        - role: researcher_sentiment
+          count: 1
+          timeout: 180
+      description: "6个维度并行研究：财务/技术/市场/宏观/管理/舆情"
+    
+    # Stage 5: 审计阶段（3个auditor并行）
+    - name: audit
+      type: parallel_workers
+      workers:
+        - role: auditor_factual
+          count: 1
+          timeout: 180
+        - role: auditor_upside
+          count: 1
+          timeout: 180
+        - role: auditor_downside
+          count: 1
+          timeout: 180
+      description: "三视角审计：事实验证/上行风险/下行风险"
+    
+    # Stage 6: 修复阶段
+    - name: fix
+      type: single_worker
+      workers:
+        - role: fixer
+          timeout: 240
+      description: "根据审计意见修正预测"
+    
+    # Stage 7: 汇总阶段
+    - name: summarize
+      type: single_worker
+      workers:
+        - role: summarizer
+          timeout: 300
+      description: "汇总最终投资报告"
+
+# 收敛检测配置（单轮模式）
+convergence:
+  min_iterations: 1
+  max_iterations: 1
+  target_score: 0.0
+  stall_threshold: 0.02
+  oscillation_threshold: 3
+
+# 模型 Fallback 链配置
+model_chain:
+  primary: "bailian/qwen3.5-plus"
+  fallback: "bailian/kimi-k2.5"
+  emergency: "kimi/kimi-code"
+  max_fallback_rounds: 3
+
+# 并发控制配置
+concurrency:
+  max_parallel_workers: 3      # researcher/auditor 并行度
+  worker_timeout: 300          # Worker 默认超时
+  orchestrator_timeout: 600    # Orchestrator 超时
+
+# 数据收集器配置（投资领域特有）
+collectors:
+  - name: tushare
+    priority: 1
+    enabled: true
+  - name: akshare
+    priority: 2
+    enabled: true
+  - name: sina_finance
+    priority: 3
+    enabled: true
+  - name: web_search
+    priority: 4
+    enabled: true
+
+# 搜索工具优先级（投资场景）
+search_priority:
+  - tool: gemini_cli
+    command: "gemini -p {query}"
+    priority: 1
+    description: "首选：Gemini CLI 内置 Google Search"
+  - tool: duckduckgo
+    module: "duckduckgo_search.DDGS"
+    priority: 2
+    description: "备选：DuckDuckGo 文本搜索"
+  - tool: tushare
+    module: "tushare.pro_api"
+    priority: 3
+    description: "财务数据专用：Tushare API"
+  - tool: web_fetch
+    priority: 4
+    description: "最后手段：直接 URL 抓取"
+
+# 行业配置（可选）
+industries:
+  default: "半导体设备"
+  supported:
+    - "半导体设备"
+    - "新能源"
+    - "医药生物"
+    - "消费电子"
+    - "人工智能"
+
+# 输出配置
+output:
+  format: "markdown"           # 输出格式：markdown/json
+  include_charts: true         # 是否包含图表
+  include_risk_matrix: true    # 是否包含风险矩阵
+  language: "zh-CN"            # 输出语言

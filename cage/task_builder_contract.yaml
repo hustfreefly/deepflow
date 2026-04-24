@@ -1,0 +1,196 @@
+# V4.0 契约笼子 - Task Builder
+# 阶段1: 契约定义
+
+module: task_builder_v4
+version: "4.0"
+phase: 1
+
+## 输入契约
+
+input:
+  agent_role: str              # Worker 角色: data_manager | planner | researcher_* | auditor_* | fixer | summarizer
+  session_id: str             # 会话ID
+  company_code: str           # 股票代码
+  company_name: str           # 公司名称
+  industry: str               # 行业
+  prompt_file: str            # 原始提示词文件路径（相对于 prompts/）
+
+## 输出契约
+
+output:
+  task: str                   # 完整的 Task 字符串（包含上下文注入 + 原始提示词）
+  format: "enhanced_task_v1"
+  
+  # Task 必须包含的标记
+  required_markers:
+    - "# 🎯 任务上下文（Orchestrator 注入）"    # 上下文注入标记
+    - "## 目标公司"                            # 公司信息
+    - "## 输入数据"                            # 数据路径
+    - "## 输出要求"                            # 输出要求
+    - "---"                                    # 分隔线
+    - "# 原始提示词"                          # 原始提示词
+
+## 各角色 Task 特定要求
+
+roles:
+  data_manager:
+    required_sections:
+      - "## 职责"
+      - "## 执行代码"                          # 必须包含可执行 Python 代码
+      - "## 输出"
+    code_requirements:
+      - must_import: "data_providers.investment.register_providers"
+      - must_import: "data_manager.DataEvolutionLoop"
+      - must_call: "bootstrap_phase(context)"
+      - must_write: "blackboard/{session_id}/data/"
+    
+  planner:
+    required_sections:
+      - "## 输入数据"                          # 必须包含 data/key_metrics.json 路径
+      - "## 研究计划"                          # 必须输出 planner_output.json
+    input_paths:
+      - "blackboard/{session_id}/data/key_metrics.json"
+    output_path: "blackboard/{session_id}/stages/planner_output.json"
+    
+  researcher:
+    required_sections:
+      - "## 输入数据"                          # data/ 和 05_supplement/
+      - "## 自行搜索（按需）"                  # 搜索工具优先级指引
+      - "## 输出要求"
+    input_paths:
+      - "blackboard/{session_id}/data/"
+      - "blackboard/{session_id}/data/05_supplement/"
+      - "blackboard/{session_id}/stages/planner_output.json"
+    search_tools_priority:
+      - "Gemini CLI"
+      - "DuckDuckGo"
+      - "Tushare"
+      - "web_fetch"
+    output_requirements:
+      - format: "JSON"
+      - required_fields:
+          - "role"
+          - "findings"                          # 必须包含 findings 列表
+          - "findings[].confidence"              # 必须包含置信度
+          - "findings[].source"                  # 必须包含数据来源
+    
+  auditor:
+    required_sections:
+      - "## 输入数据"                          # researcher 输出路径
+      - "## 审计视角"
+      - "## 输出要求"
+    input_paths_template: "blackboard/{session_id}/stages/researcher_*_output.json"
+    output_requirements:
+      - format: "JSON"
+      - required_fields:
+          - "role"
+          - "verifications"
+          - "contradictions"                     # 必须包含数据矛盾标记
+    
+  fixer:
+    required_sections:
+      - "## 输入数据"                          # 所有 researcher + auditor 输出
+      - "## 修正逻辑"
+      - "## 输出要求"
+    input_paths:
+      - "blackboard/{session_id}/stages/researcher_*_output.json"
+      - "blackboard/{session_id}/stages/auditor_*_output.json"
+    output_requirements:
+      - format: "JSON"
+      - required_fields:
+          - "role"
+          - "corrections"                        # 修正记录
+          - "consolidated_findings"              # 整合后的发现
+    
+  summarizer:
+    required_sections:
+      - "## 输入数据"                          # 分层读取说明
+      - "## 分层读取优先级"
+      - "## 论点驱动分析"
+      - "## 三情景目标价"
+      - "## 输出要求"
+    reading_priority:
+      tier_1:                                        # 第一层（50%时间）
+        - auditor_factual_output.json
+        - researcher_finance_output.json
+        - researcher_macro_chain_output.json
+      tier_2:                                        # 第二层（30%时间）
+        - researcher_tech_output.json
+        - researcher_market_output.json
+        - fixer_output.json
+      tier_3:                                        # 第三层（20%时间）
+        - researcher_management_output.json
+        - researcher_sentiment_output.json
+        - auditor_upside_output.json
+        - auditor_downside_output.json
+    output_requirements:
+      - format: "JSON + Markdown"
+      - json_output: "stages/summarizer_output.json"
+      - markdown_output: "final_report.md"
+      - required_sections:
+          - "核心投资逻辑"                       # 必须包含
+          - "核心矛盾"                           # 必须包含
+          - "三情景目标价"                       # 必须包含
+          - "数据来源标注"                       # 每条结论必须标注
+
+## 通用契约
+
+common:
+  # 上下文注入必须包含
+  context_injection:
+    - company_code
+    - company_name
+    - industry
+    - current_price
+    - pe_ttm
+    - pb_ratio
+    - market_cap
+    
+  # 输出文件路径模板
+  output_path_template: "blackboard/{session_id}/stages/{role}_output.json"
+  
+  # 质量标准
+  quality:
+    min_content_length: 1000                      # Task 内容最少 1000 字符
+    must_include_data_summary: true               # 必须包含数据摘要
+
+## 错误处理契约
+
+error_handling:
+  prompt_file_not_found:
+    action: "使用默认提示词"
+    must_log: true
+    
+  data_summary_extraction_failed:
+    action: "使用占位符"
+    must_not: "阻塞 Task 生成"
+
+## 验证脚本接口
+
+verify:
+  script: "cage/check_task_builder_v4.py"
+  test_cases:
+    - role: "data_manager"
+      session_id: "test_001"
+      company_code: "688652.SH"
+      company_name: "京仪装备"
+      checks:
+        - has_bootstrap_code
+        - has_import_statements
+        - has_output_path
+        
+    - role: "summarizer"
+      session_id: "test_002"
+      checks:
+        - has_tiered_reading
+        - has_scenario_analysis
+        - has_confidence_requirement
+
+## 完成标准
+
+completion_criteria:
+  - 所有角色 Task 模板已定义
+  - Task 包含必需的上下文注入
+  - Task 包含原始提示词
+  - 输出路径正确
+  - 错误处理不阻塞

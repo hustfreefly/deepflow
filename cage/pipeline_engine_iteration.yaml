@@ -1,0 +1,199 @@
+# PipelineEngine 迭代循环修复契约
+# 修复 P0：添加外部迭代循环支持
+
+module: "pipeline_engine"
+version: "1.1"
+complexity: "medium"
+
+# =============================================================================
+# L1: 接口契约（方法签名）
+# =============================================================================
+
+interface:
+  "_run_pipeline": "() -> PipelineResult"
+  "_should_skip_stage_in_iteration": "stage: PipelineStage, iteration: int -> bool"
+  "_run_iteration_stages": "stages: List[PipelineStage], iteration: int -> bool"
+
+# =============================================================================
+# L2: 行为契约（输入/输出/成功/失败）
+# =============================================================================
+
+behavior:
+  _run_pipeline:
+    input: {}
+    output:
+      type: "PipelineResult"
+      constraints:
+        - "result.iterations >= min_iterations (default: 2)"
+        - "result.iterations <= max_iterations (from domain_config)"
+        - "result.state 必须是 CONVERGED, MAX_ITERATIONS, FAILED 或 DONE 之一"
+    success: |
+      1. 执行至少 min_iterations 轮迭代
+      2. 每轮执行 domain_config.agents 定义的 stages
+      3. 每轮结束后检查收敛条件
+      4. 收敛后返回 CONVERGED 状态
+      5. 达到 max_iterations 后返回 MAX_ITERATIONS 状态
+    failure: |
+      任何 stage 执行失败时返回 FAILED 状态，包含错误信息
+
+  _should_skip_stage_in_iteration:
+    input:
+      stage: "PipelineStage 对象"
+      iteration: "int, 当前迭代轮次 (0-based)"
+    output:
+      type: "bool"
+      constraints:
+        - "iteration == 0 时返回 False（第一轮不跳过任何 stage）"
+        - "stage.id 包含 'data_manager|planner|researcher' 且 iteration > 0 时返回 True"
+        - "stage.id 包含 'audit|fix|verif' 时返回 False（后续轮次执行这些 stages）"
+    success: "正确判断当前迭代是否应该跳过该 stage"
+    failure: "返回错误的布尔值，导致 stage 被错误跳过或执行"
+
+  _run_iteration_stages:
+    input:
+      stages: "List[PipelineStage]，当前要执行的 stages 列表"
+      iteration: "int, 当前迭代轮次"
+    output:
+      type: "bool"
+      constraints:
+        - "返回 True 表示本迭代所有 stages 执行成功"
+        - "返回 False 表示有 stage 执行失败"
+    success: |
+      1. 遍历 stages 列表
+      2. 调用 _should_skip_stage_in_iteration 判断是否需要跳过
+      3. 不跳过的 stage 调用 _execute_stage_with_resilience 执行
+      4. 收集所有 stage 的结果
+      5. 所有 stage 成功返回 True，否则 False
+    failure: "返回 False 或抛出异常"
+
+# =============================================================================
+# L3: 边界条件
+# =============================================================================
+
+boundaries:
+  - "max_iterations <= 0 → 至少执行 1 轮"
+  - "domain_config.agents 为空 → 返回 DONE 状态，iterations=0"
+  - "所有 stages 在 iteration > 0 时都被跳过 → 进入无限循环保护"
+  - "AgentPendingException 抛出时 → 正确传播，不捕获为 FAILED"
+  - "_iteration 计数器：只在 stage 成功执行后递增"
+
+# =============================================================================
+# 依赖关系
+# =============================================================================
+
+dependencies:
+  - "pipeline_engine._execute_stage_with_resilience"
+  - "pipeline_engine._check_convergence_with_quality"
+  - "config_loader.DomainConfig.max_iterations"
+  - "config_loader.DomainConfig.min_iterations"
+
+# =============================================================================
+# 使用示例
+# =============================================================================
+
+examples:
+  _run_pipeline: |
+    # 配置：max_iterations=5, min_iterations=2
+    # Stages: [data_manager, planner, researcher, auditor, fixer, verifier]
+    
+    engine = PipelineEngine(domain="investment", session_id="test_001")
+    result = engine._run_pipeline()
+    
+    # 期望结果：
+    # - 第0轮：执行所有 6 个 stages
+    # - 第1轮：只执行 auditor, fixer, verifier
+    # - 第2轮+：只执行 auditor, fixer, verifier（直到收敛或 max_iterations）
+    # - 收敛后返回 result.state == PipelineState.CONVERGED
+    # - result.iterations >= 2
+
+  _should_skip_stage_in_iteration: |
+    stage = PipelineStage(id="data_manager", agent="data_manager")
+    assert engine._should_skip_stage_in_iteration(stage, 0) == False  # 第一轮不跳过
+    assert engine._should_skip_stage_in_iteration(stage, 1) == True   # 后续轮跳过
+    
+    stage = PipelineStage(id="auditor", agent="auditor")
+    assert engine._should_skip_stage_in_iteration(stage, 0) == False  # 第一轮执行
+    assert engine._should_skip_stage_in_iteration(stage, 2) == False  # 后续轮也执行
+
+# =============================================================================
+# 修复方案详细设计
+# =============================================================================
+
+implementation_notes: |
+  ## 修改 _run_pipeline() 方法
+  
+  将原来的单循环改为双层循环：
+  
+  ```python
+  def _run_pipeline(self) -> PipelineResult:
+      self._state = PipelineState.RUNNING
+      
+      for iteration in range(self._domain_config.max_iterations):
+          self._current_iteration = iteration
+          logger.info("iteration_start", iteration=iteration)
+          
+          # 执行当前迭代的所有 stages
+          success = self._run_iteration_stages(
+              self._pipeline.stages, 
+              iteration
+          )
+          
+          if not success:
+              self._state = PipelineState.FAILED
+              return PipelineResult(...)
+          
+          # 检查收敛（至少 min_iterations 轮）
+          if iteration >= self._domain_config.min_iterations - 1:
+              converged, reason = self._check_convergence_with_quality(...)
+              if converged:
+                  self._state = PipelineState.CONVERGED
+                  break
+      
+      # 循环结束后设置最终状态
+      if self._state == PipelineState.RUNNING:
+          self._state = PipelineState.MAX_ITERATIONS if iteration >= self._domain_config.max_iterations - 1 else PipelineState.DONE
+      
+      return PipelineResult(...)
+  ```
+  
+  ## 新增 _run_iteration_stages() 方法
+  
+  ```python
+  def _run_iteration_stages(self, stages: List[PipelineStage], iteration: int) -> bool:
+      for stage in stages:
+          # 检查是否应该跳过
+          if self._should_skip_stage_in_iteration(stage, iteration):
+              logger.info("stage_skipped", stage_id=stage.id, iteration=iteration)
+              continue
+          
+          # 执行 stage
+          result = self._execute_stage_with_resilience(stage)
+          
+          if result.pending_input:
+              raise AgentPendingException(...)
+          
+          if not result.success:
+              return False
+          
+          # 记录分数
+          if result.score > 0:
+              self._scores.append(result.score)
+          
+          self._iteration += 1  # 总执行计数
+      
+      return True
+  ```
+  
+  ## 新增 _should_skip_stage_in_iteration() 方法
+  
+  ```python
+  def _should_skip_stage_in_iteration(self, stage: PipelineStage, iteration: int) -> bool:
+      if iteration == 0:
+          return False  # 第一轮执行所有 stages
+      
+      # 后续轮只保留 audit/fix/verify 相关 stages
+      iterative_stages = {'audit', 'fix', 'verif'}
+      stage_type = stage.id.lower()
+      
+      return not any(t in stage_type for t in iterative_stages)
+  ```

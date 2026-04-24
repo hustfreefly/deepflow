@@ -1,0 +1,69 @@
+# V4.0 P0-P1 修复契约笼子
+# 阶段1: 契约定义
+
+module: p0_p1_fixes
+version: "4.0-fix"
+date: "2026-04-23"
+
+## P0 问题（严重）
+
+p0_issues:
+  - id: "P0-1"
+    file: "orchestrator_agent.py"
+    problem: "缺少 session_id 获取方式"
+    impact: "Orchestrator Agent 无法确定要操作的 session"
+    fix: "在指南开头增加 session_id 获取说明（从 tasks.json 文件名或环境变量）"
+    
+  - id: "P0-2"
+    file: "orchestrator_agent.py"
+    problem: "并行等待逻辑模糊"
+    impact: "Phase 3/4 并行 spawn 多个 Workers 后，只写一次 yield，可能漏掉部分完成事件"
+    fix: "明确说明：并行 spawn 所有 Workers → yield 等待 → 所有完成事件到达后继续"
+    
+  - id: "P0-3"
+    file: "orchestrator_agent.py"
+    problem: "缺少 scopes/cleanup 参数"
+    impact: "不符合 AGENTS.md 规范，可能导致权限不足或残留会话"
+    fix: "补充 sessions_spawn 的 scopes 和 cleanup 参数"
+
+## P1 问题（重要）
+
+p1_issues:
+  - id: "P1-1"
+    file: "core/data_manager_worker.py"
+    problem: "Task 中缺少异常处理指引"
+    impact: "bootstrap 失败时 Worker 可能卡住或输出不完整"
+    fix: "在 Task 中添加 fallback 指引"
+    
+  - id: "P1-2"
+    file: "core/task_builder.py"
+    problem: "DataManager Task 中 Gemini CLI 可能不可用"
+    impact: "补充搜索成功率低（实测 50%）"
+    fix: "添加 fallback 搜索方案（DuckDuckGo、web_fetch）"
+    
+  - id: "P1-3"
+    file: "core/data_manager_worker.py"
+    problem: "key_metrics 部分字段为空"
+    impact: "后续 Workers 无法获取 PE/PB/市值等关键数据"
+    fix: "增强 key_metrics 提取逻辑，尝试多个数据源"
+
+## 修复标准
+
+fix_criteria:
+  p0:
+    - orchestrator_contains_session_id_guide: true
+    - orchestrator_contains_parallel_wait_logic: true
+    - orchestrator_contains_scopes_cleanup: true
+    
+  p1:
+    - datamanager_contains_error_handling: true
+    - datamanager_contains_fallback_search: true
+    - key_metrics_extracts_all_fields: true
+
+## 验证
+
+verify:
+  - run_check_p0_p1.py
+  - test_orchestrator_guide_parsing
+  - test_datamanager_error_handling
+  - test_key_metrics_completeness

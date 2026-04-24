@@ -1,0 +1,57 @@
+module: "conftest"
+version: "1.0"
+complexity: "simple"
+
+interface:
+  "temp_dir": "() -> Path"
+  "mock_config": "() -> ConfigLoader"
+  "sample_domain": "() -> DomainConfig"
+  "sample_pipeline": "() -> PipelineTemplate"
+  "observability_reset": "() -> None"
+  "blackboard_session": "() -> BlackboardManager"
+
+behavior:
+  temp_dir:
+    input: {}
+    output:
+      type: "Path"
+    success: "返回临时目录Path，测试结束后自动清理"
+    failure: "pytest fixture机制失败时抛异常"
+  mock_config:
+    input: {}
+    output:
+      type: "ConfigLoader"
+    success: "返回配置好的ConfigLoader实例，使用临时目录"
+    failure: "配置初始化失败时抛异常"
+  sample_domain:
+    input: {}
+    output:
+      type: "DomainConfig"
+    success: "返回通用领域配置实例"
+    failure: "不会抛异常"
+  sample_pipeline:
+    input: {}
+    output:
+      type: "PipelineTemplate"
+    success: "返回iterative管线模板实例"
+    failure: "不会抛异常"
+  observability_reset:
+    input: {}
+    output:
+      type: "None"
+    success: "重置Observability的指标和追踪状态"
+    failure: "不会抛异常"
+  blackboard_session:
+    input: {}
+    output:
+      type: "BlackboardManager"
+    success: "返回BlackboardManager实例，使用临时目录"
+    failure: "目录创建失败时抛OSError"
+
+boundaries:
+  - "fixture作用域：session级（跨测试共享）或function级（每测试隔离）"
+  - "临时目录自动清理失败 → pytest警告但不阻塞测试"
+  - "Observability全局状态 → 每个测试类需调用reset"
+
+dependencies: []
+notes: "pytest共享fixtures，供contract/unit/integration测试使用"

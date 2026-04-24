@@ -1,0 +1,49 @@
+# Prompt 瘦身契约 V1.0
+# 模块: pipeline_engine_orchestrator.md 瘦身
+# 日期: 2026-04-19
+
+## interface
+  input: prompts/pipeline_engine_orchestrator.md (当前 18K)
+  output: prompts/pipeline_engine_orchestrator.md (目标 ≤15K)
+  backup: prompts/pipeline_engine_orchestrator.md.bak.20260419
+
+## behavior
+  # 必须保留的核心约束（删除任何一项 = 失败）
+  must_keep:
+    - "10 步管线执行流程（不可删改任何步骤）"
+    - "6 条关键执行规则（researcher 3 并行、auditor 3 并行等）"
+    - "Blackboard 数据流契约（Worker 读写规则）"
+    - "收敛检测条件（≥2 轮、target_score 0.92）"
+    - "输出 JSON Schema（完整字段）"
+    - "所有 Python import 语句"
+    - "Fallback 模型策略完整代码块"
+    - "迭代间数据更新 API（collect_requests/fulfill_requests/ingest_findings/update_blackboard）"
+    - "数据目录结构说明（INDEX.json + 6 个子目录）"
+    - "行业配置加载逻辑"
+    - "Label 命名规则完整列表"
+
+  # 可以删除的内容
+  may_delete:
+    - "'数据采集层'章节中与 STEP 1 重复的 bootstrap 代码"
+    - "搜索工具优先级第二处（2.2 节文字描述）"
+    - "Label 错误示例（❌ 部分）"
+    - "Worker Agent 映射表（独立章节）"
+
+  # 可以精简的内容
+  may_compress:
+    - "STEP 1 逐行中文注释 → 删除"
+    - "STEP 2 搜索函数 docstring → 保留关键单行"
+    - "身份声明 + 必复述 → 合并为单一区块"
+
+## boundaries
+  max_chars: 15000
+  min_chars: 12000
+  compression_ratio_min: 0.15   # 至少压缩 15%
+  compression_ratio_max: 0.21   # 最多压缩 21%
+  
+  # 验证方法
+  verification:
+    - "wc -c 确认大小在 12K-15K 范围内"
+    - "grep 检查所有 must_keep 项的关键词仍存在"
+    - "diff 确认删除的内容确为重复项"
+    - "人工审查核心指令未被修改"

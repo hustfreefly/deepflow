@@ -1,0 +1,43 @@
+module: "data_providers"
+version: "1.0"
+complexity: "medium"
+
+interface:
+  "DataProvider.fetch": "query: DataQuery -> DataResult"
+  "DataProvider.validate_finding": "finding: DataFinding -> bool"
+  "InvestmentDataProvider": "实现 DataProvider 接口"
+  "CodeDataProvider": "实现 DataProvider 接口"
+  "GeneralDataProvider": "实现 DataProvider 接口"
+
+behavior:
+  fetch:
+    input:
+      query: "DataQuery（source_id, params, context）"
+    output:
+      type: "DataResult（data, metadata, raw）"
+    success: "返回采集到的数据 + 元信息（source, timestamp, ttl）"
+    failure: "采集失败→抛异常（由调用方处理）"
+  validate_finding:
+    input:
+      finding: "DataFinding（discoverer, type, key, value, source, timestamp, confidence）"
+    output:
+      type: "bool"
+    success: "数据通过验证（source 存在 + 来源可信 + 数值合理 + 未过期）"
+    failure: "验证失败→返回 False（不抛异常）"
+
+boundaries:
+  - "DataProvider 接口不包含任何领域术语（完全通用）"
+  - "新增数据源需要在 ProviderRegistry 中注册（代码侧），配置侧只引用"
+  - "validate_finding 检查：source 存在且格式正确 + 数值在合理范围 + confidence ≥ 0.7"
+  - "投资领域数据时效性：核心财务数据 ≤ 180 天，行情数据实时，研报 ≤ 30 天"
+  - "代码领域数据无过期概念（源码是静态的）"
+
+dependencies: []
+
+provider_registry:
+  akshare: "data_providers.investment.AKShareProvider"
+  sina_finance: "data_providers.investment.SinaProvider"
+  web_fetch: "data_providers.investment.WebFetchProvider"
+  tushare: "data_providers.tushare_provider.TushareProvider"
+
+notes: "DataProvider 是领域插件接口。每个数据源（akshare/sina/web_fetch/tushare）实现此接口。新增领域需要：1)写 data_sources/{domain}.yaml 配置 2)实现 DataProvider（如该领域有特殊采集需求）。通用数据源（akshare/web_fetch）可直接复用。"

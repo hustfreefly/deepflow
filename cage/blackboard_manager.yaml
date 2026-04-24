@@ -1,0 +1,108 @@
+module: "blackboard_manager"
+version: "1.0"
+complexity: "medium"
+
+# =============================================================================
+# L1: 接口契约
+# =============================================================================
+
+interface:
+  "__init__": "session_id: str, base_dir: Optional[Path] = None -> None"
+  "init_session": "() -> Path"
+  "write": "filename: str, content: Union[str, Dict], subdir: Optional[str] = None -> Path"
+  "read": "filename: str, subdir: Optional[str] = None, default: Optional[str] = None -> Optional[str]"
+  "read_json": "filename: str, subdir: Optional[str] = None, default: Optional[Dict] = None -> Optional[Dict]"
+  "append_state": "updates: Dict[str, Any] -> Dict[str, Any]"
+  "get_state": "() -> Dict[str, Any]"
+  "cleanup": "() -> bool"
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+
+behavior:
+  __init__:
+    input:
+      session_id: "str，会话ID，不能为空"
+      base_dir: "Optional[Path]，默认为~/.openclaw/workspace/.deepflow/blackboard"
+    output:
+      type: "None"
+    success: "初始化session引用"
+    failure: "session_id为空→ValueError"
+
+  init_session:
+    input: {}
+    output:
+      type: "Path"
+    success: "创建session目录和checkpoints子目录，初始化shared_state.json"
+    failure: "目录创建失败→OSError"
+
+  write:
+    input:
+      filename: "str，文件名，不能为空"
+      content: "str或Dict，文件内容"
+      subdir: "Optional[str]，子目录名"
+    output:
+      type: "Path"
+    success: "原子写入（临时文件→fsync→重命名），返回文件路径"
+    failure: "IO错误→OSError，临时文件自动清理"
+
+  read:
+    input:
+      filename: "str，文件名"
+      subdir: "Optional[str]，子目录名"
+      default: "Optional[str]，不存在时返回的默认值"
+    output:
+      type: "Optional[str]"
+    success: "返回文件内容"
+    failure: "文件不存在→返回default"
+
+  read_json:
+    input:
+      filename: "str，JSON文件名"
+      subdir: "Optional[str]，子目录名"
+      default: "Optional[Dict]，不存在时返回的默认值"
+    output:
+      type: "Optional[Dict]"
+    success: "返回解析后的字典"
+    failure: "文件不存在→返回default；JSON格式错误→返回default并记录warning"
+
+  append_state:
+    input:
+      updates: "Dict，要合并到shared_state的字段"
+    output:
+      type: "Dict[str, Any]"
+    success: "合并更新shared_state.json，返回完整状态"
+    failure: "不会抛异常"
+
+  get_state:
+    input: {}
+    output:
+      type: "Dict[str, Any]"
+    success: "返回shared_state.json内容，文件不存在时返回空dict"
+    failure: "不会抛异常"
+
+  cleanup:
+    input: {}
+    output:
+      type: "bool"
+    success: "删除session目录，返回True"
+    failure: "删除失败→返回False"
+
+# =============================================================================
+# L3: 边界条件
+# =============================================================================
+
+boundaries:
+  - "session_id为空字符串 → ValueError"
+  - "write的content为dict时自动json.dumps(ensure_ascii=False, indent=2)"
+  - "write使用原子写入（tmpfile→fsync→rename），防止半写文件"
+  - "read文件不存在时不抛异常，返回default值"
+  - "read_json的JSON格式错误时返回default（不抛异常）"
+  - "get_state在shared_state.json不存在时返回{}"
+
+# =============================================================================
+# 依赖
+# =============================================================================
+
+dependencies: []

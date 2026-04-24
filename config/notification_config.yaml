@@ -1,0 +1,38 @@
+# DeepFlow 消息通知配置
+# 解决消息轰炸问题
+
+waiting_notification:
+  # 消息模式：merge(合并)|immediate(立即)|silent(静默)
+  mode: "merge"
+  
+  # 合并间隔（秒）
+  interval: 300s  # 每5分钟汇报一次
+  
+  # 最大等待消息数
+  max_messages: 1
+  
+  # 消息模板
+  template: |
+    ⏳ 等待中... {completed}/{total} 完成
+    进行中的任务：{running_tasks}
+    预计还需：{eta_minutes}分钟
+
+progress_notification:
+  # 每轮开始时发送
+  round_start: true
+  
+  # 每轮结束时发送
+  round_end: true
+  
+  # 关键节点发送
+  milestones:
+    - "planner_complete"
+    - "all_researchers_complete"
+    - "audit_complete"
+    - "fix_complete"
+    - "verification_complete"
+
+# 抑制重复消息
+deduplication:
+  enabled: true
+  window: 60s  # 60秒内相同消息去重

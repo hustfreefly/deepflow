@@ -1,0 +1,156 @@
+name: "半导体设备"
+description: "半导体制造和封测设备公司"
+
+# 大维度研究问题（深度分析）
+research_topics:
+  macro_policy_chain:
+    macro:
+      - key: "半导体周期位置"
+        description: "判断行业处于上行/下行周期，影响设备采购节奏"
+        data_sources: ["SEMI", "Gartner", "WSTS"]
+        questions:
+          - "当前全球半导体资本开支趋势如何？"
+          - "封测厂设备采购周期处于什么阶段？"
+          - "行业库存水位是否健康？"
+
+      - key: "GDP/制造业PMI"
+        description: "影响终端需求传导到封测厂"
+        data_sources: ["国家统计局", "Wind"]
+        questions:
+          - "中国制造业PMI是否处于扩张区间？"
+          - "终端需求（手机/汽车/AI）对封测产能的影响？"
+
+      - key: "利率/流动性"
+        description: "影响科技股估值"
+        data_sources: ["央行", "美联储"]
+        questions:
+          - "中美利率环境对科技股PE倍数的影响？"
+
+      - key: "汇率波动"
+        description: "进口零部件成本、海外客户收入"
+        data_sources: ["央行汇率中间价"]
+        questions:
+          - "人民币贬值对进口零部件成本的影响？"
+          - "汇率波动对海外收入的影响？"
+
+    policy:
+      - key: "大基金投向"
+        description: "大基金三期（3440亿）对设备/材料的投资力度"
+        data_sources: ["官方公告", "券商研报"]
+        questions:
+          - "大基金三期对半导体设备环节的投资计划？"
+          - "已投企业名单及对标的公司的影响？"
+
+      - key: "中美贸易管制"
+        description: "出口管制清单直接影响国产替代节奏"
+        data_sources: ["商务部", "BIS清单"]
+        questions:
+          - "美国出口管制对中国半导体设备采购的影响？"
+          - "国产替代时间窗口是否因管制而缩短/延长？"
+
+      - key: "产业政策"
+        description: "税收优惠、研发补贴、政府采购"
+        data_sources: ["工信部", "发改委"]
+        questions:
+          - "半导体设备企业享受的税收优惠政策？"
+          - "研发补贴力度及持续性？"
+
+      - key: "国产替代要求"
+        description: "强制国产化比例要求"
+        data_sources: ["行业政策文件"]
+        questions:
+          - "封测环节设备国产化率当前水平？"
+          - "政策要求的目标国产化率及时间表？"
+
+    chain:
+      - key: "上游零部件供应"
+        description: "关键零部件是否依赖进口"
+        data_sources: ["供应商年报", "海关数据"]
+        questions:
+          - "精密机械、光学、传感器等关键零部件的国产化率？"
+          - "进口依赖度及供应链风险？"
+
+      - key: "下游客户资本开支"
+        description: "封测厂设备采购计划"
+        data_sources: ["长电科技", "通富微电", "华天科技财报"]
+        questions:
+          - "前三大封测厂的年度资本开支计划？"
+          - "客户扩产节奏是否匹配公司产能？"
+
+      - key: "客户集中度"
+        description: "前五大客户占比过高风险"
+        data_sources: ["公司年报"]
+        questions:
+          - "前五大客户收入占比？"
+          - "单一大客户流失对收入的影响？"
+
+      - key: "竞争对手扩产"
+        description: "竞品公司产能扩张计划"
+        data_sources: ["竞品年报", "行业报告"]
+        questions:
+          - "Teradyne/Advantest/华峰测控的扩产计划？"
+          - "价格战风险及公司应对策略？"
+
+      - key: "库存周期"
+        description: "封测厂库存高导致设备采购延迟"
+        data_sources: ["下游财报存货周转率"]
+        questions:
+          - "下游封测厂存货周转率趋势？"
+          - "库存周期对设备采购节奏的影响？"
+
+  management:
+    - key: "高管背景"
+      description: "核心团队行业经验"
+      questions:
+        - "CEO/CTO的行业背景及历史业绩？"
+        - "核心团队稳定性（近3年离职率）？"
+
+    - key: "股权激励"
+      description: "员工持股/期权激励计划"
+      questions:
+        - "是否有股权激励计划？覆盖范围？"
+        - "行权条件是否合理（业绩目标）？"
+
+    - key: "历史承诺兑现"
+      description: "过去承诺的业绩/项目是否兑现"
+      questions:
+        - "过去3年业绩预告与实际差距？"
+        - "重大项目（如SoC测试机）是否按期交付？"
+
+    - key: "研发人员稳定性"
+      description: "核心技术人才流失风险"
+      questions:
+        - "研发人员占比及变化趋势？"
+        - "核心技术人员离职率？"
+
+  sentiment:
+    - key: "近期公告"
+      description: "公司最近1个月的重要公告"
+      data_sources: ["巨潮资讯", "公司公告"]
+      questions:
+        - "最近是否有重大合同/订单公告？"
+        - "是否有减持/增持计划？"
+
+    - key: "分析师评级变化"
+      description: "券商上调/下调评级"
+      data_sources: ["Wind", "同花顺"]
+      questions:
+        - "近30天分析师评级变化（上调/下调）？"
+        - "一致预期目标价变化？"
+
+    - key: "机构调研"
+      description: "机构调研纪要中的关键信息"
+      data_sources: ["交易所调研记录"]
+      questions:
+        - "近90天机构调研频次？"
+        - "调研中透露的关键经营信息？"
+
+    - key: "行业新闻"
+      description: "行业重大新闻对标的公司的影响"
+      data_sources: ["半导体行业观察", "集微网"]
+      questions:
+        - "近30天行业重大新闻？"
+        - "对标的公司的正面/负面影响？"
+
+# 小维度研究问题（轻量评估）
+# 已合并到上方 management 和 sentiment 中

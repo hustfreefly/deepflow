@@ -1,0 +1,89 @@
+# 契约笼子：修复所有剩余问题（Prompt + 代码）
+# 目标：解决P0 Prompt问题和剩余中低风险问题，达到可运行状态
+
+contract:
+  name: "Fix All Remaining Issues"
+  version: "1.0"
+  date: "2026-04-23"
+  
+issues:
+  p0:
+    - id: 1
+      name: "summarizer.md 重复JSON结构"
+      problem: "第275-350行和第352-430行有两套不同的JSON结构定义"
+      fix: "删除第352-430行的重复定义，保留第一套完整结构"
+      file: "prompts/investment/summarizer.md"
+      
+    - id: 2
+      name: "fixer.md 硬编码路径"
+      problem: "使用绝对路径 '/Users/allen/.openclaw/workspace/.deepflow/...'"
+      fix: "改为使用 {{blackboard_base_path}} 模板变量"
+      file: "prompts/investment/fixer.md"
+      
+    - id: 3
+      name: "fixer.md 缺少检查清单"
+      problem: "缺少强制检查清单章节"
+      fix: "添加执行前/执行后检查清单"
+      file: "prompts/investment/fixer.md"
+      
+    - id: 4
+      name: "fixer.md 不完整JSON结构"
+      problem: "缺少 session_id、timestamp、quality_self_assessment 等字段"
+      fix: "补全标准输出JSON结构"
+      file: "prompts/investment/fixer.md"
+      
+  medium:
+    - id: 5
+      name: "researcher_macro_chain.md {{industry}}变量"
+      problem: "额外使用 {{industry}} 变量，Orchestrator可能未传入"
+      fix: "在 task_builder.py 中添加 industry 到 variables，或添加fallback逻辑"
+      file: "prompts/investment/researcher_macro_chain.md"
+      
+    - id: 6
+      name: "build_fixer_task 未调用 replace_template_vars"
+      problem: "当前无影响，但预防未来prompt引入模板变量"
+      fix: "添加 replace_template_vars 调用"
+      file: "core/task_builder.py"
+      
+    - id: 7
+      name: "build_summarizer_task 未调用 replace_template_vars"
+      problem: "当前无影响，但预防未来prompt引入模板变量"
+      fix: "添加 replace_template_vars 调用"
+      file: "core/task_builder.py"
+      
+  low:
+    - id: 8
+      name: "check_dependencies bare except"
+      problem: "使用裸 except，可能掩盖意外错误"
+      fix: "改为明确的异常类型"
+      file: "core/data_manager_worker.py"
+
+phases:
+  - id: 1
+    name: "修复 summarizer.md 重复JSON"
+    action: "删除第352-430行重复定义"
+    verification: "只剩一套JSON结构"
+    
+  - id: 2
+    name: "修复 fixer.md 所有问题"
+    action: "修复路径、添加检查清单、补全JSON"
+    verification: "无硬编码路径，有检查清单，JSON完整"
+    
+  - id: 3
+    name: "修复 researcher_macro_chain.md"
+    action: "添加 {{industry}} fallback 或确保传入"
+    verification: "industry变量有处理"
+    
+  - id: 4
+    name: "修复 task_builder.py 中低风险问题"
+    action: "添加 replace_template_vars 调用，修复 bare except"
+    verification: "所有 build_*_task 都有模板替换"
+    
+  - id: 5
+    name: "验证所有修复"
+    action: "py_compile + 单元测试"
+    verification: "所有模块正常，prompt无重复"
+    
+  - id: 6
+    name: "Git提交"
+    message: "fix: 修复所有剩余P0和中低风险问题，达到可运行状态"

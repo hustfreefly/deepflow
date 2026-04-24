@@ -1,0 +1,55 @@
+# DeepFlow .gitignore
+
+# 运行时生成的测试结果
+blackboard/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.bak
+*.db
+*.sqlite
+*.sqlite3
+
+# 运行时数据
+.vector_memory_db/
+.metrics/
+.inspection/
+data/cache.db
+sector_analysis.db
+
+# 测试缓存
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 敏感信息
+.env
+*.env
+secrets.yaml
+credentials.yaml

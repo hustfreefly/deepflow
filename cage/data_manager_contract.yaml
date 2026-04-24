@@ -1,0 +1,113 @@
+# V4.0 契约笼子 - DataManager Worker
+# 阶段1: 契约定义
+
+module: data_manager_v4
+version: "4.0"
+phase: 1
+
+## 输入契约
+
+input:
+  session_id: str           # 会话ID，如 "京仪装备_688652_a1b2c3d4"
+  company_code: str         # 股票代码，如 "688652.SH"
+  company_name: str         # 公司名称，如 "京仪装备"
+  industry: str             # 行业，如 "半导体设备"
+
+## 输出契约
+
+output:
+  # 主输出目录
+  base_path: "blackboard/{session_id}/data/"
+  
+  # 必须生成的文件
+  required_files:
+    - path: "blackboard/{session_id}/data/INDEX.json"
+      description: "数据索引，列出所有采集的数据集"
+      min_records: 1
+    
+    - path: "blackboard/{session_id}/data/key_metrics.json"
+      description: "精简版关键指标（Summarizer快速读取）"
+      required_fields:
+        - company_code
+        - company_name
+        - industry
+        - current_price
+        - pe_ttm
+        - pb_ratio
+        - ps_ratio
+        - market_cap
+        - total_shares
+        - analysis_date
+    
+    - path: "blackboard/{session_id}/data/05_supplement/行业趋势.json"
+      description: "补充搜索：行业趋势"
+      min_content_length: 100
+    
+    - path: "blackboard/{session_id}/data/05_supplement/竞品对比.json"
+      description: "补充搜索：竞品对比"
+      min_content_length: 100
+    
+    - path: "blackboard/{session_id}/data/05_supplement/券商预期.json"
+      description: "补充搜索：券商预期"
+      min_content_length: 100
+    
+    - path: "blackboard/{session_id}/data/05_supplement/风险因素.json"
+      description: "补充搜索：风险因素"
+      min_content_length: 100
+
+## 行为契约
+
+behavior:
+  # 1. Bootstrap 采集
+  bootstrap:
+    must_execute: true
+    modules:
+      - data_providers.investment.register_providers
+      - data_manager.DataEvolutionLoop
+      - data_manager.ConfigDrivenCollector
+    
+  # 2. 统一搜索
+  supplement_search:
+    must_execute: true
+    search_tools:
+      - gemini_cli
+      - duckduckgo
+    min_success_rate: 50%  # 至少2/4成功
+    
+  # 3. 数据验证
+  validation:
+    must_check:
+      - INDEX.json 或 key_metrics.json 存在
+      - 至少1个数据集采集成功
+      - 至少2个补充搜索成功
+
+## 错误处理契约
+
+error_handling:
+  # Bootstrap 失败
+  bootstrap_failure:
+    action: "尝试降级方案（直接搜索）"
+    must_generate: "key_metrics.json（最小化）"
+  
+  # 搜索失败
+  search_failure:
+    action: "继续执行，记录失败"
+    must_not: "阻塞后续流程"
+
+## 验证脚本接口
+
+verify:
+  script: "cage/check_data_manager_v4.py"
+  checks:
+    - input_validation    # 检查输入参数
+    - output_structure    # 检查输出文件结构
+    - data_completeness   # 检查数据完整性
+    - error_handling      # 检查错误处理
+
+## 完成标准
+
+completion_criteria:
+  - key_metrics.json 存在且字段完整
+  - 至少4个数据文件存在（INDEX或key_metrics + 至少3个补充搜索）
+  - 所有字段类型正确
+  - 错误处理不阻塞流程

@@ -1,0 +1,37 @@
+# 契约笼子：Tushare 作为默认数据源修复
+# 目标：修改 ensure_key_metrics，让 Tushare 为默认，新浪财经为 fallback
+
+contract:
+  name: "Tushare as default data source"
+  version: "1.0"
+  date: "2026-04-23"
+  
+issues:
+    - id: 1
+      name: "ensure_key_metrics 默认使用新浪财经"
+      problem: "新浪财经 realtime_quote 不包含 PE/PB/PS/市值，导致 key_metrics 全为 null"
+      fix: "改为默认使用 Tushare daily_basic API 获取估值数据"
+      file: "core/data_manager_worker.py"
+      
+    - id: 2
+      name: "缺少 Tushare token 配置"
+      problem: "代码中没有引用 Tushare token"
+      fix: "从 data_providers/tushare_provider.py 导入 token"
+      file: "core/data_manager_worker.py"
+
+phases:
+  - id: 1
+    name: "修改 ensure_key_metrics 默认使用 Tushare"
+    action: "先尝试 Tushare daily_basic，失败后再用新浪财经"
+    
+  - id: 2
+    name: "添加 Tushare token 引用"
+    action: "从 tushare_provider 导入 token"
+    
+  - id: 3
+    name: "验证修复"
+    action: "检查语法和逻辑"
+    
+  - id: 4
+    name: "Git提交"
+    message: "fix: Tushare 作为默认数据源，新浪财经为 fallback"

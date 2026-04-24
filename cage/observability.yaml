@@ -1,0 +1,146 @@
+module: "observability"
+version: "1.0"
+complexity: "medium"
+notes: "13个公开方法，契约文件~5KB，实际代码245行，目标250行"
+
+interface:
+  "get_logger": "name: str = 'v3' -> Logger"
+  "init_trace": "session_id: str -> str"
+  "log_stage_start": "stage: str, agent: str, trace_id: str, **kwargs -> None"
+  "log_stage_end": "stage: str, success: bool, duration: float, trace_id: str, **kwargs -> None"
+  "record_counter": "name: str, value: float = 1.0, labels: Optional[Dict] = None -> None"
+  "record_gauge": "name: str, value: float, labels: Optional[Dict] = None -> None"
+  "record_histogram": "name: str, value: float, labels: Optional[Dict] = None -> None"
+  "record_quality_score": "score: float, stage: str, trace_id: Optional[str] = None -> None"
+  "record_convergence": "round_num: int, converged: bool, reason: str = '' -> None"
+  "record_error": "error_type: str, message: str, stage: str = '', trace_id: Optional[str] = None -> None"
+  "get_metrics": "() -> Dict[str, Any]"
+  "get_trace": "trace_id: str -> List[Dict[str, Any]]"
+  "get_session_trace": "session_id: str -> Optional[List[Dict[str, Any]]]"
+  "reset": "() -> None"
+
+behavior:
+  get_logger:
+    input:
+      name: "str，logger名称，默认v3"
+    output:
+      type: "Logger"
+    success: "返回支持kwargs的结构化logger（structlog或stdlib fallback）"
+    failure: "不会抛异常"
+  init_trace:
+    input:
+      session_id: "str，会话ID"
+    output:
+      type: "str"
+    success: "生成16位hex trace_id，同session重复调用返回相同trace_id"
+    failure: "不会抛异常"
+  log_stage_start:
+    input:
+      stage: "str，阶段名（plan/execute/critique等）"
+      agent: "str，Agent角色"
+      trace_id: "str，追踪ID"
+    output:
+      type: "None"
+    success: "推入span到追踪栈，记录info日志，增加stage_starts计数器"
+    failure: "不会抛异常"
+  log_stage_end:
+    input:
+      stage: "str，阶段名"
+      success: "bool，是否成功"
+      duration: "float，耗时秒数"
+      trace_id: "str，追踪ID"
+    output:
+      type: "None"
+    success: "弹出span，记录完成/失败日志和直方图，增加success/fail计数器"
+    failure: "空栈时不抛异常，记录warning"
+  record_counter:
+    input:
+      name: "str，计数器名"
+      value: "float，增量，默认1.0"
+      labels: "Optional[Dict]，维度标签"
+    output:
+      type: "None"
+    success: "累加计数器"
+    failure: "不会抛异常"
+  record_gauge:
+    input:
+      name: "str，仪表盘名"
+      value: "float，当前值"
+      labels: "Optional[Dict]，维度标签"
+    output:
+      type: "None"
+    success: "设置仪表盘值"
+    failure: "不会抛异常"
+  record_histogram:
+    input:
+      name: "str，直方图名"
+      value: "float，样本值"
+      labels: "Optional[Dict]，维度标签"
+    output:
+      type: "None"
+    success: "记录样本（Welford在线算法聚合count/sum/avg）"
+    failure: "不会抛异常"
+  record_quality_score:
+    input:
+      score: "float，0.0-1.0"
+      stage: "str，阶段名"
+      trace_id: "Optional[str]，仅日志记录"
+    output:
+      type: "None"
+    success: "记录gauge和histogram，超范围自动裁剪并warning"
+    failure: "不会抛异常"
+  record_convergence:
+    input:
+      round_num: "int，收敛轮次"
+      converged: "bool，是否收敛"
+      reason: "str，原因"
+    output:
+      type: "None"
+    success: "记录round gauge和convergence counter"
+    failure: "不会抛异常"
+  record_error:
+    input:
+      error_type: "str，错误类型"
+      message: "str，错误信息"
+      stage: "str，发生阶段"
+      trace_id: "Optional[str]，仅日志记录"
+    output:
+      type: "None"
+    success: "增加error_count counter，记录error日志"
+    failure: "不会抛异常"
+  get_metrics:
+    input: {}
+    output:
+      type: "Dict[str, Any]"
+    success: "返回{counters, gauges, histograms, labels}快照"
+    failure: "不会抛异常"
+  get_trace:
+    input:
+      trace_id: "str，追踪ID"
+    output:
+      type: "List[Dict[str, Any]]"
+    success: "返回span列表，不存在时返回空列表"
+    failure: "不会抛异常"
+  get_session_trace:
+    input:
+      session_id: "str，会话ID"
+    output:
+      type: "Optional[List[Dict[str, Any]]]"
+    success: "通过session_id查找trace，返回span列表"
+    failure: "session不存在时返回None"
+  reset:
+    input: {}
+    output:
+      type: "None"
+    success: "清空所有指标和追踪上下文"
+    failure: "不会抛异常"
+
+boundaries:
+  - "同session重复init_trace → 返回相同trace_id（不覆盖）"
+  - "log_stage_end在空栈上调用 → 不抛异常，记录warning"
+  - "record_quality_score超出0-1范围 → 裁剪+warning"
+  - "所有方法必须线程安全（内部使用threading.Lock）"
+  - "零外部依赖：structlog未安装时自动回退到stdlib logging"
+  - "reset()仅用于测试，生产环境不应调用"
+
+dependencies: []
