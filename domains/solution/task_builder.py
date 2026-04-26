@@ -24,7 +24,7 @@ def read_original_prompt(prompt_file: str) -> str:
 
 
 def build_data_collection_task(session_id: str, topic: str, constraints: list) -> str:
-    """构建数据采集 Task"""
+    """构建数据采集 Task（修复 P1-001: 增加种子 URL）"""
     constraints_text = "\n".join([f"- {c}" for c in constraints]) if constraints else "- 无"
     return f"""你是 Solution 数据收集 Agent。
 
@@ -34,17 +34,32 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list) -
 ## 约束条件
 {constraints_text}
 
+## 种子数据源（优先访问）
+1. 技术文档: https://developer.aliyun.com/article/  (搜索"高并发架构")
+2. 行业报告: https://www.gartner.com/en/newsroom  (搜索"e-commerce")
+3. 竞品分析: https://aws.amazon.com/cn/architecture/  (AWS 架构最佳实践)
+4. 最佳实践: https://martinfowler.com/articles/  (Martin Fowler 架构文章)
+
 ## 执行步骤
-1. 搜索相关技术文档和最佳实践
+1. 使用 web_fetch 访问上述种子 URL 获取最新信息
 2. 收集行业报告和案例分析
 3. 整理竞品信息
 4. 将结果写入 blackboard/{session_id}/data/
 
-## 输出要求
-- 技术文档摘要
-- 行业趋势数据
-- 竞品分析对比
-- 风险因素清单
+## 输出格式（JSON）
+```json
+{{
+  "tech_docs": [{{"title": "...", "summary": "...", "source": "..."}}],
+  "industry_reports": [{{"title": "...", "key_findings": "..."}}],
+  "competitor_analysis": [{{"company": "...", "strengths": "...", "weaknesses": "..."}}],
+  "risks": [{{"risk": "...", "mitigation": "..."}}]
+}}
+```
+
+## 注意
+- 如果无法访问外部链接，基于已有知识生成合理内容
+- 标注数据来源，区分"实时数据"和"训练数据"
+- 每个数据项必须注明可信度（high/medium/low）
 """
 
 
@@ -71,14 +86,39 @@ def build_planner_task(session_id: str, topic: str, solution_type: str,
     return prompt + "\n" + context
 
 
-def build_researcher_task(expert: str, session_id: str, topic: str, context: dict) -> str:
-    """构建 Researcher Task"""
+def build_researcher_task(expert: str, session_id: str, topic: str, context: dict,
+                         expert_id: str = "expert_1", 
+                         angle: str = "综合分析",
+                         reason: str = "需要深入分析该领域") -> str:
+    """构建 Researcher Task（修复 P0-001, P0-002）
+    
+    Args:
+        expert: 专家名称
+        session_id: Session ID
+        topic: 研究主题
+        context: 上下文字典
+        expert_id: 专家标识（用于生成唯一文件名）
+        angle: 研究角度（替换 {{ expert.angle }}）
+        reason: 需要该专家的原因（替换 {{ expert.reason }}）
+    """
     prompt = read_original_prompt("researcher_template.md")
+    
+    # 替换模板占位符
+    prompt = prompt.replace("{{ expert.angle }}", angle)
+    prompt = prompt.replace("{{ expert.reason }}", reason)
+    prompt = prompt.replace("{{ topic }}", topic)
+    
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
     
     ctx = f"""
 ## 专家角色
 {expert}
+
+## 研究角度
+{angle}
+
+## 需要原因
+{reason}
 
 ## 研究主题
 {topic}
@@ -87,15 +127,16 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
 {context_json}
 
 ## 输出要求
-1. 输出研究结果到 blackboard/{session_id}/stages/research_{{expert}}.json
+1. 输出研究结果到 blackboard/{session_id}/stages/research_{expert_id}.json
 2. 包含: findings, analysis, recommendations
 3. 引用具体数据来源
+4. 聚焦"{angle}"角度，避免与其他专家重复
 """
     return prompt + "\n" + ctx
 
 
 def build_designer_task(session_id: str, topic: str, context: dict) -> str:
-    """构建 Designer Task"""
+    """构建 Designer Task（修复 P1-003: 明确前置输入文件）"""
     prompt = read_original_prompt("designer.md")
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
     
@@ -106,10 +147,19 @@ def build_designer_task(session_id: str, topic: str, context: dict) -> str:
 ## 上下文
 {context_json}
 
+## 前置输入（必须读取）
+1. 规划阶段: blackboard/{session_id}/stages/planning.json
+2. 研究结果: 
+   - blackboard/{session_id}/stages/research_expert_1.json
+   - blackboard/{session_id}/stages/research_expert_2.json
+   - blackboard/{session_id}/stages/research_expert_3.json
+3. 数据收集: blackboard/{session_id}/data/
+
 ## 输出要求
 1. 输出设计方案到 blackboard/{session_id}/stages/design.md
 2. 包含: architecture, components, data_flow, scalability_plan
 3. 考虑约束条件和风险评估
+4. 整合前期研究成果，标注引用来源
 """
     return prompt + "\n" + ctx
 
@@ -196,8 +246,8 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str) ->
 
 
 def build_deliver_task(session_id: str, topic: str, context: dict) -> str:
-    """构建 Deliver Task"""
-    prompt = read_original_prompt("architect.md")
+    """构建 Deliver Task（修复 P1-002: 使用 designer.md 而非 architect.md）"""
+    prompt = read_original_prompt("designer.md")  # 使用 designer.md 替代 architect.md
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
     
     ctx = f"""
@@ -207,9 +257,15 @@ def build_deliver_task(session_id: str, topic: str, context: dict) -> str:
 ## 上下文
 {context_json}
 
+## 前置输入（必须读取）
+1. 设计方案: blackboard/{session_id}/stages/design.md
+2. 审计报告: blackboard/{session_id}/stages/audit.json
+3. 修复记录: blackboard/{session_id}/stages/fix.json
+
 ## 输出要求
 1. 输出最终方案到 blackboard/{session_id}/stages/deliver.md
 2. 包含: executive_summary, solution_overview, technical_spec, implementation_plan, risk_assessment
 3. 格式清晰，适合直接交付
+4. 整合审计修复结果，标注变更点
 """
     return prompt + "\n" + ctx

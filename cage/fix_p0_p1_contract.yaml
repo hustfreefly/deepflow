@@ -1,66 +1,74 @@
-# 契约笼子：修复P0和P1执行问题
-# 目标：提升DeepFlow执行可靠性
+# Fix P0 + P1 Issues Contract
+# 版本: 2026-04-26-v2
+# 目标: 修复 Research 文件名冲突、占位符、Data Collection 工具、Deliver Prompt、Designer 输入依赖
 
-contract:
-  name: "Fix P0 and P1 Execution Issues"
-  version: "1.0"
-  date: "2026-04-23"
-  
-issues:
-  p0:
-    - id: 1
-      name: "模板变量替换"
-      problem: "planner.md中的{{code}}等变量未被替换"
-      fix: "task_builder.py中使用str.replace替换模板变量"
-      
-    - id: 2
-      name: "Worker环境PYTHONPATH"
-      problem: "Worker执行时可能找不到deepflow模块"
-      fix: "在DataManager Task的Python代码中显式设置sys.path"
-      
-  p1:
-    - id: 3
-      name: "外部依赖检查"
-      problem: "gemini CLI和duckduckgo_search可能未安装"
-      fix: "在DataManager Worker中添加可用性检查，优雅降级"
-      
-    - id: 4
-      name: "Worker错误处理"
-      problem: "缺少try/except，单点故障影响整体"
-      fix: "在DataManager Worker的run()方法中添加异常处理"
+task: "fix_p0_p1_issues"
+domain: solution
 
-phases:
-  - id: 1
-    name: "修复模板变量"
-    file: "core/task_builder.py"
-    changes:
-      - "build_planner_task: 添加replace_template_vars调用"
-      
-  - id: 2
-    name: "注入PYTHONPATH"
-    file: "core/task_builder.py"
-    changes:
-      - "build_data_manager_task: 确保sys.path.insert(0, DEEPFLOW_BASE)存在"
-      
-  - id: 3
-    name: "添加依赖检查"
-    file: "core/data_manager_worker.py"
-    changes:
-      - "添加check_dependencies()方法"
-      - "在run()开始时调用"
-      
-  - id: 4
-    name: "添加错误处理"
-    file: "core/data_manager_worker.py"
-    changes:
-      - "run_bootstrap: 添加try/except"
-      - "run_supplement_search: 添加try/except"
-      - "ensure_key_metrics: 添加try/except"
-      
-  - id: 5
-    name: "验证"
-    action: "python3 -m py_compile验证语法"
+# =============================================================================
+# P0 Issues
+# =============================================================================
+p0_issues:
+  - id: "P0-001"
+    name: "Research 文件名冲突"
+    location: "task_builder.py:build_researcher_task"
+    problem: "输出路径使用 research_{{expert}}.json，占位符未替换，3 个 expert 写入同一文件"
+    fix: "改为 research_expert_{index}.json，如 research_expert_1.json"
     
-  - id: 6
-    name: "Git提交"
-    message: "fix: 修复P0/P1执行问题（模板变量、PYTHONPATH、错误处理）"
+  - id: "P0-002"
+    name: "Research 占位符未替换"
+    location: "orchestrator_agent.py + task_builder.py"
+    problem: "{{ expert.angle }} 和 {{ expert.reason }} 未提供值，专家角色模糊"
+    fix: "在 planning 阶段输出 required_experts 数组，包含 name/angle/reason，task_builder 使用这些值"
+
+# =============================================================================
+# P1 Issues
+# =============================================================================
+p1_issues:
+  - id: "P1-001"
+    name: "Data Collection 缺乏搜索工具"
+    location: "task_builder.py:build_data_collection_task"
+    problem: "Agent 只有 web_fetch，无搜索引擎，无法获取最新数据"
+    fix: "提供种子 URL 列表，增加具体的数据源指引"
+    
+  - id: "P1-002"
+    name: "Deliver 使用错误 Prompt"
+    location: "task_builder.py:build_deliver_task"
+    problem: "使用 architect.md 而非 designer.md，可能导致格式不匹配"
+    fix: "改为使用 designer.md 或确认 architect.md 是否适合交付"
+    
+  - id: "P1-003"
+    name: "Designer 输入依赖缺失"
+    location: "task_builder.py:build_designer_task"
+    problem: "未明确如何传递 research 输出到 Designer"
+    fix: "在 design task 中明确列出需要读取的前置文件"
+
+# =============================================================================
+# 文件变更
+# =============================================================================
+files:
+  modify:
+    - path: "domains/solution/task_builder.py"
+      changes:
+        - "build_researcher_task: 修复文件名，使用 expert_id 参数"
+        - "build_researcher_task: 注入 angle 和 reason 到 prompt"
+        - "build_data_collection_task: 增加种子 URL 列表"
+        - "build_designer_task: 明确列出前置输入文件"
+        - "build_deliver_task: 确认使用正确的 prompt 文件"
+        
+    - path: "domains/solution/orchestrator_agent.py"
+      changes:
+        - "research 阶段: 传递 expert_id 和 expert 元数据"
+        - "planning 阶段: 解析 required_experts 用于 research 阶段"
+
+# =============================================================================
+# 验证要求
+# =============================================================================
+validation:
+  - "research task 文件名格式为 research_expert_{id}.json"
+  - "research prompt 包含 expert angle 和 reason"
+  - "data_collection task 包含种子 URL"
+  - "design task 明确列出前置文件"
+  - "deliver task 使用正确的 prompt"
+  - "validate_refactor.py 仍然通过"
+  - "可以本地 exec 运行验证"

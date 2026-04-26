@@ -80,21 +80,36 @@ class SolutionOrchestratorV2:
                     self.constraints, self.stakeholders
                 )
             elif stage == "research":
-                # 动态生成 researcher tasks
-                tasks[stage] = {
-                    "expert_1": build_researcher_task(
-                        "技术架构专家", self.session_id, self.topic,
-                        {"type": self.solution_type, "constraints": self.constraints}
-                    ),
-                    "expert_2": build_researcher_task(
-                        "业务分析专家", self.session_id, self.topic,
-                        {"type": self.solution_type, "constraints": self.constraints}
-                    ),
-                    "expert_3": build_researcher_task(
-                        "风险评估专家", self.session_id, self.topic,
-                        {"type": self.solution_type, "constraints": self.constraints}
+                # 动态生成 researcher tasks（修复 P0-001, P0-002）
+                experts = [
+                    {
+                        "id": "expert_1",
+                        "name": "技术架构专家",
+                        "angle": "高并发系统架构与性能优化",
+                        "reason": "日均百万订单需要分析 QPS、延迟、吞吐量，设计缓存、异步、分库分表策略"
+                    },
+                    {
+                        "id": "expert_2",
+                        "name": "业务分析专家",
+                        "angle": "电商业务流程与领域模型设计",
+                        "reason": "订单系统涉及复杂业务规则，需要分析订单生命周期、状态机、业务约束"
+                    },
+                    {
+                        "id": "expert_3",
+                        "name": "风险评估专家",
+                        "angle": "系统风险识别与容错设计",
+                        "reason": "99.99%可用性要求需要识别单点故障、级联故障、数据一致性等风险"
+                    }
+                ]
+                tasks[stage] = {}
+                for expert in experts:
+                    tasks[stage][expert["id"]] = build_researcher_task(
+                        expert["name"], self.session_id, self.topic,
+                        {"type": self.solution_type, "constraints": self.constraints},
+                        expert_id=expert["id"],
+                        angle=expert["angle"],
+                        reason=expert["reason"]
                     )
-                }
             elif stage == "design":
                 tasks[stage] = build_designer_task(
                     self.session_id, self.topic,
