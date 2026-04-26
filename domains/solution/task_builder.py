@@ -56,10 +56,16 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list) -
 }}
 ```
 
-## 注意
-- 如果无法访问外部链接，基于已有知识生成合理内容
-- 标注数据来源，区分"实时数据"和"训练数据"
-- 每个数据项必须注明可信度（high/medium/low）
+## 执行要求（必须遵守）
+1. **必须使用 `write` 工具** 将结果写入以下路径：
+   - 文件路径：`blackboard/{session_id}/data/research_data.json`
+   - 格式：JSON
+2. 写入后必须使用 `read` 工具验证文件存在
+3. 在最终回复中确认：✅ 文件已成功写入 blackboard/{session_id}/data/research_data.json
+
+## 失败处理
+- 如果 write 工具报错，立即报告错误，不要返回虚假成功
+- 如果文件写入后 read 验证失败，重试最多 3 次
 """
 
 
@@ -78,10 +84,15 @@ def build_planner_task(session_id: str, topic: str, solution_type: str,
 - 干系人: {stakeholders_text}
 
 ## 输出要求
-1. 输出研究计划到 blackboard/{session_id}/stages/planning.json
-2. 包含: objectives, scope, methodology, deliverables
-3. 明确 required_experts（需要哪些专家）
-4. 明确 audit_strategy（审计重点）
+1. **必须使用 `write` 工具** 将结果写入以下路径：
+   - 文件路径：`blackboard/{session_id}/stages/planning.json`
+   - 格式：JSON
+2. 写入后必须使用 `read` 工具验证文件存在
+3. 在最终回复中确认：✅ 文件已成功写入 blackboard/{session_id}/stages/planning.json
+
+## 失败处理
+- 如果 write 工具报错，立即报告错误
+- 如果文件写入后 read 验证失败，重试最多 3 次
 """
     return prompt + "\n" + context
 
@@ -129,10 +140,15 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
 {context_json}
 
 ## 输出要求
-1. 输出研究结果到 blackboard/{session_id}/stages/research_{expert_id}.json
-2. 包含: findings, analysis, recommendations
-3. 引用具体数据来源
-4. 聚焦"{angle}"角度，避免与其他专家重复
+1. **必须使用 `write` 工具** 将结果写入以下路径：
+   - 文件路径：`blackboard/{session_id}/stages/research_{expert_id}.json`
+   - 格式：JSON
+2. 写入后必须使用 `read` 工具验证文件存在
+3. 在最终回复中确认：✅ 文件已成功写入 blackboard/{session_id}/stages/research_{expert_id}.json
+
+## 失败处理
+- 如果 write 工具报错，立即报告错误
+- 如果文件写入后 read 验证失败，重试最多 3 次
 """
     return prompt + "\n" + ctx
 
@@ -158,10 +174,15 @@ def build_designer_task(session_id: str, topic: str, context: dict) -> str:
 3. 数据收集: blackboard/{session_id}/data/
 
 ## 输出要求
-1. 输出设计方案到 blackboard/{session_id}/stages/design.md
-2. 包含: architecture, components, data_flow, scalability_plan
-3. 考虑约束条件和风险评估
-4. 整合前期研究成果，标注引用来源
+1. **必须使用 `write` 工具** 将结果写入以下路径：
+   - 文件路径：`blackboard/{session_id}/stages/design.md`
+   - 格式：Markdown
+2. 写入后必须使用 `read` 工具验证文件存在
+3. 在最终回复中确认：✅ 文件已成功写入 blackboard/{session_id}/stages/design.md
+
+## 失败处理
+- 如果 write 工具报错，立即报告错误
+- 如果文件写入后 read 验证失败，重试最多 3 次
 """
     return prompt + "\n" + ctx
 
@@ -179,7 +200,9 @@ def build_auditor_task(session_id: str, topic: str, context: dict) -> str:
 {context_json}
 
 ## 输出要求
-1. 输出审计报告到 blackboard/{session_id}/stages/audit.json
+1. **必须使用 `write` 工具** 将结果写入以下路径：
+   - 文件路径：`blackboard/{session_id}/stages/audit.json`
+   - 格式：JSON
 2. 包含: issues（P0/P1/P2分级）, score（0-100分）, recommendations
 3. 检查: 完整性、可行性、一致性、创新性
 4. 评分标准:
@@ -188,6 +211,12 @@ def build_auditor_task(session_id: str, topic: str, context: dict) -> str:
    - 每个 P1 问题: -15分
    - 每个 P2 问题: -5分
    - 最低分: 0分
+5. 写入后必须使用 `read` 工具验证文件存在
+6. 在最终回复中确认：✅ 文件已成功写入 blackboard/{session_id}/stages/audit.json
+
+## 失败处理
+- 如果 write 工具报错，立即报告错误
+- 如果文件写入后 read 验证失败，重试最多 3 次
 """
     return prompt + "\n" + ctx
 
@@ -234,7 +263,11 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str) ->
    - 提取所有 P0/P1/P2 级别问题
    - 为每个问题制定修复方案
 4. 按优先级排序修复项
-5. 输出修复方案到 blackboard/{session_id}/stages/fix.json
+5. **必须使用 `write` 工具** 将修复方案写入以下路径：
+   - 文件路径：`blackboard/{session_id}/stages/fix.json`
+   - 格式：JSON
+6. 写入后必须使用 `read` 工具验证文件存在
+7. 在最终回复中确认：✅ 文件已成功写入 blackboard/{session_id}/stages/fix.json
 
 ## 输出格式
 ```json
@@ -259,6 +292,10 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str) ->
   3. 确认技术选型合理性
 - 在 notes 中标注使用了 fallback 修复
 - 每个修复必须有明确的验证方法
+
+## 失败处理
+- 如果 write 工具报错，立即报告错误
+- 如果文件写入后 read 验证失败，重试最多 3 次
 """
 
 
@@ -312,9 +349,17 @@ def build_deliver_task(session_id: str, topic: str, context: dict) -> str:
 3. 修复记录: blackboard/{session_id}/stages/fix.json
 
 ## 输出要求
-1. 输出最终方案到 blackboard/{session_id}/stages/deliver.md
+1. **必须使用 `write` 工具** 将结果写入以下路径：
+   - 文件路径：`blackboard/{session_id}/stages/deliver.md`
+   - 格式：Markdown
 2. 包含: executive_summary, solution_overview, technical_spec, implementation_plan, risk_assessment
 3. 格式清晰，适合直接交付
 4. 整合审计修复结果，标注变更点
+5. 写入后必须使用 `read` 工具验证文件存在
+6. 在最终回复中确认：✅ 文件已成功写入 blackboard/{session_id}/stages/deliver.md
+
+## 失败处理
+- 如果 write 工具报错，立即报告错误
+- 如果文件写入后 read 验证失败，重试最多 3 次
 """
     return prompt + "\n" + ctx

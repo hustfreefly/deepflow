@@ -1,0 +1,42 @@
+# Fix IO Write Issue Contract
+# 版本: 2026-04-26-v4
+# 目标: 修复子 Agent 未使用 write 工具的问题（方案A）
+
+task: "fix_io_write_issue"
+domain: solution
+
+# =============================================================================
+# 问题定义
+# =============================================================================
+problem:
+  description: "子 Agent 返回文本摘要声称'已完成'，但实际未调用 write 工具写入文件"
+  root_cause: "任务提示中未明确要求使用 write 工具，子 Agent 将'输出到文件'理解为'在回复中包含内容'"
+  impact: "6 个子 Agent 全部未产出实际文件，端到端测试失败"
+
+# =============================================================================
+# 修复方案（方案A：显式工具调用）
+# =============================================================================
+fix_strategy: "在任务提示中强制要求使用 write 工具，并添加验证步骤"
+
+changes:
+  - file: "task_builder.py"
+    methods:
+      - name: "build_researcher_task"
+        change: "添加 write 工具调用要求和验证步骤"
+      - name: "build_designer_task"
+        change: "添加 write 工具调用要求和验证步骤"
+      - name: "build_auditor_task"
+        change: "添加 write 工具调用要求和验证步骤"
+      - name: "build_fixer_task_with_audit"
+        change: "添加 write 工具调用要求和验证步骤"
+      - name: "build_deliver_task"
+        change: "添加 write 工具调用要求和验证步骤"
+
+# =============================================================================
+# 验证要求
+# =============================================================================
+validation:
+  - "所有 task prompt 包含 'write' 工具要求"
+  - "所有 task prompt 包含明确的输出文件路径"
+  - "validate_refactor.py 仍然通过"
+  - "可以本地 exec 运行验证"
