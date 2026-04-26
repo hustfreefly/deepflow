@@ -1,0 +1,142 @@
+# P1-P2 Fix Contract - Solution Domain Improvements
+# 修复任务：P1/P2 级别问题
+# cage_version: "2.0"
+
+task: "solution_domain_p1p2_fixes"
+version: "2026-04-26-v1"
+
+# =============================================================================
+# P1 问题清单
+# =============================================================================
+p1_issues:
+  - id: "P1-001"
+    name: "prompt_caching"
+    description: "Prompt 模板每次阶段都重新读取文件，造成 I/O 开销"
+    impact: "高并发场景性能下降，文件系统延迟可能导致 prompt 内容为空"
+    current_behavior: |
+      _build_worker_prompt() 每次调用都 open() 文件读取
+      没有缓存机制，重复 I/O
+    expected_behavior: |
+      Orchestrator 初始化时预加载所有 prompt 到内存字典
+      _build_worker_prompt() 直接从缓存读取
+      支持热更新（可选）
+    files_to_modify:
+      - domains/solution/orchestrator.py
+    contract: |
+      interface:
+        _load_prompt_cache() -> Dict[str, str]
+        _get_cached_prompt(role: str) -> str
+      behavior:
+        - 初始化时加载 prompts/solution/*.md 到 dict
+        - role 不在缓存时回退到文件读取
+        - 缓存大小 = 6 个 prompt 文件
+      boundary:
+        - 文件不存在 → 返回空字符串 + warning 日志
+        - 读取失败 → 返回空字符串 + error 日志
+
+  - id: "P1-002"
+    name: "model_fallback_chain"
+    description: "Solution YAML 未定义模型降级链，全靠默认值"
+    impact: "主模型不可用时无备选方案，单点故障"
+    current_behavior: |
+      solution.yaml 没有 model_chain 配置
+      依赖 orchestrator_base.py 的默认值
+    expected_behavior: |
+      solution.yaml 定义 model_chain
+      primary → fallback → emergency 三级链
+      与投资领域配置一致
+    files_to_modify:
+      - domains/solution.yaml
+    contract: |
+      interface:
+        model_chain:
+          primary: str
+          fallback: str
+          emergency: str
+          max_fallback_rounds: int
+      behavior:
+        - primary: bailian/qwen3.5-plus
+        - fallback: bailian/kimi-k2.5
+        - emergency: kimi/kimi-code
+        - max_fallback_rounds: 3
+      boundary:
+        - 所有模型耗尽 → CircuitBreakerOpen
+
+# =============================================================================
+# P2 问题清单
+# =============================================================================
+p2_issues:
+  - id: "P2-001"
+    name: "input_validation"
+    description: "输入校验不完整，只检查 topic 存在性"
+    impact: "无效输入导致 Pipeline 失败或产出低质量结果"
+    current_behavior: |
+      __init__ 只检查 if "topic" not in user_context
+      不验证 type、constraints、stakeholders
+    expected_behavior: |
+      完整校验输入 schema
+      topic 长度 5-200
+      type ∈ [architecture, business, technical]
+      constraints 和 stakeholders 格式正确
+    files_to_modify:
+      - domains/solution/orchestrator.py
+    contract: |
+      interface:
+        _validate_input(user_context: Dict) -> None
+        # 失败时抛出 ValueError
+      behavior:
+        - topic 为空或 < 5 → ValueError("topic too short")
+        - topic > 200 → ValueError("topic too long")
+        - type 不在枚举 → ValueError("invalid solution type")
+        - constraints 非列表 → TypeError
+        - stakeholders 非列表 → TypeError
+      boundary:
+        - constraints 为 None → 设为空列表（不报错）
+        - stakeholders 为 None → 设为空列表（不报错）
+
+  - id: "P2-002"
+    name: "hardcoded_paths"
+    description: "代码中硬编码绝对路径，不可移植"
+    impact: "部署到其他环境时路径失效"
+    current_behavior: |
+      _build_worker_prompt() 硬编码:
+      "/Users/allen/.openclaw/workspace/.deepflow/prompts/solution/"
+      BLACKBOARD_BASE 硬编码绝对路径
+    expected_behavior: |
+      使用相对路径或环境变量配置
+      基于 __file__ 动态计算路径
+      支持 DEEPFLOW_HOME 环境变量覆盖
+    files_to_modify:
+      - domains/solution/orchestrator.py
+    contract: |
+      interface:
+        _get_base_path() -> str
+        # 返回 DeepFlow 项目根目录
+      behavior:
+        - 优先使用 DEEPFLOW_HOME 环境变量
+        - 其次使用 __file__ 相对路径推导
+        - prompts 路径 = base_path + "/prompts/solution/"
+        - blackboard 路径 = base_path + "/blackboard/"
+      boundary:
+        - DEEPFLOW_HOME 设置但路径不存在 → 回退到相对路径
+        - __file__ 为 None → 使用当前工作目录
+
+# =============================================================================
+# 修复流程
+# =============================================================================
+fix_process:
+  1. 读取本契约文件
+  2. 为每个问题实现代码修改
+  3. 运行验证脚本: python3 cage/validate_solution.py
+  4. 全部通过后提交代码
+  5. 报告修复结果
+
+# =============================================================================
+# 依赖上下文
+# =============================================================================
+context:
+  base_orchestrator: "core/orchestrator_base.py"
+  solution_yaml: "domains/solution.yaml"
+  solution_orchestrator: "domains/solution/orchestrator.py"
+  prompts_dir: "prompts/solution/"
+  investment_yaml: "domains/investment.yaml"  # 参考配置

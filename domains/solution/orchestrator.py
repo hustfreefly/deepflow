@@ -13,8 +13,15 @@ import yaml
 from pathlib import Path
 from typing import Dict, Any, List
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/core/')
+# P2-002: 动态计算项目根路径
+DEEPFLOW_HOME = os.environ.get('DEEPFLOW_HOME')
+if DEEPFLOW_HOME and os.path.exists(DEEPFLOW_HOME):
+    _BASE_PATH = DEEPFLOW_HOME
+else:
+    _BASE_PATH = str(Path(__file__).resolve().parent.parent.parent)
+
+sys.path.insert(0, _BASE_PATH)
+sys.path.insert(0, os.path.join(_BASE_PATH, 'core'))
 
 from orchestrator_base import (
     BaseOrchestrator, DomainConfig, StageConfig, ExecutionContext,
@@ -40,24 +47,27 @@ class SolutionOrchestrator(BaseOrchestrator):
         "deliver": {"type": "final", "max_time": 600}
     }
     
-    # P0-FIX: Blackboard 路径
-    BLACKBOARD_BASE = "/Users/allen/.openclaw/workspace/.deepflow/blackboard"
+    # P2-002: 使用动态路径
+    BLACKBOARD_BASE = os.path.join(_BASE_PATH, "blackboard")
+    PROMPTS_DIR = os.path.join(_BASE_PATH, "prompts", "solution")
     
     def __init__(self, user_context: Dict[str, Any]):
         """
         Args:
             user_context: 必须包含 topic, type
         """
-        # 验证必需字段
-        if "topic" not in user_context:
-            raise ValueError("SolutionOrchestrator requires 'topic' in context")
+        # P2-001: 完整输入校验
+        self._validate_input(user_context)
         
         self.topic = user_context["topic"]
         self.solution_type = user_context.get("type", "architecture")
-        self.constraints = user_context.get("constraints", [])
-        self.stakeholders = user_context.get("stakeholders", [])
+        self.constraints = user_context.get("constraints") or []
+        self.stakeholders = user_context.get("stakeholders") or []
         
         super().__init__(domain="solution", user_context=user_context)
+        
+        # P1-001: 初始化时预加载 prompt 缓存
+        self._prompt_cache = self._load_prompt_cache()
         
         # P0-FIX: 并发控制，限制最大并行Worker数 (OpenClaw限制)
         self.concurrency_limit = getattr(
@@ -79,10 +89,18 @@ class SolutionOrchestrator(BaseOrchestrator):
         print(f"[Solution] Type: {self.solution_type}")
         print(f"[Solution] Concurrency limit: {self.concurrency_limit}")
         print(f"[Solution] Blackboard: {self.blackboard_dir}")
+        print(f"[Solution] Prompt cache loaded: {len(self._prompt_cache)} templates")
+    
+    def _get_base_path(self) -> str:
+        """
+        P2-002: 获取 DeepFlow 项目根目录
+        优先使用 DEEPFLOW_HOME 环境变量，其次使用 __file__ 相对路径推导
+        """
+        return _BASE_PATH
     
     def _load_quality_config(self) -> Dict[str, Any]:
         """加载质量维度配置"""
-        config_path = '/Users/allen/.openclaw/workspace/.deepflow/domains/solution.yaml'
+        config_path = os.path.join(_BASE_PATH, 'domains', 'solution.yaml')
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
@@ -90,6 +108,103 @@ class SolutionOrchestrator(BaseOrchestrator):
         except Exception as e:
             print(f"⚠️ Failed to load quality config: {e}")
             return {}
+    
+    def _validate_input(self, user_context: Dict[str, Any]) -> None:
+        """
+        P2-001: 完整输入校验
+        验证 topic/type/constraints/stakeholders 格式和范围
+        
+        Raises:
+            ValueError: topic 无效或 type 不在枚举中
+            TypeError: constraints 或 stakeholders 非列表
+        """
+        # 检查 topic 存在性
+        if "topic" not in user_context:
+            raise ValueError("SolutionOrchestrator requires 'topic' in context")
+        
+        topic = user_context["topic"]
+        
+        # 检查 topic 长度
+        if not isinstance(topic, str) or len(topic.strip()) == 0:
+            raise ValueError("topic cannot be empty")
+        
+        if len(topic) < 5:
+            raise ValueError("topic too short (minimum 5 characters)")
+        
+        if len(topic) > 200:
+            raise ValueError("topic too long (maximum 200 characters)")
+        
+        # 检查 type 有效性
+        solution_type = user_context.get("type", "architecture")
+        valid_types = ["architecture", "business", "technical"]
+        if solution_type not in valid_types:
+            raise ValueError(f"invalid solution type '{solution_type}', must be one of {valid_types}")
+        
+        # 检查 constraints 类型（允许 None，会自动转为空列表）
+        constraints = user_context.get("constraints")
+        if constraints is not None and not isinstance(constraints, list):
+            raise TypeError("constraints must be a list or None")
+        
+        # 检查 stakeholders 类型（允许 None，会自动转为空列表）
+        stakeholders = user_context.get("stakeholders")
+        if stakeholders is not None and not isinstance(stakeholders, list):
+            raise TypeError("stakeholders must be a list or None")
+    
+    def _load_prompt_cache(self) -> Dict[str, str]:
+        """
+        P1-001: 预加载所有 prompt 模板到内存字典
+        从 prompts/solution/ 目录读取所有 .md 文件
+        
+        Returns:
+            Dict mapping role name to prompt content
+        """
+        cache = {}
+        prompts_dir = self.PROMPTS_DIR
+        
+        if not os.path.exists(prompts_dir):
+            print(f"⚠️ Prompts directory not found: {prompts_dir}")
+            return cache
+        
+        for filename in os.listdir(prompts_dir):
+            if filename.endswith('.md'):
+                filepath = os.path.join(prompts_dir, filename)
+                role_name = filename[:-3]  # 移除 .md 后缀
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        cache[role_name] = f.read()
+                except Exception as e:
+                    print(f"⚠️ Failed to load prompt {filename}: {e}")
+                    cache[role_name] = ""
+        
+        return cache
+    
+    def _get_cached_prompt(self, role: str) -> str:
+        """
+        P1-001: 从缓存获取 prompt
+        如果 role 不在缓存中，回退到文件读取
+        
+        Args:
+            role: Worker 角色名（如 'planner', 'architect'）
+        
+        Returns:
+            Prompt 内容字符串
+        """
+        if role in self._prompt_cache:
+            return self._prompt_cache[role]
+        
+        # 回退到文件读取
+        prompt_path = os.path.join(self.PROMPTS_DIR, f"{role}.md")
+        try:
+            if os.path.exists(prompt_path):
+                with open(prompt_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                # 可选：更新缓存
+                self._prompt_cache[role] = content
+                return content
+        except Exception as e:
+            print(f"⚠️ Failed to load prompt {prompt_path}: {e}")
+        
+        return ""
     
     def _save_to_blackboard(self, stage_name: str, data: Any):
         """
@@ -395,17 +510,14 @@ class SolutionOrchestrator(BaseOrchestrator):
     def _build_worker_prompt(self, role: str, stage_name: str) -> str:
         """
         构建 Worker Prompt
+        P1-001: 使用缓存的 prompt 模板，避免重复 I/O
         """
-        # 加载角色特定的 prompt 模板
-        prompt_path = f"/Users/allen/.openclaw/workspace/.deepflow/prompts/solution/{role.replace('solution_', '')}.md"
+        # P1-001: 从缓存获取 prompt（自动处理 role 前缀）
+        role_key = role.replace('solution_', '')
+        role_prompt = self._get_cached_prompt(role_key)
         
-        role_prompt = ""
-        try:
-            if os.path.exists(prompt_path):
-                with open(prompt_path, 'r', encoding='utf-8') as f:
-                    role_prompt = f.read()
-        except Exception as e:
-            print(f"⚠️ Failed to load prompt {prompt_path}: {e}")
+        if not role_prompt:
+            print(f"⚠️ No prompt found for role: {role_key}")
         
         # 构建上下文
         context = {

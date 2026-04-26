@@ -170,6 +170,13 @@ pipeline:
           timeout: 300
       description: "整合并产出最终方案文档"
 
+# 模型 Fallback 链配置 (P1-002)
+model_chain:
+  primary: "bailian/qwen3.5-plus"
+  fallback: "bailian/kimi-k2.5"
+  emergency: "kimi/kimi-code"
+  max_fallback_rounds: 3
+
 # 收敛检测配置
 convergence:
   min_iterations: 1
