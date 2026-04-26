@@ -1,0 +1,98 @@
+# Solution 模块重构契约 - 采用 Investment V4.0 架构
+# 版本: 2026-04-26-v1
+# 目标: 移除所有 from openclaw import，采用纯调度架构
+
+task: "solution_v2_refactor"
+domain: solution
+
+# =============================================================================
+# L1: 重构目标
+# =============================================================================
+goals:
+  - "移除所有 from openclaw import sessions_spawn/sessions_yield"
+  - "采用 Investment V4.0 纯调度架构"
+  - "Orchestrator 只生成 task 配置，不直接 spawn Workers"
+  - "主Agent负责实际 spawn Workers"
+
+# =============================================================================
+# L2: 架构变更
+# =============================================================================
+architecture:
+  before:
+    - "SolutionOrchestrator.run() 内部调用 from openclaw import sessions_spawn"
+    - "Worker 在 Orchestrator 内部 spawn"
+    - "exec 环境无法运行"
+    
+  after:
+    - "SolutionOrchestratorV2.init() 生成 session_id + 创建目录"
+    - "SolutionOrchestratorV2.get_all_tasks() 生成所有 Worker Tasks"
+    - "SolutionOrchestratorV2.save_execution_plan() 保存执行计划"
+    - "主Agent读取 execution_plan.json，然后用 sessions_spawn 工具 spawn Workers"
+
+# =============================================================================
+# L3: 文件变更
+# =============================================================================
+files:
+  create:
+    - path: "domains/solution/orchestrator_agent.py"
+      description: "纯调度 Orchestrator（参考 core/orchestrator_agent.py）"
+      
+    - path: "domains/solution/task_builder.py"
+      description: "Solution 领域 Task 生成器"
+      
+  modify:
+    - path: "domains/solution/orchestrator.py"
+      description: "移除所有 from openclaw import，保留本地执行逻辑"
+      
+    - path: "domains/solution/__init__.py"
+      description: "添加新的导出"
+
+# =============================================================================
+# L4: 核心类设计
+# =============================================================================
+classes:
+  SolutionOrchestratorV2:
+    methods:
+      - "__init__(topic, solution_type, mode, constraints, stakeholders)"
+      - "init() -> session_id"
+      - "get_all_tasks() -> dict"
+      - "save_execution_plan() -> plan"
+      - "save_tasks() -> tasks.json"
+    
+    no_import:
+      - "from openclaw import sessions_spawn"
+      - "from openclaw import sessions_yield"
+      
+  SolutionTaskBuilder:
+    methods:
+      - "build_data_collection_task(session_id, topic, constraints)"
+      - "build_planner_task(session_id, topic, type, constraints)"
+      - "build_researcher_task(expert, session_id, topic, context)"
+      - "build_designer_task(session_id, topic, context)"
+      - "build_auditor_task(session_id, topic, context)"
+      - "build_fixer_task(session_id, topic, issues)"
+      - "build_deliver_task(session_id, topic, context)"
+
+# =============================================================================
+# L5: 执行流程（主Agent侧）
+# =============================================================================
+execution_flow:
+  step1: "主Agent import SolutionOrchestratorV2"
+  step2: "orch = SolutionOrchestratorV2(topic, type, mode, constraints, stakeholders)"
+  step3: "session_id = orch.init()"
+  step4: "tasks = orch.get_all_tasks()"
+  step5: "orch.save_execution_plan()"
+  step6: "主Agent读取 execution_plan.json"
+  step7: "主Agent用 sessions_spawn 工具 spawn Workers（按 phase 顺序）"
+  step8: "主Agent收集结果"
+
+# =============================================================================
+# L6: 验证要求
+# =============================================================================
+validation:
+  - "domains/solution/orchestrator_agent.py 中没有 from openclaw import"
+  - "domains/solution/task_builder.py 中没有 from openclaw import"
+  - "domains/solution/orchestrator.py 中没有 from openclaw import"
+  - "可以本地 exec 运行初始化（不报错）"
+  - "生成正确的 tasks.json 和 execution_plan.json"
+  - "Investment 模块未受影响"
