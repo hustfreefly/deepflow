@@ -140,9 +140,11 @@ class SolutionOrchestrator(BaseOrchestrator):
             if isinstance(result, Exception):
                 errors.append(f"{worker_role}: {str(result)}")
             elif result.get("success"):
+                # Mock模式返回result字段，正常模式返回output字段
+                output_data = result.get("output") or result.get("result")
                 outputs.append({
                     "role": worker_role,
-                    "output": result["output"]
+                    "output": output_data
                 })
                 print(f"  ✅ {worker_role} completed")
             else:

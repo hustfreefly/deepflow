@@ -2,7 +2,7 @@
 
 > ⚠️ **平台依赖声明**：DeepFlow 当前**仅适配 OpenClaw 平台**，核心调度依赖 `sessions_spawn` / `sessions_yield` 等 OpenClaw 原生 API。暂不支持独立运行或其他 Agent 框架（如 AutoGen、LangChain、CrewAI 等）。
 >
-> **版本**: 0.1.0 (V4.0 内部代号)  
+> ⚠️ **平台依赖声明**：DeepFlow 当前**仅适配 OpenClaw 平台**，核心调度依赖 `sessions_spawn` / `sessions_yield` 等 OpenClaw 原生 API。暂不支持独立运行或其他 Agent 框架（如 AutoGen、LangChain、CrewAI 等）。  
 > **日期**: 2026-04-24  
 > **状态**: ✅ Phase 1 完成  
 > **定位**: 基于通用多 Agent 协作框架的垂直场景适配，当前重点适配投资分析场景
