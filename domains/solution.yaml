@@ -5,6 +5,32 @@ domain: solution
 name: "解决方案设计"
 description: "通用解决方案与架构设计产出，支持软件架构、业务方案、技术方案"
 
+# Mode 系统配置（Quick/Standard/Rigorous）
+modes:
+  quick:
+    stages: [planning, design, deliver]
+    max_iterations: 1
+    audit: false
+    research: false
+    expected_duration: "30 minutes"
+    description: "快速模式：仅核心阶段，产出方案框架"
+  
+  standard:
+    stages: [planning, research, design, audit, fix, deliver]
+    max_iterations: 2
+    audit: standard
+    research: true
+    expected_duration: "1-2 hours"
+    description: "标准模式：完整流程，产出完整方案"
+  
+  rigorous:
+    stages: [planning, research, design, audit, fix, deliver]
+    max_iterations: 3
+    audit: strict
+    research: deep
+    expected_duration: "3-4 hours"
+    description: "严谨模式：深度审计，产出深度方案含追溯"
+
 # 上下文 Schema（定义该领域需要的字段）
 context:
   schema:
@@ -177,10 +203,10 @@ model_chain:
   emergency: "kimi/kimi-code"
   max_fallback_rounds: 3
 
-# 收敛检测配置
+# 收敛检测配置（默认值，会被 mode 覆盖）
 convergence:
   min_iterations: 1
-  max_iterations: 3
+  max_iterations: 2  # 默认 standard 模式的值
   target_score: 0.90
   stall_threshold: 0.02
   oscillation_threshold: 2

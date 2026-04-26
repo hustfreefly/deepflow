@@ -25,8 +25,14 @@ sys.path.insert(0, os.path.join(_BASE_PATH, 'core'))
 
 from orchestrator_base import (
     BaseOrchestrator, DomainConfig, StageConfig, ExecutionContext,
-    PipelineState, CircuitBreakerOpen, ContractViolation, WorkerConfig
+    PipelineState, CircuitBreakerOpen, ContractViolation, WorkerConfig,
+    ConvergenceDetector, ConvergenceConfig
 )
+
+
+class InvalidModeError(Exception):
+    """非法模式异常"""
+    pass
 
 
 class SolutionOrchestrator(BaseOrchestrator):
@@ -54,17 +60,21 @@ class SolutionOrchestrator(BaseOrchestrator):
     def __init__(self, user_context: Dict[str, Any]):
         """
         Args:
-            user_context: 必须包含 topic, type
+            user_context: 必须包含 topic, type，可选 mode
         """
         # P2-001: 完整输入校验
         self._validate_input(user_context)
         
         self.topic = user_context["topic"]
         self.solution_type = user_context.get("type", "architecture")
+        self.mode = user_context.get("mode", "standard")  # 默认 standard 模式
         self.constraints = user_context.get("constraints") or []
         self.stakeholders = user_context.get("stakeholders") or []
         
         super().__init__(domain="solution", user_context=user_context)
+        
+        # Mode 系统：根据 mode 动态组装 pipeline
+        self._apply_mode_configuration()
         
         # P1-001: 初始化时预加载 prompt 缓存
         self._prompt_cache = self._load_prompt_cache()
@@ -87,6 +97,7 @@ class SolutionOrchestrator(BaseOrchestrator):
         
         print(f"[Solution] Topic: {self.topic}")
         print(f"[Solution] Type: {self.solution_type}")
+        print(f"[Solution] Mode: {self.mode}")
         print(f"[Solution] Concurrency limit: {self.concurrency_limit}")
         print(f"[Solution] Blackboard: {self.blackboard_dir}")
         print(f"[Solution] Prompt cache loaded: {len(self._prompt_cache)} templates")
@@ -108,6 +119,58 @@ class SolutionOrchestrator(BaseOrchestrator):
         except Exception as e:
             print(f"⚠️ Failed to load quality config: {e}")
             return {}
+    
+    def _apply_mode_configuration(self):
+        """
+        根据 mode 动态组装 pipeline
+        
+        契约约束：
+        - quick 模式：pipeline = [planning, design, deliver]，跳过 research/audit/fix
+        - standard 模式：pipeline = [planning, research, design, audit, fix, deliver]
+        - rigorous 模式：pipeline = [planning, research, design, audit, fix, deliver]，max_iterations=3
+        """
+        # 验证 mode 合法性
+        valid_modes = ['quick', 'standard', 'rigorous']
+        if self.mode not in valid_modes:
+            raise InvalidModeError(
+                f"Invalid mode '{self.mode}', must be one of {valid_modes}"
+            )
+        
+        # 从 domain_config.modes 获取对应配置
+        modes_config = getattr(self.domain_config, 'modes', {})
+        if not modes_config or self.mode not in modes_config:
+            print(f"⚠️ Mode config not found for '{self.mode}', using default standard behavior")
+            return
+        
+        mode_config = modes_config[self.mode]
+        
+        # 过滤 pipeline stages，只保留 mode 配置中的 stages
+        allowed_stages = mode_config.get('stages', [])
+        if allowed_stages:
+            original_pipeline = self.domain_config.pipeline
+            filtered_pipeline = [
+                stage for stage in original_pipeline 
+                if stage.name in allowed_stages
+            ]
+            self.domain_config.pipeline = filtered_pipeline
+            print(f"[Mode] Filtered pipeline to {len(filtered_pipeline)} stages: {[s.name for s in filtered_pipeline]}")
+        
+        # 设置对应的 max_iterations
+        max_iterations = mode_config.get('max_iterations', 2)
+        if hasattr(self.domain_config, 'convergence'):
+            self.domain_config.convergence.max_iterations = max_iterations
+            print(f"[Mode] Set max_iterations to {max_iterations}")
+        
+        # 重新初始化收敛检测器（使用新的 max_iterations）
+        if hasattr(self, 'convergence'):
+            new_convergence_config = ConvergenceConfig(
+                min_iterations=self.domain_config.convergence.min_iterations,
+                max_iterations=max_iterations,
+                target_score=self.domain_config.convergence.target_score,
+                stall_threshold=self.domain_config.convergence.stall_threshold,
+                oscillation_threshold=self.domain_config.convergence.oscillation_threshold
+            )
+            self.convergence = ConvergenceDetector(new_convergence_config)
     
     def _validate_input(self, user_context: Dict[str, Any]) -> None:
         """

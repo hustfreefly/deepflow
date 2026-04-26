@@ -1,0 +1,212 @@
+# Mode System Contract - Solution Domain
+# 版本: 2026-04-26-v1
+# 目标: 定义 Quick/Standard/Rigorous 三种模式的契约
+
+task: "solution_mode_system"
+domain: solution
+
+# =============================================================================
+# L1: 接口契约
+# =============================================================================
+interface:
+  input:
+    schema:
+      type: object
+      required: [topic, type]
+      properties:
+        topic:
+          type: string
+          minLength: 5
+          maxLength: 200
+        type:
+          type: string
+          enum: [architecture, business, technical]
+        mode:
+          type: string
+          enum: [quick, standard, rigorous]
+          default: standard
+          description: "模式选择，默认 standard"
+        constraints:
+          type: array
+          items: { type: string }
+        stakeholders:
+          type: array
+          items: { type: string }
+    
+    validation:
+      - field: mode
+        rule: "must be one of [quick, standard, rigorous]"
+        error: "InvalidModeError"
+      
+      - field: topic
+        rule: "length >= 5 and <= 200"
+        error: "InvalidTopicError"
+
+  output:
+    schema:
+      type: object
+      required: [session_id, mode, stages_completed, state]
+      properties:
+        session_id: { type: string }
+        mode: { type: string }
+        stages_completed: { type: array, items: { type: string } }
+        state: { type: string, enum: [CONVERGED, STALLED, FAILED] }
+        final_score: { type: number, minimum: 0, maximum: 1 }
+        
+    modes:
+      quick:
+        stages: [planning, design, deliver]
+        max_iterations: 1
+        audit: false
+        research: false
+        expected_duration: "30 minutes"
+        
+      standard:
+        stages: [planning, research, design, audit, fix, deliver]
+        max_iterations: 2
+        audit: standard
+        research: true
+        expected_duration: "1-2 hours"
+        
+      rigorous:
+        stages: [planning, research, design, audit, fix, deliver]
+        max_iterations: 3
+        audit: strict
+        research: deep
+        expected_duration: "3-4 hours"
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+behavior:
+  mode_selection:
+    - condition: "mode == quick"
+      pipeline: [planning, design, deliver]
+      skip_stages: [research, audit, fix]
+      
+    - condition: "mode == standard"
+      pipeline: [planning, research, design, audit, fix, deliver]
+      audit_strategy: standard
+      
+    - condition: "mode == rigorous"
+      pipeline: [planning, research, design, audit, fix, deliver]
+      audit_strategy: strict
+      
+  dynamic_pipeline:
+    description: "Orchestrator 根据 mode 动态组装 pipeline"
+    implementation: |
+      1. 读取 user_context.mode（默认 standard）
+      2. 从 domain_config.modes 获取对应配置
+      3. 过滤 pipeline.stages，只保留 mode 配置中的 stages
+      4. 设置 convergence.max_iterations = mode.max_iterations
+      
+  stage_filtering:
+    rule: "如果 mode.skip_stages 包含某 stage，则跳过该 stage"
+    example: "quick 模式跳过 research, audit, fix"
+
+# =============================================================================
+# L3: 边界契约
+# =============================================================================
+boundaries:
+  input:
+    - "mode 缺失 → 默认 standard"
+    - "mode 非法 → 抛出 InvalidModeError"
+    - "topic 为空 → 抛出 InvalidTopicError"
+    
+  execution:
+    - "quick 模式必须 30 分钟内完成"
+    - "standard 模式必须 2 小时内完成"
+    - "rigorous 模式可超过 2 小时"
+    
+  output:
+    - "quick 模式产出：方案框架（大纲级别）"
+    - "standard 模式产出：完整方案（章节完整）"
+    - "rigorous 模式产出：深度方案（含审计追溯）"
+
+# =============================================================================
+# L4: 依赖契约
+# =============================================================================
+dependencies:
+  - module: "domains/solution.yaml"
+    required: true
+    description: "必须包含 modes 配置段"
+    
+  - module: "domains/solution/orchestrator.py"
+    required: true
+    description: "必须实现 _build_pipeline_for_mode() 方法"
+    
+  - module: "core/orchestrator_base.py"
+    required: true
+    description: "BaseOrchestrator.run() 必须支持动态 pipeline"
+
+# =============================================================================
+# L5: 质量契约
+# =============================================================================
+quality:
+  checks:
+    - name: "mode_switching"
+      description: "模式切换不破坏现有功能"
+      test: "standard 模式行为与修改前一致"
+      
+    - name: "quick_mode_output"
+      description: "quick 模式产出符合预期"
+      criteria: 
+        - "包含方案类型识别"
+        - "包含核心设计要点"
+        - "不包含详细章节"
+        
+    - name: "rigorous_mode_depth"
+      description: "rigorous 模式有额外深度"
+      criteria:
+        - "audit 阶段执行 3 轮迭代"
+        - "包含决策追溯链"
+        - "包含风险评估矩阵"
+
+# =============================================================================
+# L6: 验证契约
+# =============================================================================
+validation:
+  commands:
+    - "python3 cage/validate_solution.py"
+    - "python3 cage/check_mode_system.py"
+    
+  criteria:
+    - "所有模式能正确初始化"
+    - "pipeline 阶段数符合 mode 配置"
+    - "standard 模式与修改前行为一致"
+    - "quick 模式跳过 research/audit/fix"
+    - "rigorous 模式 max_iterations=3"
+
+# =============================================================================
+# 修复任务清单
+# =============================================================================
+fix_tasks:
+  - id: "MODE-001"
+    name: "添加 modes 配置到 solution.yaml"
+    description: |
+      在 solution.yaml 中添加 modes 配置段：
+      - quick: [planning, design, deliver]
+      - standard: [planning, research, design, audit, fix, deliver]  
+      - rigorous: [planning, research, design, audit, fix, deliver]
+    
+  - id: "MODE-002"
+    name: "实现动态 pipeline 组装"
+    description: |
+      在 SolutionOrchestrator 中：
+      1. 新增 _build_pipeline_for_mode() 方法
+      2. 修改 run() 或 __init__，根据 mode 过滤 stages
+      3. 设置对应的 max_iterations
+    
+  - id: "MODE-003"
+    name: "创建 quick 模式专用 prompt"
+    description: |
+      创建 prompts/solution/mode_quick.md：
+      - 指导 Planner 快速识别核心要点
+      - 指导 Designer 产出大纲级别方案
+    
+  - id: "MODE-004"
+    name: "运行验证"
+    description: |
+      1. 运行 cage/validate_solution.py → 67/67 通过
+      2. 运行 cage/check_mode_system.py → 全部通过
+      3. 测试三种模式初始化

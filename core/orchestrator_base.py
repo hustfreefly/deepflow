@@ -154,6 +154,7 @@ class DomainConfig:
     convergence: ConvergenceConfig
     model_chain: ModelChainConfig
     concurrency: ConcurrencyConfig
+    modes: Optional[Dict[str, Any]] = None  # Mode 系统配置（可选）
     
     @classmethod
     def load(cls, config_path: str) -> 'DomainConfig':
@@ -169,7 +170,8 @@ class DomainConfig:
             pipeline=[StageConfig.from_dict(s) for s in data['pipeline']['stages']],
             convergence=ConvergenceConfig.from_dict(data['convergence']),
             model_chain=ModelChainConfig.from_dict(data.get('model_chain', {})),
-            concurrency=ConcurrencyConfig.from_dict(data.get('concurrency', {}))
+            concurrency=ConcurrencyConfig.from_dict(data.get('concurrency', {})),
+            modes=data.get('modes')  # 加载 modes 配置（如果存在）
         )
 
 
