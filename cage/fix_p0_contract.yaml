@@ -1,0 +1,72 @@
+# Fix P0 Issue Contract
+# 版本: 2026-04-26-v1
+# 目标: 修复 Fixer 输入硬编码问题
+
+task: "fix_p0_fixer_input"
+domain: solution
+
+# =============================================================================
+# L1: 问题定义
+# =============================================================================
+problem:
+  location: "orchestrator_agent.py 第 71 行"
+  current_code: |
+    tasks[stage] = build_fixer_task(
+        self.session_id, self.topic,
+        {"issues": "待填充"}  # ← 硬编码，Fixer 不知道要修复什么
+    )
+  impact: "Fixer 阶段会失败，产生无意义输出"
+  severity: "P0 - 阻塞性问题"
+
+# =============================================================================
+# L2: 修复方案
+# =============================================================================
+solution:
+  description: "Fixer 应该在运行时读取 audit.json 作为输入"
+  approach: "修改 build_fixer_task 调用，传入 audit 结果文件路径"
+  
+  changes:
+    - file: "orchestrator_agent.py"
+      line: 71
+      action: "修改 build_fixer_task 调用，传入 audit.json 路径"
+      new_code: |
+        # Fixer 需要读取 audit.json 作为输入
+        audit_path = f"{self.base_path}/stages/audit.json"
+        tasks[stage] = build_fixer_task_with_audit(
+            self.session_id, self.topic, audit_path
+        )
+    
+    - file: "task_builder.py"
+      action: "新增 build_fixer_task_with_audit 函数"
+      new_function: |
+        def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str) -> str:
+            """构建 Fixer Task，从 audit.json 读取问题清单"""
+            return f"""你是 Solution 修复 Agent。
+
+## 任务
+基于审计报告修复方案中的问题。
+
+## 审计报告位置
+{audit_path}
+
+## 执行步骤
+1. 读取审计报告 {audit_path}
+2. 提取所有 P0/P1/P2 级别问题
+3. 为每个问题制定修复方案
+4. 按优先级排序修复项
+5. 输出修复方案到 blackboard/{session_id}/stages/fix.json
+
+## 输出要求
+- fixes: 修复项列表（按优先级排序）
+- verification_plan: 验证修复效果的计划
+"""
+
+# =============================================================================
+# L3: 验证要求
+# =============================================================================
+validation:
+  - "orchestrator_agent.py 中不再硬编码 {\"issues\": \"待填充\"}"
+  - "新增 build_fixer_task_with_audit 函数"
+  - "Fixer Task 包含 audit.json 路径"
+  - "validate_refactor.py 仍然 25/25 通过"
+  - "可以本地 exec 运行验证"

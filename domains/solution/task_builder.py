@@ -135,7 +135,7 @@ def build_auditor_task(session_id: str, topic: str, context: dict) -> str:
 
 
 def build_fixer_task(session_id: str, topic: str, context: dict) -> str:
-    """构建 Fixer Task"""
+    """构建 Fixer Task（向后兼容）"""
     prompt = read_original_prompt("fixer.md")
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
     
@@ -152,6 +152,47 @@ def build_fixer_task(session_id: str, topic: str, context: dict) -> str:
 3. 确保每个问题都有对应修复
 """
     return prompt + "\n" + ctx
+
+
+def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str) -> str:
+    """构建 Fixer Task，从 audit.json 读取问题清单（P0 Fix）"""
+    return f"""你是 Solution 修复 Agent。
+
+## 任务
+基于审计报告修复方案中的问题。
+
+## 主题
+{topic}
+
+## 审计报告位置
+{audit_path}
+
+## 执行步骤
+1. 读取审计报告 {audit_path}
+2. 提取所有 P0/P1/P2 级别问题
+3. 为每个问题制定修复方案
+4. 按优先级排序修复项
+5. 输出修复方案到 blackboard/{session_id}/stages/fix.json
+
+## 输出格式
+```json
+{{
+  "fixes": [
+    {{
+      "issue_id": "P0-1",
+      "description": "问题描述",
+      "fix": "修复方案",
+      "priority": "P0"
+    }}
+  ],
+  "verification_plan": "验证计划"
+}}
+```
+
+## 注意
+- 如果审计报告不存在，输出错误信息
+- 每个修复必须有明确的验证方法
+"""
 
 
 def build_deliver_task(session_id: str, topic: str, context: dict) -> str:

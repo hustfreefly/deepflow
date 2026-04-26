@@ -26,6 +26,7 @@ from domains.solution.task_builder import (
     build_designer_task,
     build_auditor_task,
     build_fixer_task,
+    build_fixer_task_with_audit,
     build_deliver_task
 )
 
@@ -105,9 +106,10 @@ class SolutionOrchestratorV2:
                     {"type": self.solution_type, "constraints": self.constraints}
                 )
             elif stage == "fix":
-                tasks[stage] = build_fixer_task(
-                    self.session_id, self.topic,
-                    {"issues": "待填充"}
+                # P0 Fix: Fixer 需要读取 audit.json 作为输入
+                audit_path = f"{self.base_path}/stages/audit.json"
+                tasks[stage] = build_fixer_task_with_audit(
+                    self.session_id, self.topic, audit_path
                 )
             elif stage == "deliver":
                 tasks[stage] = build_deliver_task(
