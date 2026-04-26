@@ -139,9 +139,9 @@ pipeline:
           timeout: 300
       description: "产出核心架构/方案设计"
     
-    # Stage 4: 审计阶段（3个auditor并行）
+    # Stage 4: 审计阶段（迭代式，支持收敛检测）
     - name: audit
-      type: parallel_workers
+      type: iterative
       workers:
         - role: feasibility_auditor
           count: 1
@@ -152,7 +152,7 @@ pipeline:
         - role: completeness_auditor
           count: 1
           timeout: 180
-      description: "三视角审计：可行性/风险/完整性"
+      description: "三视角审计：可行性/风险/完整性（支持迭代修复）"
     
     # Stage 5: 修复阶段
     - name: fix

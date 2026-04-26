@@ -1,0 +1,344 @@
+# DeepFlow Domain Contract - Solution
+# 解决方案设计领域契约笼子
+# cage_version: "2.0"
+domain: solution
+version: "2026-04-26-v1"
+
+# =============================================================================
+# L1: 接口契约（输入/输出 Schema）
+# =============================================================================
+interface:
+  input:
+    schema:
+      type: object
+      required: [topic, type]
+      properties:
+        topic:
+          type: string
+          minLength: 5
+          maxLength: 200
+          description: "设计主题，如'设计一个高并发电商订单系统'"
+        type:
+          type: string
+          enum: [architecture, business, technical]
+          description: "方案类型"
+        constraints:
+          type: array
+          items:
+            type: string
+          optional: true
+          description: "约束条件列表"
+        stakeholders:
+          type: array
+          items:
+            type: string
+          optional: true
+          description: "利益相关者列表"
+    validation: |
+      domains.solution.validator.validate_input
+      # 必须检查：
+      # 1. topic 非空且长度在 5-200 之间
+      # 2. type 必须是 architecture|business|technical 之一
+      # 3. constraints 如存在，每项必须是字符串
+      # 4. stakeholders 如存在，每项必须是字符串
+
+  output:
+    schema:
+      type: object
+      required: [session_id, state, stages_completed, topic, solution_type]
+      properties:
+        session_id:
+          type: string
+          pattern: "^[\\w_]+_(architecture|business|technical)_[a-f0-9]{8}$"
+        state:
+          type: string
+          enum: [DONE, CONVERGED, STALLED, FAILED, TIMEOUT, CIRCUIT_BREAKER]
+        stages_completed:
+          type: array
+          items:
+            type: string
+        topic:
+          type: string
+        solution_type:
+          type: string
+          enum: [architecture, business, technical]
+        final_score:
+          type: number
+          minimum: 0
+          maximum: 1
+          optional: true
+        iterations:
+          type: integer
+          minimum: 1
+          optional: true
+        convergence_reason:
+          type: string
+          optional: true
+        error:
+          type: string
+          optional: true
+        stage_outputs:
+          type: object
+          optional: true
+          description: "各阶段产出物，key为stage_name"
+    validation: "domains.solution.validator.validate_output"
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+behavior:
+  # --- Pipeline 阶段定义 ---
+  stages:
+    count: 6
+    required_order: [planning, research, design, audit, fix, deliver]
+    allow_skip: false
+    descriptions:
+      planning: "需求分析，确定方案类型和关键维度"
+      research: "三角度并行研究：约束分析/最佳实践/技术评估"
+      design: "核心架构/方案设计产出"
+      audit: "多维度审计方案合理性（支持迭代修复）"
+      fix: "根据审计意见修正方案"
+      deliver: "整合并产出最终方案文档"
+
+  # --- 各阶段行为契约 ---
+  planning:
+    input: "topic, type, constraints, stakeholders"
+    output:
+      type: "dict"
+      required_fields: [analysis, dimensions, output_sections]
+    success: |
+      返回包含以下字段的 dict：
+      - analysis.core_problem: 核心问题描述
+      - analysis.solution_type: 确认的方案类型（与输入一致或修正后的）
+      - analysis.confidence: 置信度 0-1
+      - dimensions: 各维度 required 标记
+      - output_sections: 需要的输出章节列表
+    failure: "抛出 ValueError 或返回包含 error 字段的 dict"
+
+  research:
+    input: "planning 阶段产出 + 原始上下文"
+    output:
+      type: "dict"
+      required_fields: [research_findings, confidence]
+    success: |
+      三个 researcher 并行产出后聚合：
+      - constraint_analyst: hard/soft/implied 约束分类
+      - best_practice_researcher: 行业最佳实践列表
+      - tech_evaluator: 技术选型建议及对比
+    failure: "任一 researcher 失败不阻断，记录 errors，只要有产出就继续"
+
+  design:
+    input: "planning + research 阶段产出"
+    output:
+      type: "dict"
+      required_fields: [design, quality_attributes, risks]
+    success: |
+      根据 solution_type 产出不同结构：
+      - architecture: C4 模型 + 技术栈 + 数据流 + 部署视图
+      - business: 问题分析 + 方案概览 + 详细设计 + 实施路线
+      - technical: ADR + 系统设计 + API 设计 + 数据模型
+    failure: "返回包含 error 的 dict，触发 Pipeline FAILED 状态"
+
+  audit:
+    input: "design 阶段产出"
+    output:
+      type: "dict"
+      required_fields: [audit_result]
+    success: |
+      三个 auditor 并行产出后计算平均分：
+      - feasibility_auditor: 可行性审计
+      - risk_auditor: 风险审计
+      - completeness_auditor: 完整性审计
+      - audit_result.overall_score: 0-1 浮点数
+      - audit_result.verdict: pass|conditional_pass|fail
+      - audit_result.issues[]: P0-P3 分级问题列表
+    failure: "返回包含 error 的 dict，分数取默认 0.5"
+
+  fix:
+    input: "design + audit 阶段产出"
+    output:
+      type: "dict"
+      required_fields: [fixes, modified_sections, verification]
+    success: |
+      针对 audit 中的 P0/P1 问题给出修复：
+      - fixes[]: issue_id, status, changes
+      - modified_sections[]: 被修改的章节
+      - verification: 修复验证结果
+    failure: "返回包含 error 的 dict，记录到 stage_outputs"
+
+  deliver:
+    input: "所有前序阶段产出"
+    output:
+      type: "str"
+      format: "markdown"
+    success: |
+      产出完整的方案文档（Markdown 格式），包含：
+      - 执行摘要
+      - 按 solution_type 定义的章节
+      - 附录（决策理由、风险、术语表）
+    failure: "返回包含 error 的 dict"
+
+  # --- 收敛检测行为 ---
+  convergence:
+    min_iterations: 1
+    max_iterations: 3
+    target_score: 0.90
+    stall_threshold: 0.02
+    oscillation_threshold: 2
+    behavior: |
+      每轮 audit 后检查：
+      1. 达到 max_iterations → CONVERGED（强制）
+      2. 高分快速收敛：score >= 0.95 → CONVERGED
+      3. 目标 + 停滞：score >= target_score 且提升 < stall_threshold → CONVERGED
+      4. 震荡：最近 oscillation_threshold 轮波动 < 0.02 → CONVERGED
+      5. 其他情况 → 继续迭代（如未达 max_iterations）
+
+# =============================================================================
+# L3: 边界条件
+# =============================================================================
+boundaries:
+  # --- 输入边界 ---
+  - "topic 为空或 < 5 字符 → ValueError('topic too short')"
+  - "topic > 200 字符 → ValueError('topic too long')"
+  - "type 不在 [architecture, business, technical] → ValueError('invalid solution type')"
+  - "constraints 存在但非列表 → TypeError"
+  - "stakeholders 存在但非列表 → TypeError"
+
+  # --- 执行边界 ---
+  - "任一 stage 执行失败 → PipelineState.FAILED，记录 error"
+  - "所有 worker 在 parallel_workers 阶段失败 → 该 stage 失败"
+  - "单个 worker 失败但其他成功 → stage 成功，记录 errors"
+  - "模型调用超时 → 记录超时，尝试 fallback 模型"
+  - "所有模型耗尽 → CircuitBreakerOpen，PipelineState.CIRCUIT_BREAKER"
+
+  # --- 收敛边界 ---
+  - "audit 返回无 score → _extract_score 返回默认 0.5，不崩溃"
+  - "max_iterations 达到但未收敛 → PipelineState.STALLED，交付当前最佳结果"
+  - "修复阶段失败 → 记录失败，继续下一轮审计"
+
+  # --- 输出边界 ---
+  - "session_id 格式不匹配 → 内部错误，不影响功能"
+  - "stage_outputs 为空 → 返回空 stages_completed 列表"
+
+# =============================================================================
+# L4: 依赖关系
+# =============================================================================
+dependencies:
+  - "core.orchestrator_base.BaseOrchestrator"
+  - "core.orchestrator_base.DomainConfig"
+  - "core.orchestrator_base.ConvergenceDetector"
+  - "core.orchestrator_base.ModelChain"
+  - "core.blackboard_manager.BlackboardManager"
+  - "core.checkpoint_manager.CheckpointManager"
+  - "core.quality_gate.QualityGate"
+  - "core.prompt_loader.PromptLoader"
+
+# =============================================================================
+# L5: 质量契约
+# =============================================================================
+quality:
+  dimensions:
+    - name: correctness
+      weight: 0.30
+      threshold: 0.90
+      description: "方案正确性"
+    - name: completeness
+      weight: 0.25
+      threshold: 0.85
+      description: "方案完整性"
+    - name: feasibility
+      weight: 0.20
+      threshold: 0.80
+      description: "实施可行性"
+    - name: innovation
+      weight: 0.15
+      threshold: 0.75
+      description: "创新差异化"
+    - name: clarity
+      weight: 0.10
+      threshold: 0.80
+      description: "表达清晰度"
+  auto_pass_threshold: 0.85
+  human_gate_threshold: 0.75
+
+# =============================================================================
+# L6: 数据契约
+# =============================================================================
+data:
+  # Blackboard 持久化
+  blackboard:
+    enabled: true
+    path: "blackboard/{session_id}/"
+    required_files:
+      - "shared_state.json"
+      - "stages/{stage_name}/output.json"
+    schema_validation: true
+
+  # 检查点
+  checkpoints:
+    enabled: true
+    interval: "per_stage"
+    retention: "7d"
+
+  # 数据流
+  data_flow:
+    worker_to_blackboard:
+      direction: "write"
+      path: "blackboard/{session_id}/stages/{role}_output.json"
+      format: "json"
+      required: true
+    orchestrator_from_blackboard:
+      direction: "read"
+      path: "blackboard/{session_id}/stages/{role}_output.json"
+      purpose: "quality_evaluation"
+      required: true
+
+# =============================================================================
+# L7: 渐进交付契约（P0 修复：必须实现）
+# =============================================================================
+delivery:
+  progressive: true
+  checkpoints:
+    - stage: planning
+      deliver: quick_preview
+      max_time: 30
+      content: |
+        - 方案类型确认
+        - 关键维度提取
+        - 预估总时间
+    - stage: design
+      deliver: partial_draft
+      max_time: 120
+      content: |
+        - 核心架构/方案框架
+        - 关键技术决策
+        - 风险初评
+    - stage: deliver
+      deliver: final
+      max_time: 600
+      content: |
+        - 完整方案文档
+        - 详细设计
+        - 实施路线
+        - 风险缓解
+  behavior: |
+    每个 checkpoint 阶段完成后：
+    1. 调用 sessions_yield() 返回中间结果
+    2. 记录用户是否继续/暂停/终止
+    3. 如用户暂停，保存 checkpoint，等待 resume
+    4. 如用户终止，返回当前已完成的产出
+
+# =============================================================================
+# L8: 并发控制契约
+# =============================================================================
+concurrency:
+  max_parallel_workers: 3
+  semaphore_behavior: |
+    asyncio.Semaphore(3) 控制：
+    - research 阶段 3 researcher → 全部并行
+    - audit 阶段 3 auditor → 全部并行
+    - 任何阶段总计不超过 3 个并发 Worker
+  timeout:
+    worker: 300
+    stage: 600
+    pipeline: 900
