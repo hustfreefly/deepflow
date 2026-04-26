@@ -1,0 +1,215 @@
+# Prompt Optimization & E2E Testing Contract - Solution Domain
+# 版本: 2026-04-26-v1
+# 目标: 定义 Prompt 优化和端到端测试的契约
+
+task: "solution_prompt_optimization_and_e2e_testing"
+domain: solution
+
+# =============================================================================
+# L1: 接口契约
+# =============================================================================
+interface:
+  input:
+    schema:
+      type: object
+      required: [topic, type, mode]
+      properties:
+        topic:
+          type: string
+        type:
+          type: string
+          enum: [architecture, business, technical]
+        mode:
+          type: string
+          enum: [quick, standard, rigorous]
+
+  output:
+    schema:
+      type: object
+      required: [status, pipeline_state, session_id, final_score]
+      properties:
+        status:
+          type: string
+          enum: [completed, failed]
+        pipeline_state:
+          type: string
+          enum: [CONVERGED, STALLED, FAILED]
+        session_id: { type: string }
+        final_score:
+          type: number
+          minimum: 0
+          maximum: 1
+
+# =============================================================================
+# L2: Prompt 优化契约
+# =============================================================================
+prompt_optimization:
+  planner:
+    requirements:
+      - "输出必须包含有效的 JSON"
+      - "solution_type 判定准确率 > 90%"
+      - "required_experts 必须覆盖 topic 关键维度"
+      - "audit_strategy 必须与 topic 复杂度匹配"
+    
+  researcher:
+    requirements:
+      - "每个 researcher 必须有明确的研究角度"
+      - "输出必须结构化（Markdown）"
+      - "关键发现必须有依据"
+      - "不得臆造需求"
+    
+  architect:
+    requirements:
+      - "architecture 类型必须包含 C4 模型（至少 L1-L2）"
+      - "技术选型必须有明确依据"
+      - "必须针对用户约束条件做具体设计"
+      - "输出章节必须符合 solution.yaml 定义"
+    
+  auditor:
+    requirements:
+      - "能发现事实错误"
+      - "能发现逻辑漏洞"
+      - "能发现遗漏点"
+      - "评分必须客观"
+    
+  designer:
+    requirements:
+      - "整合多阶段产出为统一文档"
+      - "格式符合 output.format 配置"
+      - "包含所有必需章节"
+
+# =============================================================================
+# L3: E2E 测试契约
+# =============================================================================
+e2e_testing:
+  test_cases:
+    - name: "高并发电商订单系统"
+      type: "architecture"
+      mode: "standard"
+      constraints: ["日均百万订单", "99.99%可用性", "<200ms响应"]
+      expected:
+        - "包含 C4 模型（至少系统上下文图 + 容器图）"
+        - "技术选型有依据"
+        - "针对百万 QPS 做了具体设计"
+        - "无明显事实错误"
+
+    - name: "中小企业数字化转型"
+      type: "business"
+      mode: "standard"
+      stakeholders: ["CEO", "IT部门", "财务部门"]
+      expected:
+        - "包含问题分析"
+        - "包含实施路线"
+        - "包含成功指标"
+        - "针对中小企业特点"
+
+    - name: "支付网关 API 设计"
+      type: "technical"
+      mode: "rigorous"
+      constraints: ["支持10万QPS", "OAuth2认证", "速率限制"]
+      expected:
+        - "包含 API 设计"
+        - "包含安全设计"
+        - "包含性能规划"
+        - "无过时技术推荐"
+
+  quality_checklist:
+    - id: "QC-001"
+      item: "架构设计是否包含 C4 模型？"
+      critical: true
+      
+    - id: "QC-002"
+      item: "技术选型是否有明确依据？"
+      critical: true
+      
+    - id: "QC-003"
+      item: "是否有明显事实错误？"
+      critical: true
+      
+    - id: "QC-004"
+      item: "成本估算是否合理（数量级正确）？"
+      critical: false
+      
+    - id: "QC-005"
+      item: "竞品分析是否提到真实存在的竞品？"
+      critical: false
+      
+    - id: "QC-006"
+      item: "方案是否针对用户约束条件做了具体设计？"
+      critical: true
+      
+    - id: "QC-007"
+      item: "输出格式是否符合 solution.yaml 中定义的 sections？"
+      critical: true
+
+# =============================================================================
+# L4: 验收标准
+# =============================================================================
+acceptance:
+  must_pass:
+    - "3 个测试用例全部执行成功"
+    - "质量检查清单 7/7 全部通过"
+    - "产出质量与 Investment 模块相当"
+    
+  scoring:
+    - "final_score >= 0.85 → 优秀"
+    - "final_score >= 0.70 → 合格"
+    - "final_score < 0.70 → 需要优化"
+
+# =============================================================================
+# L5: 验证契约
+# =============================================================================
+validation:
+  commands:
+    - "python3 cage/validate_solution.py"
+    
+  criteria:
+    - "67/67 契约检查通过"
+    - "所有 prompt 文件非空且内容有效"
+    - "E2E 测试脚本可执行"
+    - "至少 1 个测试用例通过"
+
+# =============================================================================
+# 修复任务清单
+# =============================================================================
+fix_tasks:
+  - id: "PROMPT-001"
+    name: "优化 Planner Prompt"
+    description: |
+      优化 prompts/solution/planner.md：
+      - 增加具体示例（高并发/支付系统/业务方案）
+      - 明确 JSON 输出格式要求
+      - 增加错误处理说明
+    
+  - id: "PROMPT-002"
+    name: "优化 Architect Prompt"
+    description: |
+      优化 prompts/solution/architect.md：
+      - 明确要求输出 C4 模型
+      - 增加技术选型依据要求
+      - 增加约束条件处理说明
+    
+  - id: "PROMPT-003"
+    name: "优化 Auditor Prompt"
+    description: |
+      优化 prompts/solution/auditor.md：
+      - 增加事实错误检查清单
+      - 增加逻辑漏洞检查清单
+      - 明确评分标准
+    
+  - id: "PROMPT-004"
+    name: "创建 E2E 测试脚本"
+    description: |
+      创建 tests/e2e_solution_test.py：
+      - 定义 3 个测试用例
+      - 执行完整 pipeline
+      - 检查产出质量
+      - 生成测试报告
+    
+  - id: "PROMPT-005"
+    name: "运行端到端测试"
+    description: |
+      1. 运行 E2E 测试脚本
+      2. 检查产出质量
+      3. 记录测试结果
+      4. 如果质量不达标，优化 prompt 并重测
