@@ -1,0 +1,113 @@
+# Spawn Fn Injection Contract - Solution Domain
+# 版本: 2026-04-26-v1
+# 目标: 让 SolutionOrchestrator 接受 spawn_fn 注入，不影响 Investment
+
+task: "solution_spawn_fn_injection"
+domain: solution
+
+# =============================================================================
+# L1: 接口契约
+# =============================================================================
+interface:
+  input:
+    schema:
+      type: object
+      required: [topic, type]
+      optional: [mode, constraints, stakeholders, spawn_fn]
+      properties:
+        spawn_fn:
+          type: function
+          description: "可选的外部 spawn 函数注入"
+          
+  output:
+    schema:
+      type: object
+      required: [session_id, state]
+      properties:
+        session_id: { type: string }
+        state: { type: string }
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+behavior:
+  spawn_fn_injection:
+    description: "如果提供了 spawn_fn，使用它；否则用默认的 from openclaw import"
+    rules:
+      - "spawn_fn 不为 None → 使用 spawn_fn"
+      - "spawn_fn 为 None → 调用父类实现（from openclaw import）"
+      - "不得修改 core/orchestrator_base.py"
+      - "不得修改 domains/investment/"
+
+  backward_compatibility:
+    description: "保持向后兼容"
+    rules:
+      - "不传 spawn_fn 时行为与修改前一致"
+      - "所有现有测试继续通过"
+      - "run_solution_design() 签名保持不变（增加可选参数）"
+
+# =============================================================================
+# L3: 修改范围（关键约束）
+# =============================================================================
+modification_scope:
+  allowed:
+    - "domains/solution/orchestrator.py"
+    
+  forbidden:
+    - "core/orchestrator_base.py"
+    - "domains/investment/"
+    - "domains/investment.yaml"
+    
+  method_changes:
+    - name: "__init__"
+      change: "添加 spawn_fn=None 参数"
+      
+    - name: "_run_worker"
+      change: "覆盖父类方法，检查 spawn_fn"
+      
+    - name: "run_solution_design"
+      change: "添加 spawn_fn=None 参数"
+
+# =============================================================================
+# L4: 验证契约
+# =============================================================================
+validation:
+  tests:
+    - name: "backward_compat"
+      description: "不传 spawn_fn 时行为与之前一致"
+      
+    - name: "spawn_injection"
+      description: "传 spawn_fn 时使用注入的函数"
+      
+    - name: "investment_untouched"
+      description: "Investment 模块完全不受影响"
+      
+    - name: "base_untouched"
+      description: "core/orchestrator_base.py 未被修改"
+      
+    - name: "validate_solution"
+      description: "cage/validate_solution.py 67/67 通过"
+
+# =============================================================================
+# L5: 修复任务清单
+# =============================================================================
+fix_tasks:
+  - id: "SPAWN-001"
+    name: "修改 __init__ 添加 spawn_fn 参数"
+    file: "domains/solution/orchestrator.py"
+    
+  - id: "SPAWN-002"
+    name: "覆盖 _run_worker 方法"
+    file: "domains/solution/orchestrator.py"
+    
+  - id: "SPAWN-003"
+    name: "修改 run_solution_design 添加 spawn_fn"
+    file: "domains/solution/orchestrator.py"
+    
+  - id: "SPAWN-004"
+    name: "验证 Investment 未受影响"
+    command: "git diff --name-only | grep -v domains/solution"
+    
+  - id: "SPAWN-005"
+    name: "运行验证"
+    command: "python3 cage/validate_solution.py"

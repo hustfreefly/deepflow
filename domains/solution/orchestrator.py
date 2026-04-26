@@ -57,10 +57,11 @@ class SolutionOrchestrator(BaseOrchestrator):
     BLACKBOARD_BASE = os.path.join(_BASE_PATH, "blackboard")
     PROMPTS_DIR = os.path.join(_BASE_PATH, "prompts", "solution")
     
-    def __init__(self, user_context: Dict[str, Any]):
+    def __init__(self, user_context: Dict[str, Any], spawn_fn=None):
         """
         Args:
             user_context: 必须包含 topic, type，可选 mode
+            spawn_fn: 可选的 spawn 函数注入，用于替代默认的 sessions_spawn
         """
         # P2-001: 完整输入校验
         self._validate_input(user_context)
@@ -70,6 +71,7 @@ class SolutionOrchestrator(BaseOrchestrator):
         self.mode = user_context.get("mode", "standard")  # 默认 standard 模式
         self.constraints = user_context.get("constraints") or []
         self.stakeholders = user_context.get("stakeholders") or []
+        self._spawn_fn = spawn_fn
         
         super().__init__(domain="solution", user_context=user_context)
         
@@ -809,30 +811,30 @@ class SolutionOrchestrator(BaseOrchestrator):
                 "error": f"All workers failed: {', '.join(errors)}"
             }
     
-    async def _run_worker(self, worker: WorkerConfig, stage_name: str) -> Dict[str, Any]:
+    async def _run_worker(self, worker: WorkerConfig, stage_name: str, expert_config: Dict = None) -> Dict[str, Any]:
         """
-        运行单个 Worker（带并发控制）
-        Step 2.3: 支持动态 researcher 的 expert_config 传递
+        运行单个 Worker（支持 spawn_fn 注入）
         """
         async with self.semaphore:
-            # Step 2.3: 如果是 researcher_ 开头的角色，提取 expert_config
-            expert_config = None
-            if stage_name == "research" and worker.role.startswith("researcher_"):
-                expert_name = worker.role.replace("researcher_", "")
-                # 从 planning 输出中查找对应的 expert
-                required_experts = self._extract_required_experts()
-                for expert in required_experts:
-                    if expert.get('name') == expert_name:
-                        expert_config = expert
-                        break
-            
             prompt = self._build_worker_prompt(worker.role, stage_name, expert_config)
             
-            try:
-                result = await self.models.call(prompt, timeout=worker.timeout)
-                return result
-            except Exception as e:
-                return {"success": False, "error": str(e)}
+            # 如果注入了 spawn_fn，使用注入的
+            if self._spawn_fn is not None:
+                try:
+                    result = self._spawn_fn(
+                        runtime="subagent",
+                        mode="run",
+                        task=prompt,
+                        timeout_seconds=worker.timeout,
+                        model=worker.model or self.domain_config.model_chain.primary
+                    )
+                    # 解析结果
+                    return {"success": True, "output": result, "model_used": worker.model}
+                except Exception as e:
+                    return {"success": False, "error": str(e)}
+            else:
+                # 否则调用父类实现（from openclaw import sessions_spawn）
+                return await super()._run_worker(worker, stage_name)
     
     def _build_worker_prompt(self, role: str, stage_name: str, expert_config: Dict[str, Any] = None) -> str:
         """
@@ -1259,7 +1261,8 @@ class SolutionOrchestrator(BaseOrchestrator):
 
 def run_solution_design(topic: str, solution_type: str = "architecture", 
                        constraints: List[str] = None, 
-                       stakeholders: List[str] = None) -> Dict[str, Any]:
+                       stakeholders: List[str] = None,
+                       spawn_fn=None) -> Dict[str, Any]:
     """
     运行解决方案设计 Pipeline
     
@@ -1268,6 +1271,7 @@ def run_solution_design(topic: str, solution_type: str = "architecture",
         solution_type: 方案类型 (architecture | business | technical)
         constraints: 约束条件列表
         stakeholders: 利益相关者列表
+        spawn_fn: 可选的 spawn 函数注入
         
     Returns:
         执行结果
@@ -1279,7 +1283,7 @@ def run_solution_design(topic: str, solution_type: str = "architecture",
         "stakeholders": stakeholders or []
     }
     
-    orchestrator = SolutionOrchestrator(context)
+    orchestrator = SolutionOrchestrator(context, spawn_fn=spawn_fn)
     return asyncio.run(orchestrator.run())
 
 

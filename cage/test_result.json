@@ -1,0 +1,34 @@
+{
+  "success": true,
+  "start_time": "2026-04-26T15:56:42.409067",
+  "end_time": "2026-04-26T16:09:30.617643",
+  "duration_seconds": 768.208576,
+  "result": {
+    "session_id": "设计一个支持百万日订单的电商订单系统_architecture_c9b07869",
+    "domain": "solution",
+    "topic": "设计一个支持百万日订单的电商订单系统",
+    "solution_type": "architecture",
+    "state": "FAILED",
+    "stages_completed": [
+      "data_collection"
+    ],
+    "stage_outputs": {
+      "data_collection": {
+        "datasets": [
+          "tech_documentation_mdn.md",
+          "tech_documentation_github.md",
+          "industry_reports_gartner.md",
+          "industry_reports_forrester.md",
+          "industry_reports_mckinsey.md"
+        ],
+        "count": 5,
+        "verification": {
+          "tech_docs": true,
+          "industry_reports": true,
+          "competitor_data": false
+        }
+      }
+    },
+    "error": "No module named 'openclaw'"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "test_name": "solution_real_e2e_test",
+  "timestamp": "2026-04-26T15:57:29.862334",
+  "test_case": {
+    "topic": "设计一个支持百万日订单的电商订单系统",
+    "type": "architecture",
+    "mode": "standard",
+    "constraints": [
+      "日均百万订单",
+      "99.99%可用性",
+      "<200ms响应时间"
+    ],
+    "stakeholders": [
+      "技术团队",
+      "产品团队",
+      "运维团队"
+    ]
+  },
+  "execution_time_seconds": 833.6476578712463,
+  "pipeline_state": "FAILED",
+  "final_score": null,
+  "convergence_reason": null,
+  "stage_durations": {},
+  "blackboard_path": "N/A",
+  "quality_checks": {
+    "RC-001": false,
+    "RC-002": false,
+    "RC-003": false,
+    "RC-004": false
+  },
+  "quality_pass_rate": "0/4",
+  "success_criteria_met": false,
+  "issues": [
+    "Pipeline 执行失败，需要检查错误日志",
+    "最终分数 None 低于 0.70，可能需要优化审计和修复流程",
+    "执行时间 834 秒超过 10 分钟，可能需要优化性能"
+  ]
+}

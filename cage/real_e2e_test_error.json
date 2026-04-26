@@ -1,0 +1,23 @@
+{
+  "test_name": "solution_real_e2e_test",
+  "timestamp": "2026-04-26T15:43:25.097131",
+  "test_case": {
+    "topic": "设计一个支持百万日订单的电商订单系统",
+    "type": "architecture",
+    "mode": "standard",
+    "constraints": [
+      "日均百万订单",
+      "99.99%可用性",
+      "<200ms响应时间"
+    ],
+    "stakeholders": [
+      "技术团队",
+      "产品团队",
+      "运维团队"
+    ]
+  },
+  "execution_time_seconds": 0.013339042663574219,
+  "error_type": "AttributeError",
+  "error_message": "'coroutine' object has no attribute 'get'",
+  "traceback": "Traceback (most recent call last):\n  File \"/Users/allen/.openclaw/workspace/.deepflow/cage/run_real_e2e_test.py\", line 62, in run_test\n    print(f\"Pipeline 状态: {result.get('state', 'UNKNOWN')}\")\n                            ^^^^^^^^^^\nAttributeError: 'coroutine' object has no attribute 'get'\n"
+}

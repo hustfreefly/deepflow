@@ -1,0 +1,113 @@
+# Real End-to-End Test Contract - Solution Domain
+# 版本: 2026-04-26-v1
+# 目标: 定义真实端到端测试的契约（使用真实模型调用）
+
+task: "solution_real_e2e_test"
+domain: solution
+
+# =============================================================================
+# L1: 测试范围
+# =============================================================================
+scope:
+  description: "使用真实模型调用运行一个完整的 Solution pipeline"
+  test_case:
+    name: "高并发电商订单系统"
+    type: "architecture"
+    mode: "standard"
+    topic: "设计一个支持百万日订单的电商订单系统"
+    constraints:
+      - "日均百万订单"
+      - "99.99%可用性"
+      - "<200ms响应时间"
+    stakeholders:
+      - "技术团队"
+      - "产品团队"
+      - "运维团队"
+
+# =============================================================================
+# L2: 执行约束
+# =============================================================================
+execution:
+  environment: "OpenClaw 主环境（当前会话）"
+  model: "bailian/qwen3.5-plus"
+  timeout: 600  # 10 分钟
+  cost_warning: "真实 API 调用，会产生 token 费用"
+  
+  stages_expected:
+    - data_collection  # 采集技术文档数据
+    - planning         # Planner 分析需求
+    - research         # 动态 researcher 研究
+    - design           # Architect 设计方案
+    - audit            # Auditor 审计
+    - fix              # Fixer 修复
+    - deliver          # Designer 产出最终文档
+
+# =============================================================================
+# L3: 验收标准
+# =============================================================================
+acceptance:
+  must_have:
+    - "Pipeline 完整执行 7 个阶段"
+    - "最终产出保存到 blackboard"
+    - "产出包含方案文档（Markdown 格式）"
+    
+  quality_checks:
+    - id: "RC-001"
+      item: "产出是否包含技术架构描述？"
+      critical: true
+      
+    - id: "RC-002"
+      item: "是否提到具体技术选型（如数据库、缓存）？"
+      critical: true
+      
+    - id: "RC-003"
+      item: "是否回应了约束条件（百万订单、99.99%可用性）？"
+      critical: true
+      
+    - id: "RC-004"
+      item: "产出是否结构化、可读？"
+      critical: false
+
+  success_criteria:
+    - "4 项检查中至少 3 项通过"
+    - "Pipeline 状态为 CONVERGED 或 STALLED（非 FAILED）"
+    - "最终分数 >= 0.70"
+
+# =============================================================================
+# L4: 输出交付
+# =============================================================================
+output:
+  blackboard_path: "blackboard/{session_id}/"
+  deliverables:
+    - "final_result.json"
+    - "stages/{stage_name}.json"
+    - "final_solution.md"
+    
+  report_requirements:
+    - "执行时间"
+    - "每个阶段的耗时"
+    - "最终分数和收敛原因"
+    - "产出质量评估"
+    - "问题和改进建议"
+
+# =============================================================================
+# L5: 风险控制
+# =============================================================================
+risks:
+  - name: "超时"
+    mitigation: "设置 10 分钟超时，超时时返回部分结果"
+    
+  - name: "模型调用失败"
+    mitigation: "使用 fallback 链（qwen3.5 → kimi-k2.5 → kimi-code）"
+    
+  - name: "费用过高"
+    mitigation: "仅运行 1 个测试用例，standard 模式（非 rigorous）"
+
+# =============================================================================
+# L6: 验证契约
+# =============================================================================
+validation:
+  post_test:
+    - "检查 blackboard/{session_id}/ 目录存在"
+    - "检查 final_solution.md 存在且非空"
+    - "检查 final_result.json 包含 expected 字段"
