@@ -1,0 +1,228 @@
+# DeepFlow Domain Configuration - Solution Designer (通用解决方案设计)
+# Version: 2026-04-26-v1
+
+domain: solution
+name: "解决方案设计"
+description: "通用解决方案与架构设计产出，支持软件架构、业务方案、技术方案"
+
+# 上下文 Schema（定义该领域需要的字段）
+context:
+  schema:
+    required: ["topic", "type"]
+    optional: ["constraints", "stakeholders", "budget", "timeline"]
+  example:
+    topic: "设计一个高并发电商订单系统"
+    type: "architecture"  # architecture | business | technical
+    constraints: ["日均百万订单", "99.99%可用性", "<200ms响应"]
+    stakeholders: ["技术团队", "产品团队", "运维团队"]
+
+# 方案类型定义
+solution_types:
+  architecture:
+    name: "软件架构设计"
+    output_format: "c4_model"
+    sections:
+      - context_diagram      # C4 L1: 系统上下文
+      - container_diagram    # C4 L2: 容器图
+      - component_diagram    # C4 L3: 组件图（可选）
+      - tech_stack           # 技术栈选型
+      - data_flow            # 数据流设计
+      - deployment_view      # 部署视图
+    
+  business:
+    name: "业务解决方案"
+    output_format: "structured_report"
+    sections:
+      - problem_analysis     # 问题分析
+      - solution_overview    # 方案概览
+      - detailed_design      # 详细设计
+      - implementation_roadmap  # 实施路线
+      - risk_mitigation      # 风险缓解
+      - success_metrics      # 成功指标
+    
+  technical:
+    name: "技术方案"
+    output_format: "technical_spec"
+    sections:
+      - architecture_decisions  # 架构决策记录
+      - system_design          # 系统设计
+      - api_design             # 接口设计
+      - data_model             # 数据模型
+      - security_design        # 安全设计
+      - performance_plan       # 性能规划
+
+# Agents 列表（PipelineEngine 从这里读取）
+agents:
+  - role: solution_planner
+    prompt: "prompts/solution/planner.md"
+    timeout: 180
+    model: "bailian/qwen3.5-plus"
+    description: "分析需求，确定方案类型和关键维度"
+  
+  - role: solution_researcher
+    prompt: "prompts/solution/researcher.md"
+    timeout: 240
+    model: "bailian/qwen3.5-plus"
+    parallel: all
+    description: "研究约束条件、行业最佳实践、技术选型"
+    instances:
+      - name: constraint_analyst
+        angle: "约束条件分析"
+      - name: best_practice_researcher
+        angle: "行业最佳实践研究"
+      - name: tech_evaluator
+        angle: "技术方案评估"
+  
+  - role: solution_architect
+    prompt: "prompts/solution/architect.md"
+    timeout: 300
+    model: "kimi/kimi-code"
+    description: "产出核心架构/方案设计"
+  
+  - role: solution_auditor
+    prompt: "prompts/solution/auditor.md"
+    timeout: 180
+    model: "kimi/kimi-code"
+    parallel: all
+    description: "多维度审计方案合理性"
+    instances:
+      - name: feasibility_auditor
+        angle: "可行性审计"
+      - name: risk_auditor
+        angle: "风险审计"
+      - name: completeness_auditor
+        angle: "完整性审计"
+  
+  - role: solution_fixer
+    prompt: "prompts/solution/fixer.md"
+    timeout: 240
+    model: "bailian/qwen3.5-plus"
+    description: "根据审计意见修复方案"
+  
+  - role: solution_designer
+    prompt: "prompts/solution/designer.md"
+    timeout: 300
+    model: "bailian/qwen3.5-plus"
+    description: "整合最终方案文档"
+
+# Pipeline 阶段定义
+pipeline:
+  stages:
+    # Stage 1: 需求分析
+    - name: planning
+      type: single_worker
+      workers:
+        - role: solution_planner
+          timeout: 180
+      description: "分析需求，确定方案类型和关键维度"
+    
+    # Stage 2: 研究阶段（3个researcher并行）
+    - name: research
+      type: parallel_workers
+      workers:
+        - role: constraint_analyst
+          count: 1
+          timeout: 240
+        - role: best_practice_researcher
+          count: 1
+          timeout: 240
+        - role: tech_evaluator
+          count: 1
+          timeout: 240
+      description: "三角度并行研究：约束/最佳实践/技术评估"
+    
+    # Stage 3: 架构设计
+    - name: design
+      type: single_worker
+      workers:
+        - role: solution_architect
+          timeout: 300
+      description: "产出核心架构/方案设计"
+    
+    # Stage 4: 审计阶段（3个auditor并行）
+    - name: audit
+      type: parallel_workers
+      workers:
+        - role: feasibility_auditor
+          count: 1
+          timeout: 180
+        - role: risk_auditor
+          count: 1
+          timeout: 180
+        - role: completeness_auditor
+          count: 1
+          timeout: 180
+      description: "三视角审计：可行性/风险/完整性"
+    
+    # Stage 5: 修复阶段
+    - name: fix
+      type: single_worker
+      workers:
+        - role: solution_fixer
+          timeout: 240
+      description: "根据审计意见修正方案"
+    
+    # Stage 6: 方案产出
+    - name: deliver
+      type: single_worker
+      workers:
+        - role: solution_designer
+          timeout: 300
+      description: "整合并产出最终方案文档"
+
+# 收敛检测配置
+convergence:
+  min_iterations: 1
+  max_iterations: 3
+  target_score: 0.90
+  stall_threshold: 0.02
+  oscillation_threshold: 2
+
+# 质量评估维度
+quality:
+  dimensions:
+    - name: correctness
+      weight: 0.30
+      threshold: 0.90
+      description: "方案正确性"
+    - name: completeness
+      weight: 0.25
+      threshold: 0.85
+      description: "方案完整性"
+    - name: feasibility
+      weight: 0.20
+      threshold: 0.80
+      description: "实施可行性"
+    - name: innovation
+      weight: 0.15
+      threshold: 0.75
+      description: "创新差异化"
+    - name: clarity
+      weight: 0.10
+      threshold: 0.80
+      description: "表达清晰度"
+
+# 输出配置
+output:
+  format: "markdown"
+  template_dir: "templates/solution"
+  include_diagrams: true
+  language: "zh-CN"
+  sections_required: true
+
+# 渐进交付配置
+delivery:
+  progressive: true
+  checkpoints:
+    - stage: planning
+      deliver: quick_preview      # 30s: 方案类型+关键维度
+    - stage: design
+      deliver: partial_draft      # 2min: 核心架构/方案框架
+    - stage: deliver
+      deliver: final              # 最终完整方案
+
+# 并发控制配置 (P0-FIX: 限制最大并行数，避免超出OpenClaw限制)
+concurrency:
+  max_parallel_workers: 3      # 最大并行Worker数
+  worker_timeout: 300          # Worker 默认超时
+  orchestrator_timeout: 600    # Orchestrator 超时
