@@ -12,22 +12,25 @@ modes:
     max_iterations: 1
     audit: false
     research: false
+    data_collection: false
     expected_duration: "30 minutes"
     description: "快速模式：仅核心阶段，产出方案框架"
   
   standard:
-    stages: [planning, research, design, audit, fix, deliver]
+    stages: [data_collection, planning, research, design, audit, fix, deliver]
     max_iterations: 2
     audit: standard
     research: true
+    data_collection: basic
     expected_duration: "1-2 hours"
     description: "标准模式：完整流程，产出完整方案"
   
   rigorous:
-    stages: [planning, research, design, audit, fix, deliver]
+    stages: [data_collection, planning, research, design, audit, fix, deliver]
     max_iterations: 3
     audit: strict
     research: deep
+    data_collection: full
     expected_duration: "3-4 hours"
     description: "严谨模式：深度审计，产出深度方案含追溯"
 
@@ -134,6 +137,12 @@ agents:
 # Pipeline 阶段定义
 pipeline:
   stages:
+    # Stage 0: 数据采集（在 planning 之前执行）
+    - name: data_collection
+      type: custom
+      custom_handler: _execute_data_collection
+      description: "根据 mode 采集技术文档、行业报告、竞品分析数据"
+    
     # Stage 1: 需求分析
     - name: planning
       type: single_worker

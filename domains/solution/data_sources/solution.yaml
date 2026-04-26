@@ -1,0 +1,112 @@
+# ============================================================
+# 解决方案设计领域数据采集配置
+# 文件: domains/solution/data_sources/solution.yaml
+# ============================================================
+
+domain: solution
+
+# --- 技术文档数据源 ---
+tech_documentation:
+  - name: "mdn"
+    base_url: "https://developer.mozilla.org"
+    search_query: "site:developer.mozilla.org {{topic}}"
+    description: "MDN Web Docs 技术文档"
+    condition: "solution_type in ['architecture', 'technical']"
+    
+  - name: "github"
+    pattern: "https://github.com/search?q={{topic}}"
+    search_query: "site:github.com {{topic}} README"
+    description: "GitHub 项目 README 和技术文档"
+    condition: "solution_type in ['architecture', 'technical']"
+    
+  - name: "official_docs"
+    search_query: "{{topic}} official documentation site:*.org OR site:*.io"
+    description: "官方技术文档"
+    condition: "solution_type in ['architecture', 'technical']"
+
+# --- 行业报告数据源 ---
+industry_reports:
+  - name: "gartner"
+    search_query: "site:gartner.com {{topic}}"
+    description: "Gartner 行业分析报告"
+    condition: "solution_type == 'business'"
+    
+  - name: "forrester"
+    search_query: "site:forrester.com {{topic}}"
+    description: "Forrester 行业研究报告"
+    condition: "solution_type == 'business'"
+    
+  - name: "mckinsey"
+    search_query: "site:mckinsey.com {{topic}}"
+    description: "麦肯锡行业洞察"
+    condition: "solution_type == 'business'"
+
+# --- 竞品分析数据源 ---
+competitor_analysis:
+  - name: "stackshare"
+    search_query: "site:stackshare.io {{topic}}"
+    description: "StackShare 技术栈对比"
+    condition: "mode == 'rigorous'"
+    
+  - name: "crunchbase"
+    search_query: "site:crunchbase.com {{topic}}"
+    description: "Crunchbase 公司和竞品分析"
+    condition: "mode == 'rigorous'"
+    
+  - name: "producthunt"
+    search_query: "site:producthunt.com {{topic}}"
+    description: "Product Hunt 产品分析"
+    condition: "mode == 'rigorous'"
+
+# --- 数据采集规则 ---
+collection_rules:
+  # quick 模式：跳过数据采集
+  quick:
+    enabled: false
+    
+  # standard 模式：采集基础数据（技术文档 + 行业报告）
+  standard:
+    enabled: true
+    sources:
+      - tech_documentation
+      - industry_reports
+      
+  # rigorous 模式：采集完整数据（技术文档 + 行业报告 + 竞品分析）
+  rigorous:
+    enabled: true
+    sources:
+      - tech_documentation
+      - industry_reports
+      - competitor_analysis
+
+# --- 搜索实现配置 ---
+search_implementation:
+  tools:
+    - name: "gemini_cli"
+      command: "gemini -p {query}"
+      priority: 1
+      timeout: 60
+    - name: "web_fetch"
+      priority: 2
+      timeout: 30
+  
+  retry:
+    max_retries: 3
+    backoff_factor: 2  # 指数退避：2s, 4s, 8s
+    
+  timeout:
+    single_search: 60  # 单次搜索超时 60s
+    total_collection: 300  # 总数据采集时间不超过 5 分钟
+
+# --- 数据存储配置 ---
+storage:
+  base_path: "blackboard/{session_id}/data/"
+  format: "markdown"  # Markdown 或 JSON
+  naming_convention: "{source_name}_{timestamp}.md"
+
+# --- 数据质量约束 ---
+quality_rules:
+  min_datasets_required: 1  # 至少采集到 1 个数据集才算成功
+  data_relevance_check: true  # 检查数据是否与 topic 相关
+  standard_min_datasets: 2  # standard 模式至少 2 个数据集
+  rigorous_min_datasets: 3  # rigorous 模式至少 3 个数据集

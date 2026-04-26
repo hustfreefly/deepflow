@@ -1,0 +1,187 @@
+# Data Layer Contract - Solution Domain
+# 版本: 2026-04-26-v1
+# 目标: 定义数据层的契约
+
+task: "solution_data_layer"
+domain: solution
+
+# =============================================================================
+# L1: 接口契约
+# =============================================================================
+interface:
+  input:
+    schema:
+      type: object
+      required: [topic, type]
+      properties:
+        topic:
+          type: string
+          description: "设计主题"
+        type:
+          type: string
+          enum: [architecture, business, technical]
+        mode:
+          type: string
+          enum: [quick, standard, rigorous]
+          default: standard
+
+  output:
+    schema:
+      type: object
+      required: [datasets, count, verification]
+      properties:
+        datasets:
+          type: array
+          items: { type: string }
+          description: "采集到的数据集名称列表"
+        count:
+          type: integer
+          minimum: 0
+        verification:
+          type: object
+          properties:
+            tech_docs: { type: boolean }
+            industry_reports: { type: boolean }
+            competitor_data: { type: boolean }
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+behavior:
+  data_collection_stage:
+    description: "在 planning 之前执行数据采集"
+    rules:
+      - "quick 模式：跳过数据采集"
+      - "standard 模式：采集基础数据（技术文档 + 行业报告）"
+      - "rigorous 模式：采集完整数据（技术文档 + 行业报告 + 竞品分析）"
+
+  data_sources:
+    tech_documentation:
+      sources:
+        - "MDN Web Docs"
+        - "GitHub README"
+        - "官方技术文档"
+      condition: "solution_type == 'architecture' or solution_type == 'technical'"
+      
+    industry_reports:
+      sources:
+        - "Gartner"
+        - "Forrester"
+      condition: "solution_type == 'business'"
+      
+    competitor_analysis:
+      sources:
+        - "Crunchbase"
+        - "StackShare"
+      condition: "mode == 'rigorous'"
+
+  search_implementation:
+    description: "使用搜索工具获取外部数据"
+    tools:
+      - name: "gemini_cli"
+        command: "gemini -p {query}"
+        priority: 1
+      - name: "web_fetch"
+        priority: 2
+    timeout: 60
+    fallback: "搜索失败时，使用模型内部知识（标记为 'unverified'）"
+
+# =============================================================================
+# L3: 边界契约
+# =============================================================================
+boundaries:
+  input:
+    - "topic 为空 → 跳过数据采集但继续执行"
+    - "mode == quick → 跳过整个 data_collection 阶段"
+    
+  execution:
+    - "单次搜索超时 60s"
+    - "搜索失败最多重试 3 次"
+    - "总数据采集时间不超过 5 分钟"
+    
+  output:
+    - "至少采集到 1 个数据集才算成功"
+    - "数据集保存到 blackboard/{session_id}/data/"
+    - "数据集格式为 Markdown 或 JSON"
+
+# =============================================================================
+# L4: 依赖契约
+# =============================================================================
+dependencies:
+  - module: "domains/solution.yaml"
+    required: true
+    description: "必须包含 modes 配置"
+    
+  - module: "domains/solution/orchestrator.py"
+    required: true
+    description: "必须实现 _execute_data_collection()"
+    
+  - module: "domains/solution/data_sources/solution.yaml"
+    required: true
+    description: "数据源配置"
+
+# =============================================================================
+# L5: 质量契约
+# =============================================================================
+quality:
+  checks:
+    - name: "data_relevance"
+      description: "采集的数据是否与 topic 相关"
+      criteria: 
+        - "技术文档包含与 topic 相关的技术栈"
+        - "行业报告包含与 topic 相关的市场分析"
+        
+    - name: "data_completeness"
+      description: "是否采集到足够的数据"
+      criteria:
+        - "standard 模式至少 2 个数据集"
+        - "rigorous 模式至少 3 个数据集"
+
+# =============================================================================
+# L6: 验证契约
+# =============================================================================
+validation:
+  commands:
+    - "python3 cage/validate_solution.py"
+    
+  criteria:
+    - "67/67 契约检查通过"
+    - "_execute_data_collection() 方法存在且可调用"
+    - "standard 模式能采集到数据"
+    - "quick 模式跳过数据采集"
+
+# =============================================================================
+# 修复任务清单
+# =============================================================================
+fix_tasks:
+  - id: "DATA-001"
+    name: "创建数据源配置"
+    description: |
+      创建 domains/solution/data_sources/solution.yaml：
+      - 定义技术文档源（MDN、GitHub、官方文档）
+      - 定义行业报告源（Gartner、Forrester）
+      - 定义竞品分析源（Crunchbase、StackShare）
+      - 配置搜索查询模板
+    
+  - id: "DATA-002"
+    name: "实现数据采集方法"
+    description: |
+      在 domains/solution/orchestrator.py 中：
+      1. 新增 _execute_data_collection() 方法
+      2. 根据 mode 决定采集哪些数据
+      3. 使用搜索工具获取外部数据
+      4. 将数据保存到 Blackboard
+      5. 实现 _verify_data_collection() 验证数据完整性
+    
+  - id: "DATA-003"
+    name: "修改 pipeline"
+    description: |
+      在 domains/solution.yaml 中：
+      - 在 planning 前插入 data_collection 阶段
+      - 配置 data_collection 阶段的类型和 workers
+    
+  - id: "DATA-004"
+    name: "运行验证"
+    description: |
+      1. 运行 cage/validate_solution.py → 67/67 通过
+      2. 测试三种模式的数据采集行为

@@ -314,6 +314,258 @@ class SolutionOrchestrator(BaseOrchestrator):
             print(f"  ⚠️ Blackboard load failed: {e}")
         return None
     
+    async def _execute_data_collection(self, stage: StageConfig = None) -> Dict[str, Any]:
+        """
+        Step 3.4: 执行数据采集阶段
+        
+        根据 mode 决定采集哪些数据：
+        - quick 模式：跳过数据采集
+        - standard 模式：采集基础数据（技术文档 + 行业报告）
+        - rigorous 模式：采集完整数据（技术文档 + 行业报告 + 竞品分析）
+        
+        数据保存到 blackboard/{session_id}/data/
+        """
+        # quick 模式跳过数据采集
+        if self.mode == 'quick':
+            print(f"  [Data] Quick mode: skipping data collection")
+            return {
+                "success": True,
+                "output": {
+                    "datasets": [],
+                    "count": 0,
+                    "verification": {},
+                    "skipped": True
+                }
+            }
+        
+        try:
+            print(f"  [Data] Starting data collection (mode={self.mode})...")
+            
+            # 加载数据源配置
+            config_path = os.path.join(
+                self._get_base_path(),
+                "domains/solution/data_sources/solution.yaml"
+            )
+            
+            if not os.path.exists(config_path):
+                print(f"  ⚠️ Data source config not found: {config_path}")
+                return {
+                    "success": False,
+                    "error": f"Data source config not found: {config_path}"
+                }
+            
+            with open(config_path, 'r', encoding='utf-8') as f:
+                import yaml
+                data_config = yaml.safe_load(f)
+            
+            # 确定要采集的数据源类型
+            sources_to_collect = []
+            if self.mode == 'standard':
+                sources_to_collect = ['tech_documentation', 'industry_reports']
+            elif self.mode == 'rigorous':
+                sources_to_collect = ['tech_documentation', 'industry_reports', 'competitor_analysis']
+            
+            print(f"  [Data] Collecting from: {sources_to_collect}")
+            
+            # 创建数据目录
+            data_dir = os.path.join(self.blackboard_dir, "data")
+            os.makedirs(data_dir, exist_ok=True)
+            
+            # 执行数据采集
+            datasets = []
+            verification = {}
+            
+            for source_type in sources_to_collect:
+                sources = data_config.get(source_type, [])
+                if not sources:
+                    continue
+                
+                print(f"  [Data] Collecting {source_type} ({len(sources)} sources)...")
+                
+                for source in sources:
+                    source_name = source.get('name', 'unknown')
+                    search_query = source.get('search_query', '').replace('{{topic}}', self.topic)
+                    
+                    if not search_query:
+                        print(f"    ⚠️ No search query for {source_name}, skipping")
+                        continue
+                    
+                    # 执行搜索（带重试和超时）
+                    result = await self._search_with_retry(search_query, source_name, max_retries=3)
+                    
+                    if result and result.strip():
+                        # 保存搜索结果到文件
+                        filename = f"{source_type}_{source_name}.md"
+                        filepath = os.path.join(data_dir, filename)
+                        
+                        with open(filepath, 'w', encoding='utf-8') as f:
+                            f.write(f"# {source_name} - {source_type}\n\n")
+                            f.write(f"**Topic**: {self.topic}\n\n")
+                            f.write(f"**Search Query**: {search_query}\n\n")
+                            f.write(f"---\n\n")
+                            f.write(result)
+                        
+                        datasets.append(filename)
+                        verification[source_name] = True
+                        print(f"    ✅ {source_name}: saved to {filename}")
+                    else:
+                        verification[source_name] = False
+                        print(f"    ⚠️ {source_name}: no data collected")
+            
+            # 验证数据采集结果
+            final_verification = self._verify_data_collection(datasets, sources_to_collect)
+            
+            print(f"  ✅ Data collection complete: {len(datasets)} datasets")
+            
+            return {
+                "success": True,
+                "output": {
+                    "datasets": datasets,
+                    "count": len(datasets),
+                    "verification": final_verification
+                }
+            }
+            
+        except Exception as e:
+            print(f"  ⚠️ Data collection error: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def _search_with_retry(self, query: str, source_name: str, max_retries: int = 3) -> str:
+        """
+        执行搜索（带重试和超时）
+        
+        Args:
+            query: 搜索查询
+            source_name: 数据源名称
+            max_retries: 最大重试次数
+        
+        Returns:
+            搜索结果字符串，失败返回空字符串
+        """
+        import asyncio
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"    Searching {source_name} (attempt {attempt + 1}/{max_retries})...")
+                
+                # 使用 gemini CLI 进行搜索
+                # 注意：这里假设 gemini CLI 已配置并可用
+                proc = await asyncio.create_subprocess_exec(
+                    'gemini', '-p', query,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                try:
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+                except asyncio.TimeoutError:
+                    print(f"      ⚠️ Search timeout (60s)")
+                    proc.kill()
+                    await proc.communicate()
+                    continue
+                
+                if proc.returncode == 0:
+                    result = stdout.decode('utf-8').strip()
+                    if result:
+                        return result
+                else:
+                    error_msg = stderr.decode('utf-8').strip() if stderr else "Unknown error"
+                    print(f"      ⚠️ Search failed: {error_msg}")
+                
+            except asyncio.TimeoutError:
+                print(f"      ⚠️ Search timeout (60s)")
+            except FileNotFoundError:
+                print(f"      ⚠️ gemini CLI not found, using fallback")
+                # Fallback: 使用模型内部知识
+                return await self._fallback_search(query, source_name)
+            except Exception as e:
+                print(f"      ⚠️ Search error: {e}")
+            
+            # 指数退避等待
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # 2s, 4s, 8s
+                print(f"      Waiting {wait_time}s before retry...")
+                await asyncio.sleep(wait_time)
+        
+        # 所有重试都失败，使用 fallback
+        print(f"      ⚠️ All retries failed, using fallback")
+        return await self._fallback_search(query, source_name)
+    
+    async def _fallback_search(self, query: str, source_name: str) -> str:
+        """
+        Fallback 搜索：使用模型内部知识
+        
+        Args:
+            query: 搜索查询
+            source_name: 数据源名称
+        
+        Returns:
+            基于模型知识的回答（标记为 unverified）
+        """
+        try:
+            prompt = f"""请基于你的知识库，提供关于以下主题的信息（来源：{source_name}）：
+
+搜索查询：{query}
+
+请以简洁的要点形式提供相关信息。如果缺乏具体信息，请说明。
+
+注意：这是基于模型内部知识的回答，标记为 'unverified'。"""
+            
+            result = await self.models.call(prompt, timeout=30)
+            
+            if result.get("success"):
+                content = result.get("result", "")
+                return f"⚠️ UNVERIFIED (based on model knowledge)\n\n{content}"
+            else:
+                return ""
+                
+        except Exception as e:
+            print(f"      ⚠️ Fallback search failed: {e}")
+            return ""
+    
+    def _verify_data_collection(self, datasets: List[str], expected_sources: List[str]) -> Dict[str, bool]:
+        """
+        Step 3.5: 验证数据采集完整性
+        
+        Args:
+            datasets: 采集到的数据集列表
+            expected_sources: 期望的数据源类型列表
+        
+        Returns:
+            验证结果字典
+        """
+        verification = {
+            "tech_docs": False,
+            "industry_reports": False,
+            "competitor_data": False
+        }
+        
+        # 检查是否采集到了对应类型的数据
+        for dataset in datasets:
+            if 'tech_documentation' in dataset:
+                verification['tech_docs'] = True
+            elif 'industry_reports' in dataset:
+                verification['industry_reports'] = True
+            elif 'competitor_analysis' in dataset:
+                verification['competitor_data'] = True
+        
+        # 根据 mode 检查最低要求
+        min_datasets = 1  # 至少 1 个数据集
+        if self.mode == 'standard':
+            min_datasets = 2
+        elif self.mode == 'rigorous':
+            min_datasets = 3
+        
+        if len(datasets) < min_datasets:
+            print(f"  ⚠️ Data collection incomplete: got {len(datasets)}, expected at least {min_datasets}")
+        
+        return verification
+    
     def _apply_quality_gate(self, stage_output: Dict[str, Any], stage_name: str) -> Dict[str, Any]:
         """
         P0-FIX: 应用质量门禁
