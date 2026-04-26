@@ -90,7 +90,7 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
                          expert_id: str = "expert_1", 
                          angle: str = "综合分析",
                          reason: str = "需要深入分析该领域") -> str:
-    """构建 Researcher Task（修复 P0-001, P0-002）
+    """构建 Researcher Task（修复 P0-001, P0-002, P2-001）
     
     Args:
         expert: 专家名称
@@ -103,10 +103,12 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
     """
     prompt = read_original_prompt("researcher_template.md")
     
-    # 替换模板占位符
+    # 替换模板占位符（修复 P2-001：替换所有占位符）
     prompt = prompt.replace("{{ expert.angle }}", angle)
     prompt = prompt.replace("{{ expert.reason }}", reason)
     prompt = prompt.replace("{{ topic }}", topic)
+    prompt = prompt.replace("{{ solution_type }}", context.get("type", "architecture"))
+    prompt = prompt.replace("{{ mode }}", context.get("mode", "standard"))
     
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
     
@@ -165,7 +167,7 @@ def build_designer_task(session_id: str, topic: str, context: dict) -> str:
 
 
 def build_auditor_task(session_id: str, topic: str, context: dict) -> str:
-    """构建 Auditor Task"""
+    """构建 Auditor Task（修复 P2-002: 统一使用 0-100 分制）"""
     prompt = read_original_prompt("auditor.md")
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
     
@@ -178,8 +180,14 @@ def build_auditor_task(session_id: str, topic: str, context: dict) -> str:
 
 ## 输出要求
 1. 输出审计报告到 blackboard/{session_id}/stages/audit.json
-2. 包含: issues（P0/P1/P2分级）, score（0-100）, recommendations
+2. 包含: issues（P0/P1/P2分级）, score（0-100分）, recommendations
 3. 检查: 完整性、可行性、一致性、创新性
+4. 评分标准:
+   - 基础分: 100分
+   - 每个 P0 问题: -30分
+   - 每个 P1 问题: -15分
+   - 每个 P2 问题: -5分
+   - 最低分: 0分
 """
     return prompt + "\n" + ctx
 
@@ -205,7 +213,7 @@ def build_fixer_task(session_id: str, topic: str, context: dict) -> str:
 
 
 def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str) -> str:
-    """构建 Fixer Task，从 audit.json 读取问题清单（P0 Fix）"""
+    """构建 Fixer Task，从 audit.json 读取问题清单（P0 Fix + P3-002 fallback）"""
     return f"""你是 Solution 修复 Agent。
 
 ## 任务
@@ -218,9 +226,13 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str) ->
 {audit_path}
 
 ## 执行步骤
-1. 读取审计报告 {audit_path}
-2. 提取所有 P0/P1/P2 级别问题
-3. 为每个问题制定修复方案
+1. 尝试读取审计报告 {audit_path}
+2. 如果文件不存在或无法读取：
+   - 输出警告："Audit report not found, using default fixes"
+   - 基于常见最佳实践生成通用修复建议
+3. 如果读取成功：
+   - 提取所有 P0/P1/P2 级别问题
+   - 为每个问题制定修复方案
 4. 按优先级排序修复项
 5. 输出修复方案到 blackboard/{session_id}/stages/fix.json
 
@@ -235,19 +247,56 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str) ->
       "priority": "P0"
     }}
   ],
-  "verification_plan": "验证计划"
+  "verification_plan": "验证计划",
+  "notes": "备注信息（如使用了默认修复）"
 }}
 ```
 
-## 注意
-- 如果审计报告不存在，输出错误信息
+## Fallback 机制（P3-002）
+- 如果 audit.json 不存在，使用以下默认修复：
+  1. 检查设计文档完整性
+  2. 验证约束条件是否满足
+  3. 确认技术选型合理性
+- 在 notes 中标注使用了 fallback 修复
 - 每个修复必须有明确的验证方法
 """
 
 
 def build_deliver_task(session_id: str, topic: str, context: dict) -> str:
-    """构建 Deliver Task（修复 P1-002: 使用 designer.md 而非 architect.md）"""
-    prompt = read_original_prompt("designer.md")  # 使用 designer.md 替代 architect.md
+    """构建 Deliver Task（修复 P1-002, P2-003: 使用专门交付模板，与 design 区分）"""
+    # 使用专门的交付提示，而非 designer.md
+    prompt = """# Solution Deliver Agent Prompt
+# 角色：交付专家
+# 目标：整合所有研究成果，产出最终交付文档
+
+## 角色定义
+你是 DeepFlow 解决方案设计系统的交付专家。你的任务是将所有研究成果、架构设计、审计修复整合成一份专业、完整的解决方案交付文档。
+
+## 核心职责
+- 整合前期所有阶段输出（planning, research, design, audit, fix）
+- 确保文档结构完整、逻辑清晰
+- 统一术语和格式
+- 生成可直接交付的 Markdown 文档
+
+## 输出标准
+### 必须包含的章节
+1. 执行摘要（1页以内）
+2. 项目背景与目标
+3. 需求分析总结
+4. 解决方案概述
+5. 详细架构设计
+6. 技术选型与理由
+7. 实施路线图
+8. 风险评估与缓解
+9. 附录（参考资料、术语表）
+
+### 格式要求
+- 使用 Markdown 格式
+- 包含目录导航
+- 关键决策标注理由
+- 图表使用 Mermaid 语法
+"""
+    
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
     
     ctx = f"""

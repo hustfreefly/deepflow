@@ -1,0 +1,55 @@
+# Fix P2 + P3 Issues Contract
+# 版本: 2026-04-26-v3
+# 目标: 修复剩余的 P2/P3 问题
+
+task: "fix_p2_p3_issues"
+domain: solution
+
+# =============================================================================
+# P2 Issues
+# =============================================================================
+p2_issues:
+  - id: "P2-001"
+    name: "Research prompt 占位符未替换"
+    location: "task_builder.py:build_researcher_task"
+    problem: "prompt 中仍有 {{ solution_type }} / {{ mode }} 未替换"
+    fix: "在 build_researcher_task 中替换所有占位符"
+    
+  - id: "P2-002"
+    name: "Audit score 范围不一致"
+    location: "prompts/solution/auditor.md"
+    problem: "输出要求写 0-100，计算公式为 0-1"
+    fix: "统一使用 0-100 分制"
+    
+  - id: "P2-003"
+    name: "Deliver 与 Design prompt 区分度不足"
+    location: "task_builder.py:build_deliver_task vs build_designer_task"
+    problem: "两者都使用 designer.md，输出结构相似"
+    fix: "deliver 使用专门的交付模板，强调整合和格式"
+
+# =============================================================================
+# P3 Issues
+# =============================================================================
+p3_issues:
+  - id: "P3-001"
+    name: "缺少成本/运维专家"
+    location: "orchestrator_agent.py:research 阶段"
+    problem: "standard 模式只有 3 个专家，缺少成本视角"
+    fix: "增加 expert_4 成本优化专家（optional）"
+    
+  - id: "P3-002"
+    name: "Fix 阶段无 audit.json 缺失 fallback"
+    location: "task_builder.py:build_fixer_task_with_audit"
+    problem: "如果 audit.json 不存在，Fixer 无法工作"
+    fix: "在 task 中增加 fallback 说明"
+
+# =============================================================================
+# 验证要求
+# =============================================================================
+validation:
+  - "research prompt 无 {{ solution_type }} / {{ mode }} 占位符"
+  - "audit task 使用 0-100 分制"
+  - "deliver task 与 design task 有明显区分"
+  - "fixer task 包含 audit.json 缺失 fallback"
+  - "validate_refactor.py 仍然通过"
+  - "可以本地 exec 运行验证"

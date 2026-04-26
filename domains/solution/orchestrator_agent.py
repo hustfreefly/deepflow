@@ -80,7 +80,7 @@ class SolutionOrchestratorV2:
                     self.constraints, self.stakeholders
                 )
             elif stage == "research":
-                # 动态生成 researcher tasks（修复 P0-001, P0-002）
+                # 动态生成 researcher tasks（修复 P0-001, P0-002, P3-001）
                 experts = [
                     {
                         "id": "expert_1",
@@ -99,10 +99,20 @@ class SolutionOrchestratorV2:
                         "name": "风险评估专家",
                         "angle": "系统风险识别与容错设计",
                         "reason": "99.99%可用性要求需要识别单点故障、级联故障、数据一致性等风险"
+                    },
+                    {
+                        "id": "expert_4",
+                        "name": "成本优化专家",
+                        "angle": "云资源成本优化与运维效率",
+                        "reason": "高并发系统需要平衡性能与成本，优化基础设施投入",
+                        "optional": True
                     }
                 ]
                 tasks[stage] = {}
                 for expert in experts:
+                    # P3-001: expert_4 为可选，仅在 rigorous 模式下启用
+                    if expert.get("optional") and self.mode != "rigorous":
+                        continue
                     tasks[stage][expert["id"]] = build_researcher_task(
                         expert["name"], self.session_id, self.topic,
                         {"type": self.solution_type, "constraints": self.constraints},
