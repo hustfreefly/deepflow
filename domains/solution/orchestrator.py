@@ -560,9 +560,21 @@ class SolutionOrchestrator(BaseOrchestrator):
     async def _run_worker(self, worker: WorkerConfig, stage_name: str) -> Dict[str, Any]:
         """
         运行单个 Worker（带并发控制）
+        Step 2.3: 支持动态 researcher 的 expert_config 传递
         """
         async with self.semaphore:
-            prompt = self._build_worker_prompt(worker.role, stage_name)
+            # Step 2.3: 如果是 researcher_ 开头的角色，提取 expert_config
+            expert_config = None
+            if stage_name == "research" and worker.role.startswith("researcher_"):
+                expert_name = worker.role.replace("researcher_", "")
+                # 从 planning 输出中查找对应的 expert
+                required_experts = self._extract_required_experts()
+                for expert in required_experts:
+                    if expert.get('name') == expert_name:
+                        expert_config = expert
+                        break
+            
+            prompt = self._build_worker_prompt(worker.role, stage_name, expert_config)
             
             try:
                 result = await self.models.call(prompt, timeout=worker.timeout)
@@ -570,14 +582,30 @@ class SolutionOrchestrator(BaseOrchestrator):
             except Exception as e:
                 return {"success": False, "error": str(e)}
     
-    def _build_worker_prompt(self, role: str, stage_name: str) -> str:
+    def _build_worker_prompt(self, role: str, stage_name: str, expert_config: Dict[str, Any] = None) -> str:
         """
         构建 Worker Prompt
         P1-001: 使用缓存的 prompt 模板，避免重复 I/O
+        
+        Args:
+            role: Worker 角色名（如 'planner', 'architect'）
+            stage_name: 当前阶段名称
+            expert_config: 动态专家配置（用于 researcher 模板渲染），包含 name/angle/reason
         """
         # P1-001: 从缓存获取 prompt（自动处理 role 前缀）
         role_key = role.replace('solution_', '')
-        role_prompt = self._get_cached_prompt(role_key)
+        
+        # Step 2.3: 如果是 researcher 且有 expert_config，使用 researcher_template.md
+        if stage_name == "research" and expert_config:
+            template_content = self._get_cached_prompt("researcher_template")
+            if not template_content:
+                print(f"⚠️ No researcher_template found, falling back to {role_key}")
+                role_prompt = self._get_cached_prompt(role_key)
+            else:
+                # 使用 Jinja2 风格模板渲染
+                role_prompt = self._render_researcher_template(template_content, expert_config)
+        else:
+            role_prompt = self._get_cached_prompt(role_key)
         
         if not role_prompt:
             print(f"⚠️ No prompt found for role: {role_key}")
@@ -620,6 +648,107 @@ class SolutionOrchestrator(BaseOrchestrator):
 """
         
         return full_prompt
+    
+    def _render_researcher_template(self, template: str, expert_config: Dict[str, Any]) -> str:
+        """
+        Step 2.3: 渲染 researcher 模板（Jinja2 风格）
+        
+        Args:
+            template: 模板字符串
+            expert_config: 专家配置，包含 name/angle/reason
+        
+        Returns:
+            渲染后的 prompt 字符串
+        """
+        try:
+            # 简单的 Jinja2 风格替换（不依赖 jinja2 库）
+            replacements = {
+                '{{ expert.name }}': expert_config.get('name', 'unknown'),
+                '{{ expert.angle }}': expert_config.get('angle', '未知角度'),
+                '{{ expert.reason }}': expert_config.get('reason', '未知原因'),
+                '{{ topic }}': self.topic,
+                '{{ solution_type }}': self.solution_type,
+                '{{ mode }}': self.mode,
+            }
+            
+            rendered = template
+            for placeholder, value in replacements.items():
+                rendered = rendered.replace(placeholder, str(value))
+            
+            return rendered
+        except Exception as e:
+            print(f"⚠️ Template rendering failed: {e}")
+            return template
+    
+    def _extract_required_experts(self) -> List[Dict[str, str]]:
+        """
+        Step 2.3: 从 planning 阶段输出中提取 required_experts
+        
+        Returns:
+            required_experts 列表，每个元素包含 name/angle/reason
+        """
+        if "planning" not in self.context.stage_outputs:
+            print(f"  ⚠️ No planning output found")
+            return []
+        
+        planning_output = self.context.stage_outputs["planning"]
+        
+        # 尝试从不同格式中提取
+        required_experts = None
+        
+        if isinstance(planning_output, dict):
+            # 直接是字典格式
+            if "required_experts" in planning_output:
+                required_experts = planning_output["required_experts"]
+            elif "output" in planning_output and isinstance(planning_output["output"], dict):
+                if "required_experts" in planning_output["output"]:
+                    required_experts = planning_output["output"]["required_experts"]
+        elif isinstance(planning_output, str):
+            # 尝试解析 JSON 字符串
+            try:
+                parsed = json.loads(planning_output)
+                if isinstance(parsed, dict) and "required_experts" in parsed:
+                    required_experts = parsed["required_experts"]
+            except json.JSONDecodeError:
+                pass
+        
+        if not required_experts:
+            print(f"  ⚠️ No required_experts found in planning output")
+            return []
+        
+        # 验证格式
+        valid_experts = []
+        for expert in required_experts:
+            if isinstance(expert, dict) and all(k in expert for k in ['name', 'angle', 'reason']):
+                valid_experts.append(expert)
+            else:
+                print(f"  ⚠️ Invalid expert format: {expert}")
+        
+        print(f"  ✅ Extracted {len(valid_experts)} experts from planner")
+        return valid_experts
+    
+    def _generate_dynamic_researchers(self, required_experts: List[Dict[str, str]]) -> List:
+        """
+        Step 2.3: 根据 required_experts 动态生成 WorkerConfig 列表
+        
+        Args:
+            required_experts: 专家列表，每个元素包含 name/angle/reason
+        
+        Returns:
+            WorkerConfig 列表
+        """
+        from orchestrator_base import WorkerConfig
+        
+        workers = []
+        for expert in required_experts:
+            worker = WorkerConfig(
+                role=f"researcher_{expert['name']}",
+                timeout=180,  # 默认 3 分钟
+                model=None,  # 使用默认模型
+            )
+            workers.append(worker)
+        
+        return workers
     
     def _extract_score(self, result: Any) -> float:
         """
@@ -789,6 +918,7 @@ class SolutionOrchestrator(BaseOrchestrator):
     async def run(self) -> Dict[str, Any]:
         """
         P0-FIX: 覆盖 BaseOrchestrator.run()，添加 Blackboard、QualityGate、渐进交付
+        Step 2.3: 支持动态 Researcher 生成
         """
         try:
             self.state = PipelineState.RUNNING
@@ -805,6 +935,16 @@ class SolutionOrchestrator(BaseOrchestrator):
                 print(f"STAGE {stage_idx + 1}/{len(self.domain_config.pipeline)}: {stage.name}")
                 print(f"Type: {stage.stage_type}")
                 print(f"{'='*60}")
+                
+                # Step 2.3: 如果是 research 阶段，检查是否需要动态生成 workers
+                if stage.name == "research":
+                    required_experts = self._extract_required_experts()
+                    if required_experts:
+                        print(f"  [Dynamic] Generating {len(required_experts)} researchers from planner output")
+                        stage.workers = self._generate_dynamic_researchers(required_experts)
+                        print(f"  [Dynamic] Generated workers: {[w.role for w in stage.workers]}")
+                    else:
+                        print(f"  ⚠️ No required_experts found, using default workers")
                 
                 # 执行阶段
                 result = await self._execute_stage(stage)

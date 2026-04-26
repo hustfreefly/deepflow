@@ -1,0 +1,207 @@
+# Dynamic Agent Generation Contract - Solution Domain
+# 版本: 2026-04-26-v1
+# 目标: 定义动态 Agent 生成的契约
+
+task: "solution_dynamic_agent_generation"
+domain: solution
+
+# =============================================================================
+# L1: 接口契约
+# =============================================================================
+interface:
+  input:
+    schema:
+      type: object
+      required: [topic, type]
+      properties:
+        topic:
+          type: string
+          description: "设计主题，如 '高并发电商订单系统'"
+        type:
+          type: string
+          enum: [architecture, business, technical]
+        mode:
+          type: string
+          enum: [quick, standard, rigorous]
+          default: standard
+
+  output:
+    schema:
+      type: object
+      required: [required_experts, audit_strategy]
+      properties:
+        required_experts:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              angle: { type: string }
+              reason: { type: string }
+        audit_strategy:
+          type: string
+          enum: [skip, standard, strict]
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+behavior:
+  planner_enhancement:
+    description: "Planner 阶段输出 required_experts 和 audit_strategy"
+    rules:
+      - "Planner 必须分析 topic，识别关键技术/业务领域"
+      - "根据识别结果，动态生成 3-6 个研究专家"
+      - "每个专家必须有明确的 name、angle、reason"
+      - "audit_strategy 由 topic 复杂度决定"
+
+  expert_generation:
+    description: "根据 Planner 输出动态生成 Researcher"
+    template: |
+      # {{ expert.name }} - {{ expert.angle }}
+      
+      ## 研究角度
+      {{ expert.angle }}
+      
+      ## 研究理由
+      {{ expert.reason }}
+      
+      ## 任务
+      针对以下主题，从 {{ expert.angle }} 角度进行深入研究：
+      
+      **主题**: {{ topic }}
+      **类型**: {{ solution_type }}
+      
+      ## 输出要求
+      - 结构化 Markdown 输出
+      - 关键发现必须有明确依据
+      - 使用中文
+
+  dynamic_researcher_count:
+    description: "根据 mode 和 topic 复杂度确定 researcher 数量"
+    rules:
+      - "quick 模式: 0 个 researcher（跳过 research 阶段）"
+      - "standard 模式: 3-4 个 researcher"
+      - "rigorous 模式: 5-6 个 researcher"
+
+  audit_strategy_mapping:
+    description: "audit 策略映射"
+    mapping:
+      skip: "quick 模式，跳过 audit"
+      standard: "feasibility + risk 审计"
+      strict: "feasibility + risk + completeness + security 审计"
+
+# =============================================================================
+# L3: 边界契约
+# =============================================================================
+boundaries:
+  input:
+    - "topic 为空 → 抛出 ValueError"
+    - "type 不在枚举中 → 抛出 ValueError"
+    
+  execution:
+    - "researcher 数量不得超过 6（OpenClaw 限制）"
+    - "动态生成的 prompt 必须有效（非空字符串）"
+    - "Plannner 输出必须包含 required_experts 字段"
+    
+  output:
+    - "每个 expert 必须有 name、angle、reason 三个字段"
+    - "expert name 必须是有效的文件名（无特殊字符）"
+    - "audit_strategy 必须是 skip/standard/strict 之一"
+
+# =============================================================================
+# L4: 依赖契约
+# =============================================================================
+dependencies:
+  - module: "domains/solution.yaml"
+    required: true
+    description: "必须包含 mode 配置（Step 1 已完成）"
+    
+  - module: "domains/solution/orchestrator.py"
+    required: true
+    description: "必须实现动态 researcher 生成逻辑"
+    
+  - module: "prompts/solution/researcher_template.md"
+    required: true
+    description: "Researcher prompt 模板"
+
+# =============================================================================
+# L5: 质量契约
+# =============================================================================
+quality:
+  checks:
+    - name: "expert_coverage"
+      description: "生成的 expert 是否覆盖 topic 的关键维度"
+      criteria: 
+        - "至少覆盖技术/业务/成本三个维度中的两个"
+        - "高并发 topic 必须包含性能专家"
+        - "安全相关 topic 必须包含安全专家"
+        
+    - name: "prompt_validity"
+      description: "动态生成的 prompt 是否有效"
+      criteria:
+        - "prompt 非空"
+        - "prompt 包含 task 描述"
+        - "prompt 包含输出要求"
+
+# =============================================================================
+# L6: 验证契约
+# =============================================================================
+validation:
+  commands:
+    - "python3 cage/validate_solution.py"
+    
+  criteria:
+    - "Plannner 输出包含 required_experts"
+    - "standard 模式生成 3-4 个 researcher"
+    - "rigorous 模式生成 5-6 个 researcher"
+    - "每个 expert 有 name/angle/reason"
+    - "67/67 契约检查通过"
+
+# =============================================================================
+# 修复任务清单
+# =============================================================================
+fix_tasks:
+  - id: "DYNAMIC-001"
+    name: "优化 Planner Prompt"
+    description: |
+      修改 prompts/solution/planner.md：
+      - 增加 "识别关键技术/业务领域" 的要求
+      - 增加 "输出 required_experts 列表" 的要求
+      - 增加 "输出 audit_strategy" 的要求
+      
+      输出格式示例：
+      ```json
+      {
+        "solution_type": "architecture",
+        "required_experts": [
+          {"name": "performance_expert", "angle": "性能优化", "reason": "topic涉及高并发"},
+          {"name": "security_expert", "angle": "安全设计", "reason": "涉及支付系统"}
+        ],
+        "audit_strategy": "strict"
+      }
+      ```
+    
+  - id: "DYNAMIC-002"
+    name: "创建 Researcher 模板"
+    description: |
+      创建 prompts/solution/researcher_template.md：
+      - 使用 Jinja2 风格模板
+      - 支持动态注入 expert.name、expert.angle、expert.reason
+      - 包含通用研究任务描述
+    
+  - id: "DYNAMIC-003"
+    name: "修改 Orchestrator 支持动态 Researcher"
+    description: |
+      在 SolutionOrchestrator 中：
+      1. 修改 _build_worker_prompt()，支持 researcher 模板渲染
+      2. 修改 _execute_parallel_workers()，根据 Planner 输出动态生成 worker 配置
+      3. 在 run() 中，planning 阶段后解析 required_experts，动态生成 research 阶段的 workers
+    
+  - id: "DYNAMIC-004"
+    name: "运行验证"
+    description: |
+      1. 运行 cage/validate_solution.py → 67/67 通过
+      2. 测试三种 topic 类型的 expert 生成：
+         - 高并发架构 → 应包含性能专家
+         - 支付系统 → 应包含安全专家
+         - 业务方案 → 应包含成本专家
