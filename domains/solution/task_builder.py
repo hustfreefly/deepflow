@@ -87,16 +87,24 @@ def build_planner_task(session_id: str, topic: str, solution_type: str,
 - 约束: {constraints_text}
 - 干系人: {stakeholders_text}
 
-## 输出要求
-1. **必须使用 `write` 工具** 将结果写入以下路径：
-   - 文件路径：`{_DEEPFLOW_BASE}/blackboard/{session_id}/stages/planning.json`
-   - 格式：JSON
-2. 写入后必须使用 `read` 工具验证文件存在
-3. 在最终回复中确认：✅ 文件已成功写入 {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/planning.json
-
-## 失败处理
-- 如果 write 工具报错，立即报告错误
-- 如果文件写入后 read 验证失败，重试最多 3 次
+## 输出要求（中心化写入模式）
+1. **不要直接写入文件**，将规划结果以 JSON 格式返回
+2. 返回格式必须包含以下字段：
+   ```json
+   {
+     "status": "completed",
+     "stage": "planning",
+     "data": {
+       "goals": [...],
+       "constraints": [...],
+       "stakeholders": [...],
+       "timeline": {...},
+       "milestones": [...]
+     }
+   }
+   ```
+3. 确保返回的 JSON 完整且可解析
+4. 在最终回复中确认：✅ 规划结果已生成
 """
     return prompt + "\n" + context
 

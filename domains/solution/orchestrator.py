@@ -734,7 +734,8 @@ class SolutionOrchestrator(BaseOrchestrator):
     
     async def _execute_single_worker(self, stage: StageConfig) -> Dict[str, Any]:
         """
-        执行单 Worker 阶段
+        执行单 Worker 阶段（中心化写入模式）
+        子 Agent 返回数据，主 Agent 写入 Blackboard
         """
         worker = stage.workers[0] if stage.workers else None
         if not worker:
@@ -751,9 +752,15 @@ class SolutionOrchestrator(BaseOrchestrator):
             
             if result["success"]:
                 print(f"  ✅ {worker.role} completed")
+                
+                # 中心化写入：将子 Agent 返回的数据写入 Blackboard
+                output_data = result["result"]
+                self._save_to_blackboard(stage.name, output_data)
+                print(f"  💾 Saved {stage.name} to Blackboard (centralized)")
+                
                 return {
                     "success": True,
-                    "output": result["result"],
+                    "output": output_data,
                     "model_used": result["model_used"]
                 }
             else:

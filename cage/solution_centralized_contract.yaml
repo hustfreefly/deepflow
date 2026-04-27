@@ -1,0 +1,64 @@
+# Solution 中心化写入方案（方案C）契约
+# 版本: 2026-04-27-v1
+# 目标: 将子 Agent 的文件写入改为数据返回，由主 Agent 统一写入
+
+contract:
+  name: "Solution Centralized Write Contract"
+  version: "2026-04-27-v1"
+  
+  problem_statement: |
+    当前 Solution 模块的问题：
+    - 子 Agent 工作目录: ~/.openclaw/workspace/
+    - 期望工作目录: ~/.openclaw/workspace/.deepflow/
+    - 子 Agent 使用 write 工具写入绝对路径时，实际写入位置与预期不符
+    
+    方案C解决方案：
+    - 子 Agent 不再直接写入文件
+    - 子 Agent 将结果以 JSON 格式返回
+    - 主 Agent Orchestrator 统一调用 _save_to_blackboard() 写入文件
+    
+  phases:
+    - name: "phase1_pilot"
+      description: "阶段1：试点验证"
+      target: "domains/solution/task_builder.py 中的 build_planner_task"
+      changes:
+        - "修改 task 指令：从'写入文件'变为'返回JSON'"
+        - "修改 orchestrator.py：捕获子 Agent 返回值并写入 Blackboard"
+      validation:
+        - "运行一次完整的 planning 阶段"
+        - "验证文件正确写入 .deepflow/blackboard/{session}/stages/planning.json"
+        - "验证子 Agent 不直接调用 write 工具"
+      
+    - name: "phase2_contract_upgrade"
+      description: "阶段2：升级契约"
+      target: "新建 cage/task_builder_v2_contract.yaml"
+      changes:
+        - "定义新的 task 输出规范（JSON Schema）"
+        - "定义 orchestrator 与 task_builder 的新接口契约"
+        - "保持与现有 PathConfig 契约兼容"
+      validation:
+        - "契约文件通过 schema 验证"
+        - "新旧模式切换开关可用"
+        
+    - name: "phase3_migration"
+      description: "阶段3：全面迁移"
+      target: "所有 build_*_task 函数"
+      changes:
+        - "迁移 data_collection, planning, research, design, audit, fix, deliver"
+        - "删除 task 中的文件写入指令"
+        - "orchestrator 统一处理所有返回值"
+      validation:
+        - "端到端测试通过"
+        - "所有 7 个阶段都能正常写入 Blackboard"
+        - "无子 Agent 直接文件写入"
+
+  compatibility:
+    - "与现有 PathConfig 契约正交，不冲突"
+    - "PathConfig 仍用于主 Agent 的文件路径生成"
+    - "子 Agent 行为契约从'写入'变为'返回'"
+    
+  rollback_plan: |
+    如果方案C失败，回滚到现有模式：
+    1. 设置环境变量 SOLUTION_CENTRALIZED_WRITE=false
+    2. 恢复 task_builder.py 的写入指令
+    3. 恢复 orchestrator.py 的文件监控逻辑
