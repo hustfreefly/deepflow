@@ -1,0 +1,73 @@
+# PathConfig 契约笼子
+# 版本: 2026-04-27-v1
+# 目标: 创建 core/config/path_config.py，实现路径配置管理
+
+contract:
+  name: "PathConfig Implementation"
+  version: "2026-04-27-v1"
+  target_file: "core/config/path_config.py"
+  
+  requirements:
+    # P0-1: 模块级常量
+    - id: "P0-1"
+      description: "使用模块级常量 _MODULE_DIR 避免 __file__ 在类方法中不可用"
+      validation: "grep '_MODULE_DIR = Path(__file__).resolve()' core/config/path_config.py"
+      
+    # P0-D: 兼容性函数
+    - id: "P0-D"
+      description: "提取 _is_relative_to() 函数处理 Python 版本兼容性"
+      validation: "grep 'def _is_relative_to' core/config/path_config.py"
+      
+    # P0-5: 路径遍历防护
+    - id: "P0-5"
+      description: "get_blackboard_path 使用 _is_relative_to 验证路径"
+      validation: "grep '_is_relative_to(resolved_path, self.blackboard_dir.resolve())' core/config/path_config.py"
+      
+    # P0-6: 符号链接防护
+    - id: "P0-6"
+      description: "检查符号链接"
+      validation: "grep 'is_symlink()' core/config/path_config.py"
+      
+    # P0-7: 权限隔离
+    - id: "P0-7"
+      description: "ensure_directories 设置 0o700 权限"
+      validation: "grep 'os.chmod(dir_path, 0o700)' core/config/path_config.py"
+      
+    # P1-4: session_id 长度限制
+    - id: "P1-4"
+      description: "MAX_SESSION_ID_LENGTH = 255"
+      validation: "grep 'MAX_SESSION_ID_LENGTH = 255' core/config/path_config.py"
+      
+    # P1-5: 环境变量验证增强
+    - id: "P1-5"
+      description: "_validate_env_path 检查路径存在性和可写性"
+      validation: "grep 'os.access(path, os.W_OK)' core/config/path_config.py"
+      
+    # 类结构
+    - id: "CLASS"
+      description: "PathConfig 类存在"
+      validation: "grep 'class PathConfig' core/config/path_config.py"
+      
+    # resolve 方法
+    - id: "RESOLVE"
+      description: "PathConfig.resolve() 类方法存在"
+      validation: "grep 'def resolve' core/config/path_config.py"
+      
+    # ensure_directories 方法
+    - id: "ENSURE"
+      description: "ensure_directories 方法存在"
+      validation: "grep 'def ensure_directories' core/config/path_config.py"
+
+  test_requirements:
+    - id: "TEST-1"
+      description: "test_resolve_from_env 测试存在"
+      validation: "grep 'def test_resolve_from_env' tests/test_path_config.py"
+      
+    - id: "TEST-2"
+      description: "test_path_traversal_protection 测试存在"
+      validation: "grep 'def test_path_traversal' tests/test_path_config.py"
+
+  success_criteria:
+    - "core/config/path_config.py 文件存在且语法正确"
+    - "python3 -c 'from core.config.path_config import PathConfig; print(\"OK\")' 成功"
+    - "pytest tests/test_path_config.py -v 全部通过"
