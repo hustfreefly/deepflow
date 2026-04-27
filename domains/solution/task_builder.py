@@ -10,12 +10,16 @@ Solution Task Builder V2.0
 import os
 import json
 
-DEEPFLOW_BASE = "/Users/allen/.openclaw/workspace/.deepflow"
+from core.config.path_config import PathConfig
+
+# 从 PathConfig 获取基础目录（支持环境变量覆盖）
+_DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
+
 
 
 def read_original_prompt(prompt_file: str) -> str:
     """读取原始提示词文件"""
-    prompt_path = os.path.join(DEEPFLOW_BASE, "prompts", "solution", prompt_file)
+    prompt_path = os.path.join(_DEEPFLOW_BASE, "prompts", "solution", prompt_file)
     try:
         with open(prompt_path, 'r', encoding='utf-8') as f:
             return f.read()
@@ -44,7 +48,7 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list) -
 1. 使用 web_fetch 访问上述种子 URL 获取最新信息
 2. 收集行业报告和案例分析
 3. 整理竞品信息
-4. 将结果写入 /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/data/
+4. 将结果写入 {_DEEPFLOW_BASE}/blackboard/{session_id}/data/
 
 ## 输出格式（JSON）
 ```json
@@ -58,10 +62,10 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list) -
 
 ## 执行要求（必须遵守）
 1. **必须使用 `write` 工具** 将结果写入以下路径：
-   - 文件路径：`/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/data/research_data.json`
+   - 文件路径：`{_DEEPFLOW_BASE}/blackboard/{session_id}/data/research_data.json`
    - 格式：JSON
 2. 写入后必须使用 `read` 工具验证文件存在
-3. 在最终回复中确认：✅ 文件已成功写入 /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/data/research_data.json
+3. 在最终回复中确认：✅ 文件已成功写入 {_DEEPFLOW_BASE}/blackboard/{session_id}/data/research_data.json
 
 ## 失败处理
 - 如果 write 工具报错，立即报告错误，不要返回虚假成功
@@ -85,10 +89,10 @@ def build_planner_task(session_id: str, topic: str, solution_type: str,
 
 ## 输出要求
 1. **必须使用 `write` 工具** 将结果写入以下路径：
-   - 文件路径：`/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/planning.json`
+   - 文件路径：`{_DEEPFLOW_BASE}/blackboard/{session_id}/stages/planning.json`
    - 格式：JSON
 2. 写入后必须使用 `read` 工具验证文件存在
-3. 在最终回复中确认：✅ 文件已成功写入 /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/planning.json
+3. 在最终回复中确认：✅ 文件已成功写入 {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/planning.json
 
 ## 失败处理
 - 如果 write 工具报错，立即报告错误
@@ -141,10 +145,10 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
 
 ## 输出要求
 1. **必须使用 `write` 工具** 将结果写入以下路径：
-   - 文件路径：`/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/research_{expert_id}.json`
+   - 文件路径：`{_DEEPFLOW_BASE}/blackboard/{session_id}/stages/research_{expert_id}.json`
    - 格式：JSON
 2. 写入后必须使用 `read` 工具验证文件存在
-3. 在最终回复中确认：✅ 文件已成功写入 /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/research_{expert_id}.json
+3. 在最终回复中确认：✅ 文件已成功写入 {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/research_{expert_id}.json
 
 ## 失败处理
 - 如果 write 工具报错，立即报告错误
@@ -166,19 +170,19 @@ def build_designer_task(session_id: str, topic: str, context: dict) -> str:
 {context_json}
 
 ## 前置输入（必须读取）
-1. 规划阶段: /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/planning.json
+1. 规划阶段: {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/planning.json
 2. 研究结果: 
-   - /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/research_expert_1.json
-   - /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/research_expert_2.json
-   - /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/research_expert_3.json
-3. 数据收集: /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/data/
+   - {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/research_expert_1.json
+   - {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/research_expert_2.json
+   - {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/research_expert_3.json
+3. 数据收集: {_DEEPFLOW_BASE}/blackboard/{session_id}/data/
 
 ## 输出要求
 1. **必须使用 `write` 工具** 将结果写入以下路径：
-   - 文件路径：`/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/design.md`
+   - 文件路径：`{_DEEPFLOW_BASE}/blackboard/{session_id}/stages/design.md`
    - 格式：Markdown
 2. 写入后必须使用 `read` 工具验证文件存在
-3. 在最终回复中确认：✅ 文件已成功写入 /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/design.md
+3. 在最终回复中确认：✅ 文件已成功写入 {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/design.md
 
 ## 失败处理
 - 如果 write 工具报错，立即报告错误
@@ -201,7 +205,7 @@ def build_auditor_task(session_id: str, topic: str, context: dict) -> str:
 
 ## 输出要求
 1. **必须使用 `write` 工具** 将结果写入以下路径：
-   - 文件路径：`/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/audit.json`
+   - 文件路径：`{_DEEPFLOW_BASE}/blackboard/{session_id}/stages/audit.json`
    - 格式：JSON
 2. 包含: issues（P0/P1/P2分级）, score（0-100分）, recommendations
 3. 检查: 完整性、可行性、一致性、创新性
@@ -212,7 +216,7 @@ def build_auditor_task(session_id: str, topic: str, context: dict) -> str:
    - 每个 P2 问题: -5分
    - 最低分: 0分
 5. 写入后必须使用 `read` 工具验证文件存在
-6. 在最终回复中确认：✅ 文件已成功写入 /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/audit.json
+6. 在最终回复中确认：✅ 文件已成功写入 {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/audit.json
 
 ## 失败处理
 - 如果 write 工具报错，立即报告错误
@@ -234,7 +238,7 @@ def build_fixer_task(session_id: str, topic: str, context: dict) -> str:
 {context_json}
 
 ## 输出要求
-1. 输出修复方案到 /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/fix.json
+1. 输出修复方案到 {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/fix.json
 2. 包含: fixes（按优先级排序）, verification_plan
 3. 确保每个问题都有对应修复
 """
@@ -264,10 +268,10 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str) ->
    - 为每个问题制定修复方案
 4. 按优先级排序修复项
 5. **必须使用 `write` 工具** 将修复方案写入以下路径：
-   - 文件路径：`/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/fix.json`
+   - 文件路径：`{_DEEPFLOW_BASE}/blackboard/{session_id}/stages/fix.json`
    - 格式：JSON
 6. 写入后必须使用 `read` 工具验证文件存在
-7. 在最终回复中确认：✅ 文件已成功写入 /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/fix.json
+7. 在最终回复中确认：✅ 文件已成功写入 {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/fix.json
 
 ## 输出格式
 ```json
@@ -344,19 +348,19 @@ def build_deliver_task(session_id: str, topic: str, context: dict) -> str:
 {context_json}
 
 ## 前置输入（必须读取）
-1. 设计方案: /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/design.md
-2. 审计报告: /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/audit.json
-3. 修复记录: /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/fix.json
+1. 设计方案: {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/design.md
+2. 审计报告: {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/audit.json
+3. 修复记录: {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/fix.json
 
 ## 输出要求
 1. **必须使用 `write` 工具** 将结果写入以下路径：
-   - 文件路径：`/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/deliver.md`
+   - 文件路径：`{_DEEPFLOW_BASE}/blackboard/{session_id}/stages/deliver.md`
    - 格式：Markdown
 2. 包含: executive_summary, solution_overview, technical_spec, implementation_plan, risk_assessment
 3. 格式清晰，适合直接交付
 4. 整合审计修复结果，标注变更点
 5. 写入后必须使用 `read` 工具验证文件存在
-6. 在最终回复中确认：✅ 文件已成功写入 /Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/deliver.md
+6. 在最终回复中确认：✅ 文件已成功写入 {_DEEPFLOW_BASE}/blackboard/{session_id}/stages/deliver.md
 
 ## 失败处理
 - 如果 write 工具报错，立即报告错误
