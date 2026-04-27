@@ -8,7 +8,9 @@ import importlib
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
+from core.config.path_config import PathConfig
+
+sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
 from core.cage_loader import CageLoader
 from core.cage_validator import CageValidator

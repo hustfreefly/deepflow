@@ -11,7 +11,9 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
+from core.config.path_config import PathConfig
+
+sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
 
 # ============================================================================
@@ -150,7 +152,7 @@ class CageLoader:
     """
     
     def __init__(self, cage_dir: str = None):
-        self.cage_dir = Path(cage_dir or "/Users/allen/.openclaw/workspace/.deepflow/cage")
+        self.cage_dir = Path(cage_dir or PathConfig.resolve().base_dir / "cage")
         self._cache: Dict[str, Any] = {}
     
     def load_domain_contract(self, domain: str) -> Optional[DomainContract]:

@@ -17,7 +17,7 @@ import json
 import uuid
 import time
 
-DEEPFLOW_BASE = "/Users/allen/.openclaw/workspace/.deepflow"
+DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 sys.path.insert(0, DEEPFLOW_BASE)
 
 from core.task_builder import (

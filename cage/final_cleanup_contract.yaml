@@ -1,0 +1,38 @@
+# 第六批：最终清理契约
+# 版本: 2026-04-27-v1
+# 目标: 清理临时文件，验证项目无硬编码路径
+
+contract:
+  name: "Final Cleanup Contract"
+  version: "2026-04-27-v1"
+  
+  requirements:
+    - id: "NO_TEMP_SCRIPTS"
+      description: "删除 cage/refactor_*.py 临时脚本"
+      validation: "ls cage/refactor_*.py 2>/dev/null | wc -l | grep '^0$'"
+      
+    - id: "NO_HARDCODE_CORE"
+      description: "core/ 无硬编码路径"
+      validation: "grep -r '/Users/allen/' core/ --include='*.py' | wc -l | grep '^0$'"
+      
+    - id: "NO_HARDCODE_DOMAINS"
+      description: "domains/ 无硬编码路径"
+      validation: "grep -r '/Users/allen/' domains/ --include='*.py' | wc -l | grep '^0$'"
+      
+    - id: "NO_HARDCODE_TESTS"
+      description: "tests/ 无硬编码路径"
+      validation: "grep -r '/Users/allen/' tests/ --include='*.py' | grep -v __pycache__ | wc -l | grep '^0$'"
+      
+    - id: "PATHCONFIG_USAGE"
+      description: "核心模块使用 PathConfig"
+      validation: "grep -l 'from core.config.path_config import PathConfig' core/orchestrator_base.py domains/solution/task_builder.py"
+      
+    - id: "CAGE_FILES_COMPLETE"
+      description: "所有契约笼子文件存在"
+      validation: "ls cage/path_config_contract.yaml cage/task_builder_contract.yaml cage/orchestrator_base_contract.yaml cage/investment_domain_contract.yaml cage/test_scripts_contract.yaml"
+
+  success_criteria:
+    - "无临时 refactor 脚本"
+    - "core/ domains/ tests/ 无硬编码路径"
+    - "所有核心模块使用 PathConfig"
+    - "契约笼子文件完整"

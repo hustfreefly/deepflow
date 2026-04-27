@@ -20,7 +20,7 @@ from typing import Dict, Any, List, Optional
 
 
 # DeepFlow 基础路径
-DEEPFLOW_BASE = "/Users/allen/.openclaw/workspace/.deepflow"
+DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 
 
 # ==================== 模块级辅助函数 ====================

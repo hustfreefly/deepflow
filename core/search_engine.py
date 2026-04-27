@@ -25,7 +25,7 @@ from typing import Dict, List, Optional, Any
 logger = logging.getLogger("search_engine")
 
 # DeepFlow 基础路径
-DEEPFLOW_BASE = "/Users/allen/.openclaw/workspace/.deepflow"
+DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 
 
 class SearchEngine:

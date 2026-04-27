@@ -25,7 +25,7 @@ import argparse
 from datetime import datetime
 
 # DeepFlow 基础路径
-DEEPFLOW_BASE = "/Users/allen/.openclaw/workspace/.deepflow"
+DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 sys.path.insert(0, DEEPFLOW_BASE)
 
 from core.task_builder import (

@@ -6,7 +6,9 @@ import sys
 import yaml
 import json
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
+from core.config.path_config import PathConfig
+
+sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
 def check_contract():
     """
@@ -16,7 +18,7 @@ def check_contract():
     warnings = []
     
     # 1. 检查领域配置文件
-    config_path = '/Users/allen/.openclaw/workspace/.deepflow/domains/solution.yaml'
+    config_path = str(PathConfig.resolve().base_dir / "domains/solution.yaml")
     if not os.path.exists(config_path):
         errors.append("P0: solution.yaml 不存在")
         return {"pass": False, "errors": errors, "warnings": warnings}
@@ -49,7 +51,7 @@ def check_contract():
                 errors.append(f"P0: 缺少必需阶段 '{stage}'")
     
     # 5. 验证 prompts 文件
-    prompt_dir = '/Users/allen/.openclaw/workspace/.deepflow/prompts/solution/'
+    prompt_dir = str(PathConfig.resolve().base_dir / "prompts/solution/")
     required_prompts = ['planner.md', 'researcher.md', 'architect.md', 
                        'auditor.md', 'fixer.md', 'designer.md']
     for prompt in required_prompts:

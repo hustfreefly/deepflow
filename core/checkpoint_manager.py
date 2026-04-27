@@ -13,7 +13,9 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
+from core.config.path_config import PathConfig
+
+sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
 
 # ============================================================================
@@ -75,7 +77,7 @@ class CheckpointManager:
         Args:
             base_dir: 检查点根目录，默认为 .deepflow/checkpoints/
         """
-        self.base_dir = Path(base_dir or "/Users/allen/.openclaw/workspace/.deepflow/checkpoints")
+        self.base_dir = Path(base_dir or PathConfig.resolve().base_dir / "checkpoints")
         self.base_dir.mkdir(parents=True, exist_ok=True)
     
     def _get_session_dir(self, session_id: str) -> Path:
@@ -315,7 +317,7 @@ def create_checkpoint_from_orchestrator(orchestrator, stage: str) -> dict:
         "current_iteration": orchestrator.context.current_iteration,
         "scores": orchestrator.context.scores,
         "stage_outputs": orchestrator.context.stage_outputs,
-        "blackboard_path": f"/Users/allen/.openclaw/workspace/.deepflow/blackboard/{orchestrator.session_id}/",
+        "blackboard_path": fstr(PathConfig.resolve().base_dir / "blackboard/{orchestrator.session_id}/"),
         "state": orchestrator.state.name if hasattr(orchestrator, 'state') else "UNKNOWN"
     }
 

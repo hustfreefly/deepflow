@@ -12,7 +12,9 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
+from core.config.path_config import PathConfig
+
+sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
 
 # ============================================================================
@@ -165,7 +167,7 @@ class CageValidator:
     """
     
     def __init__(self, cage_dir: str = None):
-        self.cage_dir = Path(cage_dir or "/Users/allen/.openclaw/workspace/.deepflow/cage")
+        self.cage_dir = Path(cage_dir or PathConfig.resolve().base_dir / "cage")
         self.schema_validator = SimpleSchemaValidator()
     
     def validate_domain_contract(self, path: str) -> ValidationResult:

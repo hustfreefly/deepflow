@@ -22,7 +22,7 @@ import subprocess
 from typing import Dict, Any, Optional
 
 # DeepFlow 基础路径
-DEEPFLOW_BASE = "/Users/allen/.openclaw/workspace/.deepflow"
+DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 
 # 验证路径存在（防止在独立container环境中失败）
 if not os.path.exists(DEEPFLOW_BASE):

@@ -17,7 +17,9 @@ from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
+from core.config.path_config import PathConfig
+
+sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
 from core.cage_loader import CageLoader
 
@@ -85,8 +87,8 @@ class CageCheckpointManager:
     """
     
     def __init__(self, cage_dir: str = None, base_dir: str = None):
-        self.cage_dir = Path(cage_dir or "/Users/allen/.openclaw/workspace/.deepflow/cage")
-        self.base_dir = Path(base_dir or "/Users/allen/.openclaw/workspace/.deepflow/blackboard")
+        self.cage_dir = Path(cage_dir or PathConfig.resolve().base_dir / "cage")
+        self.base_dir = Path(base_dir or PathConfig.resolve().blackboard_dir)
         self.loader = CageLoader(cage_dir)
     
     def _get_checkpoint_dir(self, session_id: str) -> Path:
