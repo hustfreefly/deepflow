@@ -13,12 +13,17 @@ import asyncio
 import copy
 import yaml
 from pathlib import Path
+
+from core.config.path_config import PathConfig
+
+# 从 PathConfig 获取基础目录（支持环境变量覆盖）
+_DEEPFLOW_BASE = PathConfig.resolve().base_dir
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, Any, List, Tuple, TypeVar, Generic
 from enum import Enum, auto
 from abc import ABC, abstractmethod
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
+sys.path.insert(0, str(_DEEPFLOW_BASE))
 
 
 # ============================================================================
@@ -189,8 +194,8 @@ class PromptLoader:
     
     def __init__(self, domain: str, base_path: Optional[str] = None):
         self.domain = domain
-        self.base_path = Path(base_path or f"/Users/allen/.openclaw/workspace/.deepflow/prompts/{domain}")
-        self.default_path = Path("/Users/allen/.openclaw/workspace/.deepflow/core/defaults")
+        self.base_path = Path(base_path or PathConfig.resolve().prompts_dir / domain)
+        self.default_path = PathConfig.resolve().defaults_dir
         
         # 内置兜底 Prompt（极简版）
         self.default_prompts = self._load_default_prompts()
@@ -458,7 +463,7 @@ class BaseOrchestrator(ABC):
         self.user_context = user_context
         
         # 加载领域配置
-        config_path = f"/Users/allen/.openclaw/workspace/.deepflow/domains/{domain}.yaml"
+        config_path = str(PathConfig.resolve().domains_dir / f"{domain}.yaml")
         self.domain_config = DomainConfig.load(config_path)
         
         # 生成 session_id

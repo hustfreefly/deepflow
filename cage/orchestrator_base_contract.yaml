@@ -1,0 +1,39 @@
+# Orchestrator Base 路径替换契约
+# 版本: 2026-04-27-v1
+# 目标: 将 core/orchestrator_base.py 中的硬编码路径替换为 PathConfig
+
+contract:
+  name: "Orchestrator Base Path Replacement"
+  version: "2026-04-27-v1"
+  target_file: "core/orchestrator_base.py"
+  
+  requirements:
+    - id: "IMPORT"
+      description: "导入 PathConfig"
+      validation: "grep 'from core.config.path_config import PathConfig' core/orchestrator_base.py"
+      
+    - id: "NO_HARDCODE"
+      description: "无硬编码用户路径"
+      validation: "grep -c '/Users/allen/' core/orchestrator_base.py | grep '^0$'"
+      
+    - id: "SYSPATH"
+      description: "sys.path 使用 PathConfig"
+      validation: "grep 'sys.path.insert.*PathConfig' core/orchestrator_base.py"
+      
+    - id: "PROMPT_LOADER"
+      description: "PromptLoader 使用 PathConfig"
+      validation: "grep 'base_path or PathConfig' core/orchestrator_base.py"
+      
+    - id: "DOMAIN_CONFIG"
+      description: "DomainConfig 加载使用 PathConfig"
+      validation: "grep 'PathConfig.resolve' core/orchestrator_base.py"
+
+  test_requirements:
+    - id: "TEST_IMPORT"
+      description: "可以导入基类"
+      validation: "python3 -c 'from core.orchestrator_base import BaseOrchestrator; print(\"OK\")'"
+
+  success_criteria:
+    - "core/orchestrator_base.py 无 /Users/allen/ 硬编码路径"
+    - "所有路径通过 PathConfig 生成"
+    - "导入测试通过"
