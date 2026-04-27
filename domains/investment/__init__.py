@@ -17,7 +17,10 @@
 """
 
 import sys
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
+from core.config.path_config import PathConfig
+
+_DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
+sys.path.insert(0, _DEEPFLOW_BASE)
 
 from core.config_loader import ConfigLoader
 from core.data_manager import (
@@ -292,7 +295,7 @@ class InvestmentOrchestrator:
                 verification: {index: bool, financials: bool, market: bool}
             }
         """
-        config_path = "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+        config_path = os.path.join(_DEEPFLOW_BASE, "data_sources", "investment.yaml")
         
         # 1. 创建 ConfigDrivenCollector
         collector = ConfigDrivenCollector(config_path=config_path)
@@ -978,7 +981,7 @@ output = {{
     "confidence_overall": 0.85
 }}
 
-output_path = "/Users/allen/.openclaw/workspace/.deepflow/blackboard/{{self.session_id}}/stages/summarizer_output.json"
+output_path = f"{_DEEPFLOW_BASE}/blackboard/{self.session_id}/stages/summarizer_output.json"
 os.makedirs(os.path.dirname(output_path), exist_ok=True)
 with open(output_path, "w") as f:
     json.dump(output, f, ensure_ascii=False, indent=2)
@@ -1014,7 +1017,7 @@ with open(output_path, "w") as f:
         blackboard_data_path = str(self.blackboard.session_dir / "data")
         
         # R4 Fix: 明确的输出路径
-        output_path = f"/Users/allen/.openclaw/workspace/.deepflow/blackboard/{self.session_id}/stages/{role}_output.json"
+        output_path = f"{_DEEPFLOW_BASE}/blackboard/{self.session_id}/stages/{role}_output.json"
         
         task = f"""你是投资分析 {role} Agent。
 
@@ -1234,7 +1237,7 @@ print(f"Output written to {{output_path}}")
     
     def _read_prompt(self, prompt_file: str) -> str:
         """读取 prompt 文件"""
-        base_path = "/Users/allen/.openclaw/workspace/.deepflow/prompts"
+        base_path = os.path.join(_DEEPFLOW_BASE, "prompts")
         full_path = os.path.join(base_path, prompt_file)
         
         if os.path.exists(full_path):
@@ -1256,7 +1259,7 @@ print(f"Output written to {{output_path}}")
         print(f"  [DataManager] Attempting non-tushare data collection...")
         
         # 重新初始化 collector，排除 tushare 任务
-        config_path = "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+        config_path = os.path.join(_DEEPFLOW_BASE, "data_sources", "investment.yaml")
         collector = ConfigDrivenCollector(config_path=config_path)
         
         # 过滤掉 tushare 相关的 bootstrap 任务

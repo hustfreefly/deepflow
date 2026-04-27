@@ -11,8 +11,11 @@ import re
 from pathlib import Path
 from typing import Dict, Any, List
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/core/')
+from core.config.path_config import PathConfig
+
+_DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
+sys.path.insert(0, _DEEPFLOW_BASE)
+sys.path.insert(0, os.path.join(_DEEPFLOW_BASE, 'core'))
 
 from orchestrator_base import (
     BaseOrchestrator, DomainConfig, StageConfig, ExecutionContext,
@@ -92,7 +95,7 @@ class InvestmentOrchestrator(BaseOrchestrator):
             register_providers()
             
             # 初始化组件
-            config_path = stage.config or "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+            config_path = stage.config or os.path.join(_DEEPFLOW_BASE, "data_sources", "investment.yaml")
             collector = ConfigDrivenCollector(config_path)
             blackboard = BlackboardManager(self.session_id)
             data_loop = DataEvolutionLoop(collector, blackboard)
@@ -129,7 +132,7 @@ class InvestmentOrchestrator(BaseOrchestrator):
     
     def _verify_data_collection(self) -> Dict[str, bool]:
         """验证数据文件是否存在"""
-        base_path = Path(f"/Users/allen/.openclaw/workspace/.deepflow/blackboard/{self.session_id}/data")
+        base_path = PathConfig.resolve().get_blackboard_path(self.session_id) / "data"
         checks = {
             "index": (base_path / "INDEX.json").exists(),
             "financials": (base_path / "01_financials/key_metrics.json").exists(),

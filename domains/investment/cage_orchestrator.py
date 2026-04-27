@@ -18,7 +18,10 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
+from core.config.path_config import PathConfig
+
+_DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
+sys.path.insert(0, _DEEPFLOW_BASE)
 
 # 导入openclaw（必须在 Agent Run 环境中运行）
 from openclaw import sessions_spawn
@@ -435,7 +438,7 @@ class CageOrchestrator:
         
         # 使用 DataEvolutionLoop 进行数据采集
         print("\n[Stage 0] Data Collection...")
-        config_path = "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+        config_path = os.path.join(_DEEPFLOW_BASE, "data_sources", "investment.yaml")
         collector = ConfigDrivenCollector(config_path)
         data_loop = DataEvolutionLoop(collector, blackboard)
         
