@@ -8,6 +8,10 @@ import sys
 import asyncio
 from pathlib import Path
 
+from core.config.path_config import PathConfig
+
+_DEEPFLOW_BASE = PathConfig.resolve().base_dir
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from coordinator import Coordinator, AgentResult
@@ -21,7 +25,7 @@ async def diagnose_with_details():
     
     # 清理旧 session
     import shutil
-    bb_dir = Path("/Users/allen/.openclaw/workspace/.v3/blackboard/diagnose-detail-001")
+    bb_dir = _DEEPFLOW_BASE / "blackboard" / "diagnose-detail-001"
     if bb_dir.exists():
         shutil.rmtree(bb_dir)
     

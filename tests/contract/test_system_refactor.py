@@ -1,3 +1,5 @@
+from core.config.path_config import PathConfig
+
 #!/usr/bin/env python3
 """
 系统重构验证测试脚本
@@ -10,7 +12,7 @@ import sys
 import subprocess
 from pathlib import Path
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
+sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
 
 def test_no_mock_code():
@@ -25,7 +27,7 @@ def test_no_mock_code():
     patterns = ['asyncio.sleep', 'simulated', 'mock_output']
     
     for filepath in files_to_check:
-        full_path = f'/Users/allen/.openclaw/workspace/.deepflow/{filepath}'
+        full_path = fstr(PathConfig.resolve().base_dir / "{filepath}")
         if not os.path.exists(full_path):
             print(f"  ❌ 文件不存在: {filepath}")
             return False
@@ -61,7 +63,7 @@ def test_all_prompts_exist():
         'investment_financial.md'
     ]
     
-    prompts_dir = '/Users/allen/.openclaw/workspace/.deepflow/prompts/'
+    prompts_dir = str(PathConfig.resolve().prompts_dir)
     missing = []
     
     for filename in required_files:
@@ -81,7 +83,7 @@ def test_pipeline_engine_uses_sessions_spawn():
     """测试3: PipelineEngine使用sessions_spawn"""
     print("\n🔍 测试3: 检查PipelineEngine使用sessions_spawn...")
     
-    filepath = '/Users/allen/.openclaw/workspace/.deepflow/pipeline_engine.py'
+    filepath = str(PathConfig.resolve().base_dir / "pipeline_engine.py")
     with open(filepath, 'r') as f:
         content = f.read()
     
@@ -98,7 +100,7 @@ def test_convergence_check_exists():
     """测试4: 收敛检测≥2轮"""
     print("\n🔍 测试4: 检查收敛检测...")
     
-    filepath = '/Users/allen/.openclaw/workspace/.deepflow/pipeline_engine.py'
+    filepath = str(PathConfig.resolve().base_dir / "pipeline_engine.py")
     with open(filepath, 'r') as f:
         content = f.read()
     
@@ -120,7 +122,7 @@ def test_unified_entry_calls_pipeline_engine():
     """测试5: unified_entry调用PipelineEngine"""
     print("\n🔍 测试5: 检查unified_entry调用PipelineEngine...")
     
-    yaml_path = '/Users/allen/.openclaw/workspace/.deepflow/cage/unified_entry.yaml'
+    yaml_path = str(PathConfig.resolve().base_dir / "cage/unified_entry.yaml")
     with open(yaml_path, 'r') as f:
         content = f.read()
     
@@ -156,7 +158,7 @@ def test_prompt_structure():
         'investment_auditor.md'
     ]
     
-    prompts_dir = '/Users/allen/.openclaw/workspace/.deepflow/prompts/'
+    prompts_dir = str(PathConfig.resolve().prompts_dir)
     
     for filename in sample_files:
         filepath = os.path.join(prompts_dir, filename)

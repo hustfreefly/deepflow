@@ -1,3 +1,5 @@
+from core.config.path_config import PathConfig
+
 #!/usr/bin/env python3
 """
 DeepFlow 生产部署前端到端体检
@@ -9,7 +11,7 @@ import asyncio
 import json
 import sys
 import time
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
+sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
 from coordinator import Coordinator, AgentResult
 from blackboard_manager import BlackboardManager

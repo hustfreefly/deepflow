@@ -1,3 +1,5 @@
+from core.config.path_config import PathConfig
+
 #!/usr/bin/env python3
 """
 端到端测试脚本 - Coordinator Mode D
@@ -5,7 +7,7 @@
 
 import asyncio
 import sys
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
+sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
 print('='*60)
 print('🚀 端到端测试：Coordinator Mode D (ConfigLoader 修复后)')

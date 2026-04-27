@@ -1,0 +1,32 @@
+# 测试脚本路径替换契约
+# 版本: 2026-04-27-v1
+# 目标: 替换 tests/ 下所有 Python 文件的硬编码路径
+
+contract:
+  name: "Test Scripts Path Replacement"
+  version: "2026-04-27-v1"
+  target_dirs:
+    - "tests/unit/"
+    - "tests/integration/"
+    - "tests/contract/"
+    - "tests/cage/"
+  
+  requirements:
+    - id: "NO_HARDCODE_UNIT"
+      description: "tests/unit/ 无硬编码路径"
+      validation: "grep -r '/Users/allen/' tests/unit/ | wc -l | grep '^0$'"
+      
+    - id: "NO_HARDCODE_INTEGRATION"
+      description: "tests/integration/ 无硬编码路径"
+      validation: "grep -r '/Users/allen/' tests/integration/ | wc -l | grep '^0$'"
+      
+    - id: "NO_HARDCODE_CONTRACT"
+      description: "tests/contract/ 无硬编码路径"
+      validation: "grep -r '/Users/allen/' tests/contract/ | wc -l | grep '^0$'"
+      
+    - id: "NO_HARDCODE_CAGE"
+      description: "tests/cage/ 无硬编码路径"
+      validation: "grep -r '/Users/allen/' tests/cage/ | wc -l | grep '^0$'"
+
+  success_criteria:
+    - "tests/ 目录下所有 Python 文件无 /Users/allen/ 硬编码路径"

@@ -1,3 +1,5 @@
+from core.config.path_config import PathConfig
+
 #!/usr/bin/env python3
 """
 测试领域契约验证器
@@ -7,7 +9,7 @@ import sys
 import os
 import unittest
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
+sys.path.insert(0, str(PathConfig.resolve().base_dir))
 from core.cage_validator import CageValidator, ValidationResult
 
 
@@ -16,7 +18,7 @@ class TestDomainContract(unittest.TestCase):
     
     def setUp(self):
         self.validator = CageValidator()
-        self.contract_path = "/Users/allen/.openclaw/workspace/.deepflow/cage/domain_investment.yaml"
+        self.contract_path = str(PathConfig.resolve().base_dir / "cage" / "domain_investment.yaml")
     
     def test_validate_valid_domain_contract(self):
         """测试有效的领域契约"""

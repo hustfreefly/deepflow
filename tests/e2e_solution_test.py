@@ -28,7 +28,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 # 添加项目根路径到 sys.path
-DEEPFLOW_HOME = '/Users/allen/.openclaw/workspace/.deepflow'
+DEEPFLOW_HOME = str(PathConfig.resolve().base_dir)
 sys.path.insert(0, DEEPFLOW_HOME)
 sys.path.insert(0, os.path.join(DEEPFLOW_HOME, 'core'))
 
