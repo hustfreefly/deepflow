@@ -1,0 +1,106 @@
+# Task Builder V2 契约（中心化写入模式）
+# 版本: 2026-04-27-v1
+# 目标: 定义所有 task 的新输出规范
+
+contract:
+  name: "Task Builder V2 Contract"
+  version: "2026-04-27-v1"
+  mode: "centralized"  # centralized | legacy
+  
+  output_schema:
+    description: "所有子 Agent 必须返回的统一 JSON 格式"
+    schema:
+      type: object
+      required: ["status", "stage", "data"]
+      properties:
+        status:
+          type: string
+          enum: ["completed", "failed", "partial"]
+          description: "任务执行状态"
+        stage:
+          type: string
+          enum: ["data_collection", "planning", "research", "design", "audit", "fix", "deliver"]
+          description: "当前阶段名称"
+        data:
+          type: object
+          description: "阶段特定数据（按阶段定义）"
+        metadata:
+          type: object
+          optional: true
+          properties:
+            model_used:
+              type: string
+            duration_seconds:
+              type: number
+            token_count:
+              type: number
+    
+  stage_specific_data:
+    data_collection:
+      required: ["tech_docs", "industry_reports", "competitor_analysis", "risks"]
+      description: "数据采集阶段输出"
+    
+    planning:
+      required: ["goals", "constraints", "stakeholders", "timeline", "milestones"]
+      description: "规划阶段输出"
+    
+    research:
+      required: ["expert_id", "angle", "findings", "conclusions"]
+      description: "研究阶段输出（每个专家）"
+    
+    design:
+      required: ["architecture", "components", "interfaces", "data_model"]
+      description: "设计阶段输出"
+    
+    audit:
+      required: ["issues", "score", "recommendations"]
+      description: "审计阶段输出"
+    
+    fix:
+      required: ["fixes", "verification_plan"]
+      description: "修复阶段输出"
+    
+    deliver:
+      required: ["executive_summary", "solution_overview", "technical_spec", "implementation_plan"]
+      description: "交付阶段输出"
+  
+  interface_contract:
+    description: "orchestrator.py 与 task_builder.py 的新接口"
+    
+    task_builder:
+      input: ["session_id", "topic", "stage_config"]
+      output: "task_string"  # 包含返回JSON指令的task
+      
+    orchestrator:
+      input: ["stage_name", "task_result"]
+      output: "saved_to_blackboard"
+      behavior: |
+        1. 接收子 Agent 返回的 JSON
+        2. 解析并验证 schema
+        3. 调用 _save_to_blackboard(stage_name, data)
+        4. 返回 {success: True, output: data}
+  
+  compatibility:
+    legacy_mode:
+      description: "兼容旧模式（子 Agent 直接写入）"
+      switch: "SOLUTION_CENTRALIZED_WRITE=false"
+      behavior: "使用原有 task_builder.py 的写入指令"
+    
+    centralized_mode:
+      description: "新模式（中心化写入）"
+      switch: "SOLUTION_CENTRALIZED_WRITE=true 或未设置"
+      behavior: "使用 task_builder_v2.py 的返回指令"
+  
+  migration_plan:
+    step1: "planner - 已完成试点"
+    step2: "data_collection - 待迁移"
+    step3: "research - 待迁移"
+    step4: "design - 待迁移"
+    step5: "audit - 待迁移"
+    step6: "fix - 待迁移"
+    step7: "deliver - 待迁移"
+    
+  validation:
+    unit_test: "测试每个 build_*_task 返回的 task 包含返回JSON指令"
+    integration_test: "测试 orchestrator._execute_single_worker 正确写入 Blackboard"
+    e2e_test: "完整 pipeline 运行，验证所有阶段文件正确生成"
