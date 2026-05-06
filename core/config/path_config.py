@@ -154,6 +154,7 @@ class PathConfig:
         self.blackboard_dir = self.base_dir / 'blackboard'
         self.config_dir = self.base_dir / 'config'
         self.prompts_dir = self.base_dir / 'prompts'
+        self.defaults_dir = self.base_dir / 'defaults'
         self.logs_dir = self.base_dir / 'logs'
         self.cache_dir = self._get_cache_dir()
     
@@ -229,8 +230,9 @@ class PathConfig:
     
     @staticmethod
     def _sanitize_session_id(session_id: str) -> str:
-        """清理 session_id，只允许安全字符"""
-        sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', session_id)
+        """清理 session_id，只允许安全字符（支持中文）"""
+        # P1-7 修复：允许 Unicode 字母和数字（包括中文），只禁止危险字符
+        sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f-\x9f]', '', session_id)
         if not sanitized:
             raise ValueError("session_id cannot be empty after sanitization")
         return sanitized

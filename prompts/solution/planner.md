@@ -158,3 +158,10 @@
 - 不得臆造用户未提及的需求
 - 对不确定的维度标记为 "needs_clarification"
 - 方案类型判定必须给出置信度评分
+
+## 输出要求（子Agent直接写入模式）
+1. 使用 **write** 工具将结果写入：
+   `{blackboard_path}/stages/planning.json`
+2. 写入前确保目录存在（必要时创建）
+3. 写入格式为JSON（见上方格式）
+4. 在最终回复中确认：✅ 结果已写入 `{blackboard_path}/stages/planning.json`

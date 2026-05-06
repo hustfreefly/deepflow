@@ -22,6 +22,7 @@ import subprocess
 from typing import Dict, Any, Optional
 
 # DeepFlow 基础路径
+from core.config.path_config import PathConfig
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 
 # 验证路径存在（防止在独立container环境中失败）
@@ -43,9 +44,11 @@ class DataManagerWorker:
         self.company_code = company_code
         self.company_name = company_name
         self.industry = industry
-        self.base_path = f"{DEEPFLOW_BASE}/blackboard/{session_id}"
-        self.data_path = f"{self.base_path}/data"
-        self.supplement_path = f"{self.data_path}/05_supplement"
+        from core.config.path_config import PathConfig
+        path_config = PathConfig.resolve()
+        self.base_path = path_config.get_blackboard_path(session_id)
+        self.data_path = self.base_path / "data"
+        self.supplement_path = self.data_path / "05_supplement"
         
         # 确保目录存在
         os.makedirs(self.data_path, exist_ok=True)
@@ -126,7 +129,8 @@ class DataManagerWorker:
             register_providers()
             
             # 初始化采集器
-            config_path = f"{DEEPFLOW_BASE}/data_sources/investment.yaml"
+            from core.config.path_config import PathConfig
+            config_path = PathConfig.resolve().base_dir / "data_sources" / "investment.yaml"
             collector = ConfigDrivenCollector(config_path)
             
             # 初始化 Blackboard
@@ -196,27 +200,30 @@ class DataManagerWorker:
             return None
     
     def unified_search(self, query: str, max_retries: int = 2) -> Dict[str, Any]:
-        """统一搜索接口（带重试）"""
-        for attempt in range(max_retries + 1):
-            # 1. Gemini CLI（首选）
-            result = self.gemini_search(query)
-            if result:
-                return {"source": "gemini", "data": result, "query": query, "attempt": attempt + 1}
+        """统一搜索接口（使用SearchEngine）"""
+        try:
+            from core.search_engine import SearchEngine
             
-            # 2. DuckDuckGo（fallback）
-            result = self.duckduckgo_search(query)
-            if result:
-                return {"source": "duckduckgo", "data": result, "query": query, "attempt": attempt + 1}
+            search = SearchEngine(domain="investment")
+            results = search.search(query, max_results=5)
             
-            # 3. 重试前等待
-            if attempt < max_retries:
-                wait_time = 2 ** attempt  # 指数退避: 1s, 2s
-                self.log(f"    搜索失败，{wait_time}s后重试 ({attempt + 1}/{max_retries})...")
-                time.sleep(wait_time)
-        
-        # 4. 全部失败
-        self.log(f"    ❌ 搜索完全失败（已重试{max_retries}次）: {query[:50]}...")
-        return {"source": "failed", "data": None, "query": query, "attempt": max_retries + 1}
+            if results:
+                # 返回第一个结果的内容作为data
+                first_result = results[0]
+                return {
+                    "source": first_result.get("source", "search_engine"),
+                    "data": first_result.get("content", ""),
+                    "query": query,
+                    "attempt": 1,
+                    "all_results": results  # 保留所有结果供后续使用
+                }
+            else:
+                self.log(f"    ⚠️ SearchEngine返回空结果: {query[:50]}...")
+                return {"source": "failed", "data": None, "query": query, "attempt": 1}
+                
+        except Exception as e:
+            self.log(f"    ❌ SearchEngine搜索失败: {e}")
+            return {"source": "failed", "data": None, "query": query, "attempt": 1}
     
     def run_supplement_search(self) -> Dict[str, Any]:
         """执行补充搜索"""
@@ -287,7 +294,7 @@ class DataManagerWorker:
             token = get_tushare_token()
             if not token:
                 self.log("  ⚠️ Tushare Token 未配置，跳过 Tushare 数据源")
-                return False
+                tushare_success = False  # 继续执行 fallback 逻辑
             ts.set_token(token)
             pro = ts.pro_api()
             
@@ -379,7 +386,8 @@ class DataManagerWorker:
         default_filled = False
         if not key_metrics.get("pe_ttm"):
             try:
-                default_path = f"{DEEPFLOW_BASE}/data/default_datasets.json"
+                from core.config.path_config import PathConfig
+                default_path = PathConfig.resolve().base_dir / "data" / "default_datasets.json"
                 if os.path.exists(default_path):
                     with open(default_path, 'r') as f:
                         defaults = json.load(f)

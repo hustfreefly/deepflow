@@ -29,6 +29,38 @@ ENV/
 *.log
 logs/
 
+# 临时文件（发布前清理）
+*.backup
+*.bak
+*.tmp
+*~
+
+# 临时测试文件
+test_*.py
+*_test.py
+
+# 临时验证报告
+*_test_report.md
+*_test_result.json
+*_report.json
+*_audit.json
+
+# cage 临时契约文件（保留正式契约）
+cage/*_contract.yaml
+cage/*_fix_*.md
+cage/*_test_*.py
+cage/*_preplay_*.md
+cage/*_plan*.md
+cage/*_summary*.md
+!cage/update_docs_contract.yaml
+!cage/release_cleanup_contract.yaml
+
+# 其他临时文件
+analysis_context.json
+tasks.json
+prompts_full_analysis.*
+prompts_inventory.*
+
 # 临时文件
 *.tmp
 *.bak

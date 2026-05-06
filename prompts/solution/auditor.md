@@ -184,3 +184,10 @@ score = max(0.0, min(1.0, score))
 - 每个问题必须给出具体位置和修复建议
 - 不得提出无法落地的建议
 - 区分"必须修复"和"建议优化"
+
+## 输出要求（子Agent直接写入模式）
+1. 使用 **write** 工具将结果写入：
+   `{blackboard_path}/stages/audit.json`
+2. 写入前确保目录存在（必要时创建）
+3. 写入格式为JSON（见上方格式）
+4. 在最终回复中确认：✅ 结果已写入 `{blackboard_path}/stages/audit.json`

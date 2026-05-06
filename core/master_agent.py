@@ -25,6 +25,7 @@ import argparse
 from datetime import datetime
 
 # DeepFlow 基础路径
+from core.config.path_config import PathConfig
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 sys.path.insert(0, DEEPFLOW_BASE)
 

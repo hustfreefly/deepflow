@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
 from core.config.path_config import PathConfig
+from core.entry_harness import EntryHarness
 
 sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
@@ -43,6 +44,11 @@ class UnifiedEntry:
         """注册所有支持领域"""
         # 硬编码领域注册（后续可从契约文件加载）
         return {
+            "solution": DomainRegistry(
+                module="domains.solution.orchestrator_agent",
+                class_name="SolutionOrchestratorV21",
+                required_context=["topic"]
+            ),
             "investment": DomainRegistry(
                 module="domains.investment",
                 class_name="InvestmentOrchestrator",
@@ -81,98 +87,101 @@ class UnifiedEntry:
         
         return True
     
-    def run(self, domain: str, **context) -> Dict[str, Any]:
+    def run(self, domain: str, spawn_fn=None, **context) -> Dict[str, Any]:
         """
-        统一运行入口
-        
+        统一运行入口（使用 EntryHarness）
+
         Args:
             domain: 领域标识
+            spawn_fn: 注入的 spawn 函数（主Agent提供）
             **context: 领域特定上下文
-            
+
         Returns:
             执行结果
         """
         # 1. 验证领域
         if domain not in self.domains:
             raise ValueError(f"Unknown domain: {domain}. Supported: {self.list_domains()}")
-        
+
         # 2. 验证上下文
         self.validate_context(domain, context)
-        
+
+        # 3. 使用 EntryHarness 启动管线
+        harness = EntryHarness()
+        orchestrator = harness.validate_and_start(domain, context, spawn_fn)
+
+        # 4. 执行管线
+        result = orchestrator.run_pipeline()
+
+        # 5. 添加元数据
+        result["domain"] = domain
+        result["entry_type"] = "unified"
+
+        return result
+    
+    def run_legacy(self, domain: str, spawn_fn=None, **context) -> Dict[str, Any]:
+        """
+        传统运行入口（向后兼容）
+
+        直接加载领域 Orchestrator 并运行，不使用 EntryHarness。
+        适用于需要精细控制的场景。
+
+        Args:
+            domain: 领域标识
+            spawn_fn: 注入的 spawn 函数
+            **context: 领域特定上下文
+
+        Returns:
+            执行结果
+        """
+        # 1. 验证领域
+        if domain not in self.domains:
+            raise ValueError(f"Unknown domain: {domain}. Supported: {self.list_domains()}")
+
+        # 2. 验证上下文
+        self.validate_context(domain, context)
+
         # 3. 动态加载领域 Orchestrator
         domain_info = self.domains[domain]
-        
+
         try:
             module = importlib.import_module(domain_info.module)
             OrchestratorClass = getattr(module, domain_info.class_name)
         except (ImportError, AttributeError) as e:
             raise RuntimeError(f"Failed to load orchestrator for domain '{domain}': {e}")
-        
-        # 4. 获取 sessions_spawn 函数（关键修复）
-        spawn_fn = self._get_spawn_fn()
-        
+
+        # 4. 验证 spawn_fn
         if spawn_fn is None:
             raise RuntimeError(
-                "sessions_spawn 不可用：必须在主Agent环境中运行。"
+                "spawn_fn 未注入：必须在主Agent环境中运行，"
+                "或通过 spawn_fn 参数注入 sessions_spawn 工具。"
             )
-        
+
         # 5. 创建实例并运行（注入 spawn_fn）
         orchestrator = OrchestratorClass(spawn_fn=spawn_fn)
         result = orchestrator.run(context)
-        
+
         # 6. 添加元数据
         result["domain"] = domain
-        result["entry_type"] = "unified"
-        
+        result["entry_type"] = "unified_legacy"
+
         return result
-    
-    def _get_spawn_fn(self):
-        """
-        获取 sessions_spawn 函数
-        
-        优先级：
-        1. 全局命名空间中的 sessions_spawn（主Agent工具调用）
-        2. openclaw 模块中的 sessions_spawn（SDK）
-        3. None（不可用）
-        """
-        import sys
-        import inspect
-        
-        # 优先级 1：尝试从全局命名空间获取（主Agent环境）
-        if 'sessions_spawn' in globals():
-            return globals()['sessions_spawn']
-        
-        # 优先级 2：尝试从调用者作用域获取
-        frame = inspect.currentframe()
-        while frame:
-            if 'sessions_spawn' in frame.f_globals:
-                return frame.f_globals['sessions_spawn']
-            frame = frame.f_back
-        
-        # 优先级 3：尝试 import openclaw
-        try:
-            from openclaw import sessions_spawn
-            return sessions_spawn
-        except ImportError:
-            pass
-        
-        return None
 
 
 # ============================================================================
 # 便捷函数
 # ============================================================================
 
-def run(domain: str, **context) -> Dict[str, Any]:
-    """便捷函数：快速运行指定领域"""
+def run(domain: str, spawn_fn=None, **context) -> Dict[str, Any]:
+    """便捷函数：快速运行指定领域（使用 EntryHarness）"""
     entry = UnifiedEntry()
-    return entry.run(domain, **context)
+    return entry.run(domain, spawn_fn=spawn_fn, **context)
 
 
-def list_domains() -> list:
-    """便捷函数：列出支持的领域"""
+def run_legacy(domain: str, spawn_fn=None, **context) -> Dict[str, Any]:
+    """便捷函数：使用传统方式运行指定领域"""
     entry = UnifiedEntry()
-    return entry.list_domains()
+    return entry.run_legacy(domain, spawn_fn=spawn_fn, **context)
 
 
 if __name__ == "__main__":
