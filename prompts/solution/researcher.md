@@ -76,3 +76,18 @@
 - 不得推荐未经证实的新技术（<1年生产使用）
 - 必须考虑现有系统的迁移成本
 - 对不确定的信息标注置信度
+
+## 输出要求（子Agent直接写入模式）
+1. 使用 **write** 工具将结果写入：
+   `{blackboard_path}/stages/research_{expert_name}.json`
+2. 写入前确保目录存在（必要时创建）
+3. 写入格式为JSON，包含以下字段：
+   ```json
+   {
+     "status": "completed",
+     "stage": "research",
+     "expert_name": "{expert_name}",
+     "data": {...}
+   }
+   ```
+4. 在最终回复中确认：✅ 结果已写入 `{blackboard_path}/stages/research_{expert_name}.json`

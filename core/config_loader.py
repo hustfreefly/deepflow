@@ -19,6 +19,9 @@ import yaml
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+# P0-FIX: 导入 PathConfig
+from core.config.path_config import PathConfig
+
 # DeepFlow 基础路径
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 

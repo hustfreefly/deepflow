@@ -1,35 +1,42 @@
-#!/usr/bin/env python3
 """
-DeepFlow V2.0 - Solution Designer Domain Package
+Solution Pro - 纯Prompt驱动的11阶段方案设计管线
+
+使用方式（主Agent执行）:
+    from domains.solution import SolutionOrchestratorV2
+    
+    # 方式1: 使用静态异步方法（推荐）
+    result = await SolutionOrchestratorV2.run(
+        topic="设计一个支持百万日订单的电商订单系统",
+        solution_type="architecture",
+        mode="standard",
+        constraints=["日均百万订单", "99.99%可用性"],
+        stakeholders=["技术团队", "产品团队", "运维团队"]
+    )
+    
+    # 方式2: 手动初始化（主Agent直接spawn Workers执行11阶段管线）
+    orch = SolutionOrchestratorV2(
+        topic="...",
+        solution_type="architecture",
+        constraints=[...],
+        stakeholders=[...]
+    )
+    session_id = orch.init()
+    tasks = orch.get_all_tasks()
+    
+    # 然后主Agent使用 sessions_spawn 触发11阶段管线
+    sessions_spawn(
+        runtime="subagent",
+        mode="run",
+        task=f"执行Solution Pro 11阶段管线，Session: {session_id}",
+        timeout_seconds=3600
+    )
 """
 
+from .config import SolutionConfig
+from .blackboard import BlackboardManager
+from .orchestrator_agent import SolutionOrchestratorV21
 
-# 🚨 最高级教训：exec 环境禁止 import openclaw（2026-04-26）
-# 本模块 V2.0 已重构为纯调度架构，不再直接调用 openclaw
-# 如需 spawn Workers，请使用 domains/solution/orchestrator_agent.py
-# 或参考 Investment V4.0 架构 (core/orchestrator_agent.py)
+# 向后兼容：V2指向V21
+SolutionOrchestratorV2 = SolutionOrchestratorV21
 
-from .orchestrator import SolutionOrchestrator, run_solution_design
-from .orchestrator_agent import SolutionOrchestratorV2
-from .task_builder import (
-    build_data_collection_task,
-    build_planner_task,
-    build_researcher_task,
-    build_designer_task,
-    build_auditor_task,
-    build_fixer_task,
-    build_deliver_task
-)
-
-__all__ = [
-    "SolutionOrchestrator",
-    "SolutionOrchestratorV2",
-    "run_solution_design",
-    "build_data_collection_task",
-    "build_planner_task",
-    "build_researcher_task",
-    "build_designer_task",
-    "build_auditor_task",
-    "build_fixer_task",
-    "build_deliver_task"
-]
+__all__ = ['SolutionConfig', 'BlackboardManager', 'SolutionOrchestratorV21', 'SolutionOrchestratorV2']

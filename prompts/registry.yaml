@@ -1,0 +1,676 @@
+schema_version: 1.0.0
+last_updated: '2026-05-01T22:30:00+08:00'
+domains:
+  solution:
+    version: 2.1.0
+    prompts:
+      planner:
+        name: Solution Planner
+        filename: planner.md
+        version: 2.0.0
+        role: planner
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: TOPIC
+            type: string
+          - name: SOLUTION_TYPE
+            type: string
+          optional:
+          - name: CONSTRAINTS
+            type: list
+          - name: STAKEHOLDERS
+            type: list
+      researcher_template:
+        name: Solution Researcher Template
+        filename: researcher_template.md
+        version: 2.0.0
+        role: researcher
+        template: true
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: expert.name
+          - name: expert.angle
+          - name: expert.reason
+          - name: topic
+      designer:
+        name: Solution Designer
+        filename: designer.md
+        version: 2.0.0
+        role: designer
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: TOPIC
+          - name: SOLUTION_TYPE
+      
+      planner_v2_harness:
+        name: Solution Planner V2 Harness
+        filename: planner_v2_harness.md
+        version: 2.1.0
+        role: planner
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-01'
+          changes:
+          - Harness V2 集成
+        variables:
+          required:
+          - name: TOPIC
+          - name: SOLUTION_TYPE
+          optional:
+          - name: CONSTRAINTS
+          - name: STAKEHOLDERS
+      researcher_v2_harness:
+        name: Solution Researcher V2 Harness
+        filename: researcher_v2_harness.md
+        version: 2.1.0
+        role: researcher
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-01'
+          changes:
+          - Harness V2 集成
+        variables:
+          required:
+          - name: expert_name
+          - name: topic
+          - name: solution_type
+          - name: constraints
+          optional:
+          - name: angle
+          - name: reason
+      auditor_v2_harness:
+        name: Solution Auditor V2 Harness
+        filename: auditor_v2_harness.md
+        version: 2.1.0
+        role: auditor
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-01'
+          changes:
+          - Harness V2 集成
+        variables:
+          required:
+          - name: TOPIC
+          - name: solution_type
+          optional:
+          - name: constraints
+      fixer_v2_harness:
+        name: Solution Fixer V2 Harness
+        filename: fixer_v2_harness.md
+        version: 2.1.0
+        role: fixer
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-01'
+          changes:
+          - Harness V2 集成
+        variables:
+          required:
+          - name: TOPIC
+          optional:
+          - name: audit_path
+      reviewer_v2_harness:
+        name: Solution Reviewer V2 Harness
+        filename: reviewer_v2_harness.md
+        version: 2.1.0
+        role: reviewer
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-01'
+          changes:
+          - Harness V2 集成
+        variables:
+          required:
+          - name: review_type
+          - name: review_focus
+          - name: input_plan
+          optional:
+          - name: constraints
+      consolidator_v2_harness:
+        name: Solution Consolidator V2 Harness
+        filename: consolidator_v2_harness.md
+        version: 2.1.0
+        role: consolidator
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-01'
+          changes:
+          - Harness V2 集成
+        variables:
+          required:
+          - name: research_outputs
+          - name: topic
+          optional:
+          - name: quality_requirements
+      fixer_expert_v2_harness:
+        name: Solution Fixer Expert V2 Harness
+        filename: fixer_expert_v2_harness.md
+        version: 2.1.0
+        role: fixer
+        subtype: expert
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-01'
+          changes:
+          - Harness V2 集成
+        variables:
+          required:
+          - name: TOPIC
+          - name: severity
+          optional:
+          - name: audit_findings
+      summarizer_v2_harness:
+        name: Solution Summarizer V2 Harness
+        filename: summarizer_v2_harness.md
+        version: 2.1.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-01'
+          changes:
+          - Harness V2 集成
+        variables:
+          required:
+          - name: TOPIC
+          optional:
+          - name: all_outputs
+      harness_final_v2:
+        name: Solution Harness Final V2
+        filename: harness_final_v2.md
+        version: 2.1.0
+        role: harness
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-01'
+          changes:
+          - Harness V2 Final门禁
+        variables:
+          required:
+          - name: session_id
+          - name: topic
+          optional:
+          - name: solution_path
+
+
+        filename: reviewer_template.md
+        version: 1.0.0
+        role: reviewer
+        template: true
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 1.0.0
+          date: '2026-05-01'
+          changes:
+          - 初始版本
+        variables:
+          required:
+          - name: review_type
+          - name: review_focus
+          - name: input_plan
+          optional:
+          - name: constraints
+      
+      harness_v3:
+        name: Solution Harness V3
+        filename: harness_v3.md
+        version: 1.0.0
+        role: harness
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 1.0.0
+          date: '2026-05-01'
+          changes:
+          - 初始版本
+        variables:
+          required:
+          - name: completeness_items
+          - name: appropriateness_items
+          - name: current_solution
+          optional:
+          - name: is_final
+      
+      harness_v3_enhanced:
+        name: Solution Harness V3 Enhanced
+        filename: harness_v3_enhanced.md
+        version: 1.0.0
+        role: harness
+        author: deepflow-team
+        created: '2026-05-02'
+        updated: '2026-05-02'
+        changelog:
+        - version: 1.0.0
+          date: '2026-05-02'
+          changes:
+          - 完整双维度评分Prompt
+          - 11个子项详细评分标准
+          - 防放水机制说明
+          - 明确write指令
+        variables:
+          required:
+          - name: solution
+          - name: quality_goals
+          - name: blackboard_path
+          - name: session_id
+      
+      consolidator:
+        name: Solution Consolidator
+        filename: consolidator.md
+        version: 1.0.0
+        role: consolidator
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 1.0.0
+          date: '2026-05-01'
+          changes:
+          - 初始版本
+        variables:
+          required:
+          - name: research_outputs
+          - name: conflicts
+          - name: integration_strategy
+          optional:
+          - name: quality_requirements
+      
+      fixer_expert:
+        name: Solution Fixer Expert
+        filename: fixer_expert.md
+        version: 1.0.0
+        role: fixer
+        subtype: expert
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 1.0.0
+          date: '2026-05-01'
+          changes:
+          - 初始版本
+        variables:
+          required:
+          - name: audit_findings
+          - name: severity
+          - name: fix_strategy
+          optional:
+          - name: previous_fixes
+      
+      summarizer:
+        name: Solution Summarizer
+        filename: summarizer.md
+        version: 1.0.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-05-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 1.0.0
+          date: '2026-05-01'
+          changes:
+          - 初始版本
+        variables:
+          required:
+          - name: all_outputs
+          - name: solution_summary
+          - name: key_recommendations
+          optional:
+          - name: appendix_materials
+      auditor:
+        name: Solution Auditor
+        filename: auditor.md
+        version: 2.0.0
+        role: auditor
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: TOPIC
+      fixer:
+        name: Solution Fixer
+        filename: fixer.md
+        version: 2.0.0
+        role: fixer
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: TOPIC
+      data_collection:
+        name: Solution Data Collection Agent
+        filename: data_collection.md
+        version: 2.0.0
+        role: data_collection
+        author: deepflow-team
+        created: '2026-04-27'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 完善YAML元数据
+        - version: 1.0.0
+          date: '2026-04-27'
+          changes:
+          - 从硬编码提取
+        variables:
+          required:
+          - name: TOPIC
+          - name: CONSTRAINTS_TEXT
+          - name: DEEPFLOW_BASE
+          - name: SESSION_ID
+      fixer_with_audit:
+        name: Solution Fixer Agent (with Audit)
+        filename: fixer_with_audit.md
+        version: 2.0.0
+        role: fixer
+        subtype: with_audit
+        author: deepflow-team
+        created: '2026-04-27'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 完善YAML元数据
+        - version: 1.0.0
+          date: '2026-04-27'
+          changes:
+          - 从硬编码提取
+        variables:
+          required:
+          - name: TOPIC
+          - name: AUDIT_PATH
+          - name: DEEPFLOW_BASE
+          - name: SESSION_ID
+      deliver:
+        name: Solution Deliver Agent
+        filename: deliver.md
+        version: 2.0.0
+        role: deliver
+        author: deepflow-team
+        created: '2026-04-27'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 完善YAML元数据
+        - version: 1.0.0
+          date: '2026-04-27'
+          changes:
+          - 从硬编码提取
+        variables:
+          required:
+          - name: TOPIC
+          - name: CONTEXT_JSON
+          - name: DEEPFLOW_BASE
+          - name: SESSION_ID
+  investment:
+    version: 2.0.0
+    prompts:
+      planner:
+        name: Investment Planner
+        filename: planner.md
+        version: 2.0.0
+        role: planner
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: COMPANY_CODE
+            type: string
+          - name: COMPANY_NAME
+            type: string
+          optional:
+          - name: INDUSTRY
+            type: string
+            default: 半导体设备
+      researcher_finance:
+        name: Finance Researcher
+        filename: researcher_finance.md
+        version: 2.0.0
+        role: researcher
+        subtype: finance
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: COMPANY_CODE
+          - name: COMPANY_NAME
+          - name: INDUSTRY
+      researcher_tech:
+        name: Technology Researcher
+        filename: researcher_tech.md
+        version: 2.0.0
+        role: researcher
+        subtype: tech
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: COMPANY_CODE
+          - name: COMPANY_NAME
+          - name: INDUSTRY
+      researcher_market:
+        name: Market Researcher
+        filename: researcher_market.md
+        version: 2.0.0
+        role: researcher
+        subtype: market
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: COMPANY_CODE
+          - name: COMPANY_NAME
+          - name: INDUSTRY
+      researcher_macro_chain:
+        name: Macro & Industry Chain Researcher
+        filename: researcher_macro_chain.md
+        version: 2.0.0
+        role: researcher
+        subtype: macro_chain
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: COMPANY_CODE
+          - name: COMPANY_NAME
+          - name: INDUSTRY
+      researcher_management:
+        name: Management Researcher
+        filename: researcher_management.md
+        version: 2.0.0
+        role: researcher
+        subtype: management
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: COMPANY_CODE
+          - name: COMPANY_NAME
+          - name: INDUSTRY
+      researcher_sentiment:
+        name: Market Sentiment Researcher
+        filename: researcher_sentiment.md
+        version: 2.0.0
+        role: researcher
+        subtype: sentiment
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: COMPANY_CODE
+          - name: COMPANY_NAME
+          - name: INDUSTRY
+      auditor:
+        name: Investment Auditor
+        filename: auditor.md
+        version: 2.0.0
+        role: auditor
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: AUDIT_PERSPECTIVE
+      fixer:
+        name: Investment Fixer
+        filename: fixer.md
+        version: 2.0.0
+        role: fixer
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables: {}
+      summarizer_enhanced:
+        name: Investment Summarizer (Enhanced)
+        filename: summarizer_enhanced.md
+        version: 2.0.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables:
+          required:
+          - name: COMPANY_CODE
+          - name: COMPANY_NAME
+          - name: INDUSTRY
+      send_reporter:
+        name: Investment Send Reporter
+        filename: send_reporter.md
+        version: 2.0.0
+        role: send_reporter
+        author: deepflow-team
+        created: '2026-04-01'
+        updated: '2026-05-01'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-01'
+          changes:
+          - 添加YAML元数据
+        variables: {}

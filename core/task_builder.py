@@ -20,24 +20,18 @@ from typing import Dict, Any, List, Optional
 
 
 # DeepFlow 基础路径
+from core.config.path_config import PathConfig
+from core.prompt_registry import read_prompt  # Phase 3: 使用PromptRegistry
+
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 
 
 # ==================== 模块级辅助函数 ====================
 
-def read_original_prompt(prompt_file: str) -> str:
-    """读取原始提示词文件"""
-    prompt_path = os.path.join(DEEPFLOW_BASE, "prompts", prompt_file)
-    try:
-        with open(prompt_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        return f"# {prompt_file}\n\n执行分析任务。"
-
 
 def extract_data_summary(session_id: str) -> Dict[str, Any]:
     """从 Blackboard 提取数据摘要，并检测数据完整性"""
-    km_path = f"{DEEPFLOW_BASE}/blackboard/{session_id}/data/key_metrics.json"
+    km_path = PathConfig.resolve().get_blackboard_path(session_id) / "data" / "key_metrics.json"
     defaults = {
         "company_code": "未知", "company_name": "未知", "industry": "半导体设备",
         "current_price": "未知", "pe_ttm": "未知", "pb_ratio": "未知",
@@ -75,7 +69,7 @@ def replace_template_vars(text: str, variables: dict) -> str:
 
 def extract_planner_focus(session_id: str) -> str:
     """从 Planner 输出提取研究重点"""
-    planner_path = f"{DEEPFLOW_BASE}/blackboard/{session_id}/stages/planner_output.json"
+    planner_path = PathConfig.resolve().get_blackboard_path(session_id) / "stages" / "planner_output.json"
     try:
         with open(planner_path, 'r') as f:
             data = json.load(f)
@@ -144,7 +138,7 @@ else:
 def build_planner_task(session_id: str, company_code: str, company_name: str) -> str:
     """构建 Planner Worker Task"""
     data = extract_data_summary(session_id)
-    prompt = read_original_prompt("investment/planner.md")
+    prompt = read_prompt("investment/planner")
     
     # 替换模板变量 {{var_name}}
     variables = {
@@ -180,7 +174,7 @@ def build_researcher_task(angle: str, session_id: str, company_code: str, compan
     """构建 Researcher Worker Task"""
     data = extract_data_summary(session_id)
     focus = extract_planner_focus(session_id)
-    prompt = read_original_prompt(f"investment/researcher_{angle}.md")
+    prompt = read_prompt(f"investment/researcher_{angle}")
     
     # 检测数据质量并添加警告
     data_quality_warning = ""
@@ -237,7 +231,7 @@ def build_researcher_task(angle: str, session_id: str, company_code: str, compan
 def build_auditor_task(auditor_type: str, session_id: str, company_code: str, company_name: str) -> str:
     """构建 Auditor Worker Task"""
     perspective = {"factual": "事实准确性", "upside": "乐观偏差", "downside": "悲观偏差"}.get(auditor_type, auditor_type)
-    prompt = read_original_prompt("investment/auditor.md")
+    prompt = read_prompt("investment/auditor")
     
     # 替换模板变量 {{var_name}}
     variables = {
@@ -274,7 +268,7 @@ def build_auditor_task(auditor_type: str, session_id: str, company_code: str, co
 
 def build_fixer_task(session_id: str, company_code: str, company_name: str) -> str:
     """构建 Fixer Worker Task"""
-    prompt = read_original_prompt("investment/fixer.md")
+    prompt = read_prompt("investment/fixer")
     
     # 替换模板变量 {{var_name}}
     variables = {
@@ -310,7 +304,7 @@ def build_fixer_task(session_id: str, company_code: str, company_name: str) -> s
 def build_summarizer_task(session_id: str, company_code: str, company_name: str) -> str:
     """构建 Summarizer Worker Task（论点驱动）"""
     data = extract_data_summary(session_id)
-    prompt = read_original_prompt("investment/summarizer.md")
+    prompt = read_prompt("investment/summarizer_enhanced")
     
     # 替换模板变量 {{var_name}}
     variables = {
@@ -379,7 +373,7 @@ def build_summarizer_task(session_id: str, company_code: str, company_name: str)
 
 def build_send_reporter_task(session_id: str, company_code: str, company_name: str) -> str:
     """构建 Send Reporter Worker Task"""
-    prompt = read_original_prompt("investment/send_reporter.md")
+    prompt = read_prompt("investment/send_reporter")
     
     variables = {
         "session_id": session_id,

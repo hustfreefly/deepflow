@@ -1,0 +1,117 @@
+# DeepFlow 发布前清理契约
+# 版本: 1.0
+# 日期: 2026-05-06
+# 目标: 清理工作目录，为 GitHub 正式版本推送做准备
+
+contract:
+  name: "deepflow_release_cleanup"
+  version: "1.0"
+  date: "2026-05-06"
+  
+  # 前置检查
+  prerequisite:
+    code_quality: "核心模块导入测试通过"
+    doc_consistency: "版本号统一为 0.1.1"
+    
+  # 清理范围
+  scope:
+    - id: "CLEAN-001"
+      name: "更新 .gitignore"
+      priority: "P0"
+      action: "编辑 .gitignore 文件"
+      requirements:
+        - 添加 *.backup 忽略
+        - 添加 *.bak 忽略  
+        - 添加 test_*.py 忽略（临时测试文件）
+        - 添加 cage/*_contract.yaml 忽略（临时契约文件）
+        - 添加 *_test_report.md 忽略
+        - 添加 *_test_result.json 忽略
+        - 保留 cage/*.yaml（正式契约）
+      
+    - id: "CLEAN-002"
+      name: "删除临时文件"
+      priority: "P0"
+      action: "删除或移动临时文件"
+      requirements:
+        - 删除所有 .backup 文件
+        - 删除所有 .bak 文件
+        - 删除 test_*.py 临时测试文件
+        - 删除 cage/ 中的临时契约文件（非 update_docs_contract.yaml 等正式契约）
+        - 删除验证报告类的临时 markdown/json 文件
+      
+    - id: "CLEAN-003"
+      name: "提交有价值的更改"
+      priority: "P0"
+      action: "git commit"
+      requirements:
+        - 提交代码更改（core/, domains/, prompts/）
+        - 提交文档更新（docs/, README.md, SKILL.md）
+        - 提交删除操作（归档的 V4 文档）
+        - 提交 .gitignore 更新
+        - 提交信息规范：feat: 发布 v0.1.1 - 文档更新 + 代码优化
+      
+    - id: "CLEAN-004"
+      name: "验证清理结果"
+      priority: "P0"
+      action: "运行验证脚本"
+      requirements:
+        - git status 显示无未跟踪的临时文件
+        - Python 导入测试通过
+        - 语法检查通过
+        - 版本号一致性确认
+      
+    - id: "CLEAN-005"
+      name: "打 tag"
+      priority: "P1"
+      action: "git tag"
+      requirements:
+        - git tag v0.1.1
+        - git tag 包含提交信息
+
+  # 验证标准
+  validation:
+    - name: "无临时文件残留"
+      check: "git ls-files --others --exclude-standard 无 .backup/.bak/test_ 文件"
+      method: "bash 命令检查"
+    
+    - name: "提交状态干净"
+      check: "git status 无未提交的修改（或仅有预期的修改）"
+      method: "git status"
+    
+    - name: "版本号一致"
+      check: "README.md, SKILL.md, docs/ 版本号均为 0.1.1"
+      method: "grep 检查"
+    
+    - name: "tag 存在"
+      check: "git tag | grep v0.1.1"
+      method: "git tag"
+
+  # 成功标准
+  success_criteria:
+    - "所有临时文件已清理"
+    - "有价值的更改已提交"
+    - "版本号一致性验证通过"
+    - "v0.1.1 tag 已创建"
+    - "git status 显示干净状态"
+
+  # 执行顺序
+  execution_order:
+    - phase: "1"
+      name: "更新 .gitignore"
+      tasks: ["CLEAN-001"]
+    
+    - phase: "2"
+      name: "删除临时文件"
+      tasks: ["CLEAN-002"]
+    
+    - phase: "3"
+      name: "提交更改"
+      tasks: ["CLEAN-003"]
+    
+    - phase: "4"
+      name: "验证"
+      tasks: ["CLEAN-004"]
+    
+    - phase: "5"
+      name: "打 tag"
+      tasks: ["CLEAN-005"]

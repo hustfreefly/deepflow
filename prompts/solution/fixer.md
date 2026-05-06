@@ -54,3 +54,10 @@
 - 修复必须有理有据
 - 不得引入新的重大风险
 - 对无法修复的问题说明原因和替代方案
+
+## 输出要求（子Agent直接写入模式）
+1. 使用 **write** 工具将结果写入：
+   `{blackboard_path}/stages/fix.json`
+2. 写入前确保目录存在（必要时创建）
+3. 写入格式为JSON（见上方格式）
+4. 在最终回复中确认：✅ 结果已写入 `{blackboard_path}/stages/fix.json`

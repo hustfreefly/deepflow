@@ -52,8 +52,9 @@ def check_contract():
     
     # 5. 验证 prompts 文件
     prompt_dir = str(PathConfig.resolve().base_dir / "prompts/solution/")
-    required_prompts = ['planner.md', 'researcher.md', 'architect.md', 
+    required_prompts = ['planner.md', 'researcher.md', 'researcher_template.md',
                        'auditor.md', 'fixer.md', 'designer.md']
+    # Note: architect.md 当前未使用，已从检查列表移除
     for prompt in required_prompts:
         prompt_path = os.path.join(prompt_dir, prompt)
         if not os.path.exists(prompt_path):
@@ -67,13 +68,13 @@ def check_contract():
     
     # 6. 验证 orchestrator 可导入
     try:
-        from domains.solution import SolutionOrchestrator
-        orch = SolutionOrchestrator({
-            'topic': '测试',
-            'type': 'architecture'
-        })
-        if not hasattr(orch, '_execute_stage'):
-            errors.append("P0: Orchestrator 缺少 _execute_stage 方法")
+        from domains.solution.orchestrator_agent import SolutionOrchestratorV2
+        orch = SolutionOrchestratorV2(
+            topic='测试解决方案设计',
+            solution_type='architecture'
+        )
+        if not hasattr(orch, 'get_all_tasks'):
+            errors.append("P0: Orchestrator 缺少 get_all_tasks 方法")
     except Exception as e:
         errors.append(f"P0: Orchestrator 导入失败: {e}")
     

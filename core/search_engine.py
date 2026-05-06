@@ -22,6 +22,9 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
+# P0-FIX: 导入 PathConfig
+from core.config.path_config import PathConfig
+
 logger = logging.getLogger("search_engine")
 
 # DeepFlow 基础路径
@@ -51,7 +54,7 @@ class SearchEngine:
         """加载搜索配置"""
         # 1. 尝试读取配置文件
         if config_path is None:
-            config_path = f"{DEEPFLOW_BASE}/data/search_config.yaml"
+            config_path = PathConfig.resolve().base_dir / "data" / "search_config.yaml"
         
         config = {}
         if os.path.exists(config_path):
@@ -282,7 +285,7 @@ class SearchEngine:
         
         if not api_key:
             logger.warning("Gemini API Key 未配置")
-            return False
+            return []
         model_name = config.get("model", "gemini-2.5-flash")
         
         client = genai.Client(api_key=api_key)
@@ -318,7 +321,7 @@ class SearchEngine:
     
     def _duckduckgo_search(self, query: str, max_results: int) -> List[Dict[str, Any]]:
         """使用 DuckDuckGo 搜索"""
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
         
         results = []
         ddg_results = DDGS().text(query, max_results=max_results)

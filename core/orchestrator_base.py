@@ -463,7 +463,7 @@ class BaseOrchestrator(ABC):
         self.user_context = user_context
         
         # 加载领域配置
-        config_path = str(PathConfig.resolve().domains_dir / f"{domain}.yaml")
+        config_path = str(PathConfig.resolve().base_dir / "domains" / f"{domain}.yaml")
         self.domain_config = DomainConfig.load(config_path)
         
         # 生成 session_id

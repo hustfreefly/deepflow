@@ -8,11 +8,12 @@ Tushare Provider — 付费版专业数据源
 - 实时行情（盘中无限制）
 """
 
+import os
 import json
 from datetime import datetime
 from typing import Any, Dict
 
-from data_manager import DataProvider, DataQuery, DataResult, DataFinding, Observability
+from core.data_manager import DataProvider, DataQuery, DataResult, DataFinding, Observability
 
 logger = Observability.get_logger("tushare_provider")
 
@@ -217,5 +218,5 @@ class TushareProvider(DataProvider):
 # 自动注册
 def register():
     """注册 Tushare Provider"""
-    from data_manager import ProviderRegistry
+    from core.data_manager import ProviderRegistry
     ProviderRegistry.register("tushare", TushareProvider())
