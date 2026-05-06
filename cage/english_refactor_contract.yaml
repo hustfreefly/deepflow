@@ -1,0 +1,107 @@
+# DeepFlow 文档英文化与架构定位重构契约
+# 版本: 1.0
+# 日期: 2026-05-06
+# 目标: README.md + ARCHITECTURE.md 英文化 + Solution Pro 核心定位修正
+
+contract:
+  name: "deepflow_english_refactor"
+  version: "1.0"
+  date: "2026-05-06"
+  
+  # 前置条件
+  prerequisite:
+    version_pushed: "v0.1.1 已推送至 GitHub"
+    code_quality: "核心模块导入测试通过"
+    
+  # 核心判断
+  positioning:
+    solution_pro: "核心基础设施 - 通用多 Agent 管线编排引擎 + 质量门控"
+    investment: "场景化应用 - 基于 Solution Pro 的垂直领域适配"
+    analogy: "Solution Pro = Kubernetes / OS, Investment = 某个微服务 / 应用"
+
+  # 重构范围
+  scope:
+    - id: "ENG-001"
+      file: "README.md"
+      action: "rewrite"
+      priority: "P0"
+      reason: "项目门面，必须准确传达核心定位"
+      requirements:
+        - 标题保留 # DeepFlow
+        - 核心定位改为: "DeepFlow is an extensible multi-agent pipeline framework"
+        - Solution Pro 描述为 "orchestration engine and quality gates"
+        - Investment Analysis 描述为 "domain-specific application built on top"
+        - 所有中文内容翻译为英文
+        - 保留 OpenClaw 平台依赖声明
+        - 版本号保持 0.1.1
+        - 架构图用 ASCII + 英文标注
+        - 触发方式用英文描述
+      
+    - id: "ENG-002"
+      file: "docs/ARCHITECTURE.md"
+      action: "rewrite"
+      priority: "P0"
+      reason: "架构文档，必须体现分层定位"
+      requirements:
+        - 文档版本保持 1.2
+        - 日期更新
+        - 明确三层架构: Platform Layer / Framework Layer / Domain Layer
+        - Solution Pro 属于 Framework Layer
+        - Investment 属于 Domain Layer
+        - 所有中文翻译为英文
+        - 保留原始蓝图对比（英文化）
+        - 演进路线图用英文
+
+  # 禁止事项
+  forbidden:
+    - "禁止修改代码文件（Python）"
+    - "禁止修改 prompts/ 目录"
+    - "禁止修改 SKILL.md（本次不做）"
+    - "禁止删除架构图，仅翻译标注"
+    - "禁止修改版本号"
+
+  # 验证标准
+  validation:
+    - name: "无中文残留"
+      check: "README.md 和 ARCHITECTURE.md 无中文字符（ASCII 图例外）"
+      method: "grep -P '[\x{4e00}-\x{9fff}]'"
+      expect: "空结果"
+    
+    - name: "架构定位正确"
+      check: "README.md 包含 'Solution Pro' 且描述为 framework/engine"
+      method: "grep 检查"
+    
+    - name: "投资分析定位正确"
+      check: "README.md 中 Investment 被描述为 'domain-specific' 或 'scenario'"
+      method: "grep 检查"
+    
+    - name: "版本号一致"
+      check: "两文件版本号均为 0.1.1"
+      method: "grep 检查"
+
+  # 成功标准
+  success_criteria:
+    - "README.md 完全英文"
+    - "ARCHITECTURE.md 完全英文"
+    - "Solution Pro 被明确定位为核心框架"
+    - "Investment 被明确定位为场景化应用"
+    - "验证标准全部通过"
+    - "git commit 提交更改"
+
+  # 执行顺序
+  execution_order:
+    - phase: "1"
+      name: "重构 README.md"
+      tasks: ["ENG-001"]
+    
+    - phase: "2"
+      name: "重构 ARCHITECTURE.md"
+      tasks: ["ENG-002"]
+    
+    - phase: "3"
+      name: "验证闭环"
+      tasks: ["validation"]
+    
+    - phase: "4"
+      name: "提交更改"
+      tasks: ["git commit"]
