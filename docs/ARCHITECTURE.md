@@ -149,8 +149,24 @@ T+30min → 🔬 Deep Research (Full coverage + complete evidence chain + risk s
 **Version**: 0.1.1 (internal codename V4.0)
 **Goal**: Adapt the V3.0 blueprint to "Investment Analysis" and "Solution Design" vertical scenarios to quickly validate end-to-end feasibility.
 
-### 2.2 Current Architecture
+### 2.2 Current Architecture (Solution Pro as Core Framework)
 
+```
+Main Agent (depth-0)
+  └── sessions_spawn → EntryHarness (depth-1)
+        └── validate_and_start() → PipelineOrchestrator (depth-1)
+              ├── sessions_spawn → DataManager Worker (depth-2)
+              ├── sessions_spawn → Planner Worker (depth-2)
+              ├── sessions_spawn → Reviewers ×3 (depth-2, parallel)
+              ├── sessions_spawn → Researchers ×N (depth-2, parallel)
+              ├── sessions_spawn → Consolidator Worker (depth-2)
+              ├── sessions_spawn → Auditors ×3 (depth-2, parallel)
+              ├── sessions_spawn → Fixer Worker (depth-2)
+              ├── sessions_spawn → Harness Final Worker (depth-2)
+              └── sessions_spawn → Summarizer Worker (depth-2)
+```
+
+**Domain-Specific Application (Investment Analysis)**:
 ```
 Main Agent (depth-0)
   └── sessions_spawn → Orchestrator Agent (depth-1)

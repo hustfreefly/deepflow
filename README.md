@@ -18,11 +18,12 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
 
 | Capability | Description |
 |------------|-------------|
-| **Multi-Agent Collaboration** | 6 Researchers + 3 Auditors + Fixer + Summarizer |
+| **Multi-Agent Pipeline** | 10-Stage full pipeline: Data Collection → Planning → Reviewers → Research → Consolidator → Audit → Fix → Harness Final → Summarizer |
+| **Quality Gates** | Harness V2: Completeness / Necessity / Target Consistency scoring at Planning + Final stages |
 | **Data-Driven** | DataManager Worker for unified data collection and search |
 | **Contract Validation** | Contract Cage verification framework |
 | **Fault Tolerance** | Worker failures do not block the pipeline |
-| **Configuration-Driven** | Search strategy, output channel, and credential separation |
+| **Configuration-Driven** | Domain YAML + Prompt Registry for extensibility
 
 ---
 
@@ -42,7 +43,9 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
 ┌──────────────────────────────────────────┐
 │      DeepFlow Framework Layer            │
 │  EntryHarness → PipelineOrchestrator →   │
-│  Workers (6 Researchers + 3 Auditors + ...)│
+│  Workers (Planner → Reviewers → Research │
+│  → Consolidator → Auditors → Fix →       │
+│  Harness Final → Summarizer)             │
 └──────────────────────────────────────────┘
                     ↓
 ┌──────────────────────────────────────────┐
@@ -58,10 +61,14 @@ Main Agent (depth-0)
   └── sessions_spawn → EntryHarness (depth-1)
         └── validate_and_start() → PipelineOrchestrator (depth-1)
               ├── sessions_spawn → DataManager Worker (depth-2)
-              ├── sessions_spawn → Researchers ×6 (parallel)
-              ├── sessions_spawn → Auditors ×3 (parallel)
-              ├── sessions_spawn → Fixer Worker
-              └── sessions_spawn → Summarizer Worker
+              ├── sessions_spawn → Planner Worker (depth-2)
+              ├── sessions_spawn → Reviewers ×3 (parallel, depth-2)
+              ├── sessions_spawn → Researchers ×N (parallel, depth-2)
+              ├── sessions_spawn → Consolidator Worker (depth-2)
+              ├── sessions_spawn → Auditors ×3 (parallel, depth-2)
+              ├── sessions_spawn → Fixer Worker (depth-2)
+              ├── sessions_spawn → Harness Final Worker (depth-2)
+              └── sessions_spawn → Summarizer Worker (depth-2)
 ```
 
 **Key Components**:
