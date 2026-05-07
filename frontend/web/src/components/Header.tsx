@@ -1,4 +1,4 @@
-import React from 'react'
+import { useNavigate } from 'react-router-dom'
 
 interface HeaderProps {
   openclawStatus: string
@@ -8,6 +8,8 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ openclawStatus, apiStatus, version, loading }) => {
+  const navigate = useNavigate()
+  
   const getOpenclawColor = () => {
     if (loading) return 'bg-gray-400'
     switch (openclawStatus) {
@@ -46,11 +48,17 @@ const Header: React.FC<HeaderProps> = ({ openclawStatus, apiStatus, version, loa
 
         {/* Center: Navigation */}
         <nav className="hidden md:flex items-center gap-1">
-          <button className="px-4 py-2 rounded-lg text-sm font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors">
+          <button 
+            onClick={() => navigate('/')}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors"
+          >
             <span className="material-icons-round text-sm mr-1 align-text-bottom">dashboard</span>
             概览
           </button>
-          <button className="px-4 py-2 rounded-lg text-sm font-medium text-onsurface-variant hover:bg-surface-variant transition-colors">
+          <button 
+            onClick={() => navigate('/history')}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-onsurface-variant hover:bg-surface-variant transition-colors"
+          >
             <span className="material-icons-round text-sm mr-1 align-text-bottom">history</span>
             历史
           </button>

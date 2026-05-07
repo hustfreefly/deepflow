@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import Header from '../components/Header'
 
 interface Stage {
@@ -26,14 +26,15 @@ interface StatusResponse {
 
 const ProgressPage: React.FC = () => {
   const navigate = useNavigate()
-  const pathParts = window.location.pathname.split('/')
-  const sessionId = pathParts[pathParts.length - 1]
+  const { sessionId } = useParams<{ sessionId: string }>()
   
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
   useEffect(() => {
+    if (!sessionId) return
+    
     const checkStatus = async () => {
       try {
         const response = await fetch(`/api/status/${sessionId}`)
@@ -136,8 +137,13 @@ const ProgressPage: React.FC = () => {
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="text-3xl font-bold text-primary-600">
-                    {Math.round(status.progress * 100)}%
+                  <span className={`text-3xl font-bold ${
+                    status.status === 'completed' ? 'text-green-600' : 
+                    status.status === 'queued' ? 'text-yellow-600' : 'text-primary-600'
+                  }`}>
+                    {status.status === 'queued' ? '排队中' : 
+                     status.status === 'completed' ? '已完成' :
+                     `${Math.round(status.progress * 100)}%`}
                   </span>
                 </div>
               </div>
@@ -145,10 +151,19 @@ const ProgressPage: React.FC = () => {
               {/* Progress Bar */}
               <div className="w-full h-3 bg-surface-variant rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-primary-500 rounded-full transition-all duration-500"
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    status.status === 'queued' ? 'bg-yellow-400' : 'bg-primary-500'
+                  }`}
                   style={{ width: `${status.progress * 100}%` }}
                 ></div>
               </div>
+              
+              {status.status === 'queued' && (
+                <p className="text-sm text-yellow-600 mt-3 flex items-center gap-1">
+                  <span className="material-icons-round text-sm">schedule</span>
+                  任务已排队，等待 Agent 执行...
+                </p>
+              )}
             </div>
             
             {/* Pipeline Stages */}

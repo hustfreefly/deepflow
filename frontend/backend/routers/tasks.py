@@ -9,25 +9,12 @@ from pathlib import Path
 
 router = APIRouter()
 
-# In-memory task store (will be replaced with file-based in production)
-active_tasks = {}
+# Task queue directory (shared with main agent)
+TASK_QUEUE_DIR = Path.home() / ".openclaw" / "workspace" / ".deepflow" / "frontend" / "task_queue"
+TASK_QUEUE_DIR.mkdir(parents=True, exist_ok=True)
 
-class SolutionTaskRequest(BaseModel):
-    domain: str = "solution"
-    topic: str
-    solution_type: str = "architecture"
-    constraints: Optional[List[str]] = []
-    stakeholders: Optional[List[str]] = []
-    session_prefix: Optional[str] = ""
-
-class InvestmentTaskRequest(BaseModel):
-    domain: str = "investment"
-    code: str
-    name: str
-    industry: str
-    analysis_depth: str = "standard"  # quick, standard, deep
-    force_rebuild: bool = False
-    session_prefix: Optional[str] = ""
+# Blackboard path for status updates
+BLACKBOARD_DIR = Path.home() / ".openclaw" / "workspace" / ".deepflow" / "blackboard"
 
 class TaskResponse(BaseModel):
     session_id: str
@@ -36,17 +23,48 @@ class TaskResponse(BaseModel):
     created_at: float
     message: str
 
+def _get_task_path(session_id: str) -> Path:
+    """Get task request file path."""
+    return TASK_QUEUE_DIR / f"{session_id}_request.json"
+
+def _get_status_path(session_id: str) -> Path:
+    """Get status file path in blackboard."""
+    session_dir = BLACKBOARD_DIR / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    return session_dir / "status.json"
+
+def _init_status(session_id: str, domain: str) -> dict:
+    """Initialize status.json for a new task."""
+    status = {
+        "session_id": session_id,
+        "domain": domain,
+        "status": "queued",
+        "current_stage": "init",
+        "progress": 0.0,
+        "created_at": time.time(),
+        "stages": [
+            {"name": "data_collection", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 1}},
+            {"name": "planning", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 1}},
+            {"name": "reviewers", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 3}},
+            {"name": "researchers", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 6}},
+            {"name": "consolidator", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 1}},
+            {"name": "auditors", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 3}},
+            {"name": "fixer", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 1}},
+            {"name": "harness_final", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 1}},
+            {"name": "summarizer", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 1}},
+        ],
+        "quality_score": None,
+        "harness_scores": {},
+        "elapsed": 0,
+    }
+    status_path = _get_status_path(session_id)
+    with open(status_path, 'w', encoding='utf-8') as f:
+        json.dump(status, f, ensure_ascii=False, indent=2)
+    return status
+
 @router.post("/tasks", response_model=TaskResponse)
 def create_task(request: dict):
-    """Create a new analysis task."""
-    # Check if another task is running
-    for task_id, task in active_tasks.items():
-        if task["status"] == "running":
-            raise HTTPException(
-                status_code=409,
-                detail="Task already running. Please wait for completion."
-            )
-    
+    """Create a new analysis task and queue it for execution."""
     domain = request.get("domain", "solution")
     session_prefix = request.get("session_prefix", "")
     
@@ -61,46 +79,45 @@ def create_task(request: dict):
     if len(session_id) > 50:
         session_id = session_id[:50]
     
-    # Store task info
-    task_info = {
+    # Save task request to queue
+    task_request = {
         "session_id": session_id,
         "domain": domain,
-        "status": "queued",
         "created_at": time.time(),
         "parameters": request,
-        "progress": 0,
-        "current_stage": "init",
-        "stages": [
-            {"name": "data_collection", "status": "pending"},
-            {"name": "planning", "status": "pending"},
-            {"name": "reviewers", "status": "pending"},
-            {"name": "researchers", "status": "pending"},
-            {"name": "consolidator", "status": "pending"},
-            {"name": "auditors", "status": "pending"},
-            {"name": "fixer", "status": "pending"},
-            {"name": "harness_final", "status": "pending"},
-            {"name": "summarizer", "status": "pending"},
-        ]
+        "status": "queued"
     }
     
-    active_tasks[session_id] = task_info
+    task_path = _get_task_path(session_id)
+    with open(task_path, 'w', encoding='utf-8') as f:
+        json.dump(task_request, f, ensure_ascii=False, indent=2)
     
-    # TODO: Trigger actual DeepFlow execution
-    # For now, simulate starting the task
-    task_info["status"] = "running"
-    task_info["current_stage"] = "data_collection"
+    # Initialize status in blackboard
+    _init_status(session_id, domain)
     
     return TaskResponse(
         session_id=session_id,
-        status="running",
+        status="queued",
         domain=domain,
-        created_at=task_info["created_at"],
-        message="Task started successfully"
+        created_at=task_request["created_at"],
+        message="Task queued. Waiting for agent execution."
     )
 
 @router.get("/tasks/{session_id}")
 def get_task(session_id: str):
-    """Get task details."""
-    if session_id not in active_tasks:
+    """Get task details from queue."""
+    task_path = _get_task_path(session_id)
+    if not task_path.exists():
         raise HTTPException(status_code=404, detail="Task not found")
-    return active_tasks[session_id]
+    
+    with open(task_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+@router.get("/tasks")
+def list_tasks(limit: int = 20):
+    """List queued and running tasks."""
+    tasks = []
+    for task_file in sorted(TASK_QUEUE_DIR.glob("*_request.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        with open(task_file, 'r', encoding='utf-8') as f:
+            tasks.append(json.load(f))
+    return tasks[:limit]

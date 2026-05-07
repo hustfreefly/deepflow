@@ -6,15 +6,17 @@ from pathlib import Path
 
 router = APIRouter()
 
-def get_blackboard_path():
-    """Get blackboard base path from DeepFlow config."""
-    return Path.home() / ".openclaw" / "workspace" / ".deepflow" / "blackboard"
+BLACKBOARD_DIR = Path.home() / ".openclaw" / "workspace" / ".deepflow" / "blackboard"
+
+def _get_status_path(session_id: str) -> Path:
+    """Get status file path in blackboard."""
+    return BLACKBOARD_DIR / session_id / "status.json"
 
 def read_status_file(session_id: str):
     """Read status.json from blackboard if it exists."""
-    status_file = get_blackboard_path() / session_id / "status.json"
+    status_file = _get_status_path(session_id)
     if status_file.exists():
-        with open(status_file, 'r') as f:
+        with open(status_file, 'r', encoding='utf-8') as f:
             return json.load(f)
     return None
 
@@ -26,15 +28,15 @@ def get_default_status(session_id: str):
         "current_stage": "data_collection",
         "progress": 0.1,
         "stages": [
-            {"name": "data_collection", "status": "running", "duration": 0},
-            {"name": "planning", "status": "pending", "duration": 0},
-            {"name": "reviewers", "status": "pending", "duration": 0},
+            {"name": "data_collection", "status": "running", "duration": 0, "workers": {"completed": 0, "total": 1}},
+            {"name": "planning", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 1}},
+            {"name": "reviewers", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 3}},
             {"name": "researchers", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 6}},
-            {"name": "consolidator", "status": "pending", "duration": 0},
-            {"name": "auditors", "status": "pending", "duration": 0},
-            {"name": "fixer", "status": "pending", "duration": 0},
-            {"name": "harness_final", "status": "pending", "duration": 0},
-            {"name": "summarizer", "status": "pending", "duration": 0},
+            {"name": "consolidator", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 1}},
+            {"name": "auditors", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 3}},
+            {"name": "fixer", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 1}},
+            {"name": "harness_final", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 1}},
+            {"name": "summarizer", "status": "pending", "duration": 0, "workers": {"completed": 0, "total": 1}},
         ],
         "quality_score": None,
         "harness_scores": {},
@@ -45,23 +47,20 @@ def get_default_status(session_id: str):
 @router.get("/status/{session_id}")
 def get_status(session_id: str):
     """Get pipeline execution status for a session."""
-    # Try to read from blackboard
     status = read_status_file(session_id)
-    
-    # If not found, return default structure
     if not status:
         status = get_default_status(session_id)
     
     # Calculate elapsed time
-    if "created_at" in status:
-        status["elapsed"] = time.time() - status.get("created_at", time.time())
+    created_at = status.get("created_at", time.time())
+    status["elapsed"] = time.time() - created_at
     
     return status
 
 @router.get("/reports/{session_id}")
 def get_report(session_id: str):
     """Get final analysis report."""
-    report_file = get_blackboard_path() / session_id / "final_report.md"
+    report_file = BLACKBOARD_DIR / session_id / "final_report.md"
     
     if not report_file.exists():
         raise HTTPException(status_code=404, detail="Report not found")
@@ -79,27 +78,39 @@ def get_report(session_id: str):
 @router.get("/sessions")
 def list_sessions(limit: int = 20, domain: str = None):
     """List historical sessions from blackboard."""
-    blackboard = get_blackboard_path()
     sessions = []
     
-    if blackboard.exists():
-        for session_dir in blackboard.iterdir():
+    if BLACKBOARD_DIR.exists():
+        for session_dir in sorted(BLACKBOARD_DIR.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
             if session_dir.is_dir():
                 session_id = session_dir.name
                 meta_file = session_dir / "session_meta.json"
+                status_file = session_dir / "status.json"
                 
-                if meta_file.exists():
-                    with open(meta_file, 'r') as f:
-                        meta = json.load(f)
-                        
-                    # Filter by domain if specified
-                    if domain and meta.get("domain") != domain:
-                        continue
-                        
-                    sessions.append(meta)
-    
-    # Sort by created_at descending
-    sessions.sort(key=lambda x: x.get("created_at", 0), reverse=True)
+                session_info = {
+                    "session_id": session_id,
+                    "domain": "unknown",
+                    "status": "unknown",
+                    "created_at": session_dir.stat().st_mtime,
+                }
+                
+                # Try to read status.json
+                if status_file.exists():
+                    try:
+                        with open(status_file, 'r', encoding='utf-8') as f:
+                            status_data = json.load(f)
+                        session_info["domain"] = status_data.get("domain", "unknown")
+                        session_info["status"] = status_data.get("status", "unknown")
+                        session_info["quality_score"] = status_data.get("quality_score")
+                        session_info["created_at"] = status_data.get("created_at", session_dir.stat().st_mtime)
+                    except Exception:
+                        pass
+                
+                # Filter by domain if specified
+                if domain and session_info.get("domain") != domain:
+                    continue
+                    
+                sessions.append(session_info)
     
     return sessions[:limit]
 

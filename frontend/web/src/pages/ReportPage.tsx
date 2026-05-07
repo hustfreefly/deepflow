@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import Header from '../components/Header'
 
 interface ReportResponse {
@@ -11,8 +11,7 @@ interface ReportResponse {
 
 const ReportPage: React.FC = () => {
   const navigate = useNavigate()
-  const pathParts = window.location.pathname.split('/')
-  const sessionId = pathParts[pathParts.length - 1]
+  const { sessionId } = useParams<{ sessionId: string }>()
   
   const [report, setReport] = useState<ReportResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -20,6 +19,8 @@ const ReportPage: React.FC = () => {
   const [copied, setCopied] = useState(false)
   
   useEffect(() => {
+    if (!sessionId) return
+    
     const fetchReport = async () => {
       try {
         const response = await fetch(`/api/reports/${sessionId}`)

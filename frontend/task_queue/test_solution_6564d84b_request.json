@@ -1,0 +1,12 @@
+{
+  "session_id": "test_solution_6564d84b",
+  "domain": "solution",
+  "created_at": 1778117706.815796,
+  "parameters": {
+    "domain": "solution",
+    "topic": "测试任务",
+    "solution_type": "architecture",
+    "session_prefix": "test"
+  },
+  "status": "queued"
+}
