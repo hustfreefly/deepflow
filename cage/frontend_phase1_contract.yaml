@@ -1,0 +1,105 @@
+# DeepFlow Frontend UI - Phase 1 Development Contract
+# Version: 1.0
+# Date: 2026-05-07
+# Goal: Foundation - FastAPI + React scaffold + OpenClaw health check
+
+contract:
+  name: "deepflow_frontend_phase1"
+  version: "1.0"
+  date: "2026-05-07"
+  
+  prerequisite:
+    design_doc: "docs/FRONTEND_DESIGN.md reviewed and approved"
+    requirements: "cage/frontend_design_requirements_v1.2.md aligned"
+    platform_check: "OpenClaw installed and running"
+    
+  scope:
+    - id: "PH1-001"
+      name: "FastAPI Backend Scaffold"
+      priority: "P0"
+      requirements:
+        - FastAPI project structure under frontend/backend/
+        - main.py with CORS configured for localhost
+        - Health router at /api/health
+        - OpenClaw status detection (check if openclaw CLI available)
+        - requirements.txt with fastapi, uvicorn, python-multipart
+        
+    - id: "PH1-002"
+      name: "React Frontend Scaffold"
+      priority: "P0"
+      requirements:
+        - Vite + React 18 + TypeScript project under frontend/web/
+        - Tailwind CSS configured with Google Material Design color palette
+        - Basic routing with React Router
+        - Header component showing "DeepFlow Frontend" + OpenClaw status
+        - package.json with all dependencies
+        
+    - id: "PH1-003"
+      name: "API Integration"
+      priority: "P0"
+      requirements:
+        - Frontend fetches /api/health on load
+        - Displays OpenClaw connection status (connected/disconnected)
+        - Error handling for network failures
+        - TypeScript types for API responses
+        
+    - id: "PH1-004"
+      name: "Development Environment"
+      priority: "P0"
+      requirements:
+        - README.md with setup instructions
+        - npm run dev (frontend) + uvicorn main:app (backend)
+        - .gitignore for node_modules, __pycache__, dist
+        - Proxy configuration for API calls (vite.config.ts)
+        
+    - id: "PH1-005"
+      name: "Validation"
+      priority: "P0"
+      requirements:
+        - Backend starts on localhost:8000
+        - Frontend starts on localhost:3000
+        - /api/health returns valid JSON
+        - Frontend displays correct OpenClaw status
+        - No errors in browser console or terminal
+
+  redlines:
+    - id: "RED-FRONT-001"
+      rule: "Frontend must NOT directly call OpenClaw or LLM APIs"
+      severity: "P0"
+    - id: "RED-FRONT-002"
+      rule: "All OpenClaw interactions go through FastAPI backend"
+      severity: "P0"
+    - id: "RED-FRONT-003"
+      rule: "No credentials exposed in frontend code or browser"
+      severity: "P0"
+
+  forbidden:
+    - "Do NOT implement task submission in Phase 1"
+    - "Do NOT implement progress visualization in Phase 1"
+    - "Do NOT implement report viewer in Phase 1"
+    - "Do NOT modify existing DeepFlow core modules"
+    - "Do NOT add new dependencies to root requirements"
+
+  success_criteria:
+    - "FastAPI server responds on localhost:8000"
+    - "React app loads on localhost:3000"
+    - "OpenClaw status correctly detected and displayed"
+    - "No console errors"
+    - "Code committed to GitHub"
+
+  execution_order:
+    - phase: "1"
+      name: "Backend Scaffold"
+      tasks: ["PH1-001"]
+    - phase: "2"
+      name: "Frontend Scaffold"
+      tasks: ["PH1-002"]
+    - phase: "3"
+      name: "API Integration"
+      tasks: ["PH1-003"]
+    - phase: "4"
+      name: "Environment & Docs"
+      tasks: ["PH1-004"]
+    - phase: "5"
+      name: "Validation"
+      tasks: ["PH1-005"]

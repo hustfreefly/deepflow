@@ -55,6 +55,16 @@ cage/*_summary*.md
 !cage/update_docs_contract.yaml
 !cage/release_cleanup_contract.yaml
 !cage/english_refactor_contract.yaml
+!cage/frontend_design_requirements_v1.2.md
+!cage/frontend_phase1_contract.yaml
+
+# 前端依赖和构建产物
+frontend/web/node_modules/
+frontend/web/dist/
+frontend/web/.vite/
+frontend/backend/__pycache__/
+frontend/backend/.venv/
+frontend/backend/venv/
 
 # 其他临时文件
 analysis_context.json
