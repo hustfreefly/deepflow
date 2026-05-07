@@ -51,18 +51,28 @@ frontend/
 ├── backend/                 # FastAPI 后端
 │   ├── main.py             # 应用入口
 │   ├── requirements.txt    # Python 依赖
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   └── feishu_doc.py   # 飞书文档创建 (markdown → docx)
 │   └── routers/
-│       └── health.py       # 健康检查 API
+│       ├── health.py       # 健康检查 + OpenClaw 状态
+│       ├── tasks.py        # 任务创建 + 文件队列
+│       └── status.py       # 状态轮询 + 报告获取 + 飞书导出
 └── web/                     # React 前端
-    ├── index.html           # HTML 入口
-    ├── vite.config.ts       # Vite 配置
-    ├── tailwind.config.js   # Tailwind 配置
+    ├── index.html           # HTML 入口 (Material Icons CDN)
+    ├── vite.config.ts       # Vite 配置 (proxy: /api → :8000)
+    ├── tailwind.config.js   # Tailwind + Material Design 配色
     └── src/
-        ├── main.tsx         # React 入口
-        ├── App.tsx          # 主应用
+        ├── main.tsx         # React 入口 + BrowserRouter
+        ├── App.tsx          # 首页 (Domain 选择)
         ├── index.css        # 全局样式
-        └── components/
-            └── Header.tsx   # 头部组件
+        ├── components/
+        │   └── Header.tsx   # 头部 + 导航 + 系统状态
+        └── pages/
+            ├── TaskForm.tsx      # 任务表单 (Solution/Investment)
+            ├── ProgressPage.tsx  # 进度轮询 + 管线可视化
+            ├── ReportPage.tsx    # Markdown 报告渲染 + 导出
+            └── HistoryPage.tsx   # 历史记录列表
 ```
 
 ## API 端点
@@ -70,29 +80,44 @@ frontend/
 | 方法 | 路径 | 说明 |
 |:---|:---|:---|
 | GET | `/api/health` | 健康检查 + OpenClaw 状态 |
+| POST | `/api/tasks` | 创建分析任务 (文件队列) |
+| GET | `/api/tasks/{session_id}` | 获取任务详情 |
+| GET | `/api/status/{session_id}` | 获取管线执行状态 |
+| GET | `/api/reports/{session_id}` | 获取最终报告 (markdown) |
+| POST | `/api/reports/{session_id}/export` | 导出报告 (feishu/local) |
+| GET | `/api/sessions` | 获取历史会话列表 |
 
 ## 开发状态
 
 **Phase 1: Foundation** ✅
-- [x] FastAPI 后端骨架
-- [x] React 前端骨架
+- [x] FastAPI 后端骨架 (3 routers: health/tasks/status)
+- [x] React 18 + TypeScript + Tailwind CSS + Material Design
+- [x] 5 页面路由 + 导航功能
 - [x] OpenClaw 状态检测
-- [x] Google Material Design 风格
+- [x] TypeScript 零错误编译
 
-**Phase 2: Task Submission** ⏳
-- [ ] Domain 选择界面
-- [ ] 动态参数表单
-- [ ] 任务提交 API
+**Phase 2: Task Submission** ✅
+- [x] Domain 选择界面 (Solution/Investment/Coming Soon)
+- [x] 动态参数表单 (Topic/Code/Constraints/Stakeholders)
+- [x] 任务提交 API → 文件队列 (task_queue/)
 
-**Phase 3: Progress Visualization** ⏳
-- [ ] 实时进度轮询
-- [ ] Pipeline 阶段可视化
-- [ ] Harness 质量分数展示
+**Phase 3: Progress Visualization** ✅
+- [x] 实时进度轮询 (3 秒间隔)
+- [x] Pipeline 9 阶段可视化 (含 Worker 进度)
+- [x] Harness 质量分数展示 (完整性/必要性/目标一致性)
+- [x] 完成自动跳转报告页
 
-**Phase 4: Report & Export** ⏳
-- [ ] Markdown 报告渲染
-- [ ] 复制/下载/飞书发送
-- [ ] 历史记录列表
+**Phase 4: Report & Export** ✅
+- [x] Markdown 报告渲染 (简化版)
+- [x] 复制 / 下载
+- [x] **飞书发送 → 创建 docx 文档 + API 发送** (方案B)
+- [x] 历史记录列表 (按 domain 筛选)
+
+**待实现：**
+- [ ] 主Agent 任务队列消费机制 (spawn DeepFlow)
+- [ ] 真实 DeepFlow 执行状态写入 blackboard/status.json
+- [ ] 飞书导出: markdown 列表 → 原生列表 block 格式
+- [ ] 前端构建产物 + 生产部署
 
 ## 约束
 
