@@ -114,8 +114,10 @@ def list_sessions(limit: int = 20, domain: str = None):
     
     return sessions[:limit]
 
-import subprocess
-import tempfile
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from utils.feishu_doc import create_doc_from_markdown, send_doc_link_via_feishu_api
 
 @router.post("/reports/{session_id}/export")
 def export_report(session_id: str, request: dict):
@@ -130,56 +132,31 @@ def export_report(session_id: str, request: dict):
         
         # Read content
         content = report_file.read_text(encoding='utf-8')
-        
-        # Save to temp file with proper name
-        with tempfile.NamedTemporaryFile(
-            mode='w', 
-            suffix=f'_{session_id}_report.md', 
-            delete=False,
-            dir='/tmp'
-        ) as f:
-            f.write(content)
-            temp_path = f.name
+        title = request.get("title", f"DeepFlow 报告 - {session_id}")
         
         try:
-            # Get target from request, env var, or fallback to known user
-            recipient = request.get("recipient", os.environ.get("DEEPFLOW_FEISHU_TARGET", "user:ou_d55068472a52a0f34ff72c3b6930044c"))
+            # Create Feishu docx from markdown
+            doc_url = create_doc_from_markdown(title, content)
             
-            cmd = [
-                "openclaw", "message", "send",
-                "--channel", "feishu",
-                "--target", recipient,
-                "--media", temp_path,
-                "--message", f"DeepFlow 分析报告：{session_id}",
-            ]
+            # Send link via Feishu API directly
+            send_result = send_doc_link_via_feishu_api(doc_url, title)
             
-            # Call openclaw CLI
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            
-            if result.returncode == 0:
+            if send_result["success"]:
                 return {
                     "status": "success",
-                    "message": "Report sent to Feishu via OpenClaw",
+                    "message": "报告已创建飞书文档并发送",
                     "session_id": session_id,
-                    "recipient": recipient or "default",
+                    "doc_url": doc_url,
                 }
             else:
                 return {
-                    "status": "error",
-                    "message": f"OpenClaw send failed: {result.stderr.strip()}",
+                    "status": "partial",
+                    "message": f"文档已创建但发送失败: {send_result.get('error', send_result.get('data', {}))}",
                     "session_id": session_id,
+                    "doc_url": doc_url,
                 }
-        finally:
-            # Cleanup temp file
-            try:
-                os.unlink(temp_path)
-            except OSError:
-                pass
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"飞书导出失败: {str(e)}")
     elif format_type == "local":
         return {"status": "success", "message": "Report ready for download", "session_id": session_id}
     else:
