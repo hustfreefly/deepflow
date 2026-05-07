@@ -1,0 +1,89 @@
+# DeepFlow Frontend Completion Contract v1.0
+# 采用契约笼子三层强制机制
+
+metadata:
+  name: frontend_completion_v1.0
+  version: "1.0"
+  created: "2026-05-08"
+  status: active
+
+phases:
+  - name: Phase 1 - Task Queue Consumer
+    description: 主Agent任务队列消费机制
+    deliverables:
+      - path: frontend/backend/routers/consumer.py
+        description: 定时轮询task_queue目录，spawn DeepFlow
+        requirements:
+          - 每5秒检查task_queue/
+          - 读取pending任务
+          - 调用sessions_spawn启动DeepFlow
+          - 更新status.json
+        max_lines: 250
+      - path: frontend/backend/routers/deepflow_bridge.py
+        description: DeepFlow执行桥接
+        requirements:
+          - 封装DeepFlow调用
+          - 错误处理
+          - 状态回调
+        max_lines: 200
+    gates:
+      - type: syntax
+        command: python -m py_compile {file}
+      - type: import
+        command: python -c "import {module}"
+
+  - name: Phase 2 - Status Integration
+    description: DeepFlow真实状态写入
+    deliverables:
+      - path: core/blackboard_bridge.py
+        description: Blackboard状态写入桥接
+        requirements:
+          - Pipeline各阶段更新status.json
+          - Worker进度追踪
+          - Harness分数记录
+        max_lines: 200
+    gates:
+      - type: integration
+        command: python check_blackboard_bridge.py
+
+  - name: Phase 3 - E2E Testing
+    description: 端到端测试
+    deliverables:
+      - path: tests/e2e/test_frontend_flow.py
+        description: 完整流程测试
+        requirements:
+          - 提交任务 → 消费 → 完成
+          - 状态轮询验证
+          - 报告生成验证
+      - path: tests/e2e/test_feishu_export.py
+        description: 飞书导出测试
+    gates:
+      - type: test
+        command: pytest tests/e2e/ -v
+        min_pass_rate: 100
+
+  - name: Phase 4 - Documentation
+    description: 文档更新
+    deliverables:
+      - path: frontend/README.md
+        requirements:
+          - 更新API列表
+          - 添加部署说明
+          - 添加测试命令
+      - path: PROGRESS_FRONTEND_2026-05-08.md
+        description: 进度报告
+
+quality_gates:
+  p0:
+    - all_files_compile
+    - all_tests_pass
+    - no_hardcoded_paths
+  p1:
+    - docstrings_for_public_methods
+    - type_hints_complete
+  p2:
+    - code_comments_for_complex_logic
+
+signoff:
+  required_reviews: 1
+  auto_merge: false

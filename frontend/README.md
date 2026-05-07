@@ -113,9 +113,25 @@ frontend/
 - [x] **飞书发送 → 创建 docx 文档 + API 发送** (方案B)
 - [x] 历史记录列表 (按 domain 筛选)
 
+**Phase 5: Task Queue Consumer** ✅ (2026-05-08)
+- [x] 后台任务队列消费机制 (`routers/consumer.py`)
+- [x] 每5秒轮询 task_queue/ 目录
+- [x] DeepFlow 执行桥接 (模拟/真实)
+- [x] 自动启动 Consumer (FastAPI startup event)
+
+**Phase 6: Blackboard Integration** ✅ (2026-05-08)
+- [x] BlackboardBridge 状态管理 (`core/blackboard_bridge.py`)
+- [x] 9阶段 Pipeline 状态追踪
+- [x] Harness 质量分数记录
+- [x] Report 文件生成
+
+**Phase 7: E2E Testing** ✅ (2026-05-08)
+- [x] 完整流程测试 (`tests/e2e/test_frontend_flow.py`)
+- [x] 契约验证脚本 (`check_frontend_completion.py`)
+- [x] 8/8 契约检查通过
+
 **待实现：**
-- [ ] 主Agent 任务队列消费机制 (spawn DeepFlow)
-- [ ] 真实 DeepFlow 执行状态写入 blackboard/status.json
+- [ ] 替换模拟执行为真实 DeepFlow spawn (需 Agent 环境)
 - [ ] 飞书导出: markdown 列表 → 原生列表 block 格式
 - [ ] 前端构建产物 + 生产部署
 
