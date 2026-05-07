@@ -114,14 +114,72 @@ def list_sessions(limit: int = 20, domain: str = None):
     
     return sessions[:limit]
 
+import subprocess
+import tempfile
+
 @router.post("/reports/{session_id}/export")
 def export_report(session_id: str, request: dict):
     """Export report to specified format/channel."""
     format_type = request.get("format", "local")
     
     if format_type == "feishu":
-        # TODO: Integrate with existing Feishu send functionality
-        return {"status": "success", "message": "Report sent to Feishu", "session_id": session_id}
+        # Read report
+        report_file = BLACKBOARD_DIR / session_id / "final_report.md"
+        if not report_file.exists():
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        # Read content
+        content = report_file.read_text(encoding='utf-8')
+        
+        # Save to temp file with proper name
+        with tempfile.NamedTemporaryFile(
+            mode='w', 
+            suffix=f'_{session_id}_report.md', 
+            delete=False,
+            dir='/tmp'
+        ) as f:
+            f.write(content)
+            temp_path = f.name
+        
+        try:
+            # Get target from request, env var, or fallback to known user
+            recipient = request.get("recipient", os.environ.get("DEEPFLOW_FEISHU_TARGET", "user:ou_d55068472a52a0f34ff72c3b6930044c"))
+            
+            cmd = [
+                "openclaw", "message", "send",
+                "--channel", "feishu",
+                "--target", recipient,
+                "--media", temp_path,
+                "--message", f"DeepFlow 分析报告：{session_id}",
+            ]
+            
+            # Call openclaw CLI
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            
+            if result.returncode == 0:
+                return {
+                    "status": "success",
+                    "message": "Report sent to Feishu via OpenClaw",
+                    "session_id": session_id,
+                    "recipient": recipient or "default",
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": f"OpenClaw send failed: {result.stderr.strip()}",
+                    "session_id": session_id,
+                }
+        finally:
+            # Cleanup temp file
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
     elif format_type == "local":
         return {"status": "success", "message": "Report ready for download", "session_id": session_id}
     else:
