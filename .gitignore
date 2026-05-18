@@ -97,3 +97,13 @@ htmlcov/
 secrets.yaml
 credentials.yaml
 test_results/
+config.json
+
+# 生成的报告
+reports/
+
+# 临时检查脚本
+cage/check_*.py
+
+# 上传文件目录
+frontend/backend/routers/uploads/
