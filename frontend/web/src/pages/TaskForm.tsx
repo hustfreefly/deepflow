@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
+import SpecUpload, { ExtractedSpec } from '../components/SpecUpload'
 
 const TaskForm: React.FC = () => {
   const navigate = useNavigate()
@@ -16,6 +17,39 @@ const TaskForm: React.FC = () => {
   const [constraints, setConstraints] = useState('')
   const [stakeholders, setStakeholders] = useState('')
   const [sessionPrefix, setSessionPrefix] = useState('')
+  
+  // Spec Pro extraction state
+  const [specExtracted, setSpecExtracted] = useState(false)
+  const [showManualForm, setShowManualForm] = useState(false)
+  
+  const handleSpecExtracted = (spec: ExtractedSpec) => {
+    if (spec.topic) setTopic(spec.topic)
+    if (spec.solution_type) setSolutionType(spec.solution_type)
+    if (spec.constraints.length > 0) setConstraints(spec.constraints.join('\n'))
+    if (spec.stakeholders.length > 0) setStakeholders(spec.stakeholders.join('\n'))
+    if (spec.topic || spec.constraints.length > 0 || spec.stakeholders.length > 0) {
+      setSpecExtracted(true)
+      setShowManualForm(false)
+    }
+  }
+  
+  const handleResetUpload = () => {
+    setSpecExtracted(false)
+    setShowManualForm(false)
+    setTopic('')
+    setSolutionType('architecture')
+    setConstraints('')
+    setStakeholders('')
+  }
+  
+  const handleSwitchToManual = () => {
+    setSpecExtracted(false)
+    setShowManualForm(true)
+    setTopic('')
+    setSolutionType('architecture')
+    setConstraints('')
+    setStakeholders('')
+  }
   
   // Investment form state
   const [code, setCode] = useState('688981.SH')
@@ -47,7 +81,7 @@ const TaskForm: React.FC = () => {
         session_prefix: sessionPrefix,
       }
       
-      const response = await fetch('/api/tasks', {
+      const response = await fetch('/api/v2/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
@@ -85,67 +119,160 @@ const TaskForm: React.FC = () => {
             {isSolution ? '新建方案设计任务' : '新建投资分析任务'}
           </h1>
           <p className="text-onsurface-variant mt-1">
-            {isSolution ? '输入研究主题和约束条件' : '输入股票代码和公司信息'}
+            {isSolution ? '上传需求文档或手动输入研究主题' : '输入股票代码和公司信息'}
           </p>
         </div>
         
         {/* Form */}
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-outline-variant">
+          {/* Spec Pro: Upload area (only when not yet extracted) */}
+          {isSolution && !specExtracted && (
+            <div className="mb-6">
+              <SpecUpload onExtracted={handleSpecExtracted} />
+            </div>
+          )}
+          
           {isSolution && (
             <>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-onsurface mb-2">
-                  研究主题 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="例如：设计一个智能物流仓储系统升级方案"
-                  className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
-                />
-              </div>
+              {/* Upload success: extraction result confirmation card */}
+              {specExtracted && (
+                <div className="mb-6">
+                  <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="material-icons-round text-green-600">auto_awesome</span>
+                      <h3 className="text-sm font-medium text-green-800">AI 已提取需求信息</h3>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs text-green-700 font-medium">设计主题</label>
+                        <p className="text-sm text-green-900 mt-1">{topic}</p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-green-700 font-medium">方案类型</label>
+                        <p className="text-sm text-green-900 mt-1">
+                          {solutionType === 'architecture' ? '架构设计' : 
+                           solutionType === 'business' ? '商业方案' : '技术方案'}
+                        </p>
+                      </div>
+                      {constraints && (
+                        <div>
+                          <label className="text-xs text-green-700 font-medium">约束条件</label>
+                          <div className="mt-1 space-y-1">
+                            {constraints.split('\n').filter(Boolean).map((c, i) => (
+                              <p key={i} className="text-sm text-green-900 flex items-center gap-2">
+                                <span className="material-icons-round text-xs text-green-600">check</span>
+                                {c}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {stakeholders && (
+                        <div>
+                          <label className="text-xs text-green-700 font-medium">干系人</label>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {stakeholders.split('\n').filter(Boolean).map((s, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                <span className="material-icons-round text-xs">person</span>
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-green-200 flex gap-3">
+                      <button
+                        onClick={handleResetUpload}
+                        className="text-sm text-green-700 hover:text-green-900 font-medium flex items-center gap-1"
+                      >
+                        <span className="material-icons-round text-sm">upload_file</span>
+                        重新上传
+                      </button>
+                      <button
+                        onClick={handleSwitchToManual}
+                        className="text-sm text-green-700 hover:text-green-900 font-medium flex items-center gap-1"
+                      >
+                        <span className="material-icons-round text-sm">edit</span>
+                        手动编辑
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-onsurface mb-2">
-                  方案类型
-                </label>
-                <select
-                  value={solutionType}
-                  onChange={(e) => setSolutionType(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all bg-white"
-                >
-                  <option value="architecture">架构设计</option>
-                  <option value="strategy">战略规划</option>
-                  <option value="research">技术研究</option>
-                </select>
-              </div>
+              {/* Manual form (hidden by default, shown on user request) */}
+              {showManualForm && (
+                <>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="material-icons-round text-primary-600 text-sm">edit</span>
+                    <h3 className="text-sm font-medium text-onsurface">手动输入需求</h3>
+                  </div>
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-onsurface mb-2">
+                      研究主题 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      placeholder="例如：设计一个智能物流仓储系统升级方案"
+                      className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
+                    />
+                  </div>
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-onsurface mb-2">
+                      方案类型
+                    </label>
+                    <select
+                      value={solutionType}
+                      onChange={(e) => setSolutionType(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all bg-white"
+                    >
+                      <option value="architecture">架构设计</option>
+                      <option value="strategy">战略规划</option>
+                      <option value="research">技术研究</option>
+                    </select>
+                  </div>
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-onsurface mb-2">
+                      约束条件（每行一个）
+                    </label>
+                    <textarea
+                      value={constraints}
+                      onChange={(e) => setConstraints(e.target.value)}
+                      placeholder="预算500万&#10;周期6个月"
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all resize-none"
+                    />
+                  </div>
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-onsurface mb-2">
+                      干系人（每行一个）
+                    </label>
+                    <textarea
+                      value={stakeholders}
+                      onChange={(e) => setStakeholders(e.target.value)}
+                      placeholder="技术团队&#10;财务总监"
+                      rows={2}
+                      className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all resize-none"
+                    />
+                  </div>
+                </>
+              )}
               
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-onsurface mb-2">
-                  约束条件（每行一个）
-                </label>
-                <textarea
-                  value={constraints}
-                  onChange={(e) => setConstraints(e.target.value)}
-                  placeholder="预算500万&#10;周期6个月"
-                  rows={3}
-                  className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all resize-none"
-                />
-              </div>
-              
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-onsurface mb-2">
-                  干系人（每行一个）
-                </label>
-                <textarea
-                  value={stakeholders}
-                  onChange={(e) => setStakeholders(e.target.value)}
-                  placeholder="技术团队&#10;财务总监"
-                  rows={2}
-                  className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all resize-none"
-                />
-              </div>
+              {/* Upload prompt when neither extracted nor manual */}
+              {!specExtracted && !showManualForm && (
+                <div className="mb-6 text-center">
+                  <p className="text-sm text-onsurface-variant">上传文档自动提取，或</p>
+                  <button
+                    onClick={() => setShowManualForm(true)}
+                    className="text-sm text-primary-600 hover:text-primary-700 font-medium mt-1"
+                  >
+                    手动输入需求
+                  </button>
+                </div>
+              )}
             </>
           )}
           

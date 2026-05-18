@@ -23,7 +23,7 @@ const ReportPage: React.FC = () => {
     
     const fetchReport = async () => {
       try {
-        const response = await fetch(`/api/reports/${sessionId}`)
+        const response = await fetch(`/api/v2/reports/${sessionId}`)
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`)
         }
@@ -61,7 +61,7 @@ const ReportPage: React.FC = () => {
   
   const handleFeishu = async () => {
     try {
-      const response = await fetch(`/api/reports/${sessionId}/export`, {
+      const response = await fetch(`/api/v2/reports/${sessionId}/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ format: 'feishu' }),

@@ -107,3 +107,6 @@ cage/check_*.py
 
 # 上传文件目录
 frontend/backend/routers/uploads/
+
+# 任务队列测试数据
+frontend/task_queue/*.json

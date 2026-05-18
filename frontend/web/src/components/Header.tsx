@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useSettings } from '../contexts/SettingsContext'
 
 interface HeaderProps {
   openclawStatus: string
@@ -9,6 +10,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ openclawStatus, apiStatus, version, loading }) => {
   const navigate = useNavigate()
+  const { openSettings } = useSettings()
   
   const getOpenclawColor = () => {
     if (loading) return 'bg-gray-400'
@@ -42,24 +44,24 @@ const Header: React.FC<HeaderProps> = ({ openclawStatus, apiStatus, version, loa
           </div>
           <div>
             <h1 className="text-xl font-medium text-onsurface tracking-tight">DeepFlow</h1>
-            <p className="text-xs text-onsurface-variant leading-tight">多 Agent 分析管线</p>
+            <p className="text-xs text-onsurface-variant leading-tight">多Agent协作平台</p>
           </div>
         </div>
 
         {/* Center: Navigation */}
         <nav className="hidden md:flex items-center gap-1">
-          <button 
+          <button
             onClick={() => navigate('/')}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-all duration-200 flex items-center gap-1"
           >
-            <span className="material-icons-round text-sm mr-1 align-text-bottom">dashboard</span>
+            <span className="material-icons-round text-sm">dashboard</span>
             概览
           </button>
-          <button 
+          <button
             onClick={() => navigate('/history')}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-onsurface-variant hover:bg-surface-variant transition-colors"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-onsurface-variant hover:bg-surface-variant transition-all duration-200 flex items-center gap-1"
           >
-            <span className="material-icons-round text-sm mr-1 align-text-bottom">history</span>
+            <span className="material-icons-round text-sm">history</span>
             历史
           </button>
         </nav>
@@ -88,7 +90,7 @@ const Header: React.FC<HeaderProps> = ({ openclawStatus, apiStatus, version, loa
           </div>
 
           {/* Settings Icon */}
-          <button className="w-10 h-10 rounded-full hover:bg-surface-variant flex items-center justify-center transition-colors">
+          <button onClick={() => openSettings()} className="w-10 h-10 rounded-full hover:bg-surface-variant flex items-center justify-center transition-all duration-200 hover:scale-105" title="系统设置">
             <span className="material-icons-round text-onsurface-variant">settings</span>
           </button>
 
