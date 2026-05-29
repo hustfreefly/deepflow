@@ -5,7 +5,7 @@ This module is designed to be called by the Main Agent when it receives
 a webhook notification. It reads the SQLite task queue and spawns DeepFlow.
 
 Usage (from Main Agent):
-    from agents.webhook_task_processor import process_pending_tasks
+    from core.agents.webhook_task_processor import process_pending_tasks
     await process_pending_tasks()
 """
 import json

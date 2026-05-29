@@ -1,0 +1,37 @@
+{
+  "version": "1.0",
+  "description": "DeepClaw 时间预算配置",
+  "quick_mode": {
+    "total_timeout": 600,
+    "phases": {
+      "planning": {"max_seconds": 60, "description": "分析计划生成"},
+      "confirm": {"max_seconds": 86400, "description": "等待用户确认 (24h)"},
+      "search": {"max_seconds": 60, "description": "搜索阶段 (Breadth-First + Depth-First)"},
+      "structured_data": {"max_seconds": 30, "description": "专业数据源调用"},
+      "report": {"max_seconds": 180, "description": "报告生成 + 引用验证"}
+    },
+    "max_search_calls": 5,
+    "max_web_fetch_calls": 5,
+    "max_professional_data_calls": 2
+  },
+  "standard_mode": {
+    "total_timeout": 2700,
+    "phases": {
+      "planning": {"max_seconds": 120, "description": "分析计划生成"},
+      "confirm": {"max_seconds": 86400, "description": "等待用户确认 (24h)"},
+      "search": {"max_seconds": 180, "description": "搜索阶段 (Breadth-First + Depth-First)"},
+      "structured_data": {"max_seconds": 60, "description": "专业数据源调用"},
+      "report": {"max_seconds": 300, "description": "报告生成 + 引用验证"}
+    },
+    "max_search_calls": 15,
+    "max_web_fetch_calls": 15,
+    "max_professional_data_calls": 5
+  },
+  "subagent_timeouts": {
+    "mode_B": 600,
+    "mode_C_subagent": 600,
+    "mode_C_orchestrator": 1800
+  },
+  "progress_update_interval_seconds": 30,
+  "user_confirmation_timeout_seconds": 86400
+}

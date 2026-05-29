@@ -62,7 +62,8 @@ class SolutionOrchestratorV21:
                  mode: str = "standard", constraints: list = None,
                  stakeholders: list = None,
                  session_prefix: Optional[str] = None,
-                 spawn_fn=None):
+                 spawn_fn=None,
+                 living_spec: Optional[dict] = None):
         """
         初始化 Solution Orchestrator V2.1
 
@@ -74,6 +75,7 @@ class SolutionOrchestratorV21:
             stakeholders: 利益相关者列表
             session_prefix: 会话前缀(可选)
             spawn_fn: 注入的 spawn 函数(契约笼子要求)
+            living_spec: Spec Pro 产出的 Living Spec(可选,向后兼容)
         """
         # 输入验证
         if not topic or len(topic.strip()) == 0:
@@ -106,6 +108,7 @@ class SolutionOrchestratorV21:
         self.session_id = None
         self.base_path = None
         self._spawn_fn = spawn_fn or self._resolve_spawn_fn()
+        self.living_spec = living_spec  # Spec Pro Living Spec(可选)
 
     def _resolve_spawn_fn(self):
         """解析 spawn 函数(fallback 机制,契约笼子要求)"""
@@ -272,14 +275,16 @@ class SolutionOrchestratorV21:
         for stage in pipeline:
             if stage == "data_collection":
                 tasks[stage] = build_data_collection_task(
-                    self.session_id, self.topic, self.constraints
+                    self.session_id, self.topic, self.constraints,
+                    living_spec=self.living_spec
                 )
 
             elif stage == "planning":
                 # Stage 2: 规划(内嵌Harness自评)
                 tasks[stage] = build_planner_task(
                     self.session_id, self.topic, self.solution_type,
-                    self.constraints, self.stakeholders
+                    self.constraints, self.stakeholders,
+                    living_spec=self.living_spec
                 )
 
             elif stage == "reviewers":
@@ -303,7 +308,8 @@ class SolutionOrchestratorV21:
                     tasks[stage][config["type"]] = build_reviewer_task(
                         self.session_id, self.topic,
                         config["type"], config["focus"],
-                        {"plan": "from_planner"}  # 实际应从blackboard读取
+                        {"plan": "from_planner"},  # 实际应从blackboard读取
+                        living_spec=self.living_spec
                     )
 
             # elif stage == "harness_v3":
@@ -339,7 +345,8 @@ class SolutionOrchestratorV21:
                         {"type": self.solution_type, "constraints": self.constraints},
                         expert_id=expert["id"],
                         angle=expert["angle"],
-                        reason=expert["reason"]
+                        reason=expert["reason"],
+                        living_spec=self.living_spec
                     )
 
             elif stage == "consolidator":
@@ -380,14 +387,16 @@ class SolutionOrchestratorV21:
             elif stage == "harness_final":
                 # Stage 9: 最终质量门禁(独立Harness V2)
                 tasks[stage] = build_harness_final_task(
-                    self.session_id, self.topic
+                    self.session_id, self.topic,
+                    living_spec=self.living_spec
                 )
 
             elif stage == "summarizer":
                 # Stage 10: 最终总结
                 tasks[stage] = build_summarizer_task(
                     self.session_id, self.topic,
-                    {}  # 实际应从blackboard读取all_outputs
+                    {},  # 实际应从blackboard读取all_outputs
+                    living_spec=self.living_spec
                 )
 
         return tasks

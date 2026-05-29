@@ -22,7 +22,7 @@ deliverables:
         command: plutil -lint ~/Library/LaunchAgents/ai.openclaw.deepflow.cron.plist 2>/dev/null || echo "Will be created"
   
   - name: cron_task_checker.py
-    path: agents/cron_task_checker.py
+    path: core/agents/cron_task_checker.py
     type: python_module
     description: "Cron job task processor with retry logic"
     gates:
@@ -69,4 +69,4 @@ signoff:
   verification_commands:
     - "launchctl list | grep deepflow-cron"
     - "cat /tmp/openclaw/deepflow-cron.log | tail -20"
-    - "python3 agents/cron_task_checker.py"
+    - "python3 core/agents/cron_task_checker.py"

@@ -120,7 +120,7 @@ class DataManagerWorker:
         
         try:
             # 导入 DeepFlow 模块
-            from data_providers.investment import register_providers
+            from core.data_providers.investment import register_providers
             from core.data_manager import DataEvolutionLoop, ConfigDrivenCollector
             from core.blackboard_manager import BlackboardManager
             

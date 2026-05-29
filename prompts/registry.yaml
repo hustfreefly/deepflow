@@ -1,6 +1,122 @@
 schema_version: 1.0.0
-last_updated: '2026-05-01T22:30:00+08:00'
+last_updated: '2026-05-23T20:30:00+08:00'
 domains:
+  spec_pro:
+    version: 2.1.0
+    prompts:
+      orchestrator:
+        name: Spec Pro Orchestrator
+        filename: orchestrator.md
+        version: 2.1.0
+        role: orchestrator
+        author: deepflow-team
+        created: '2026-05-23'
+        updated: '2026-05-23'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-23'
+          changes:
+          - 初始版本：苏格拉底式对话引擎
+        variables:
+          required: []
+          optional: []
+      parse:
+        name: Spec Pro ParseWorker
+        filename: parse.md
+        version: 2.1.0
+        role: parser
+        author: deepflow-team
+        created: '2026-05-23'
+        updated: '2026-05-23'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-23'
+          changes:
+          - 初始版本：解析用户输入 + 行业推断
+        variables:
+          required: []
+          optional: []
+      guide:
+        name: Spec Pro QuestionWorker
+        filename: guide.md
+        version: 2.1.0
+        role: questioner
+        author: deepflow-team
+        created: '2026-05-23'
+        updated: '2026-05-23'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-23'
+          changes:
+          - 初始版本：苏格拉底六类问题生成
+        variables:
+          required: []
+          optional: []
+      parse_response:
+        name: Spec Pro ResponseWorker
+        filename: parse_response.md
+        version: 2.1.0
+        role: parser
+        subtype: response
+        author: deepflow-team
+        created: '2026-05-23'
+        updated: '2026-05-23'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-23'
+          changes:
+          - 初始版本：解析用户回答 + Input Guard
+        variables:
+          required: []
+          optional: []
+      assess:
+        name: Spec Pro AssessWorker
+        filename: assess.md
+        version: 2.1.0
+        role: assessor
+        author: deepflow-team
+        created: '2026-05-23'
+        updated: '2026-05-23'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-23'
+          changes:
+          - 初始版本：7维度质量评估
+        variables:
+          required: []
+          optional: []
+      structure:
+        name: Spec Pro StructureWorker
+        filename: structure.md
+        version: 2.1.0
+        role: structurer
+        author: deepflow-team
+        created: '2026-05-23'
+        updated: '2026-05-23'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-23'
+          changes:
+          - 初始版本：最终结构化 + 路由建议
+        variables:
+          required: []
+          optional: []
+      harness:
+        name: Spec Pro HarnessWorker
+        filename: harness.md
+        version: 2.1.0
+        role: harness
+        author: deepflow-team
+        created: '2026-05-23'
+        updated: '2026-05-23'
+        changelog:
+        - version: 2.1.0
+          date: '2026-05-23'
+          changes:
+          - 初始版本：Output Guard 5维度门禁
+        variables:
+          required: []
+          optional: []
   solution:
     version: 2.1.0
     prompts:

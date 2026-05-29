@@ -1,0 +1,82 @@
+{
+  "version": "1.0",
+  "description": "DeepClaw Tier 域名分类白名单/黑名单",
+  "tier_1": {
+    "weight": 1.0,
+    "label": "官方/学术",
+    "confidence": "high",
+    "domains": [
+      "sec.gov",
+      "cninfo.com.cn",
+      "sse.com.cn",
+      "szse.cn",
+      "gov.cn",
+      "arxiv.org",
+      "nature.com",
+      "science.org",
+      "ieee.org",
+      "acm.org",
+      "pubmed.ncbi.nlm.nih.gov",
+      "who.int",
+      "worldbank.org",
+      "imf.org",
+      "fedreserve.gov",
+      "pbc.gov.cn",
+      "stats.gov.cn",
+      "cs.com.cn",
+      "eastmoney.com/data",
+      "wind.com.cn"
+    ]
+  },
+  "tier_2": {
+    "weight": 0.7,
+    "label": "权威媒体",
+    "confidence": "medium",
+    "domains": [
+      "reuters.com",
+      "bloomberg.com",
+      "ft.com",
+      "wsj.com",
+      "caixin.com",
+      "finance.sina.com.cn",
+      "cnbc.com",
+      "bbc.com",
+      "nytimes.com",
+      "economist.com",
+      "36kr.com",
+      "techcrunch.com",
+      "arstechnica.com",
+      "nature.com/news",
+      "sciencealert.com",
+      "wallstreetcn.com",
+      "cls.cn",
+      "yicai.com"
+    ]
+  },
+  "tier_3": {
+    "weight": 0.4,
+    "label": "社区/论坛",
+    "confidence": "low",
+    "domains": [
+      "xueqiu.com",
+      "eastmoney.com/guba",
+      "reddit.com",
+      "weibo.com",
+      "zhihu.com",
+      "douban.com",
+      "tieba.baidu.com",
+      "stocktwits.com",
+      "seekingalpha.com",
+      "motleyfool.com"
+    ]
+  },
+  "blacklist": {
+    "description": "明确排除的低质量来源",
+    "domains": [
+      "contentfarm.example.com",
+      "clickbait.example.com"
+    ]
+  },
+  "default_tier": "tier_2",
+  "default_tier_status": "unverified"
+}

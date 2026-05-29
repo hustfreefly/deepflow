@@ -1,0 +1,11 @@
+{
+  "test_name": "solution_e2e_test",
+  "timestamp": "2026-04-26 17:33:27",
+  "context": {
+    "topic": "设计一个支持百万日订单的电商订单系统",
+    "type": "architecture",
+    "mode": "standard"
+  },
+  "success": false,
+  "result_summary": null
+}

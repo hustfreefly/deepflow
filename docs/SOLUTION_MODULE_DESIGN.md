@@ -3,7 +3,7 @@
 > **版本**: v3.0  
 > **日期**: 2026-04-28  
 > **状态**: 设计中  
-> **目标**: 通用解决方案设计模块，支持Quick/Standard/Pro三种模式
+> **目标**: 通用解决方案设计模块，支持 Standard/Rigorous 两种模式
 
 ---
 
@@ -13,9 +13,10 @@
 
 | 模式 | 适用场景 | 执行时间 | Agent数 | 特点 |
 |:---|:---|:---:|:---:|:---|
-| **Quick** | 方案预览、初步思路 | 2-3分钟 | 3个 | 快速、轻量 |
-| **Standard** | 一般架构设计 | 10-15分钟 | 8-10个 | 平衡质量与时效 |
-| **Pro** | 复杂企业级方案 | 20-30分钟 | 12+个 | 深度研究、Harness V2 质量保障 |
+| **Standard** | 一般架构设计 | 10-15分钟 | 8-10个 | 平衡质量与时效，完整10阶段 |
+| **Rigorous** | 复杂企业级方案 | 20-30分钟 | 12+个 | 深度研究、Harness V2 质量保障 |
+
+> ⚠️ Quick 模式已删除（2026-05），所有运行都使用完整 10 阶段 Harness V2 管线。详见 `domains/solution/orchestrator_agent.py:258`。
 
 ### 1.2 输入模式
 
@@ -38,7 +39,7 @@
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  SolutionExecutor（depth-1）                                 │
-│  ├─ 模式选择（Quick/Standard/Pro）                          │
+│  ├─ 模式选择（Standard/Rigorous）—— Quick 已删除，所有模式走完整10阶段
 │  ├─ Agent调度（动态选择Agent组合）                          │
 │  └─ sessions_spawn → Workers（depth-2）                     │
 └─────────────────────────────────────────────────────────────┘
@@ -381,7 +382,7 @@ pragmatic_guard:
 
 ### 7.1 功能验收
 
-- [ ] 三种模式（Quick/Standard/Pro）完整执行
+- [ ] Standard 模式完整执行（原 Quick/Standard/Pro 合并为 Standard/Rigorous）
 - [ ] Planner动态Agent选择
 - [ ] Harness质量+防发散检查
 - [ ] Agent库配置化
@@ -395,7 +396,7 @@ pragmatic_guard:
 
 ### 7.3 性能验收
 
-- [ ] Quick模式 ≤ 3分钟
+- [ ] Standard 模式 ≤ 15分钟（原 Quick 模式已删除）
 - [ ] Standard模式 ≤ 15分钟
 - [ ] Pro模式 ≤ 90分钟（含容错）
 

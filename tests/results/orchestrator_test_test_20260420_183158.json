@@ -1,0 +1,37 @@
+{
+  "session_id": "test_20260420_183158",
+  "stock_code": "300604.SZ",
+  "company_name": "长川科技",
+  "analysis_goal": "2026-2027年业绩预测",
+  "config_loaded": true,
+  "domain": "investment",
+  "pipeline": "iterative",
+  "max_iterations": 10,
+  "target_score": 0.88,
+  "total_agents": 16,
+  "agent_roles": [
+    "planner",
+    "researcher_finance",
+    "researcher_tech",
+    "researcher_market",
+    "researcher_macro_chain",
+    "researcher_management",
+    "researcher_sentiment",
+    "financial",
+    "market",
+    "risk",
+    "auditor_factual",
+    "auditor_upside",
+    "auditor_downside",
+    "fixer",
+    "verifier",
+    "summarizer"
+  ],
+  "test_phases": [
+    "planner",
+    "researcher_finance",
+    "researcher_tech"
+  ],
+  "tasks_prepared": 3,
+  "timestamp": "2026-04-20T18:31:58.518786"
+}

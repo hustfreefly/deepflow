@@ -19,7 +19,7 @@ def step1_bootstrap():
     
     try:
         # 直接导入具体模块，避免 __init__.py 的循环依赖
-        from data_providers.investment import register_providers
+        from core.data_providers.investment import register_providers
         from core.data_manager import DataEvolutionLoop, ConfigDrivenCollector
         from core.blackboard_manager import BlackboardManager
         

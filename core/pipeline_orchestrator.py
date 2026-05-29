@@ -28,6 +28,61 @@ from core.blackboard_manager import BlackboardManager
 
 _DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 
+# ============================================================================
+# P0-1 修复: Worker 名称 → 实际 Blackboard 输出路径映射
+# 对齐 domains/solution/task_builder.py 中各 prompt 要求写入的文件名
+# ============================================================================
+WORKER_OUTPUT_PATH_MAP = {
+    "data_collection": "data_collection.json",
+    "planning": "planning.json",
+    "reviewers": None,  # 并行子worker, 由执行时动态映射
+    "research": None,   # 并行子worker, 由执行时动态映射
+    "consolidator": "consolidator.json",
+    "audit": "audit.json",
+    "fix": "fix.json",
+    "fixer_expert": "fixer_expert.json",
+    "harness_final": "harness_final.json",
+    "summarizer": "final_solution.md",
+    # 并行子worker的命名约定
+    "reviewer": "reviewer.json",        # reviewer_type → reviewer_{type}.json
+    "research_expert_1": "research_expert_1.json",
+    "research_expert_2": "research_expert_2.json",
+    "research_expert_3": "research_expert_3.json",
+    "technical": "reviewer_technical.json",
+    "business": "reviewer_business.json",
+    "risk": "reviewer_risk.json",
+    "expert_1": "research_expert_1.json",
+    "expert_2": "research_expert_2.json",
+    "expert_3": "research_expert_3.json",
+}
+
+
+def resolve_worker_output_path(worker_name: str) -> str:
+    """
+    P0-1 修复: 根据 worker_name 解析实际的 Blackboard 输出文件路径
+
+    优先级:
+    1. 精确映射 (WORKER_OUTPUT_PATH_MAP)
+    2. reviewer 类型映射 (reviewer_technical → reviewer_technical.json)
+    3. expert 类型映射 (expert_N → research_expert_N.json)
+    4. 回退到 {worker_name}.json
+    """
+    if worker_name in WORKER_OUTPUT_PATH_MAP:
+        mapped = WORKER_OUTPUT_PATH_MAP[worker_name]
+        if mapped is not None:
+            return mapped
+
+    # reviewer 子worker
+    if worker_name.startswith("reviewer_"):
+        return f"reviewer_{worker_name.split('_', 1)[1]}.json"
+
+    # expert 子worker
+    if worker_name.startswith("expert_"):
+        return f"research_{worker_name}.json"
+
+    # 回退: 直接使用 worker_name
+    return f"{worker_name}.json"
+
 
 class PipelineOrchestrator:
     """
@@ -283,7 +338,7 @@ class PipelineOrchestrator:
 
 ## 输出要求
 请将你的分析和结论写入 Blackboard 文件：
-- 路径: {_DEEPFLOW_BASE}/blackboard/{self.session_id}/stages/{worker_name}_output.json
+- 路径: {_DEEPFLOW_BASE}/blackboard/{self.session_id}/stages/{resolve_worker_output_path(worker_name)}
 - 格式: JSON
 
 请确保输出包含真实内容，不要只返回元数据。"""
@@ -437,8 +492,10 @@ class PipelineOrchestrator:
         """
         等待 Worker 完成（Blackboard 轮询）
 
+        P0-1 修复: 使用 resolve_worker_output_path 解析实际输出路径
+
         策略：
-        1. 轮询 Blackboard 文件（stages/{worker_name}_output.json）
+        1. 轮询 Blackboard 文件（根据 worker_name 映射到实际路径）
         2. 超时后返回降级结果
 
         Args:
@@ -451,9 +508,11 @@ class PipelineOrchestrator:
             {"success": bool, "result": any, "error": str, "source": str}
         """
         poll_interval = 5.0
-        blackboard_path = self.blackboard.session_dir / "stages" / f"{worker_name}_output.json"
+        # P0-1 修复: 不再硬编码 {worker_name}_output.json
+        output_filename = resolve_worker_output_path(worker_name)
+        blackboard_path = self.blackboard.session_dir / "stages" / output_filename
 
-        print(f"    [{worker_name}] Waiting (timeout={timeout}s)...")
+        print(f"    [{worker_name}] Waiting for {output_filename} (timeout={timeout}s)...")
 
         while time.time() - start_time < timeout:
             # 检查 Blackboard 文件
@@ -464,7 +523,7 @@ class PipelineOrchestrator:
 
                     # 验证不是 spawn 元数据
                     if self._is_valid_worker_output(data):
-                        print(f"    [{worker_name}] ✅ Result from Blackboard")
+                        print(f"    [{worker_name}] ✅ Result from Blackboard ({output_filename})")
                         return {
                             "success": True,
                             "result": data,
@@ -507,8 +566,18 @@ class PipelineOrchestrator:
 
         # 验证 Worker 输出字段
         content_keys = ["analysis", "executive_summary", "conclusions",
-                       "key_findings", "plan", "report", "output"]
-        return any(k in data for k in content_keys)
+                       "key_findings", "plan", "report", "output",
+                       "recommendation", "fixed_analysis", "research_plan",
+                       "scenario_analysis", "audit_findings"]
+        if any(k in data for k in content_keys):
+            return True
+
+        # P0-2 修复: 识别标准阶段输出格式 {"status": "completed", "stage": "...", "data": {...}}
+        if data.get("status") in ("completed", "partial", "failed"):
+            if "stage" in data or "data" in data:
+                return True
+
+        return False
 
     def _build_label(self, worker_name: str, stage_name: str) -> str:
         """

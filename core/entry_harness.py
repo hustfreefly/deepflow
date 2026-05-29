@@ -16,6 +16,7 @@ Entry/Startup Harness
 """
 
 import json
+import os
 from typing import Any, Dict
 
 from core.config.path_config import PathConfig
@@ -232,6 +233,9 @@ class EntryHarness:
         """
         生成 execution_plan.json 和 tasks.json
 
+        P0-3 修复: 复用已有的 context["session_id"]，避免 session_id 分裂
+        不再创建新的 Orchestrator 实例，而是使用 context 中已有的 session_id
+
         Args:
             domain: 领域标识
             context: 用户上下文（包含 session_id）
@@ -239,7 +243,10 @@ class EntryHarness:
         Returns:
             execution_plan.json 的绝对路径
         """
-        session_id = context["session_id"]
+        # P0-3 修复: 直接复用已有的 session_id
+        session_id = context.get("session_id")
+        if not session_id:
+            raise ValueError("session_id must be set in context before _generate_execution_plan")
         session_dir = _DEEPFLOW_BASE / "blackboard" / session_id
 
         if domain == "solution":
@@ -250,6 +257,24 @@ class EntryHarness:
             solution_type = context.get("solution_type", "architecture")
             session_prefix = context.get("session_prefix")
 
+            # 🌉 Spec Pro → Solution Pro 桥接
+            living_spec = None
+            spec_session_id = context.get("spec_session_id")
+            if spec_session_id:
+                spec_path = _DEEPFLOW_BASE / "blackboard" / spec_session_id / "spec" / "living_spec.json"
+                if spec_path.exists():
+                    try:
+                        with open(spec_path, 'r', encoding='utf-8') as f:
+                            living_spec = json.load(f)
+                        if "confirmed" not in living_spec:
+                            print("[EntryHarness] ⚠️ Living Spec 缺少 confirmed 层，跳过")
+                            living_spec = None
+                        else:
+                            print(f"[EntryHarness] 🌉 已加载 Spec Pro Living Spec: {spec_session_id}")
+                    except (json.JSONDecodeError, PermissionError, OSError) as e:
+                        print(f"[EntryHarness] ⚠️ Living Spec 加载失败，跳过: {e}")
+                        living_spec = None
+
             orch = SolutionOrchestratorV21(
                 topic=topic,
                 solution_type=solution_type,
@@ -257,8 +282,14 @@ class EntryHarness:
                 constraints=context.get("constraints"),
                 stakeholders=context.get("stakeholders"),
                 session_prefix=session_prefix,
+                living_spec=living_spec,
             )
-            orch.init()
+            # P0-3 修复: 使用已有的 session_id 而不是重新生成
+            orch.session_id = session_id
+            orch.base_path = str(session_dir)
+            os.makedirs(f"{session_dir}/data", exist_ok=True)
+            os.makedirs(f"{session_dir}/stages", exist_ok=True)
+            # 生成任务和计划（不重新初始化 session_id）
             tasks = orch.get_all_tasks()
             plan = orch.save_execution_plan()
             orch.save_tasks()

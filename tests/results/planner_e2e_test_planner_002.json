@@ -1,0 +1,11 @@
+{
+  "test_result": "success",
+  "fixed_issues_verified": {
+    "key_areas_area_field": true,
+    "stages_stage_field": true,
+    "stages_parallel_field": true,
+    "stages_timeout_field": true,
+    "estimated_duration_format": true
+  },
+  "regression_issues": []
+}

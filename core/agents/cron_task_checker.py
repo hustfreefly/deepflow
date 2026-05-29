@@ -247,7 +247,7 @@ def main():
                 print(f"[CronChecker]     Webhook retries: {task.webhook_retries}")
             print(f"[CronChecker] {'-'*50}")
             print(f"[CronChecker] These tasks need Main Agent to process via:")
-            print(f"[CronChecker]   from agents.webhook_task_processor import process_pending_tasks")
+            print(f"[CronChecker]   from core.agents.webhook_task_processor import process_pending_tasks")
             print(f"[CronChecker]   process_pending_tasks()")
             return 2  # Exit code 2 = pending tasks found
         

@@ -73,7 +73,7 @@ phases:
   - name: Phase 3 - 主Agent Webhook 处理器
     description: 实现主Agent接收 Webhook 并 spawn DeepFlow
     deliverables:
-      - path: agents/webhook_task_processor.py
+      - path: core/agents/webhook_task_processor.py
         description: Webhook 任务处理器
         requirements:
           - 读取 SQLite 任务队列
@@ -82,7 +82,7 @@ phases:
           - 更新任务状态为 running
           - 处理 DeepFlow 完成后的状态更新
         max_lines: 250
-      - path: agents/hooks/deepflow_webhook_handler.py
+      - path: core/agents/hooks/deepflow_webhook_handler.py
         description: OpenClaw Hook 处理器（如果支持）
         requirements:
           - 接收 webhook 事件
@@ -104,7 +104,7 @@ phases:
           - 调用主Agent检查任务队列
           - 验证 Cron Job 创建成功
         max_lines: 100
-      - path: agents/cron_task_checker.py
+      - path: core/agents/cron_task_checker.py
         description: Cron Job 任务检查器
         requirements:
           - 检查 SQLite 中 pending 超过30秒的任务

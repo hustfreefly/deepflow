@@ -208,7 +208,7 @@ def _send_webhook(session_id: str, domain: str, params: dict) -> bool:
         return False
     
     payload = {
-        "text": f"[DeepFlow] 新任务已入队: {session_id}。请在终端执行:\n\ncd /Users/allen/.openclaw/workspace/.deepflow && python3 -c \"import sys; sys.path.insert(0,'.'); from agents.webhook_task_processor import process_pending_tasks; process_pending_tasks(max_tasks=1)\"\n\n处理完成后请回复任务状态。",
+        "text": f"[DeepFlow] 新任务已入队: {session_id}。请在终端执行:\n\ncd /Users/allen/.openclaw/workspace/.deepflow && python3 -c \"import sys; sys.path.insert(0,'.'); from core.agents.webhook_task_processor import process_pending_tasks; process_pending_tasks(max_tasks=1)\"\n\n处理完成后请回复任务状态。",
         "mode": "now"
     }
     

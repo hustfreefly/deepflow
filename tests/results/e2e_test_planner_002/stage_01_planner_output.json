@@ -1,0 +1,198 @@
+{
+  "role": "planner_pro",
+  "session_id": "e2e_test_planner_002",
+  "analysis": {
+    "complexity": "complex",
+    "system_type": "跨境电商平台",
+    "core_features": [
+      "多语言支持",
+      "多货币结算",
+      "多时区管理",
+      "跨境物流集成",
+      "GDPR合规"
+    ],
+    "non_functional_reqs": [
+      "高可用性",
+      "数据安全",
+      "性能优化",
+      "可扩展性"
+    ]
+  },
+  "plan": {
+    "estimated_duration": "58min",
+    "total_agents": 14,
+    "stages": [
+      {
+        "stage": 1,
+        "name": "planner",
+        "parallel": false,
+        "timeout": 300,
+        "agents": [
+          {
+            "id": "planner_pro",
+            "type": "planner"
+          }
+        ]
+      },
+      {
+        "stage": 2,
+        "name": "reviewers",
+        "parallel": true,
+        "timeout": 300,
+        "agents": [
+          {
+            "id": "reviewer_completeness",
+            "focus": [
+              "功能覆盖",
+              "边界条件"
+            ]
+          },
+          {
+            "id": "reviewer_reasonableness",
+            "focus": [
+              "技术可行性"
+            ]
+          },
+          {
+            "id": "reviewer_weight",
+            "focus": [
+              "性能vs成本"
+            ]
+          }
+        ]
+      },
+      {
+        "stage": 3,
+        "name": "fixer_planner",
+        "parallel": false,
+        "timeout": 300,
+        "agents": [
+          {
+            "id": "fixer_planner",
+            "type": "fixer"
+          }
+        ]
+      },
+      {
+        "stage": 4,
+        "name": "researchers",
+        "parallel": true,
+        "timeout": 600,
+        "agents": [
+          {
+            "id": "researcher_tech",
+            "search_focus": [
+              "技术栈",
+              "架构模式"
+            ]
+          },
+          {
+            "id": "researcher_practice",
+            "search_focus": [
+              "大厂案例",
+              "最佳实践"
+            ]
+          },
+          {
+            "id": "researcher_risk",
+            "search_focus": [
+              "安全风险",
+              "合规要求"
+            ]
+          }
+        ]
+      },
+      {
+        "stage": 5,
+        "name": "consolidator",
+        "parallel": false,
+        "timeout": 300,
+        "agents": [
+          {
+            "id": "consolidator",
+            "type": "consolidator"
+          }
+        ]
+      },
+      {
+        "stage": 6,
+        "name": "auditors",
+        "parallel": true,
+        "timeout": 600,
+        "agents": [
+          {
+            "id": "auditor_architecture",
+            "focus": [
+              "架构合理性"
+            ]
+          },
+          {
+            "id": "auditor_technology",
+            "focus": [
+              "技术可行性"
+            ]
+          },
+          {
+            "id": "auditor_cost",
+            "focus": [
+              "成本合理性"
+            ]
+          }
+        ]
+      },
+      {
+        "stage": 7,
+        "name": "fixer_expert",
+        "parallel": false,
+        "timeout": 600,
+        "agents": [
+          {
+            "id": "fixer_expert",
+            "type": "fixer"
+          }
+        ]
+      },
+      {
+        "stage": 8,
+        "name": "summarizer",
+        "parallel": false,
+        "timeout": 600,
+        "agents": [
+          {
+            "id": "summarizer_pro",
+            "type": "summarizer"
+          }
+        ]
+      }
+    ]
+  },
+  "key_areas": [
+    {
+      "area": "核心架构",
+      "weight": 0.35,
+      "rationale": "系统基础"
+    },
+    {
+      "area": "数据安全",
+      "weight": 0.25,
+      "rationale": "GDPR合规要求"
+    },
+    {
+      "area": "性能优化",
+      "weight": 0.2,
+      "rationale": "用户体验"
+    },
+    {
+      "area": "运维监控",
+      "weight": 0.2,
+      "rationale": "长期稳定"
+    }
+  ],
+  "constraints_summary": [
+    "预算500万人民币",
+    "6个月上线",
+    "支持百万日活",
+    "符合GDPR合规"
+  ],
+  "quality_score": 85
+}

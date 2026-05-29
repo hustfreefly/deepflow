@@ -30,7 +30,7 @@
 ### Phase 3: 主 Agent 处理器 ✅
 | 任务 | 状态 | 文件 |
 |:---|:---:|:---|
-| 任务处理器 | ✅ | `agents/webhook_task_processor.py` |
+| 任务处理器 | ✅ | `core/agents/webhook_task_processor.py` |
 | spawn_fn 注入 | ✅ | 支持 Agent 环境 |
 | DeepFlow 任务构建 | ✅ | Solution/Investment 领域 |
 | 错误处理 | ✅ | 具体异常类型 |
@@ -38,7 +38,7 @@
 ### Phase 4: Cron Job 兜底 ✅
 | 任务 | 状态 | 文件 |
 |:---|:---:|:---|
-| Cron 检查器 | ✅ | `agents/cron_task_checker.py` |
+| Cron 检查器 | ✅ | `core/agents/cron_task_checker.py` |
 | 重试逻辑 | ✅ | Webhook 失败自动重试 |
 | 过期任务检测 | ✅ | 30分钟超时标记失败 |
 | 任务统计 | ✅ | 队列摘要报告 |

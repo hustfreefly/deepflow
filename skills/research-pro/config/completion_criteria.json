@@ -1,0 +1,43 @@
+{
+  "version": "1.0",
+  "description": "DeepClaw 完成标准矩阵",
+  "quick_mode": {
+    "min_data_sources": 3,
+    "min_citations": 3,
+    "min_tier_1_sources": 1,
+    "url_reachability": 0.80,
+    "max_time_seconds": 600,
+    "report_required_sections": ["摘要", "核心发现", "风险提示", "参考资料"],
+    "max_citation_suspect_rate": 0.20
+  },
+  "standard_mode": {
+    "min_data_sources": 5,
+    "min_citations": 8,
+    "min_tier_1_sources": 2,
+    "url_reachability": 0.90,
+    "max_time_seconds": 2700,
+    "report_required_sections": ["摘要", "核心发现", "详细分析", "风险提示", "参考资料"],
+    "max_citation_suspect_rate": 0.10
+  },
+  "quality_scoring": {
+    "weights": {
+      "citation_verification_rate": 0.30,
+      "tier_1_source_ratio": 0.20,
+      "url_reachability": 0.20,
+      "data_source_diversity": 0.15,
+      "report_structure_completeness": 0.15
+    },
+    "thresholds": {
+      "excellent": 90,
+      "good": 75,
+      "acceptable": 60,
+      "poor": 0
+    }
+  },
+  "degradation_rules": {
+    "citation_verification_below_60_percent": "mark_report_as_unreliable",
+    "url_reachability_below_50_percent": "retry_failed_urls_once_then_skip",
+    "no_data_sources_after_search": "switch_to_fallback_data_sources",
+    "timeout_reached": "output_partial_report_with_marker"
+  }
+}

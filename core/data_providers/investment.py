@@ -265,7 +265,7 @@ def register_providers():
 
     # Tushare Pro（付费版，无调用限制）
     try:
-        from data_providers.tushare_provider import TushareProvider
+        from core.data_providers.tushare_provider import TushareProvider
         ProviderRegistry.register("tushare", TushareProvider())
     except ImportError:
         pass  # tushare 未安装时跳过

@@ -1,0 +1,918 @@
+# ResearchPro v1.0 契约
+# Deep Research Skill — 对标 Gemini Deep Research 的 OpenClaw 自主研究引擎
+#
+# ⚠️ 本契约为 DeepFlow 开发规范强制文件
+#    每次修改代码前必须先读本契约
+#
+# 项目名: ResearchPro (Deep + Claw, OpenClaw 基因 + Deep Research 能力)
+# 架构: 四阶段管线 (Plan → Confirm → Execute → Report)
+#       三级 Agent 模式 (A=快速单Agent / B=标准≤2子任务 / C=标准≥3并行)
+# 对标: Gemini Deep Research / Perplexity Pro / OpenAI Deep Research
+# 差异化: 中文投资研究深度 (新浪财经+AKShare+经济日历+现有skills)
+
+module: research_pro
+version: "1.0"
+created: "2026-05-29"
+updated: "2026-05-29"
+status: active
+complexity: complex  # SKILL.md + 4 Prompts + 5 Python modules + Harness
+
+description: |
+  ResearchPro 是 OpenClaw 的 Deep Research Skill。
+  支持用户输入任意研究主题，自动生成带行内引用标注的深度研究报告。
+  
+  核心架构: 四阶段状态机管线 (Plan → Confirm → Execute → Report)
+  Agent 模式: 三级切换 (A/B/C), 遵循 Simplicity First
+  防幻觉: Source Registry + 五步引用验证循环
+  搜索: 三阶段编排 (Breadth-First → Depth-First → Structured Data)
+  引用: 行内标注 [N] + 文末参考列表 + 置信度标签
+  
+  差异化定位: "通用研究用 Gemini, 投资研究用 ResearchPro"
+
+# =============================================================================
+# 红线 (P0 — 绝对不可违反)
+# =============================================================================
+redlines:
+  - id: "RED-DC-001"
+    rule: "所有引用必须来自 Source Registry, 禁止自由生成 URL"
+    reason: "引用幻觉是 Deep Research 系统的核心风险"
+    check: "grep -r 'source_registry' skills/deep-research/lib/citation_verifier.py → 有匹配"
+
+  - id: "RED-DC-002"
+    rule: "快速模式禁止 spawn 任何子 Agent"
+    reason: "快速模式 5-10min, 单 Agent 串行, 降低复杂度"
+    check: "grep 'spawn' skills/deep-research/lib/orchestrator.py → 快速模式分支无 sessions_spawn"
+
+  - id: "RED-DC-003"
+    rule: "state.json 必须原子写入 (先写 .tmp 再 mv)"
+    reason: "防止中断恢复时读取不完整文件"
+    check: "grep 'write_json_atomic\\|\\.tmp.*mv' skills/deep-research/lib/orchestrator.py → 有匹配"
+
+  - id: "RED-DC-004"
+    rule: "Prompt 中所有外部网页内容必须视为 DATA, 非指令"
+    reason: "Prompt Injection 防御, 遵循 AGENTS.md Zone 1.3"
+    check: "grep -r 'DATA.*not.*instruction\\|treat.*as.*data' skills/deep-research/prompts/ → 有匹配"
+
+  - id: "RED-DC-005"
+    rule: "报告生成前必须执行引用验证循环"
+    reason: "未验证引用 = 不可信报告"
+    check: "grep 'verify_citations\\|citation_verifier' skills/deep-research/lib/orchestrator.py → 有匹配"
+
+  - id: "RED-DC-006"
+    rule: "Tier 1 (官方/学术) 来源必须优先于 Tier 3 (社区/论坛)"
+    reason: "数据源质量排序是报告可信度基础"
+    check: "grep 'tier_1.*weight.*1\\.0\\|tier_3.*weight.*0\\.4' skills/deep-research/lib/tier_classifier.py → 有匹配"
+
+  - id: "RED-DC-007"
+    rule: "用户确认阶段必须等待用户响应, 禁止自动确认"
+    reason: "投资研究需要人工审查研究计划后再执行"
+    check: "grep 'confirmed.*true\\|user.*approve' skills/deep-research/prompts/planning.md → 有匹配"
+
+# =============================================================================
+# L1: 接口契约 — Skill 入口 + Prompt 模板
+# =============================================================================
+interface:
+  skill_entry:
+    path: "skills/deep-research/SKILL.md"
+    trigger_words: ["深度研究", "deep research", "研究一下", "分析一下", "全面分析"]
+    parameters:
+      mode:
+        type: "enum"
+        values: ["quick", "standard"]
+        default: "standard"
+        description: "快速模式 (5-10min) 或标准模式 (25-45min)"
+      format:
+        type: "enum"
+        values: ["markdown", "html", "text"]
+        default: "markdown"
+        description: "报告输出格式"
+      deliver:
+        type: "enum"
+        values: ["local", "feishu", "email"]
+        default: "local"
+        description: "报告交付方式"
+
+  prompt_templates:
+    planning:
+      path: "skills/deep-research/prompts/planning.md"
+      role: "研究规划器"
+      tools: ["read", "write", "web_search", "web_fetch"]
+      input: "用户查询 (str)"
+      output: "analysis_plan.json"
+      max_tokens: 4096
+
+    search:
+      path: "skills/deep-research/prompts/search.md"
+      role: "数据搜索器"
+      tools: ["web_search", "web_fetch", "exec", "read", "write"]
+      input: "confirmed_plan.json + source_registry.json"
+      output: "research/batch_NN/ 目录"
+      max_tokens: 8192
+
+    citation_verify:
+      path: "skills/deep-research/prompts/citation_verify.md"
+      role: "引用验证器"
+      tools: ["read", "exec", "web_fetch"]
+      input: "report/draft.md + source_registry.json"
+      output: "report/citations.json"
+      max_tokens: 4096
+
+    finance_analysis:
+      path: "skills/deep-research/prompts/finance_analysis.md"
+      role: "金融分析器"
+      tools: ["exec", "read", "write"]
+      input: "confirmed_plan.json + research/ 数据"
+      output: "report/final.md (含 7 章结构)"
+      max_tokens: 8192
+      note: "仅标准模式使用, 快速模式跳过"
+
+  python_modules:
+    orchestrator:
+      path: "skills/deep-research/lib/orchestrator.py"
+      max_lines: 400
+      class: "ResearchProOrchestrator"
+      methods:
+        "__init__": "mode: str = 'standard', base_path: str = '' -> None"
+        "init_session": "user_query: str -> dict {session_id, base_path, state}"
+        "generate_plan": "() -> dict {analysis_plan}"
+        "confirm_plan": "user_confirmation: dict -> dict {confirmed_plan}"
+        "execute_research": "() -> dict {source_registry, research_data}"
+        "generate_report": "() -> dict {report_path, citations}"
+        "get_status": "() -> dict {current_stage, progress, errors}"
+        "resume_from_state": "state_path: str -> None"
+
+    source_registry:
+      path: "skills/deep-research/lib/source_registry.py"
+      max_lines: 200
+      class: "SourceRegistry"
+      methods:
+        "__init__": "registry_path: str -> None"
+        "register": "url: str, title: str, content: str, quality_tier: str -> int (id)"
+        "get": "source_id: int -> dict"
+        "verify_all": "() -> dict {verified: int, failed: int, suspect: int}"
+        "to_json": "() -> str"
+
+    citation_verifier:
+      path: "skills/deep-research/lib/citation_verifier.py"
+      max_lines: 250
+      class: "CitationVerifier"
+      methods:
+        "__init__": "source_registry: SourceRegistry -> None"
+        "extract_citations": "report_md: str -> list[int] (引用编号列表)"
+        "verify_citation": "source_id: int -> dict {status: verified|failed|suspect, detail: str}"
+        "verify_all": "report_md: str -> dict {verified: int, failed: int, suspect: int, details: list}"
+
+    tier_classifier:
+      path: "skills/deep-research/lib/tier_classifier.py"
+      max_lines: 150
+      class: "TierClassifier"
+      methods:
+        "__init__": "config_path: str = '' -> None"
+        "classify": "domain: str -> str (tier_1|tier_2|tier_3|unverified)"
+        "get_weight": "tier: str -> float (1.0|0.7|0.4)"
+
+    keyword_generator:
+      path: "skills/deep-research/lib/keyword_generator.py"
+      max_lines: 150
+      class: "KeywordGenerator"
+      methods:
+        "__init__": "plan: dict -> None"
+        "generate": "max_groups: int = 15 -> list[dict] (关键词组列表)"
+        "expand": "base_keyword: str -> list[str] (同义词/中英文/专业术语扩展)"
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+behavior:
+  init_session:
+    input:
+      user_query: "必填, str, ≥10字符, ≤5000字符"
+    output:
+      type: "dict"
+      schema:
+        session_id: "str, 格式: research_pro_{hash8}, ≤50字符"
+        base_path: "str, Blackboard 路径"
+        state: "dict {current_stage: 'planning', status: 'init', timestamp: ISO8601}"
+    success: "创建 blackboard/{session_id}/ 目录, 写入 state.json"
+    failure: "ValueError (输入过短/过长) 或 OSError (目录创建失败)"
+
+  generate_plan:
+    input: {}
+    output:
+      type: "dict"
+      schema:
+        research_dimensions: "list[str] (研究维度)"
+        keyword_groups: "list[dict] (关键词组, 每组 3-5 个变体)"
+        data_source_priority: "list[str] (数据源优先级)"
+        estimated_time: "int (预计耗时, 秒)"
+        subtopics: "list[str] (独立子主题, 用于决定 Agent 模式)"
+    success: "写入 analysis_plan.json, state.current_stage → 'confirming'"
+    failure: "写入 state.json {error: 'plan_generation_failed'}"
+
+  confirm_plan:
+    input:
+      user_confirmation:
+        type: "dict"
+        schema:
+          action: "enum: approve|modify|cancel"
+          modifications: "list[dict], 仅 action=modify 时存在"
+    output:
+      type: "dict"
+      schema:
+        confirmed: "bool"
+        confirmed_plan: "dict (用户确认后的研究计划)"
+    success: "写入 confirmed_plan.json, state.current_stage → 'executing'"
+    failure: "action=cancel → state.current_stage → 'cancelled'"
+
+  execute_research:
+    input: {}
+    output:
+      type: "dict"
+      schema:
+        source_registry: "dict (所有抓取页面登记)"
+        research_data: "dict (按 batch 组织的研究数据)"
+        mode_used: "str (A|B|C, 三级 Agent 模式)"
+    success: "写入 source_registry.json + research/batch_NN/, state.current_stage → 'reporting'"
+    failure: "写入 state.json {error: 'research_failed', partial_data: bool}"
+
+    # Agent 模式切换逻辑
+    agent_mode_selection:
+      mode_A:
+        condition: "mode == 'quick'"
+        architecture: "单 Agent 串行, 不 spawn 任何子 Agent"
+        timeout: 300
+      mode_B:
+        condition: "mode == 'standard' AND len(subtopics) <= 2"
+        architecture: "单 Agent 串行, 搜索可并行"
+        timeout: 600
+      mode_C:
+        condition: "mode == 'standard' AND len(subtopics) >= 3"
+        architecture: "sessions_spawn 并行子 Agent, Orchestrator 分发+收集+合并"
+        max_subagents: 5
+        timeout: 1800
+
+  generate_report:
+    input: {}
+    output:
+      type: "dict"
+      schema:
+        report_path: "str (report/final.md 或 report/final.html)"
+        citations: "dict {verified: int, failed: int, suspect: int}"
+        quality_score: "float (0-100, 基于引用验证结果)"
+    success: "写入 report/final.md + report/citations.json, state.current_stage → 'completed'"
+    failure: "写入 state.json {error: 'report_generation_failed'}"
+
+  get_status:
+    input: {}
+    output:
+      type: "dict"
+      schema:
+        session_id: "str | None"
+        current_stage: "str (planning|confirming|executing|reporting|completed|cancelled)"
+        progress: "float (0.0-1.0)"
+        errors: "list[str]"
+    success: "从 state.json 读取当前状态"
+    failure: "返回 {current_stage: 'unknown', errors: ['state.json not found']}"
+
+  resume_from_state:
+    input:
+      state_path: "str, state.json 文件路径"
+    output: {}
+    success: "读取 state.json, 从中断点继续执行"
+    failure: "state.json 损坏 → 抛出 JSONDecodeError"
+
+# =============================================================================
+# L3: 数据结构契约
+# =============================================================================
+data:
+  state:
+    path: "blackboard/{session_id}/state.json"
+    structure:
+      required_fields: ["session_id", "mode", "current_stage", "stage_status", "started_at", "updated_at", "progress"]
+      optional_fields: ["error", "partial_data", "user_confirmation"]
+      stage_values: ["init", "planning", "confirming", "executing", "reporting", "completed", "cancelled"]
+    atomic_write: true  # RED-DC-003
+
+  analysis_plan:
+    path: "blackboard/{session_id}/analysis_plan.json"
+    structure:
+      required_fields: ["research_dimensions", "keyword_groups", "data_source_priority", "estimated_time", "subtopics"]
+      keyword_group_schema:
+        base: "str (基础关键词)"
+        variants: "list[str] (3-5 个变体: 同义词/中英文/专业术语)"
+        priority: "int (1-5, 1 最高)"
+    writer: "Orchestrator (generate_plan 阶段)"
+    readers: ["User (确认阶段)", "Orchestrator (执行阶段)"]
+
+  confirmed_plan:
+    path: "blackboard/{session_id}/confirmed_plan.json"
+    structure:
+      required_fields: ["confirmed", "confirmed_at", "plan"]
+      plan: "dict (与 analysis_plan 相同结构)"
+      optional_fields: ["modifications"]
+    writer: "Orchestrator (confirm_plan 阶段)"
+    readers: ["Orchestrator (执行阶段)", "子 Agents (模式 C)"]
+
+  source_registry:
+    path: "blackboard/{session_id}/source_registry.json"
+    structure:
+      type: "array"
+      item_schema:
+        id: "int (顺序递增, 从 1 开始)"
+        url: "str (必须为合法 URL)"
+        fetched_at: "str (ISO 8601)"
+        content_hash: "str (sha256 前 16 位 hex)"
+        title: "str"
+        domain: "str (从 url 提取)"
+        quality_tier: "str (tier_1|tier_2|tier_3|unverified)"
+        summary: "str (≤200 字内容摘要)"
+        verification_status: "str (pending|verified|failed|suspect)"
+        verification_detail: "str | None"
+    writer: "Orchestrator (execute_research 阶段)"
+    readers: ["CitationVerifier", "ReportGenerator"]
+    constraint: "报告生成时只能从此 Registry 选取引用源 (RED-DC-001)"
+
+  research_batch:
+    path: "blackboard/{session_id}/research/batch_{NN}/"
+    structure:
+      search_results: "search_results.json (web_search 返回结果)"
+      fetched_pages: "fetched_pages.json (web_fetch 抓取的页面内容)"
+    writer: "Orchestrator 或 子 Agents (模式 C)"
+    readers: ["ReportGenerator"]
+
+  aggregated_research:
+    path: "blackboard/{session_id}/research/aggregated.json"
+    structure:
+      type: "dict"
+      schema:
+        total_sources: "int"
+        total_batches: "int"
+        sources_by_tier: "dict {tier_1: int, tier_2: int, tier_3: int, unverified: int}"
+        key_findings: "list[dict] (每个来源的关键发现)"
+    writer: "Orchestrator (execute_research 完成后汇总)"
+    readers: ["ReportGenerator"]
+
+  report_citations:
+    path: "blackboard/{session_id}/report/citations.json"
+    structure:
+      type: "dict"
+      schema:
+        total_citations: "int"
+        verified: "int"
+        failed: "int"
+        suspect: "int"
+        details: "list[dict]"
+      detail_item_schema:
+        citation_id: "int"
+        source_id: "int"
+        status: "str (verified|failed|suspect|not_found)"
+        detail: "str"
+    writer: "CitationVerifier"
+    readers: ["ReportGenerator (最终报告中标注验证状态)"]
+
+  blackboard_layout:
+    base: "blackboard/{session_id}/"
+    directories:
+      - "research/"
+      - "research/batch_01/"
+      - "research/batch_02/"
+      - "report/"
+    files:
+      - "state.json"
+      - "analysis_plan.json"
+      - "confirmed_plan.json"
+      - "source_registry.json"
+      - "research/aggregated.json"
+      - "research/batch_NN/search_results.json"
+      - "research/batch_NN/fetched_pages.json"
+      - "report/draft.md"
+      - "report/final.md"
+      - "report/citations.json"
+
+# =============================================================================
+# L4: Harness 契约 (质量保障)
+# =============================================================================
+harness:
+  input_guard:
+    timing: "用户输入查询时"
+    executor: "Orchestrator (generate_plan 前)"
+    checks:
+      - name: "non_empty"
+        rule: "查询不为空或纯空白"
+        on_fail: "提示用户重新输入"
+      - name: "min_length"
+        rule: "查询 ≥10 字符"
+        on_fail: "提示用户补充更多上下文"
+      - name: "max_length"
+        rule: "查询 ≤5000 字符"
+        on_fail: "截断并告知用户"
+    output_field: "input_guard (在 state.json 中)"
+
+  process_guard:
+    timing: "每轮搜索后 (execute_research 阶段)"
+    executor: "Orchestrator (内部逻辑)"
+    checks:
+      progress_rate:
+        healthy: "快速模式: ≥3 数据源; 标准模式: ≥5 数据源"
+        warning: "数据源数量 < 阈值"
+        critical: "数据源数量 = 0"
+      source_quality:
+        healthy: "Tier 1 来源占比 ≥30%"
+        warning: "Tier 1 占比 10-30%"
+        critical: "Tier 1 占比 <10%"
+      citation_coverage:
+        healthy: "引用数量 ≥ 阈值 (快速≥3, 标准≥8)"
+        warning: "引用数量接近阈值"
+        critical: "引用数量 < 阈值"
+    actions:
+      healthy: "正常继续"
+      warning: "继续, 但在报告中标注风险"
+      critical: "触发超时降级 (Level 1/2)"
+
+  output_guard:
+    timing: "报告生成后 (generate_report 阶段)"
+    executor: "CitationVerifier"
+    checks:
+      citation_verification:
+        verified_threshold: "快速≥80%, 标准≥90%"
+        warning_threshold: "快速≥60%, 标准≥70%"
+        critical_threshold: "快速<60%, 标准<70%"
+      report_structure:
+        required_sections: ["摘要", "核心发现", "详细分析", "风险提示", "参考资料"]
+        optional_sections: ["公司概况", "财务分析", "估值分析", "行业分析", "增长驱动"]
+      completion_criteria:
+        quick_mode:
+          min_data_sources: 3
+          min_citations: 3
+          url_reachability: "≥80%"
+        standard_mode:
+          min_data_sources: 5
+          min_citations: 8
+          url_reachability: "≥90%"
+    output_field: "quality_score (在 citations.json 中)"
+
+  safety_valve:
+    timing: "全程"
+    hard_limits:
+      quick_mode_timeout: 600  # 10 分钟
+      standard_mode_timeout: 2700  # 45 分钟
+      max_search_calls: {quick: 5, standard: 15}
+      max_web_fetch_calls: {quick: 5, standard: 15}
+      max_subagents: 5  # 模式 C
+    kill_criteria:
+      - name: "timeout_reached"
+        condition: "总耗时超过 hard_limits.{mode}_timeout"
+        action: "触发 Level 2 超时降级, 输出中期报告"
+      - name: "no_data_sources"
+        condition: "搜索后 source_registry 为空"
+        action: "触发 Level 3 数据源降级, 切换备用数据源"
+      - name: "all_citations_failed"
+        condition: "引用验证 100% 失败"
+        action: "报告中标注 '所有引用验证失败, 请手动核实'"
+    override: "Safety Valve 可被用户 override (除 timeout_reached)"
+
+# =============================================================================
+# L5: 超时降级与故障恢复契约
+# =============================================================================
+fault_tolerance:
+  level_1_soft_timeout:
+    trigger: "单个搜索子任务超时 (子 Agent runTimeoutSeconds 到达)"
+    action: "子 Agent 输出已完成部分, Orchestrator 继续其他任务"
+    state_update: "state.json 中记录 {timeout_count: N}"
+
+  level_2_hard_timeout:
+    trigger: "Orchestrator 总 timeout 到达 (quick: 600s, standard: 2700s)"
+    action: "终止所有进行中任务, 用已完成结果生成中期报告"
+    report_mark: "报告开头标注 '⚠️ 部分完成 (超时), 以下为已完成内容'"
+    state_update: "state.current_stage → 'completed', state.partial_data → true"
+
+  level_3_data_source_degradation:
+    trigger: "Tushare 耗尽 / 新浪财经被封 / web_search 无结果"
+    fallback_chain:
+      tushare: "AKShare → 腾讯证券 → 跳过该维度"
+      sina_finance: "AKShare → 东方财富 → 跳过该维度"
+      web_search: "同义词扩展重搜 → 英文搜索 → 跳过该维度"
+    state_update: "state.json 中记录 {degraded_sources: list}"
+
+  resume_from_interrupt:
+    trigger: "用户重新激活 expired 任务或手动调用 resume_from_state"
+    action: "读取 state.json 确定中断点, 从该阶段重新开始"
+    constraint: "已完成的研究批次 (research/batch_NN/) 保留, 无需重复搜索"
+
+  user_confirmation_timeout:
+    trigger: "用户 24 小时未确认研究计划"
+    action: "state.current_stage → 'expired', 保留 analysis_plan.json 供重新激活"
+
+# =============================================================================
+# L6: 与现有 Skills 集成契约
+# =============================================================================
+integration:
+  stock_analysis:
+    skill_path: "skills/stock-analysis/"
+    integration_method: "exec 调用"
+    use_case: "A 股 8 维评分, 热门个股扫描"
+    data_format: "JSON (通过 exec 返回)"
+    constraint: "不修改 stock-analysis 现有代码"
+
+  market_analysis_cn:
+    skill_path: "skills/market-analysis-cn/"
+    integration_method: "exec 调用"
+    use_case: "A 股市场环境分析"
+    constraint: "不修改 market-analysis-cn 现有代码"
+
+  tushare_finance:
+    skill_path: "skills/tushare-finance/"
+    integration_method: "exec 调用"
+    use_case: "历史财务数据查询"
+    constraint: "stk_mins 限 2 次/日, 优先用新浪财经替代"
+    fallback: "AKShare (Python 库, 通过 exec python3 -c 调用)"
+
+  economic_calendar:
+    skill_path: "skills/economic-calendar-fetcher/"
+    integration_method: "exec 调用"
+    use_case: "央行/就业/CPI 宏观数据"
+    constraint: "不修改 economic-calendar-fetcher 现有代码"
+
+  feishu_send_report:
+    skill_path: "skills/feishu-send-report/"
+    integration_method: "exec 调用"
+    use_case: "飞书报告推送"
+    constraint: "遵循 TOOLS.md 飞书文件发送规则 (<20MB 直接发, ≥20MB 压缩)"
+
+  delivery_router:
+    local: "写入 report/final.md, 返回路径"
+    feishu: "调用 feishu-send-report skill, 发送 Markdown 报告"
+    email: "调用 email-skill, 发送 HTML 附件"
+
+# =============================================================================
+# 文件清单
+# =============================================================================
+deliverables:
+  skill_definition:
+    - path: "skills/deep-research/SKILL.md"
+      description: "技能定义 (触发词、参数、使用示例)"
+      gates:
+        - "yaml_valid: 解析 SKILL.md frontmatter"
+        - "trigger_words_present: 5 个触发词全部存在"
+        - "parameters_complete: mode/format/deliver 参数定义完整"
+
+  prompts:
+    - path: "skills/deep-research/prompts/planning.md"
+      description: "研究规划器 Prompt"
+      gates:
+        - "contains_analysis_plan_schema: 包含 analysis_plan.json 格式定义"
+        - "contains_user_confirm_instruction: 包含等待用户确认的指令"
+        - "contains_red_dc_004: 包含 Prompt Injection 防御声明"
+
+    - path: "skills/deep-research/prompts/search.md"
+      description: "数据搜索器 Prompt"
+      gates:
+        - "contains_three_stage_strategy: Breadth-First → Depth-First → Structured Data"
+        - "contains_source_registry_write: 包含写入 source_registry.json 的指令"
+        - "contains_tier_classification: 包含 Tier 1/2/3 分类逻辑"
+
+    - path: "skills/deep-research/prompts/citation_verify.md"
+      description: "引用验证器 Prompt"
+      gates:
+        - "contains_five_step_algorithm: 五步验证循环完整"
+        - "contains_red_dc_001: 禁止自由生成 URL"
+        - "contains_confidence_labels: 高/中/低置信度标签"
+
+    - path: "skills/deep-research/prompts/finance_analysis.md"
+      description: "金融分析器 Prompt (仅标准模式)"
+      gates:
+        - "contains_seven_chapter_template: 7 章报告结构"
+        - "contains_ten_dimensions: 10 维投资决策信息"
+        - "contains_inline_citation_format: [N] 行内标注格式"
+
+  python_modules:
+    - path: "skills/deep-research/lib/orchestrator.py"
+      max_lines: 400
+      gates:
+        - "python -m py_compile {file}"
+        - "python -c 'from skills.deep_research.lib.orchestrator import ResearchProOrchestrator'"
+        - "grep 'write_json_atomic\\|\\.tmp.*mv' {file} → 有匹配 (RED-DC-003)"
+        - "grep 'verify_citations\\|citation_verifier' {file} → 有匹配 (RED-DC-005)"
+
+    - path: "skills/deep-research/lib/source_registry.py"
+      max_lines: 200
+      gates:
+        - "python -m py_compile {file}"
+        - "python -c 'from skills.deep_research.lib.source_registry import SourceRegistry'"
+        - "SourceRegistry.register() 返回 int (source_id)"
+        - "SourceRegistry.verify_all() 返回 dict {verified, failed, suspect}"
+
+    - path: "skills/deep-research/lib/citation_verifier.py"
+      max_lines: 250
+      gates:
+        - "python -m py_compile {file}"
+        - "python -c 'from skills.deep_research.lib.citation_verifier import CitationVerifier'"
+        - "grep 'source_registry' {file} → 有匹配 (RED-DC-001)"
+        - "CitationVerifier.extract_citations() 返回 list[int]"
+        - "CitationVerifier.verify_citation() 返回 dict {status, detail}"
+
+    - path: "skills/deep-research/lib/tier_classifier.py"
+      max_lines: 150
+      gates:
+        - "python -m py_compile {file}"
+        - "python -c 'from skills.deep_research.lib.tier_classifier import TierClassifier'"
+        - "grep 'tier_1.*weight.*1\\.0\\|tier_3.*weight.*0\\.4' {file} → 有匹配 (RED-DC-006)"
+        - "TierClassifier.classify() 返回 str (tier_1|tier_2|tier_3|unverified)"
+
+    - path: "skills/deep-research/lib/keyword_generator.py"
+      max_lines: 150
+      gates:
+        - "python -m py_compile {file}"
+        - "python -c 'from skills.deep_research.lib.keyword_generator import KeywordGenerator'"
+        - "KeywordGenerator.generate(max_groups=5) 返回 list[dict] (快速模式)"
+        - "KeywordGenerator.generate(max_groups=15) 返回 list[dict] (标准模式)"
+
+  config:
+    - path: "skills/deep-research/config/tier_domains.json"
+      description: "Tier 域名分类白名单/黑名单"
+      gates:
+        - "json_valid: 解析为合法 JSON"
+        - "tier_1_domains_present: 包含 sec.gov, cninfo.com.cn 等官方域名"
+        - "tier_3_domains_present: 包含 xueqiu.com, reddit.com 等社区域名"
+
+    - path: "skills/deep-research/config/time_budgets.json"
+      description: "时间预算配置"
+      gates:
+        - "json_valid: 解析为合法 JSON"
+        - "quick_mode_timeout: 600 (10 分钟)"
+        - "standard_mode_timeout: 2700 (45 分钟)"
+
+    - path: "skills/deep-research/config/completion_criteria.json"
+      description: "完成标准矩阵"
+      gates:
+        - "json_valid: 解析为合法 JSON"
+        - "quick_mode_criteria: min_data_sources≥3, min_citations≥3, url_reachability≥80%"
+        - "standard_mode_criteria: min_data_sources≥5, min_citations≥8, url_reachability≥90%"
+
+# =============================================================================
+# 质量门禁
+# =============================================================================
+quality_gates:
+  p0:
+    - "RED-DC-001 到 RED-DC-007 全部通过"
+    - "所有 Python 模块 py_compile 通过"
+    - "所有 Python 模块 import 成功"
+    - "SKILL.md 触发词和参数定义完整"
+    - "state.json 原子写入 (RED-DC-003)"
+    - "Source Registry 数据结构符合 L3 契约"
+    - "引用验证五步循环完整实现 (RED-DC-005)"
+    - "快速模式不 spawn 任何子 Agent (RED-DC-002)"
+    - "Tier 1/2/3 权重正确 (1.0/0.7/0.4) (RED-DC-006)"
+    - "超时降级三级策略完整实现"
+
+  p1:
+    - "所有 Python 公开方法有类型注解和 docstring"
+    - "无 bare except"
+    - "所有 Prompt 有明确的输入/输出/写入路径"
+    - "四层 Harness 全部实现 (input/process/output/safety_valve)"
+    - "三阶段搜索策略 (Breadth-First → Depth-First → Structured Data) 完整"
+    - "LLM 驱动关键词自动生成 (6 维扩展) 实现"
+    - "Agent 模式切换 (A/B/C) 逻辑正确"
+    - "中断恢复 (resume_from_state) 可工作"
+
+  p2:
+    - "报告风格自然、专业 (人工抽检)"
+    - "引用标注格式统一 (人工抽检)"
+    - "进度反馈机制友好 (每 30-60 秒推送)"
+    - "飞书/邮件交付格式正确"
+
+# =============================================================================
+# 开发步骤
+# =============================================================================
+development_steps:
+  - step: 1
+    name: "契约"
+    action: "创建本契约文件 (v1.0)"
+    output: "cage/research_pro_v1.0.yaml"
+    status: done
+
+  - step: 2
+    name: "配置文件"
+    action: "实现 config/ 目录下所有 JSON 配置"
+    output: "skills/deep-research/config/*.json"
+    gates: ["json_valid", "tier_domains_present", "time_budgets_correct"]
+    status: pending
+
+  - step: 3
+    name: "Source Registry"
+    action: "实现 source_registry.py (防幻觉核心)"
+    output: "skills/deep-research/lib/source_registry.py"
+    gates: ["py_compile", "import", "register_returns_int", "verify_all_returns_dict"]
+    status: pending
+
+  - step: 4
+    name: "Citation Verifier"
+    action: "实现 citation_verifier.py (五步验证循环)"
+    output: "skills/deep-research/lib/citation_verifier.py"
+    gates: ["py_compile", "import", "extract_citations_returns_list", "verify_citation_returns_dict"]
+    status: pending
+
+  - step: 5
+    name: "Tier Classifier"
+    action: "实现 tier_classifier.py (三层质量排序)"
+    output: "skills/deep-research/lib/tier_classifier.py"
+    gates: ["py_compile", "import", "classify_returns_tier", "get_weight_correct"]
+    status: pending
+
+  - step: 6
+    name: "Keyword Generator"
+    action: "实现 keyword_generator.py (6 维扩展)"
+    output: "skills/deep-research/lib/keyword_generator.py"
+    gates: ["py_compile", "import", "generate_returns_list", "expand_returns_variants"]
+    status: pending
+
+  - step: 7
+    name: "Orchestrator"
+    action: "实现 orchestrator.py (四阶段状态机 + Agent 模式切换)"
+    output: "skills/deep-research/lib/orchestrator.py"
+    gates: ["py_compile", "import", "init_session", "generate_plan", "confirm_plan", "execute_research", "generate_report", "get_status", "resume_from_state"]
+    status: pending
+
+  - step: 8
+    name: "Prompt-规划"
+    action: "编写 planning.md (研究规划器)"
+    output: "skills/deep-research/prompts/planning.md"
+    gates: ["contains_analysis_plan_schema", "contains_user_confirm_instruction", "contains_red_dc_004"]
+    status: pending
+
+  - step: 9
+    name: "Prompt-搜索"
+    action: "编写 search.md (数据搜索器)"
+    output: "skills/deep-research/prompts/search.md"
+    gates: ["contains_three_stage_strategy", "contains_source_registry_write", "contains_tier_classification"]
+    status: pending
+
+  - step: 10
+    name: "Prompt-引用验证"
+    action: "编写 citation_verify.md (引用验证器)"
+    output: "skills/deep-research/prompts/citation_verify.md"
+    gates: ["contains_five_step_algorithm", "contains_red_dc_001", "contains_confidence_labels"]
+    status: pending
+
+  - step: 11
+    name: "Prompt-金融分析"
+    action: "编写 finance_analysis.md (金融分析器, 仅标准模式)"
+    output: "skills/deep-research/prompts/finance_analysis.md"
+    gates: ["contains_seven_chapter_template", "contains_ten_dimensions", "contains_inline_citation_format"]
+    status: pending
+
+  - step: 12
+    name: "SKILL.md"
+    action: "编写 SKILL.md (技能定义)"
+    output: "skills/deep-research/SKILL.md"
+    gates: ["yaml_valid", "trigger_words_present", "parameters_complete"]
+    status: pending
+
+  - step: 13
+    name: "端到端验证 (快速模式)"
+    action: "POC: 真实需求跑快速模式完整流程"
+    output: "验证报告"
+    gates: ["quick_mode_e2e_success", "quick_mode_time_le_600s", "quick_mode_citations_ge_3"]
+    status: pending
+
+  - step: 14
+    name: "端到端验证 (标准模式)"
+    action: "POC: 真实需求跑标准模式完整流程"
+    output: "验证报告"
+    gates: ["standard_mode_e2e_success", "standard_mode_time_le_2700s", "standard_mode_citations_ge_8", "agent_mode_C_works"]
+    status: pending
+
+  - step: 15
+    name: "Harness 完整验证"
+    action: "验证四层 Harness 全部工作"
+    output: "Harness 验证报告"
+    gates: ["input_guard_works", "process_guard_works", "output_guard_works", "safety_valve_works"]
+    status: pending
+
+# =============================================================================
+# 测试计划
+# =============================================================================
+test_plan:
+  unit_tests:
+    - name: "Source Registry 单元测试"
+      file: "tests/test_source_registry.py"
+      coverage:
+        - "register() 返回递增 ID"
+        - "get() 返回正确条目"
+        - "verify_all() 统计正确"
+        - "to_json() 输出合法 JSON"
+
+    - name: "Citation Verifier 单元测试"
+      file: "tests/test_citation_verifier.py"
+      coverage:
+        - "extract_citations() 正确提取 [N] 标记"
+        - "verify_citation() 返回正确 status"
+        - "verify_all() 统计正确"
+        - "处理缺失引用 (not_found)"
+
+    - name: "Tier Classifier 单元测试"
+      file: "tests/test_tier_classifier.py"
+      coverage:
+        - "classify() 正确分类 tier_1/tier_2/tier_3"
+        - "classify() 对未知域名返回 unverified"
+        - "get_weight() 返回正确权重"
+
+    - name: "Keyword Generator 单元测试"
+      file: "tests/test_keyword_generator.py"
+      coverage:
+        - "generate(max_groups=5) 返回 ≤5 组"
+        - "generate(max_groups=15) 返回 ≤15 组"
+        - "expand() 返回 3-5 个变体"
+
+    - name: "Orchestrator 单元测试"
+      file: "tests/test_orchestrator.py"
+      coverage:
+        - "init_session() 创建目录和 state.json"
+        - "generate_plan() 返回合法 analysis_plan"
+        - "confirm_plan(action='approve') 设置 confirmed=true"
+        - "confirm_plan(action='cancel') 设置 cancelled"
+        - "get_status() 返回当前状态"
+        - "resume_from_state() 从中断点恢复"
+
+  integration_tests:
+    - name: "快速模式端到端测试"
+      file: "tests/test_e2e_quick.py"
+      gates:
+        - "quick_mode_time_le_600s"
+        - "quick_mode_citations_ge_3"
+        - "quick_mode_no_subagents"
+        - "quick_mode_url_reachability_ge_80%"
+
+    - name: "标准模式端到端测试"
+      file: "tests/test_e2e_standard.py"
+      gates:
+        - "standard_mode_time_le_2700s"
+        - "standard_mode_citations_ge_8"
+        - "standard_mode_url_reachability_ge_90%"
+        - "agent_mode_C_works (if len(subtopics) >= 3)"
+
+    - name: "中断恢复测试"
+      file: "tests/test_resume.py"
+      gates:
+        - "resume_from_planning_stage"
+        - "resume_from_executing_stage"
+        - "resume_from_reporting_stage"
+        - "resume_with_partial_data"
+
+    - name: "超时降级测试"
+      file: "tests/test_timeout.py"
+      gates:
+        - "level_1_soft_timeout_outputs_partial"
+        - "level_2_hard_timeout_generates_midterm_report"
+        - "level_3_data_source_degradation_switches_fallback"
+
+  harness_tests:
+    - name: "Input Guard 测试"
+      file: "tests/test_input_guard.py"
+      gates:
+        - "reject_empty_query"
+        - "reject_short_query (lt_10_chars)"
+        - "truncate_long_query (gt_5000_chars)"
+
+    - name: "Process Guard 测试"
+      file: "tests/test_process_guard.py"
+      gates:
+        - "detect_insufficient_data_sources"
+        - "detect_low_tier_1_ratio"
+        - "detect_insufficient_citations"
+
+    - name: "Output Guard 测试"
+      file: "tests/test_output_guard.py"
+      gates:
+        - "citation_verification_threshold_met"
+        - "report_structure_complete"
+        - "completion_criteria_satisfied"
+
+    - name: "Safety Valve 测试"
+      file: "tests/test_safety_valve.py"
+      gates:
+        - "timeout_reached_triggers_degradation"
+        - "no_data_sources_triggers_fallback"
+        - "all_citations_failed_marks_report"
+
+# =============================================================================
+# 成功标准
+# =============================================================================
+success_criteria:
+  mvp_gate:
+    - "快速模式端到端测试通过"
+    - "标准模式端到端测试通过"
+    - "所有 P0 红线通过"
+    - "所有 P1 质量门禁通过"
+    - "性能基线数据建立 (快速模式实际耗时, 标准模式实际耗时)"
+
+  phase_2_gate:
+    - "Agent 模式 C (并行子 Agent) 工作正常"
+    - "数据源降级策略工作正常"
+    - "飞书报告推送工作正常"
+
+  phase_3_gate:
+    - "中断恢复 (resume_from_state) 工作正常"
+    - "三层上下文管理 (L1/L2/L3) 工作正常"
+    - "Embedding 去重 (阈值 0.85) 工作正常"
+    - "性能基线校准完成"

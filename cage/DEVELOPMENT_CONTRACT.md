@@ -167,7 +167,7 @@ interface:
   input:
     context:
       required: [code, name]
-    config: "data_sources/investment.yaml"
+    config: "config/data_sources/investment.yaml"
   
   output:
     schema:

@@ -1,0 +1,9 @@
+{
+  "session_id": "设计一个通用的AI解决方案设计模块_支持软件架构设计_业务解_architecture_d0b3c62d",
+  "state": "FAILED",
+  "stages_completed": [],
+  "final_score": null,
+  "iterations": null,
+  "convergence_reason": null,
+  "error": "No module named 'openclaw'"
+}

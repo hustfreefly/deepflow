@@ -42,7 +42,7 @@
 **实现细节**:
 ```python
 def _step1_data_collection(self, context: dict) -> dict:
-    # 1. 加载 data_sources/investment.yaml
+    # 1. 加载 config/data_sources/investment.yaml
     collector = ConfigDrivenCollector(config_path=config_path)
     
     # 2. 创建 DataEvolutionLoop
@@ -71,7 +71,7 @@ def _step1_data_collection(self, context: dict) -> dict:
 ```
 
 **验证清单**:
-- [x] 加载 `data_sources/investment.yaml`
+- [x] 加载 `config/data_sources/investment.yaml`
 - [x] 创建 `ConfigDrivenCollector`
 - [x] 创建 `DataEvolutionLoop`
 - [x] 执行 `bootstrap_phase(context)`
@@ -94,7 +94,7 @@ def _step1_data_collection(self, context: dict) -> dict:
     - tool: web_fetch (priority: 4)
   ```
 - `cage/domain_investment.yaml` behavior.stages.required_order[1] = "search"
-- `data_sources/investment.yaml` dynamic_rules（动态补充规则）
+- `config/data_sources/investment.yaml` dynamic_rules（动态补充规则）
 
 **实现细节**:
 ```python

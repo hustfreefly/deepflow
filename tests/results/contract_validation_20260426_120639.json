@@ -1,0 +1,345 @@
+{
+  "pass": false,
+  "total_checks": 67,
+  "passed": 65,
+  "failed": 2,
+  "errors": 1,
+  "warnings": 1,
+  "details": [
+    {
+      "pass": true,
+      "msg": "契约文件存在: /Users/allen/.openclaw/workspace/.deepflow/cage/domain_solution.yaml",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "契约包含顶层字段 'domain'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "契约包含顶层字段 'version'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "契约包含顶层字段 'interface'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "契约包含顶层字段 'behavior'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "契约包含顶层字段 'boundaries'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "interface 包含 input",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "interface 包含 output",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "input 包含 schema",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "input schema 包含 required",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "input schema 包含 properties",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "behavior 包含 stages",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "behavior 包含 convergence",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "boundaries 是非空列表 (共 15 条)",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "契约包含 quality 维度定义",
+      "level": "warning"
+    },
+    {
+      "pass": true,
+      "msg": "契约包含 delivery 渐进交付定义",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "delivery.progressive = true",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "delivery 包含 checkpoints",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "契约包含 data 数据契约",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "data 包含 blackboard",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "data 包含 checkpoints",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "领域配置存在: /Users/allen/.openclaw/workspace/.deepflow/domains/solution.yaml",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "配置包含 domain",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "配置包含 agents",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "配置包含 pipeline",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "配置包含 convergence",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "agents 包含必需角色 'solution_planner'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "agents 包含必需角色 'solution_researcher'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "agents 包含必需角色 'solution_architect'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "agents 包含必需角色 'solution_auditor'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "agents 包含必需角色 'solution_fixer'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "agents 包含必需角色 'solution_designer'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "pipeline 包含必需阶段 'planning'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "pipeline 包含必需阶段 'research'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "pipeline 包含必需阶段 'design'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "pipeline 包含必需阶段 'audit'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "pipeline 包含必需阶段 'fix'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "pipeline 包含必需阶段 'deliver'",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "配置包含 concurrency",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "max_parallel_workers <= 3 (当前: 3)",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "Orchestrator 存在: /Users/allen/.openclaw/workspace/.deepflow/domains/solution/orchestrator.py",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "定义 SolutionOrchestrator 类",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "实现 _execute_stage 方法",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "实现 _extract_score 方法",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "实现 _build_result 方法",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "使用 Semaphore 并发控制",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "有异常处理",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "无 mock 相关代码",
+      "level": "error"
+    },
+    {
+      "pass": false,
+      "msg": "实现渐进交付（sessions_yield）",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "使用数据持久化",
+      "level": "warning"
+    },
+    {
+      "pass": false,
+      "msg": "有质量评估逻辑",
+      "level": "warning"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 目录存在: /Users/allen/.openclaw/workspace/.deepflow/prompts/solution/",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 文件存在: planner.md",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 'planner.md' 内容非空 (1277 字符)",
+      "level": "warning"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 文件存在: researcher.md",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 'researcher.md' 内容非空 (1113 字符)",
+      "level": "warning"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 文件存在: architect.md",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 'architect.md' 内容非空 (1518 字符)",
+      "level": "warning"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 文件存在: auditor.md",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 'auditor.md' 内容非空 (1038 字符)",
+      "level": "warning"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 文件存在: fixer.md",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 'fixer.md' 内容非空 (806 字符)",
+      "level": "warning"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 文件存在: designer.md",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "Prompt 'designer.md' 内容非空 (1124 字符)",
+      "level": "warning"
+    },
+    {
+      "pass": true,
+      "msg": "P0-FIX: max_parallel_workers <= 3",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "P0-FIX: _extract_score 有 try-except 容错",
+      "level": "error"
+    },
+    {
+      "pass": true,
+      "msg": "P0-FIX: _extract_score 有默认返回值 0.5",
+      "level": "error"
+    }
+  ]
+}

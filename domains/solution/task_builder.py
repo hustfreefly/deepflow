@@ -267,9 +267,35 @@ def validate_stage_output(output: dict, stage_name: str) -> Tuple[bool, str]:
     return True, ""
 
 
-def build_data_collection_task(session_id: str, topic: str, constraints: list) -> str:
-    """构建数据采集 Task（修复 P1-001: 增加种子 URL）"""
+def build_data_collection_task(session_id: str, topic: str, constraints: list, living_spec: dict = None) -> str:
+    """构建数据采集 Task（修复 P1-001: 增加种子 URL）
+    
+    Args:
+        session_id: Session ID
+        topic: 任务主题
+        constraints: 用户约束列表
+        living_spec: Living Spec（Spec Pro 产出，可选）
+    """
     constraints_text = "\n".join([f"- {c}" for c in constraints]) if constraints else "- 无"
+    
+    # Living Spec 注入：基于 confirmed 生成精准搜索词
+    living_spec_context = ""
+    if living_spec and "confirmed" in living_spec:
+        confirmed = living_spec["confirmed"]
+        living_spec_context = f"""
+## 结构化需求（来自 Spec Pro）
+
+### 核心目标
+{confirmed.get("objective", "未指定")}
+
+### 关键痛点
+{chr(10).join([f"- {p}" for p in confirmed.get("pain_points", [])]) or "- 未指定"}
+
+### 能力要求（必须做）
+{chr(10).join([f"- {c}" for c in confirmed.get("capabilities", {}).get("always_do", [])]) or "- 未指定"}
+
+**搜索策略**: 基于以上需求生成精准搜索关键词，优先搜索痛点解决方案和核心能力相关的技术方案。
+"""
     
     # Phase 2: 尝试从文件读取prompt（优先），失败则使用硬编码兜底
     try:
@@ -336,7 +362,8 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list) -
 
 def build_planner_task(session_id: str, topic: str, solution_type: str,
                        constraints: list, stakeholders: list,
-                       layer2_constraints: dict = None) -> str:
+                       layer2_constraints: dict = None,
+                       living_spec: dict = None) -> str:
     """构建 Planner Task（Harness V2）
     
     Args:
@@ -353,13 +380,77 @@ def build_planner_task(session_id: str, topic: str, solution_type: str,
     constraints_text = ", ".join(constraints) if constraints else "无"
     stakeholders_text = ", ".join(stakeholders) if stakeholders else "无"
     
+    # Living Spec 上下文注入：完整需求摘要
+    living_spec_context = ""
+    if living_spec and "confirmed" in living_spec:
+        confirmed = living_spec["confirmed"]
+        pain_points = "\n".join([f"- {p}" for p in confirmed.get("pain_points", [])]) or "- 未指定"
+        success_metrics = "\n".join([f"- {m.get('metric','')}: {m.get('target','')} (当前: {m.get('current','未知')})" for m in confirmed.get("success_metrics", [])]) or "- 未指定"
+        users = "\n".join([f"- {u.get('role','')} ({u.get('count','未知')}人): {u.get('key_needs','')}" for u in confirmed.get("users", [])]) or "- 未指定"
+        key_scenarios = "\n".join([f"- {s}" for s in confirmed.get("key_scenarios", [])[:5]]) or "- 未指定"
+        always_do = "\n".join([f"- {c}" for c in confirmed.get("capabilities", {}).get("always_do", [])]) or "- 未指定"
+        should_do = "\n".join([f"- {c}" for c in confirmed.get("capabilities", {}).get("should_do", [])]) or "- 未指定"
+        never_do = "\n".join([f"- {c}" for c in confirmed.get("capabilities", {}).get("never_do", [])]) or "- 未指定"
+        qa_text = "\n".join([f"- {q.get('category','')}: {q.get('spec','')} (优先级: {q.get('priority','P1')})" for q in confirmed.get("quality_attributes", [])]) or "- 未指定"
+        budget = confirmed.get("constraints", {}).get("budget", "未指定")
+        timeline = confirmed.get("constraints", {}).get("timeline", "未指定")
+        tech_stack = ", ".join(confirmed.get("constraints", {}).get("tech_stack", [])) or "未指定"
+        existing_systems = "\n".join([f"- {s.get('name','')}: {s.get('role','')}" for s in confirmed.get("integration", {}).get("existing_systems", [])]) or "- 未指定"
+        risks = "\n".join([f"- {r}" for r in confirmed.get("risks_and_assumptions", {}).get("risks", [])]) or "- 未指定"
+        assumptions = "\n".join([f"- {a}" for a in confirmed.get("risks_and_assumptions", {}).get("assumptions", [])]) or "- 未指定"
+        living_spec_context = f"""
+## 结构化需求规格（来自 Spec Pro — 权威来源）
+
+> **重要**: 以下需求已经过用户确认，是权威来源。你的任务是制定**研究计划**，不是重新收集需求。
+
+### 核心目标
+{confirmed.get('objective', '未指定')}
+
+### 关键痛点
+{pain_points}
+
+### 成功指标
+{success_metrics}
+
+### 用户角色
+{users}
+
+### 关键场景
+{key_scenarios}
+
+### 能力要求
+**必须做 (Always)**:
+{always_do}
+
+**应该做 (Should)**:
+{should_do}
+
+**禁止做 (Never)**:
+{never_do}
+
+### 质量属性
+{qa_text}
+
+### 约束条件
+- 预算: {budget}
+- 时间: {timeline}
+- 技术栈: {tech_stack}
+
+### 集成环境
+{existing_systems}
+
+### 风险与假设
+**风险**: {risks}
+**假设**: {assumptions}
+"""
+    
     context = f"""
 ## 项目信息
 - 主题: {topic}
 - 类型: {solution_type}
 - 约束: {constraints_text}
 - 干系人: {stakeholders_text}
-
+{living_spec_context}
 ## 输出要求（子Agent直接写入模式）
 1. 使用 **write** 工具将结果写入：
    `{_DEEPFLOW_BASE}/blackboard/{session_id}/stages/planning.json`
@@ -387,7 +478,8 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
                          expert_id: str = "expert_1", 
                          angle: str = "综合分析",
                          reason: str = "需要深入分析该领域",
-                         layer2_constraints: dict = None) -> str:
+                         layer2_constraints: dict = None,
+                         living_spec: dict = None) -> str:
     """构建 Researcher Task（Stage 4，Harness V2）
     
     Args:
@@ -414,6 +506,20 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
     
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
     
+    # Living Spec 上下文注入：focus_areas + guardrails
+    living_spec_context = ""
+    if living_spec:
+        hints = living_spec.get("solution_pro_hints") or {}
+        focus_areas = hints.get("focus_areas", [])
+        guardrails = living_spec.get("guardrails", {})
+        if focus_areas:
+            fa_lines = "\n".join([f"- **{fa.get('area','')}** (权重 {fa.get('weight',0):.0%}): {fa.get('reason','')}" for fa in focus_areas])
+            living_spec_context += f"\n## 重点关注领域（来自 Spec Pro）\n{fa_lines}\n"
+        if guardrails:
+            always = "\n".join([f"- {i}" for i in guardrails.get("always_do", [])]) or "- 无"
+            never = "\n".join([f"- {i}" for i in guardrails.get("never_do", [])]) or "- 无"
+            living_spec_context += f"\n## 研究边界\n**必须研究**:\n{always}\n**禁止涉及**:\n{never}\n"
+    
     ctx = f"""
 ## 专家角色
 {expert}
@@ -429,7 +535,7 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
 
 ## 上下文
 {context_json}
-
+{living_spec_context}
 ## 输出要求（子Agent直接写入模式）
 1. 使用 **write** 工具将结果写入：
    `{_DEEPFLOW_BASE}/blackboard/{session_id}/stages/research_{expert_id}.json`
@@ -730,7 +836,8 @@ def build_deliver_task(session_id: str, topic: str, context: dict) -> str:
 
 def build_reviewer_task(session_id: str, topic: str, review_type: str,
                         review_focus: str, input_plan: dict,
-                        layer2_constraints: dict = None) -> str:
+                        layer2_constraints: dict = None,
+                        living_spec: dict = None) -> str:
     """构建 Reviewer Task（Stage 3，Harness V2）
     
     Args:
@@ -780,13 +887,47 @@ def build_reviewer_task(session_id: str, topic: str, review_type: str,
     
     input_plan_json = json.dumps(input_plan, ensure_ascii=False, indent=2)
     
+    # Living Spec 上下文注入：评审基准
+    living_spec_context = ""
+    if living_spec and "confirmed" in living_spec:
+        confirmed = living_spec["confirmed"]
+        objective = confirmed.get("objective", "未指定")
+        always_do = ", ".join(confirmed.get("capabilities", {}).get("always_do", [])) or "未指定"
+        should_do = ", ".join(confirmed.get("capabilities", {}).get("should_do", [])) or "未指定"
+        never_do = ", ".join(confirmed.get("capabilities", {}).get("never_do", [])) or "未指定"
+        qa_text = "\n".join([f"- {q.get('category','')}: {q.get('spec','')}" for q in confirmed.get("quality_attributes", [])]) or "- 未指定"
+        budget = confirmed.get("constraints", {}).get("budget", "未指定")
+        timeline = confirmed.get("constraints", {}).get("timeline", "未指定")
+        living_spec_context = f"""
+## 评审基准（来自 Spec Pro — 用户确认的需求）
+
+你的评审必须基于以下**用户已确认的需求**，而不是自己的假设：
+
+### 核心目标
+{objective}
+
+### 能力要求
+**必须做**: {always_do}
+**应该做**: {should_do}
+**禁止做**: {never_do}
+
+### 质量属性
+{qa_text}
+
+### 约束条件
+- 预算: {budget}
+- 时间: {timeline}
+
+**评审要求**: 检查方案是否满足以上用户确认的需求，而不是泛泛评估。
+"""
+    
     ctx = f"""
 ## 评审主题
 {topic}
 
 ## 输入计划
 {input_plan_json}
-
+{living_spec_context}
 ## Blackboard路径
 {_DEEPFLOW_BASE}/blackboard/{session_id}
 """
@@ -839,8 +980,13 @@ def build_harness_v2_task(session_id: str, topic: str, worker_role: str,
     return prompt
 
 
-def build_harness_final_task(session_id: str, topic: str) -> str:
+def build_harness_final_task(session_id: str, topic: str, living_spec: dict = None) -> str:
     """构建 Harness Final Task（Stage 9，独立门禁）
+    
+    Args:
+        session_id: Session ID
+        topic: 任务主题
+        living_spec: Living Spec（Spec Pro 产出，可选）
     
     职责：
     - 3维度评分（权重35/25/40）
@@ -856,7 +1002,38 @@ def build_harness_final_task(session_id: str, topic: str) -> str:
     prompt = prompt.replace("{topic}", topic)
     prompt = prompt.replace("{session_id}", session_id)
     
-    return prompt
+    # Living Spec 上下文注入：基于 confirmed 评估覆盖度
+    living_spec_context = ""
+    if living_spec and "confirmed" in living_spec:
+        confirmed = living_spec["confirmed"]
+        always_do = "\n".join([f"- {c}" for c in confirmed.get("capabilities", {}).get("always_do", [])]) or "- 无"
+        qa_text = "\n".join([f"- {q.get('category','')}: {q.get('spec','')}" for q in confirmed.get("quality_attributes", [])]) or "- 无"
+        budget = confirmed.get("constraints", {}).get("budget", "未指定")
+        timeline = confirmed.get("constraints", {}).get("timeline", "未指定")
+        tech_stack = ", ".join(confirmed.get("constraints", {}).get("tech_stack", [])) or "未指定"
+        living_spec_context = f"""
+## 需求覆盖度评估基准（来自 Spec Pro）
+
+最终方案必须覆盖以下**用户已确认的需求**：
+
+### 必须覆盖的能力
+{always_do}
+
+### 必须满足的质量属性
+{qa_text}
+
+### 必须遵守的约束
+- 预算: {budget}
+- 时间: {timeline}
+- 技术栈: {tech_stack}
+
+**评估要求**:
+1. 检查最终方案是否覆盖了以上所有需求
+2. 对每个未覆盖的需求，标注【缺失:REQ-XXX-原因】
+3. 需求覆盖度评分 = 已覆盖需求数 / 总需求数
+"""
+    
+    return prompt + living_spec_context
 
 
 # 保留旧版Harness Task（向后兼容）
@@ -1053,7 +1230,8 @@ def build_fixer_expert_task(session_id: str, topic: str,
 
 def build_summarizer_task(session_id: str, topic: str,
                           all_outputs: dict,
-                          layer2_constraints: dict = None) -> str:
+                          layer2_constraints: dict = None,
+                          living_spec: dict = None) -> str:
     """构建 Summarizer Task（Stage 10，Harness V2最终总结）
     
     Args:
@@ -1061,6 +1239,7 @@ def build_summarizer_task(session_id: str, topic: str,
         topic: 总结主题
         all_outputs: 所有stage的输出字典
         layer2_constraints: Layer 2场景约束（Orchestrator集成）
+        living_spec: Living Spec（Spec Pro 产出，可选）
     """
     # 读取基础Prompt并注入Layer 2约束
     base_prompt = read_prompt("solution/summarizer_v2_harness")
@@ -1091,10 +1270,39 @@ def build_summarizer_task(session_id: str, topic: str,
     prompt = prompt.replace("{{ key_recommendations }}", 
                            "\n".join([f"{i+1}. {r}" for i, r in enumerate(key_recommendations)]))
     
+    # Living Spec 上下文注入：需求覆盖标注
+    living_spec_context = ""
+    if living_spec and "confirmed" in living_spec:
+        confirmed = living_spec["confirmed"]
+        always_do = "\n".join([f"- {c}" for c in confirmed.get("capabilities", {}).get("always_do", [])]) or "- 无"
+        qa_text = "\n".join([f"- {q.get('category','')}: {q.get('spec','')}" for q in confirmed.get("quality_attributes", [])]) or "- 无"
+        budget = confirmed.get("constraints", {}).get("budget", "未指定")
+        timeline = confirmed.get("constraints", {}).get("timeline", "未指定")
+        living_spec_context = f"""
+## 需求覆盖标注要求（来自 Spec Pro）
+
+在最终报告中，必须显式标注以下**用户确认需求**的覆盖情况：
+
+### 必须覆盖的能力
+{always_do}
+
+### 必须满足的质量属性
+{qa_text}
+
+### 必须遵守的约束
+- 预算: {budget}
+- 时间: {timeline}
+
+**标注要求**:
+1. 对每个已覆盖的需求，标注【已覆盖:REQ-XXX】
+2. 对每个未覆盖的需求，标注【缺失:REQ-XXX-原因】
+3. 在报告开头添加"需求覆盖度"章节，列出覆盖率
+"""
+    
     ctx = f"""
 ## 总结主题
 {topic}
-
+{living_spec_context}
 ## Blackboard路径
 {_DEEPFLOW_BASE}/blackboard/{session_id}
 

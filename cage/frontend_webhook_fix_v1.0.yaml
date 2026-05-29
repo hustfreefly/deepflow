@@ -13,10 +13,10 @@ p0_fixes:
   - id: P0-1
     title: "except Exception 滥用（7处）"
     files:
-      - agents/webhook_task_processor.py:133,170,213,244
+      - core/agents/webhook_task_processor.py:133,170,213,244
       - frontend/backend/routers/tasks_v2.py:114
       - frontend/backend/routers/status_v2.py:74
-      - agents/cron_task_checker.py:47
+      - core/agents/cron_task_checker.py:47
     fix: "改为具体异常类型，如 except (ImportError, RuntimeError) as e:"
   
   - id: P0-2
@@ -31,7 +31,7 @@ p0_fixes:
   
   - id: P0-4
     title: "webhook_task_processor.py 导入 openclaw 注释不清晰"
-    file: agents/webhook_task_processor.py:41-46
+    file: core/agents/webhook_task_processor.py:41-46
     fix: "添加明确警告注释，说明 exec 环境导入会失败"
 
 # P1 问题（建议修复）
@@ -39,14 +39,14 @@ p1_fixes:
   - id: P1-1
     title: "类型注解不完整"
     files:
-      - agents/webhook_task_processor.py
+      - core/agents/webhook_task_processor.py
       - frontend/backend/database.py
       - frontend/backend/routers/tasks_v2.py
     fix: "添加完整的返回值类型注解"
   
   - id: P1-2
     title: "asyncio.sleep 在同步函数中"
-    file: agents/webhook_task_processor.py:207
+    file: core/agents/webhook_task_processor.py:207
     fix: "改为 time.sleep(0.5)"
   
   - id: P1-3
@@ -56,7 +56,7 @@ p1_fixes:
   
   - id: P1-4
     title: "webhook_task_processor.py 行数超限"
-    file: agents/webhook_task_processor.py
+    file: core/agents/webhook_task_processor.py
     current_lines: 280
     max_lines: 250
     fix: "拆分为多个模块或精简代码"
@@ -93,9 +93,9 @@ signoff:
   required_reviews: 1
   verification: |
     # 验证所有 P0 已修复
-    python3 cage/check_standards.py agents/webhook_task_processor.py
+    python3 cage/check_standards.py core/agents/webhook_task_processor.py
     python3 cage/check_standards.py frontend/backend/routers/status_v2.py
     python3 cage/check_standards.py frontend/backend/routers/tasks_v2.py
     
     # 验证无 bare except
-    ! grep -rn "except:" --include="*.py" agents/ frontend/backend/
+    ! grep -rn "except:" --include="*.py" core/agents/ frontend/backend/
