@@ -36,13 +36,13 @@
   - `"output.verification.index == true"`
 - `cage/domain_investment.yaml` behavior.stages.required_order[0] = "data_collection"
 - `cage/domain_investment.yaml` data.blackboard.required_files:
-  - `"data/INDEX.json"`
-  - `"data/01_financials/key_metrics.json"`
+  - `"config/data/INDEX.json"`
+  - `"config/data/01_financials/key_metrics.json"`
 
 **实现细节**:
 ```python
 def _step1_data_collection(self, context: dict) -> dict:
-    # 1. 加载 config/data_sources/investment.yaml
+    # 1. 加载 config/config/config/data_sources/investment.yaml
     collector = ConfigDrivenCollector(config_path=config_path)
     
     # 2. 创建 DataEvolutionLoop
@@ -71,7 +71,7 @@ def _step1_data_collection(self, context: dict) -> dict:
 ```
 
 **验证清单**:
-- [x] 加载 `config/data_sources/investment.yaml`
+- [x] 加载 `config/config/config/data_sources/investment.yaml`
 - [x] 创建 `ConfigDrivenCollector`
 - [x] 创建 `DataEvolutionLoop`
 - [x] 执行 `bootstrap_phase(context)`
@@ -94,7 +94,7 @@ def _step1_data_collection(self, context: dict) -> dict:
     - tool: web_fetch (priority: 4)
   ```
 - `cage/domain_investment.yaml` behavior.stages.required_order[1] = "search"
-- `config/data_sources/investment.yaml` dynamic_rules（动态补充规则）
+- `config/config/config/data_sources/investment.yaml` dynamic_rules（动态补充规则）
 
 **实现细节**:
 ```python
@@ -198,8 +198,8 @@ def _step2_unified_search(self, context: dict) -> dict:
 **契约条款**:
 - `cage/domain_investment.yaml` data.blackboard.path = `"blackboard/{session_id}/"`
 - `cage/domain_investment.yaml` data.blackboard.required_files:
-  - `"data/INDEX.json"`
-  - `"data/01_financials/key_metrics.json"`
+  - `"config/data/INDEX.json"`
+  - `"config/data/01_financials/key_metrics.json"`
   - `"stages/{stage_name}/output.json"`
 - `cage/worker_researcher.yaml` data.blackboard.write.path = `"blackboard/{session_id}/stages/research/{role}_output.json"`
 
@@ -448,7 +448,7 @@ from quality_gate import QualityGate
 
 ### 2. Provider 注册逻辑
 - **现状**: `_register_providers()` 中尝试导入 `data_providers.investment`，但该文件可能不存在
-- **建议**: 创建 `data_providers/investment.py` 实现 TushareProvider/SinaFinanceProvider/WebFetchProvider
+- **建议**: 创建 `core/core/core/data_providers/investment.py` 实现 TushareProvider/SinaFinanceProvider/WebFetchProvider
 
 ### 3. 统一搜索为占位实现
 - **现状**: `_step2_unified_search()` 仅写入占位数据，未实际调用 Gemini CLI / DuckDuckGo
@@ -473,7 +473,7 @@ from quality_gate import QualityGate
 **契约合规性**: 所有修改均严格遵循 `cage/domain_investment.yaml`、`cage/stage_data_collection.yaml`、`cage/worker_researcher.yaml`、`cage/convergence_rules.yaml` 定义的契约条款。
 
 **下一步建议**:
-1. 创建 `data_providers/investment.py` 实现真实数据提供者
+1. 创建 `core/core/core/data_providers/investment.py` 实现真实数据提供者
 2. 拆分模块至 500 行以内
 3. 实现 Worker 并行度控制
 4. 集成真实搜索工具调用

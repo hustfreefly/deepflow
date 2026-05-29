@@ -1,6 +1,6 @@
 # ============================================================
 # 解决方案设计领域数据采集配置
-# 文件: domains/solution/data_sources/solution.yaml
+# 文件: domains/solution/config/config/data_sources/solution.yaml
 # ============================================================
 
 domain: solution

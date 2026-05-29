@@ -72,7 +72,7 @@
 | # | 任务 | 交付物 | 验收标准 |
 |:---|:---|:---|:---|
 | 1.1 | 创建数据层契约 | `cage/data_collection_contract.yaml` | 定义输入/输出 schema、数据源列表、验证规则 |
-| 1.2 | 创建数据源配置 | `domains/solution/data_sources/solution.yaml` | 包含技术文档、行业报告、竞品分析三类数据源 |
+| 1.2 | 创建数据源配置 | `domains/solution/config/config/data_sources/solution.yaml` | 包含技术文档、行业报告、竞品分析三类数据源 |
 | 1.3 | 实现数据采集方法 | `domains/solution/orchestrator.py` 新增 `_execute_data_collection()` | 能调用搜索工具获取外部数据 |
 | 1.4 | 实现数据验证方法 | `domains/solution/orchestrator.py` 新增 `_verify_data_collection()` | 检查关键数据文件是否存在 |
 | 1.5 | 修改 pipeline | `domains/solution.yaml` | 在 planning 前插入 data_collection 阶段 |
@@ -82,7 +82,7 @@
 #### 数据源设计
 
 ```yaml
-# domains/solution/data_sources/solution.yaml
+# domains/solution/config/config/data_sources/solution.yaml
 data_sources:
   tech_documentation:
     - name: "mdn"

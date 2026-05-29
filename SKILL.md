@@ -135,7 +135,7 @@ sessions_yield()
 |:---|:---|
 | `tasks.json` | 所有 Worker Tasks |
 | `execution_plan.json` | 执行计划 |
-| `data/v0/*.json` | 采集的基础数据 |
+| `config/data/v0/*.json` | 采集的基础数据 |
 | `stages/*.json` | 各 Worker 输出 |
 | `final_report.md` | 最终报告 |
 

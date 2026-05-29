@@ -182,7 +182,7 @@ PipelineEngine Agent（depth-1, Orchestrator）
 
 ### 5.2 必须保留
 
-`domains/*.yaml` | `pipelines/*.yaml` | `prompts/*.md` | `config/*.yaml` | `contracts/*.md` | `reviews/*.md` | `output/`
+`domains/*.yaml` | `config/pipelines/*.yaml` | `prompts/*.md` | `config/*.yaml` | `contracts/*.md` | `docs/reviews/*.md` | `blackboard/output/`
 
 ### 5.3 必须更新
 
@@ -223,7 +223,7 @@ PipelineEngine Agent（depth-1, Orchestrator）
 │   ├── state/{session_id}/         ← checkpoint.json
 │   └── blackboard/{session_id}/    ← HITL 文件
 ├── 📊 参考文档（只读）
-│   ├── reviews/ | output/
+│   ├── docs/reviews/ | output/
 └── 📝 项目文件
     ├── README.md | V1_BLUEPRINT.md
     └── LAUNCH_REPORT.md（待开发）

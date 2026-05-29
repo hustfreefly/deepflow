@@ -1,0 +1,93 @@
+# DeepFlow GitHub Release Contract
+# Version: 1.0
+# Date: 2026-05-18
+# Goal: Prepare and push DeepFlow to GitHub
+
+contract:
+  name: "github_release_v1"
+  version: "1.0"
+  date: "2026-05-18"
+  
+  prerequisite:
+    - "Git repository initialized"
+    - "Remote origin configured"
+    - "README.md exists and is complete"
+    
+  scope:
+    - id: "REL-001"
+      name: "Update .gitignore"
+      priority: "P0"
+      requirements:
+        - "Add config.json to .gitignore (sensitive config)"
+        - "Add reports/ to .gitignore (generated files)"
+        - "Add cage/check_*.py to .gitignore (temp scripts)"
+        - "Add frontend/backend/routers/uploads/ to .gitignore"
+        
+    - id: "REL-002"
+      name: "Commit Modified Files"
+      priority: "P0"
+      requirements:
+        - "Stage all 13 modified files"
+        - "Commit with descriptive message"
+        
+    - id: "REL-003"
+      name: "Add New Source Files"
+      priority: "P0"
+      requirements:
+        - "Stage core/agents/ directory"
+        - "Stage cron/ directory"
+        - "Stage docs/ new files"
+        - "Stage prompts/solution/"
+        - "Stage frontend/backend/database.py"
+        - "Stage frontend/task_queue/"
+        - "Stage frontend/web/src/ new files"
+        - "Stage run_*.py scripts"
+        - "Stage scripts/ directory"
+        
+    - id: "REL-004"
+      name: "Create Missing Files"
+      priority: "P1"
+      requirements:
+        - "Create LICENSE file (MIT)"
+        - "Create CHANGELOG.md if not exists"
+        
+    - id: "REL-005"
+      name: "Push to GitHub"
+      priority: "P0"
+      requirements:
+        - "Push all commits to origin/main"
+        - "Verify push success"
+        
+  redlines:
+    - id: "RED-REL-001"
+      rule: "NEVER commit config.json with sensitive data"
+      severity: "P0"
+    - id: "RED-REL-002"
+      rule: "NEVER commit generated reports or uploads"
+      severity: "P0"
+      
+  forbidden:
+    - "Do NOT commit .env files"
+    - "Do NOT commit __pycache__"
+    - "Do NOT commit node_modules"
+    - "Do NOT commit generated reports"
+    
+  success_criteria:
+    - "git status shows clean working tree"
+    - "git log shows commits pushed to origin"
+    - "GitHub repo reflects latest changes"
+    - "LICENSE file present"
+    
+  execution_order:
+    - phase: "1"
+      name: "Prepare .gitignore"
+      tasks: ["REL-001"]
+    - phase: "2"
+      name: "Commit Changes"
+      tasks: ["REL-002", "REL-003"]
+    - phase: "3"
+      name: "Create Missing Files"
+      tasks: ["REL-004"]
+    - phase: "4"
+      name: "Push to Remote"
+      tasks: ["REL-005"]

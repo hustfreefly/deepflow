@@ -106,7 +106,7 @@ interface:
       role: "数据搜索器"
       tools: ["web_search", "web_fetch", "exec", "read", "write"]
       input: "confirmed_plan.json + source_registry.json"
-      output: "research/batch_NN/ 目录"
+      output: "docs/research/batch_NN/ 目录"
       max_tokens: 8192
 
     citation_verify:
@@ -373,18 +373,18 @@ data:
   blackboard_layout:
     base: "blackboard/{session_id}/"
     directories:
-      - "research/"
-      - "research/batch_01/"
-      - "research/batch_02/"
+      - "docs/research/"
+      - "docs/research/batch_01/"
+      - "docs/research/batch_02/"
       - "report/"
     files:
       - "state.json"
       - "analysis_plan.json"
       - "confirmed_plan.json"
       - "source_registry.json"
-      - "research/aggregated.json"
-      - "research/batch_NN/search_results.json"
-      - "research/batch_NN/fetched_pages.json"
+      - "docs/research/aggregated.json"
+      - "docs/research/batch_NN/search_results.json"
+      - "docs/research/batch_NN/fetched_pages.json"
       - "report/draft.md"
       - "report/final.md"
       - "report/citations.json"

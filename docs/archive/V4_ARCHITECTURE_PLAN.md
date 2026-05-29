@@ -145,7 +145,7 @@ def main():
 ## 执行代码
 
 ```python
-from data_providers.investment import register_providers
+from core.data_providers.investment import register_providers
 from data_manager import DataEvolutionLoop, ConfigDrivenCollector
 from blackboard_manager import BlackboardManager
 
@@ -153,7 +153,7 @@ from blackboard_manager import BlackboardManager
 register_providers()  # 注册 tushare/akshare/sina/web_fetch
 
 # 2. 初始化采集器
-config_path = "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+config_path = "/Users/allen/.openclaw/workspace/.deepflow/config/config/data_sources/investment.yaml"
 collector = ConfigDrivenCollector(config_path)
 
 # 3. 初始化 Blackboard
@@ -311,7 +311,7 @@ config = ConfigLoader().load_domain("investment")
 ```python
 # 构建 DataManager Task（包含完整代码）
 data_manager_code = """
-from data_providers.investment import register_providers
+from core.data_providers.investment import register_providers
 from data_manager import DataEvolutionLoop, ConfigDrivenCollector
 # ... bootstrap 代码
 """

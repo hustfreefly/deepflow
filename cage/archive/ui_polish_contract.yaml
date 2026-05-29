@@ -1,0 +1,71 @@
+# DeepFlow Frontend UI Polish Contract
+# Version: 1.0 | 2026-05-17
+# Goal: Small UI adjustments for premium feel + Google Material Design consistency
+# Source: 3-agent review (Product, Programmer, Auditor)
+
+contract:
+  name: "ui_polish_v1"
+  date: "2026-05-17"
+  
+  principle: "小调整，不大改；提升高级感，保持现有布局"
+
+  scope:
+    - id: "UI-001"
+      name: "Shadow/Elevation 统一"
+      priority: "P0"
+      problem: "shadow-sm 太淡，hover 跳跃感强，卡片同时有 border+shadow 视觉冲突"
+      action: "卡片去掉 border 或改为极淡；统一阴影梯度"
+      files: ["src/App.tsx", "src/components/Header.tsx", "src/pages/HistoryPage.tsx"]
+
+    - id: "UI-002"
+      name: "圆角统一规范"
+      priority: "P0"
+      problem: "rounded-2xl / rounded-xl 混用，缺乏统一规则"
+      action: "卡片容器 rounded-2xl，按钮/输入 rounded-xl，badge rounded-lg"
+      files: ["src/App.tsx", "src/pages/HistoryPage.tsx", "src/pages/TaskForm.tsx"]
+
+    - id: "UI-003"
+      name: "图标对齐修复"
+      priority: "P0"
+      problem: "Header 导航按钮 align-text-bottom 导致基线不一致"
+      action: "改为 items-center，移除 align-text-bottom"
+      files: ["src/components/Header.tsx"]
+
+    - id: "UI-004"
+      name: "字体层级梯度"
+      priority: "P0"
+      problem: "标题用 font-medium，不够突出；缺乏字重梯度"
+      action: "Page Title → font-semibold, Card Title → font-medium, Body → font-normal"
+      files: ["src/App.tsx", "src/pages/HistoryPage.tsx"]
+
+    - id: "UI-005"
+      name: "交互过渡动画"
+      priority: "P0"
+      problem: "hover 效果缺少 transition duration，跳跃感强"
+      action: "统一添加 transition-all duration-200"
+      files: ["src/App.tsx", "src/pages/HistoryPage.tsx", "src/pages/TaskForm.tsx"]
+
+    - id: "UI-006"
+      name: "Flex truncate 修复"
+      priority: "P0"
+      problem: "truncate 在 flex 子项中不生效，缺少 min-w-0"
+      action: "truncate 的父容器添加 min-w-0"
+      files: ["src/pages/HistoryPage.tsx"]
+
+    - id: "UI-007"
+      name: "8pt 间距节奏"
+      priority: "P1"
+      problem: "gap-4 (16px) 与 gap-3 (12px) 混用"
+      action: "统一为 8pt 倍数（gap-2=8px, gap-4=16px）"
+      files: ["src/App.tsx", "src/pages/HistoryPage.tsx"]
+
+  execution_order:
+    - phase: "1"
+      tasks: ["UI-001", "UI-002", "UI-003", "UI-004", "UI-005", "UI-006"]
+    - phase: "2"
+      tasks: ["UI-007"]
+
+  success_criteria:
+    - "npm run build 零错误"
+    - "所有 P0 项已实施"
+    - "无视觉回退（页面布局不变）"

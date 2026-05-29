@@ -141,8 +141,8 @@ data:
   blackboard:
     path: "blackboard/{session_id}/"
     required_files:
-      - "data/INDEX.json"
-      - "data/01_financials/key_metrics.json"
+      - "config/data/INDEX.json"
+      - "config/data/01_financials/key_metrics.json"
       - "stages/{stage_name}/output.json"
     schema_validation: true
   
@@ -167,7 +167,7 @@ interface:
   input:
     context:
       required: [code, name]
-    config: "config/data_sources/investment.yaml"
+    config: "config/config/config/data_sources/investment.yaml"
   
   output:
     schema:

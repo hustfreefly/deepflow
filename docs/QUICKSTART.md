@@ -69,7 +69,7 @@ sessions_yield()  # ← 禁止轮询！等待推送
 ```bash
 ls blackboard/{session_id}/
 # 投资分析应有：
-# ├── data/INDEX.json              ✅
+# ├── config/data/INDEX.json              ✅
 # ├── researcher_*_output.json     ✅ (>2KB)
 # ├── auditor_*_output.json        ✅ (>2KB)
 # └── final_report.md              ✅

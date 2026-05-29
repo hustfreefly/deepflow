@@ -57,7 +57,7 @@ class InvestmentOrchestrator:
     ┌─────────────────────────────────────────────┐
     │ run(context)                                │
     │   ├── STEP 1: DataManager bootstrap 采集     │
-    │   │     ├── 加载 config/data_sources/investment.yaml│
+    │   │     ├── 加载 config/config/config/data_sources/investment.yaml│
     │   │     ├── ConfigDrivenCollector            │
     │   │     ├── DataEvolutionLoop.bootstrap()   │
     │   │     └── 验证: blackboard/{session}/data/INDEX.json │
@@ -320,13 +320,13 @@ class InvestmentOrchestrator:
         
         契约依据：
         - cage/stage_data_collection.yaml（数据采集阶段契约）
-        - config/data_sources/investment.yaml（数据源配置）
+        - config/config/config/data_sources/investment.yaml（数据源配置）
         - V1_BLUEPRINT.md §1.3（DataManager 作为 Python 辅助模块）
         
         R2 Fix: URL 占位符替换，确保 context 中包含 exchange/code_num 等变量。
         
         流程：
-        1. 加载 config/data_sources/investment.yaml
+        1. 加载 config/config/config/data_sources/investment.yaml
         2. 创建 ConfigDrivenCollector
         3. 创建 DataEvolutionLoop
         4. R2 Fix: 替换 URL 占位符
@@ -443,7 +443,7 @@ class InvestmentOrchestrator:
         
         契约依据：
         - domains/investment.yaml search_priority（搜索工具优先级）
-        - config/data_sources/investment.yaml dynamic_rules（动态补充规则）
+        - config/config/config/data_sources/investment.yaml dynamic_rules（动态补充规则）
         - cage/domain_investment.yaml behavior.stages.required_order[1] = "search"
         
         P0-4 修复：调用 Gemini CLI 执行真实搜索，不再使用 placeholder。

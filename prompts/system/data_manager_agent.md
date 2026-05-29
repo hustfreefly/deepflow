@@ -24,7 +24,7 @@ company_name = "{name}"       # 公司名称
 ```python
 import sys
 sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
-from data_providers.investment import register_providers
+from core.data_providers.investment import register_providers
 
 register_providers()
 print("✅ 数据源注册完成")
@@ -40,7 +40,7 @@ base_path = f"/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}
 blackboard_manager = BlackboardManager(base_path=base_path)
 
 # 初始化采集器
-config_path = "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+config_path = "/Users/allen/.openclaw/workspace/.deepflow/config/config/data_sources/investment.yaml"
 collector = ConfigDrivenCollector(config_path)
 data_loop = DataEvolutionLoop(collector, blackboard_manager)
 
@@ -159,13 +159,13 @@ stage_output = {
     "timestamp": __import__('datetime').datetime.now().isoformat(),
     "datasets_count": len(index) if 'index' in locals() else 0,
     "output_files": [
-        "data/INDEX.json",
-        "data/v0/financials.json",
-        "data/v0/realtime_quote.json",
-        "data/v0/daily_basics.json",
-        "data/01_financials/key_metrics.json",
-        "data/02_market_quote/key_metrics.json",
-        "data/key_metrics.json"
+        "config/data/INDEX.json",
+        "config/data/v0/financials.json",
+        "config/data/v0/realtime_quote.json",
+        "config/data/v0/daily_basics.json",
+        "config/data/01_financials/key_metrics.json",
+        "config/data/02_market_quote/key_metrics.json",
+        "config/data/key_metrics.json"
     ]
 }
 
@@ -187,14 +187,14 @@ completion_data = {
     "timestamp": __import__('datetime').datetime.now().isoformat(),
     "datasets_count": len(index) if 'index' in locals() else 0,
     "output_files": [
-        "data/INDEX.json",
-        "data/v0/financials.json",
-        "data/v0/realtime_quote.json",
-        "data/v0/daily_basics.json",
-        "data/01_financials/key_metrics.json",
-        "data/02_market_quote/key_metrics.json",
-        "data/05_supplement/",
-        "data/key_metrics.json"
+        "config/data/INDEX.json",
+        "config/data/v0/financials.json",
+        "config/data/v0/realtime_quote.json",
+        "config/data/v0/daily_basics.json",
+        "config/data/01_financials/key_metrics.json",
+        "config/data/02_market_quote/key_metrics.json",
+        "config/data/05_supplement/",
+        "config/data/key_metrics.json"
     ]
 }
 

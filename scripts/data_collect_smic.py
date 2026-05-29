@@ -27,7 +27,7 @@ def step1_bootstrap():
         register_providers()
         
         # 初始化采集器
-        config_path = "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+        config_path = "/Users/allen/.openclaw/workspace/.deepflow/config/config/data_sources/investment.yaml"
         collector = ConfigDrivenCollector(config_path)
         
         # 初始化 Blackboard

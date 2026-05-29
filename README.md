@@ -104,7 +104,7 @@ DeepFlow's Orchestrator uses `sessions_spawn` to create child agents, which is a
 
 ```bash
 # Method 1: Unified entry (recommended)
-python3 deepflow.py --code 688981.SH --name SMIC --industry "Semiconductor Manufacturing"
+python3 tools/deepflow_cli.py --code 688981.SH --name SMIC --industry "Semiconductor Manufacturing"
 
 # Method 2: Python API (for integration)
 from domains.investment import InvestmentOrchestrator
@@ -167,7 +167,7 @@ See [docs/SOLUTION_PRO_MODE_DESIGN.md](docs/SOLUTION_PRO_MODE_DESIGN.md) for det
 ### Force Rebuild
 
 ```bash
-python3 deepflow.py --code 688981.SH --name SMIC --force-rebuild
+python3 tools/deepflow_cli.py --code 688981.SH --name SMIC --force-rebuild
 ```
 
 ---
@@ -177,6 +177,15 @@ python3 deepflow.py --code 688981.SH --name SMIC --force-rebuild
 ```
 .deepflow/
 ├── core/                      # Core framework modules
+│   ├── core/agents/                # Agent definitions (webhook_task_processor, cron_task_checker)
+│   ├── data_providers/        # Data source providers
+│   ├── orchestrators/         # Orchestrator implementations
+│   ├── blackboard/            # Blackboard manager
+│   ├── config/                # Path configuration
+│   ├── cage/                  # Contract cage loader/validator
+│   ├── config/data/                  # Data manager
+│   ├── quality/               # Quality gate
+│   ├── spec_pro/              # Spec Pro module
 │   ├── master_agent.py        # Master Agent
 │   ├── task_builder.py        # Task Builder
 │   ├── data_manager_worker.py # DataManager
@@ -189,17 +198,39 @@ python3 deepflow.py --code 688981.SH --name SMIC --force-rebuild
 ├── domains/                   # Domain-specific applications
 │   ├── investment/            # Investment Analysis (vertical scenario)
 │   └── solution/              # Solution Pro (core framework)
-├── data/                      # Configuration files
-│   ├── search_config.yaml     # Search configuration
-│   ├── output_config.yaml     # Output configuration
-│   └── credentials.yaml       # Credential configuration
+├── config/                    # Configuration files
+│   ├── config/data/                  # Search/output configuration
+│   ├── config/data_sources/          # Data source configurations
+│   ├── config/industries/            # Industry configurations
+│   └── pipelines/             # Pipeline configurations
 ├── cage/                      # Contract Cage
-├── data_sources/              # Data source configurations
-├── data_providers/            # Data source providers
-├── docs/                      # Architecture documents
+├── docs/                      # Documentation
+│   ├── design/                # Design documents
+│   ├── reference/             # Reference documents
+│   ├── archive/               # Archived documents
+│   ├── docs/research/              # Research documents
+│   ├── docs/reports/               # Reports
 │   └── ARCHITECTURE.md        # Architecture design documentation
 ├── prompts/                   # Prompt templates
-└── orchestrator_agent.py      # Orchestrator guide
+├── scripts/                   # Scripts
+│   ├── ci/                    # CI scripts
+│   ├── runners/               # Runner scripts
+│   ├── maintenance/           # Maintenance scripts
+│   └── checks/                # Check scripts
+├── tests/                     # Tests
+│   ├── unit/                  # Unit tests
+│   ├── integration/           # Integration tests
+│   └── results/               # Test results
+├── tools/                     # Tools
+│   ├── deepflow_cli.py        # CLI tool
+│   └── spec_pro_api.py        # Spec Pro API
+├── frontend/                  # Frontend (independent project)
+├── skills/                    # Skills
+├── blackboard/                # Runtime data (not versioned)
+├── README.md                  # Project documentation
+├── CHANGELOG.md               # Change log
+├── DIRECTORY_STRUCTURE_CONTRACT.md  # Directory structure contract
+└── SKILL.md                   # Skill definition
 ```
 
 ## Architecture Documents
@@ -224,4 +255,4 @@ See [CHANGELOG.md](CHANGELOG.md)
 
 ## Development Standards
 
-See [DEVELOPMENT_RULES.md](DEVELOPMENT_RULES.md) and [CODING_STANDARDS.md](CODING_STANDARDS.md)
+- [docs/archive/DEVELOPMENT_RULES.md](docs/archive/DEVELOPMENT_RULES.md) and [docs/archive/CODING_STANDARDS.md](docs/archive/CODING_STANDARDS.md)

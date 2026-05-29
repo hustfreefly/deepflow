@@ -148,7 +148,7 @@ sessions_history()  # ← 禁止
 
 ```
 blackboard/{session_id}/
-├── data/
+├── config/data/
 │   ├── INDEX.json              # 数据索引
 │   ├── v0/
 │   │   ├── financials.json     # 财务指标
@@ -242,7 +242,7 @@ Worker Agents (depth-2)
 
 ### Q4: DataManager 采集数据缺失
 **原因**: 数据源配置错误或网络问题
-**解决**: 检查 data_sources/investment.yaml 配置，确保 Tushare token 有效
+**解决**: 检查 config/config/data_sources/investment.yaml 配置，确保 Tushare token 有效
 
 ---
 

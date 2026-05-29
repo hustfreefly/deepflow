@@ -79,7 +79,7 @@ frontend/
 ├── backend/                 # FastAPI 后端
 │   ├── main.py             # 应用入口（v1 + v2 路由）
 │   ├── requirements.txt    # Python 依赖
-│   ├── data/               # SQLite 数据库
+│   ├── config/data/               # SQLite 数据库
 │   │   └── tasks.db       # 任务队列数据库
 │   ├── routers/
 │   │   ├── health.py      # 健康检查

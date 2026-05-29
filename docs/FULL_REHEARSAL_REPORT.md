@@ -106,14 +106,14 @@ import sys
 sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
 
 from data_manager import DataEvolutionLoop, ConfigDrivenCollector
-from data_providers.investment import register_providers
+from core.data_providers.investment import register_providers
 import os
 
 # 注册数据源
 register_providers()
 
 # 初始化采集器
-config_path = "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+config_path = "/Users/allen/.openclaw/workspace/.deepflow/config/config/data_sources/investment.yaml"
 collector = ConfigDrivenCollector(config_path)
 
 # 创建数据循环
@@ -698,7 +698,7 @@ summarizer ←── fixer_output.json + key_metrics.json + reference_data
 □ domains/investment.yaml 已精简（13 agents, 7 stages）
 □ pipeline_engine.py 已修复（单轮模式）
 □ prompts/ 目录下所有 prompt 文件存在
-□ data_sources/investment.yaml 配置正确
+□ config/config/data_sources/investment.yaml 配置正确
 □ Blackboard 目录可写
 ```
 

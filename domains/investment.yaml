@@ -89,7 +89,7 @@ pipeline:
     # Stage 1: 数据采集
     - name: data_collection
       type: data_manager
-      config: "config/data_sources/investment.yaml"
+      config: "config/config/config/data_sources/investment.yaml"
       description: "采集财务数据、行情数据、行业数据"
     
     # Stage 2: 统一搜索（补充数据）

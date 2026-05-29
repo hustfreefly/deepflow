@@ -218,7 +218,7 @@
 
 ```
 blackboard/{session_id}/
-├── data/
+├── config/data/
 │   ├── requirement_spec.json          # 当前需求规格（最新）
 │   ├── requirement_spec_v1.json       # 第1轮需求规格（Loop 历史）
 │   ├── requirement_spec_v2.json       # 第2轮需求规格（如果有 Loop）

@@ -321,7 +321,7 @@ def build_summarizer_task(session_id, code, name):
         "upside": read_json(f"stages/auditor_upside_output.json"),
         "downside": read_json(f"stages/auditor_downside_output.json"),
         "fixer": read_json(f"stages/fixer_output.json"),
-        "key_metrics": read_json(f"data/key_metrics.json")
+        "key_metrics": read_json(f"config/data/key_metrics.json")
     }
     
     # 构建 Task
@@ -412,7 +412,7 @@ def build_summarizer_task(session_id, code, name):
 │   └── investment.yaml            # 领域配置（含agents列表）
 └── blackboard/
     └── {session_id}/
-        ├── data/
+        ├── config/data/
         │   ├── INDEX.json
         │   ├── key_metrics.json     # ← 精简版（Summarizer快速读取）
         │   ├── 01_financials/

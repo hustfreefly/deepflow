@@ -170,7 +170,7 @@
 │  │   ├── stage_0_plan.md                                           │
 │  │   ├── stage_1_exec.md                                           │
 │  │   └── ...                                                       │
-│  ├── agents/          ← Agent 输出                                  │
+│  ├── core/agents/          ← Agent 输出                                  │
 │  │   ├── researcher_0.md                                           │
 │  │   ├── critic_0.md                                               │
 │  │   └── ...                                                       │
@@ -952,12 +952,12 @@ Phase 2 里程碑 (2-3 周):
 
 | 文档 | 路径 | 状态 |
 |:---|:---|:---:|
-| 输入清单 | `reports/v3-architecture-inputs-inventory.md` | ✅ |
-| 输入汇总 | `reports/v3-architecture-inputs-summary.md` | ✅ |
-| 综合输入 | `reports/v3-architecture-inputs-comprehensive.md` | ✅ |
-| Pre-Design | `reports/v3-pre-design-spec.md` | ✅ |
-| 新架构输入 | `reports/deep-dive-v3-architecture-input.md` | ✅ |
-| P0 验证报告 | `reports/v3-p0-validation-report.md` | ✅ |
+| 输入清单 | `docs/reports/v3-architecture-inputs-inventory.md` | ✅ |
+| 输入汇总 | `docs/reports/v3-architecture-inputs-summary.md` | ✅ |
+| 综合输入 | `docs/reports/v3-architecture-inputs-comprehensive.md` | ✅ |
+| Pre-Design | `docs/reports/v3-pre-design-spec.md` | ✅ |
+| 新架构输入 | `docs/reports/deep-dive-v3-architecture-input.md` | ✅ |
+| P0 验证报告 | `docs/reports/v3-p0-validation-report.md` | ✅ |
 | 交叉验证报告 | `V3.0_CROSS_VALIDATION_AUDIT_REPORT.md` | ✅ |
 | 兼容性报告 | `COMPATIBILITY_REPORT_v3.0.md` | ✅ |
 

@@ -144,7 +144,7 @@ domains:
 
 配置加载顺序（后加载覆盖先加载）：
 
-1. `data/search_config.yaml`（默认配置）
+1. `config/data/search_config.yaml`（默认配置）
 2. `~/.openclaw/deepflow.yaml`（用户配置）
 3. 环境变量（最高优先级）
 

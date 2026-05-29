@@ -121,7 +121,7 @@ sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
 # ========== STEP 1: Bootstrap 采集 ==========
 print("[DataManager] STEP 1: Bootstrap 采集")
 
-from data_providers.investment import register_providers
+from core.data_providers.investment import register_providers
 from data_manager import DataEvolutionLoop, ConfigDrivenCollector
 from blackboard_manager import BlackboardManager
 
@@ -129,7 +129,7 @@ from blackboard_manager import BlackboardManager
 register_providers()
 
 # 初始化采集器
-config_path = "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+config_path = "/Users/allen/.openclaw/workspace/.deepflow/config/config/data_sources/investment.yaml"
 collector = ConfigDrivenCollector(config_path)
 
 # 初始化 Blackboard

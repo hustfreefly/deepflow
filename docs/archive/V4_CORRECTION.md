@@ -44,7 +44,7 @@ Phase 3+: Workers（分析 + 按需搜索）
 
 ## 执行代码
 ```python
-from data_providers.investment import register_providers
+from core.data_providers.investment import register_providers
 from data_manager import DataEvolutionLoop, ConfigDrivenCollector
 # ... bootstrap 代码
 ```
@@ -231,7 +231,7 @@ def build_researcher_task(angle, session_id, config):
 
 ### 保留统一搜索层（Orchestrator 补充搜索）
 - 搜索行业趋势、竞品对比等通用信息
-- 写入 `data/05_supplement/`
+- 写入 `config/data/05_supplement/`
 - Workers 可以读取这些补充数据
 
 ### Workers Task 增加搜索指引

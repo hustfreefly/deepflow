@@ -81,7 +81,7 @@ class InvestmentOrchestrator(BaseOrchestrator):
         执行数据采集阶段（STEP 1）
         """
         from data_manager import DataEvolutionLoop, ConfigDrivenCollector
-        from data_providers.investment import register_providers
+        from core.data_providers.investment import register_providers
         from blackboard_manager import BlackboardManager
         
         try:
@@ -91,7 +91,7 @@ class InvestmentOrchestrator(BaseOrchestrator):
             register_providers()
             
             # 初始化组件
-            config_path = stage.config or "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+            config_path = stage.config or "/Users/allen/.openclaw/workspace/.deepflow/config/config/data_sources/investment.yaml"
             collector = ConfigDrivenCollector(config_path)
             blackboard = BlackboardManager(self.session_id)
             data_loop = DataEvolutionLoop(collector, blackboard)

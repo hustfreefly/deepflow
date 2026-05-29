@@ -173,7 +173,7 @@ def check_provider_registry():
 
 def check_investment_provider():
     """验证投资领域 Provider 实现"""
-    provider_file = DEEPFLOW_DIR / "core/data_providers/investment.py"
+    provider_file = DEEPFLOW_DIR / "core/core/core/data_providers/investment.py"
     if not provider_file.exists():
         print("❌ FAIL: investment.py 不存在")
         return False
@@ -207,7 +207,7 @@ def check_investment_provider():
 
 def check_yaml_config():
     """验证 YAML 配置文件"""
-    yaml_file = DEEPFLOW_DIR / "config/data_sources/investment.yaml"
+    yaml_file = DEEPFLOW_DIR / "config/config/config/data_sources/investment.yaml"
     if not yaml_file.exists():
         print("❌ FAIL: investment.yaml 不存在")
         return False

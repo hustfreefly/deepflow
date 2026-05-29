@@ -566,7 +566,7 @@ def build_prompt(self, stage_name: str, additional_context: Dict = None) -> str:
 
 4. **创建数据源配置**（可选，如果需要数据采集）
    ```
-   data_sources/healthcare.yaml
+   config/config/data_sources/healthcare.yaml
    ```
 
 5. **注册 Provider**（可选，如果有特定数据源）
@@ -593,7 +593,7 @@ def build_prompt(self, stage_name: str, additional_context: Dict = None) -> str:
 | Worker 角色/超时/模型 | YAML 中定义 | ✅ 可独立配置每个 Worker |
 | 并发度 | `concurrency.max_parallel_workers` | ✅ 可调整 |
 | 收敛条件 | `convergence.target_score` 等 | ✅ 可调整阈值 |
-| 数据采集规则 | `data_sources/{domain}.yaml` | ✅ 支持依赖链、动态规则 |
+| 数据采集规则 | `config/data_sources/{domain}.yaml` | ✅ 支持依赖链、动态规则 |
 | 搜索工具优先级 | `config/global_config.yaml` | ✅ 可按领域覆盖 |
 
 #### 必须代码实现的部分
@@ -603,7 +603,7 @@ def build_prompt(self, stage_name: str, additional_context: Dict = None) -> str:
 | Stage 执行逻辑 | 需要调用具体 API/工具 | `InvestmentOrchestrator._execute_*()` |
 | 分数提取逻辑 | 领域特定的评分规则 | `_extract_score()` |
 | 结果构建逻辑 | 领域特定的输出格式 | `_build_result()` |
-| Provider 实现 | 需要对接具体数据源 | `data_providers/investment.py` |
+| Provider 实现 | 需要对接具体数据源 | `core/core/core/data_providers/investment.py` |
 | 质量评估维度 | 需要 NLP 分析内容 | `core/quality_gate.py` |
 
 #### 配置化边界

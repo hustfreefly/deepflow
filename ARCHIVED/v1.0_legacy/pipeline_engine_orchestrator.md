@@ -28,13 +28,13 @@ DataManager 负责采集所有基础数据，写入 Blackboard/data/v0/。
 **执行代码**：
 ```python
 from data_manager import DataEvolutionLoop, ConfigDrivenCollector
-from data_providers.investment import register_providers
+from core.data_providers.investment import register_providers
 
 # 注册数据源
 register_providers()
 
 # 初始化采集器
-config_path = "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+config_path = "/Users/allen/.openclaw/workspace/.deepflow/config/config/data_sources/investment.yaml"
 collector = ConfigDrivenCollector(config_path)
 data_loop = DataEvolutionLoop(collector, blackboard_manager)
 
@@ -227,7 +227,7 @@ for agent_config in agents:
 
 ### 初始化
 ```python
-from data_providers.investment import register_providers
+from core.data_providers.investment import register_providers
 from data_manager import DataEvolutionLoop, ConfigDrivenCollector
 
 register_providers()  # 注册 tushare/akshare/sina/web_fetch
@@ -236,7 +236,7 @@ register_providers()  # 注册 tushare/akshare/sina/web_fetch
 ### 数据读取
 在 spawn Worker Agent 前，确保 DataManager 已完成 bootstrap 采集：
 ```python
-config_path = "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+config_path = "/Users/allen/.openclaw/workspace/.deepflow/config/config/data_sources/investment.yaml"
 collector = ConfigDrivenCollector(config_path)
 data_loop = DataEvolutionLoop(collector, blackboard_manager)
 context = {"code": "300604.SZ", "name": "长川科技"}
@@ -257,7 +257,7 @@ with open("domains/investment.yaml") as f:
 industry = domain.get("industry", "半导体设备")  # 默认半导体设备
 
 # 加载行业配置
-industry_file = f"industries/{industry.replace('设备', '').replace(' ', '_').lower()}.yaml"
+industry_file = f"config/industries/{industry.replace('设备', '').replace(' ', '_').lower()}.yaml"
 if os.path.exists(industry_file):
     with open(industry_file) as f:
         industry_config = yaml.safe_load(f)
@@ -265,7 +265,7 @@ if os.path.exists(industry_file):
 else:
     print(f"⚠️ 未找到行业配置: {industry_file}，使用默认半导体设备配置")
     # fallback 到半导体设备
-    with open("industries/semiconductor.yaml") as f:
+    with open("config/industries/semiconductor.yaml") as f:
         industry_config = yaml.safe_load(f)
 ```
 
@@ -488,7 +488,7 @@ def check_convergence(self) -> Tuple[bool, str]:
 ```
 
 ### 5. 状态持久化
-- 每轮迭代保存检查点到 `checkpoints/{session_id}/`
+- 每轮迭代保存检查点到 `blackboard/checkpoints/{session_id}/`
 - 检查点文件包含：当前状态、分数历史、Blackboard 路径
 
 ## 任务接收格式

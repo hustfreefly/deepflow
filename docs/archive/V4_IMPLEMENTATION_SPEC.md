@@ -375,7 +375,7 @@ import json
 sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
 
 # 2. 导入模块
-from data_providers.investment import register_providers
+from core.data_providers.investment import register_providers
 from data_manager import DataEvolutionLoop, ConfigDrivenCollector
 from blackboard_manager import BlackboardManager
 
@@ -384,7 +384,7 @@ print("注册数据源...")
 register_providers()  # 注册 tushare/akshare/sina/web_fetch
 
 # 4. 初始化采集器
-config_path = "/Users/allen/.openclaw/workspace/.deepflow/data_sources/investment.yaml"
+config_path = "/Users/allen/.openclaw/workspace/.deepflow/config/config/data_sources/investment.yaml"
 collector = ConfigDrivenCollector(config_path)
 
 # 5. 初始化 Blackboard
@@ -689,7 +689,7 @@ Phase 3: Planner Worker
 
 Phase 4: Researchers ×6（并行）
   ├── 输入: 
-  │   ├── data/key_metrics.json (上下文注入)
+  │   ├── config/data/key_metrics.json (上下文注入)
   │   └── stages/planner_output.json (上下文注入)
   ├── 读取: data/ 相关数据
   └── 输出: stages/researcher_XXX_output.json
@@ -1039,7 +1039,7 @@ assert "bootstrap" in result["steps"][0]["task"]
 | 配置文件 | 联动方式 | 说明 |
 |:---|:---|:---|
 | `domains/investment.yaml` | 读取 | Orchestrator 读取 agents 配置 |
-| `data_sources/investment.yaml` | 传入 | DataManager Worker 使用 |
+| `config/config/config/data_sources/investment.yaml` | 传入 | DataManager Worker 使用 |
 | `prompts/*.md` | 读取 | Task 构建器读取原始提示词 |
 | `blackboard/{session_id}/` | 写入/读取 | 所有数据流通道 |
 

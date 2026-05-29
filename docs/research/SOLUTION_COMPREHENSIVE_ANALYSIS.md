@@ -286,7 +286,7 @@ planner_output:
 
 | # | 任务 | 交付物 |
 |:---|:---|:---|
-| 1 | 创建知识库配置 | `data_sources/solution_kb.yaml` |
+| 1 | 创建知识库配置 | `config/data_sources/solution_kb.yaml` |
 | 2 | 集成搜索工具 | 支持 GitHub/StackOverflow/官方文档搜索 |
 | 3 | 实现数据验证 | `_verify_data_collection()` |
 | 4 | 优化 Prompt | 在 Prompt 中引用检索到的数据 |
@@ -344,9 +344,9 @@ Step 4 (持续): Prompt 深度优化 + 真实测试
 
 | 文件 | 说明 |
 |:---|:---|
-| `research/industry_best_practices.md` | 业界最佳实践详细报告 |
-| `research/deepflow_capability_assessment.md` | 引擎能力评估报告 |
-| `research/solution_optimization_analysis.md` | Solution 优化建议报告 |
+| `docs/research/industry_best_practices.md` | 业界最佳实践详细报告 |
+| `docs/research/deepflow_capability_assessment.md` | 引擎能力评估报告 |
+| `docs/research/solution_optimization_analysis.md` | Solution 优化建议报告 |
 
 ### 9.2 关键洞察对比
 
