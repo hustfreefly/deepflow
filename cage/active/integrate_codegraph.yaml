@@ -1,0 +1,53 @@
+# CodeGraph 集成 OpenClaw 契约
+
+module: codegraph_integration
+version: "1.0"
+created: "2026-05-30"
+updated: "2026-05-30"
+status: active
+complexity: simple
+
+description: |
+  将 CodeGraph (colbymchenry/codegraph) 集成到 OpenClaw 中，
+  通过 MCP Server 模式提供代码知识图谱查询能力。
+
+# 红线
+redlines:
+  - id: "RED-CG-001"
+    rule: "CodeGraph 必须 100% 本地运行，不发送任何数据到外部"
+    reason: "代码安全，所有分析必须在本地完成"
+    check: "CodeGraph 文档明确声明 '100% Local, No API keys, No external services'"
+
+  - id: "RED-CG-002"
+    rule: "MCP Server 配置必须指定正确的 cwd"
+    reason: "索引必须指向 DeepFlow 项目目录"
+    check: "配置中 cwd 指向 ~/.openclaw/workspace/.deepflow"
+
+# 执行步骤
+steps:
+  - step: 1
+    name: "安装 CodeGraph"
+    action: "curl 安装或 npm 安装"
+    gate: "codegraph --version 能正常输出"
+
+  - step: 2
+    name: "初始化项目索引"
+    action: "codegraph init -i 在 .deepflow/ 目录"
+    gate: ".codegraph/ 目录存在且 graph.db 非空"
+
+  - step: 3
+    name: "注册 MCP Server"
+    action: "在 OpenClaw config 中配置 mcp.servers.codegraph"
+    gate: "MCP 工具可被 Agent 调用"
+
+  - step: 4
+    name: "验证集成"
+    action: "通过 MCP 工具查询 DeepFlow 代码结构"
+    gate: "能正确返回引用链和依赖关系"
+
+# 验收标准
+acceptance:
+  - "codegraph CLI 已安装且版本可查"
+  - ".deepflow/.codegraph/ 索引已构建"
+  - "OpenClaw mcp.servers 已配置 codegraph"
+  - "Agent 可通过 MCP 工具查询代码图谱"

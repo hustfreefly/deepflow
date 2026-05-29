@@ -1,6 +1,6 @@
 """
 SourceRegistry — ResearchPro 防幻觉核心
-契约: cage/research_pro_v1.0.yaml (L3: source_registry)
+契约: cage/active/research_pro_v1.0.yaml (L3: source_registry)
 
 所有引用必须来自 Source Registry, 禁止自由生成 URL (RED-DC-001)。
 """

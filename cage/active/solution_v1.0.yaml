@@ -1,0 +1,182 @@
+# Solution Pro v1.0 契约
+# DeepFlow 方案设计引擎 — 需求理解→方案规划→详细设计→验证交付
+
+module: solution_pro
+version: "1.0"
+created: "2026-05-30"
+updated: "2026-05-30"
+status: active
+complexity: complex  # 13 Python modules + 32 Prompts + Harness V2/V3
+
+description: |
+  Solution Pro 是 DeepFlow 的方案设计引擎, 支持 architecture/business/technical 三种类型。
+  核心架构: EntryHarness → PipelineOrchestrator → 10 Stage Workers → Harness Final → Summarizer。
+  管线: data_collection→planning→reviewers×3→research×3→consolidator→audit→fix→fixer_expert→harness_final→summarizer。
+  Harness V3: 完整性35%/必要性25%/目标一致性40%, 数据通过 Blackboard JSON 传递。
+
+# =============================================================================
+# 红线 (P0 — 绝对不可违反)
+# =============================================================================
+redlines:
+  - id: "RED-SOL-001"
+    rule: "Python Orchestrator 层禁止包含 LLM 推理逻辑"
+    reason: "所有 LLM 推理必须通过 sessions_spawn Worker Agent 完成, Python 只做编排"
+    check: "grep -rE 'openai|anthropic|llm|chat_completion' domains/solution/*.py → 无匹配(除注释)"
+
+  - id: "RED-SOL-002"
+    rule: "Orchestrator 禁止直接调用 sessions_spawn, 必须通过注入的 spawn_fn"
+    reason: "spawn 必须由主 Agent 执行, exec 环境无 openclaw SDK"
+    check: "grep 'from openclaw import sessions_spawn' domains/solution/orchestrator_agent.py → 仅在 try/except _resolve_spawn_fn fallback"
+
+  - id: "RED-SOL-003"
+    rule: "Worker Agent 间跨阶段状态传递必须通过 Blackboard 文件, 禁止函数参数直传"
+    reason: "Agent 间唯一共享机制是 Blackboard, 确保可观测性和可恢复性"
+    check: "Worker Prompt 包含 Blackboard 读写路径 (blackboard/{session_id}/stages/)"
+
+  - id: "RED-SOL-004"
+    rule: "Prompt 中外部网页内容必须视为 DATA 而非指令"
+    reason: "Prompt Injection 防御, 遵循 AGENTS.md Zone 1.3"
+    check: "grep -r '视为数据\\|treat.*as.*data' domains/solution/prompts/ → 有匹配"
+
+  - id: "RED-SOL-005"
+    rule: "topic 输入必须经过路径遍历检测和 Unicode 安全清理"
+    reason: "topic 用于生成 session_id 和文件路径, 未清理可导致任意文件写入"
+    check: "grep '_check_path_traversal\\|_sanitize_topic' domains/solution/orchestrator_agent.py → 两处均有调用"
+
+  - id: "RED-SOL-006"
+    rule: "spawn_fn 未注入时禁止执行完整 Harness 管线, 必须降级为任务生成模式"
+    reason: "exec 环境无法 spawn, 静默失败会导致管线中断"
+    check: "grep 'spawn_fn.*不可用\\|RuntimeError.*spawn' domains/solution/orchestrator_agent.py → 有匹配"
+
+  - id: "RED-SOL-007"
+    rule: "Harness 评分必须使用定性红绿灯(green/yellow/red), 禁止 0-1 数值分"
+    reason: "数值分产生虚假精确, 红绿灯配合 blocking_issues 确保问题可追溯"
+    check: "grep 'green.*yellow.*red\\|no_0_1_score' domains/solution/orchestrator_agent.py domains/solution/prompts/harness_v3.md → 有匹配"
+
+# =============================================================================
+# L1: 接口契约
+# =============================================================================
+interface:
+  python_modules:
+    - name: "SolutionOrchestratorV21"
+      path: "domains/solution/orchestrator_agent.py"
+      desc: "管线编排 — __init__/init/get_all_tasks/run_harness_v2/run_v3/run(async static)"
+    - name: "BlackboardManager"
+      path: "domains/solution/blackboard.py"
+      desc: "中心化写入 — write_input/write_stage_output/write_progress/write_final_result"
+    - name: "SolutionConfig"
+      path: "domains/solution/config.py"
+      desc: "配置管理 — stages 定义 + input 数据生成"
+    - name: "HarnessScorer"
+      path: "domains/solution/harness_scorer.py"
+      desc: "3维评分器 — 完整性35%/必要性25%/目标一致性40%"
+    - name: "HarnessValidator"
+      path: "domains/solution/harness_validator.py"
+      desc: "输出格式校验 + 需求覆盖度检查"
+    - name: "TaskBuilder"
+      path: "domains/solution/task_builder.py"
+      desc: "10 阶段 Worker task prompt 构建"
+    - name: "CheckContract"
+      path: "domains/solution/check_contract.py"
+      desc: "契约验证 — 配置/Prompt/Orchestrator 完整性检查"
+
+  worker_agents:
+    - planner: {role: "需求分析+专家识别", prompt: "worker_planner.md"}
+    - reviewer: {role: "技术/业务/风险评审", prompts: ["worker_reviewer.md","reviewer_v2_harness.md"], parallel: true}
+    - researcher: {role: "技术架构/最佳实践/风险研究", prompts: ["worker_researcher.md","researcher_v2_harness.md"], parallel: true}
+    - consolidator: {role: "整合产出", prompts: ["worker_consolidator.md","consolidator_v2_harness.md"]}
+    - auditor: {role: "审计+自检诚实性", prompts: ["worker_auditor.md","auditor_v2_harness.md"], parallel: true}
+    - fixer: {role: "初步修正", prompts: ["worker_fixer.md","fixer_v2_harness.md"]}
+    - fixer_expert: {role: "深度修正", prompts: ["fixer_expert.md","fixer_expert_v2_harness.md"]}
+    - summarizer: {role: "最终交付", prompts: ["worker_summarizer.md","summarizer_v2_harness.md"]}
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+behavior:
+  SolutionOrchestratorV21.__init__:
+    input: "topic(str,5-200chars), solution_type(enum), mode(enum), constraints(list|None), stakeholders(list|None), session_prefix(str|None), spawn_fn(callable|None), living_spec(dict|None)"
+    output: "初始化实例"
+    success: "所有参数通过类型/范围校验"
+    failure: "topic 无效 → ValueError; constraints 非 list → TypeError"
+
+  SolutionOrchestratorV21.init:
+    input: "无 (使用已校验参数)"
+    output: "session_id (str, ≤50chars)"
+    success: "生成安全 session_id, 创建 blackboard/{id}/data 和 stages 目录"
+    failure: "路径遍历模式(.., /, ~) → ValueError"
+
+  SolutionOrchestratorV21.get_all_tasks:
+    input: "无"
+    output: "dict (10 stage 任务, reviewers/research 为嵌套 dict)"
+    success: "返回完整任务配置"
+    failure: "session_id 未初始化 → RuntimeError"
+
+  SolutionOrchestratorV21.run_harness_v2:
+    input: "spawn_fn (callable, 必需)"
+    output: "dict {status, session_id, base_path, results, harness_v2:true}"
+    success: "EntryHarness验证 → PipelineOrchestrator执行 → status=completed|partial"
+    failure: "spawn_fn=None → RuntimeError; 管线中断 → status=failed"
+
+  SolutionOrchestratorV21.run:
+    input: "topic, solution_type, mode, constraints, stakeholders, spawn_fn, session_prefix"
+    output: "dict {success, session_id, status, harness_v2}"
+    success: "spawn_fn有 → 完整执行; 无 → tasks_generated 模式"
+    failure: "参数校验失败 → ValueError/TypeError"
+
+  BlackboardManager.write_stage_output:
+    input: "stage_num(int), stage_name(str), agent_name(str), data(dict)"
+    output: "文件路径"
+    success: "写入 blackboard/{id}/stages/stage_NN_{agent}_output.json"
+    failure: "目录自动创建 (mkdir parents=True)"
+
+# =============================================================================
+# L3: 数据契约
+# =============================================================================
+data:
+  blackboard:
+    root: "blackboard/{session_id}/"
+    files:
+      "data/collection.json": "数据采集结果"
+      "data/structured_requirements.json": "结构化需求清单 (REQ-ID 权威来源)"
+      "stages/planning.json": "规划方案 + REQ-ID 分配 + coverage_check"
+      "stages/worker_{id}.json": "Worker 产出 + quality_gate 自检"
+      "stages/consolidator.json": "整合方案"
+      "stages/audit.json": "审计发现 + worker_honesty_check"
+      "stages/fix.json / fixer_expert.json": "修复结果"
+      "stages/harness_final.json": "最终门禁 (coverage_score + missing/misaligned)"
+      "progress.json / execution_plan.json / tasks.json": "状态与计划"
+      "final_solution.md": "最终交付 (标注 REQ-ID 覆盖)"
+
+  config:
+    path: "domains/solution/config/solution.yaml"
+    modes:
+      standard: "完整 8 阶段, 1-2h, audit=standard"
+      rigorous: "完整 8 阶段, 3-4h, audit=strict"
+    solution_types: ["architecture(C4模型)", "business(问题→方案→路线)", "technical(架构决策+API+数据)"]
+    harness_weights: {completeness: 0.35, necessity: 0.25, alignment: 0.40}
+    harness_thresholds: {pass: 0.85, warning: 0.70, critical: 0.60}
+
+# =============================================================================
+# L4: 质量门禁
+# =============================================================================
+quality_gates:
+  p0:
+    - "topic 必须经过 _check_path_traversal + _sanitize_topic 安全处理"
+    - "spawn_fn 未注入时不得执行完整管线"
+    - "Worker 间跨阶段数据传递必须通过 Blackboard 文件"
+    - "Python 层不得包含 LLM 推理/调用逻辑"
+    - "Harness 评分必须使用 green/yellow/red, 禁止 0-1 分"
+    - "structured_requirements.json 所有 REQ-ID 必须在 final_solution.md 可追溯"
+    - "Worker 未提供 quality_gate → 强制 WARNING"
+  p1:
+    - "session_id ≤50chars; topic 5-200chars"
+    - "solution_type ∈ {architecture,business,technical}; mode ∈ {standard,rigorous}"
+    - "并行阶段 Worker 数 ≤ max_parallel_workers=3"
+    - "yellow/red 评分必须附带 blocking_issues"
+    - "audit 阶段必须执行 worker_honesty_check"
+  p2:
+    - "Prompt 文件内容 >100chars"
+    - "harness_final.global_coverage_score ≥0.85 视为高质量"
+    - "final_solution.md 标注【覆盖:REQ-XXX】或【缺失:REQ-XXX-原因】"
+    - "Worker 产出含 summary 字段便于 consolidator 整合"

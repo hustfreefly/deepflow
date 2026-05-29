@@ -15,8 +15,9 @@ from unittest.mock import Mock
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from coordinator import AgentResult, SessionStatus
-from quality_gate import QualityReport, GateDecision
+# ⚠️ Coordinator 已删除，AgentResult/SessionStatus 不再可用
+# from coordinator import AgentResult, SessionStatus
+from core.quality.quality_gate import QualityReport, GateDecision
 
 
 # =============================================================================

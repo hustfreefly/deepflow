@@ -1,801 +1,685 @@
-# DeepFlow Spec Pro v2.1 契约
-# 苏格拉底式对话需求引擎 — 基于 OpenClaw 多Agent协作架构
-#
-# 替代: spec_pro_v1.0.yaml（文档上传模式，已废弃）
-#
-# ⚠️ 本契约为 DeepFlow 开发规范强制文件
-#    每次修改代码前必须先读本契约
-#
-# v2.1 修订: 修复12项设计缺陷（详见 CHANGELOG 节）
-
 module: spec_pro
-version: "2.1"
-created: "2026-05-23"
-updated: "2026-05-23"
+version: '2.1'
+created: '2026-05-23'
+updated: '2026-05-23'
 status: active
-complexity: complex  # Python ~400行 + 7个Prompt + Harness
+complexity: complex
+description: 'Spec Pro 是 DeepFlow 的上下文工程引擎。
 
-description: |
-  Spec Pro 是 DeepFlow 的上下文工程引擎。
   通过苏格拉底式多轮对话，帮助用户梳理和结构化需求。
+
   产出 Living Spec，供 Solution Pro 等下游引擎消费。
-  
+
+
   核心架构: 主Agent(用户界面) → SpecProOrchestrator(depth-1) → Workers(depth-2)
+
   对话范式: 苏格拉底六类问题 + 推断-验证机制
+
   质量保障: 四层Harness (Input Guard / Process Guard / Output Guard / Safety Valve)
 
-# =============================================================================
-# CHANGELOG (v2.0 → v2.1)
-# =============================================================================
-# FIX-01: Prompt Registry 注册遗漏 → deliverables 增加 registry.yaml 修改
-# FIX-02: Orchestrator Worker spawn 能力 → 明确 sessions_spawn 工具声明
-# FIX-03: living_spec.json 多写者冲突 → 增加写者协议（L3.writer_protocol）
-# FIX-04: Worker 超时/失败处理 → L2 增加 failure_handling 策略
-# FIX-05: HarnessWorker 位置不清晰 → 修正 collecting_phase 流程
-# FIX-06: Process Guard 缺历史状态 → 增加 quality_trajectory.json
-# FIX-07: Safety Valve executor 分工 → 明确 Coordinator vs Orchestrator 职责
-# FIX-08: get_status/is_done 缺行为定义 → 补充 L2
-# FIX-09: conversation_log.json 缺 schema → 补充 L3
-# FIX-10: confirmation 输入输出不够细 → 补充 L2
-# FIX-11: Orchestrator task 格式规范 → 补充 L2
-# FIX-12: living_spec 注入 Solution Pro 方式 → 补充 L6
-
-# =============================================================================
-# 红线（P0 — 绝对不可违反）
-# =============================================================================
+  '
 redlines:
-  - id: "RED-SP2-001"
-    rule: "Spec Pro Python 层（Coordinator）禁止包含 LLM 推理逻辑"
-    reason: "所有LLM推理必须通过 sessions_spawn Worker Agent 完成"
-    check: "grep -r 'openai\\|anthropic\\|llm\\|chat_completion' core/spec_pro/ → 无匹配"
-
-  - id: "RED-SP2-002"
-    rule: "Coordinator 禁止直接调用 sessions_spawn"
-    reason: "Coordinator 运行在主Agent进程，由主Agent调用 spawn"
-    check: "grep 'sessions_spawn\\|spawn_fn' core/spec_pro/coordinator.py → 无匹配"
-
-  - id: "RED-SP2-003"
-    rule: "Worker Agent 禁止直接调用 openclaw SDK"
-    reason: "exec 环境无 openclaw，有 import 就失败"
-    check: "Worker Prompt 中不含 import openclaw 指令"
-
-  - id: "RED-SP2-004"
-    rule: "Spec Pro 不得修改 Solution Pro 核心引擎现有行为"
-    reason: "只扩展（新增 living_spec 参数），不改现有逻辑"
-    check: "git diff domains/solution/orchestrator_agent.py → 只有新增参数"
-
-  - id: "RED-SP2-005"
-    rule: "推断内容禁止未经用户确认就标记为 confirmed"
-    reason: "推断必须标注置信度，经用户确认后才能进入 confirmed 层"
-    check: "living_spec.json 中 inferred 项有 status=pending"
-
-  - id: "RED-SP2-006"
-    rule: "Worker 间状态传递必须通过 Blackboard 文件，禁止函数参数直传"
-    reason: "Agent 间唯一共享机制是 Blackboard"
-    check: "Worker task prompt 中包含 Blackboard 读写路径"
-
-  - id: "RED-SP2-007"  # FIX-03 新增
-    rule: "只有 Orchestrator 指令可写 living_spec.json，Worker 只写增量文件"
-    reason: "避免多写者冲突和数据丢失"
-    check: "Worker Prompt 中 writes 不含 living_spec.json（ResponseWorker 除外，见 writer_protocol）"
-
-# =============================================================================
-# L1: 接口契约 — Python 层（Coordinator + Models）
-# =============================================================================
+- id: RED-SP2-001
+  rule: Spec Pro Python 层（Coordinator）禁止包含 LLM 推理逻辑
+  reason: 所有LLM推理必须通过 sessions_spawn Worker Agent 完成
+  check: grep -r 'openai\|anthropic\|llm\|chat_completion' core/spec_pro/ → 无匹配
+- id: RED-SP2-002
+  rule: Coordinator 禁止直接调用 sessions_spawn
+  reason: Coordinator 运行在主Agent进程，由主Agent调用 spawn
+  check: grep 'sessions_spawn\|spawn_fn' core/spec_pro/coordinator.py → 无匹配
+- id: RED-SP2-003
+  rule: Worker Agent 禁止直接调用 openclaw SDK
+  reason: exec 环境无 openclaw，有 import 就失败
+  check: Worker Prompt 中不含 import openclaw 指令
+- id: RED-SP2-004
+  rule: Spec Pro 不得修改 Solution Pro 核心引擎现有行为
+  reason: 只扩展（新增 living_spec 参数），不改现有逻辑
+  check: git diff domains/solution/orchestrator_agent.py → 只有新增参数
+- id: RED-SP2-005
+  rule: 推断内容禁止未经用户确认就标记为 confirmed
+  reason: 推断必须标注置信度，经用户确认后才能进入 confirmed 层
+  check: living_spec.json 中 inferred 项有 status=pending
+- id: RED-SP2-006
+  rule: Worker 间状态传递必须通过 Blackboard 文件，禁止函数参数直传
+  reason: Agent 间唯一共享机制是 Blackboard
+  check: Worker task prompt 中包含 Blackboard 读写路径
+- id: RED-SP2-007
+  rule: 只有 Orchestrator 指令可写 living_spec.json，Worker 只写增量文件
+  reason: 避免多写者冲突和数据丢失
+  check: Worker Prompt 中 writes 不含 living_spec.json（ResponseWorker 除外，见 writer_protocol）
 interface:
   python_modules:
     coordinator:
-      path: "core/spec_pro/coordinator.py"
+      path: core/spec_pro/coordinator.py
       max_lines: 300
-      class: "SpecProCoordinator"
+      class: SpecProCoordinator
       methods:
-        "__init__": "scenario: str = 'genesis', mode: str = 'standard', session_prefix: str = None -> None"
-        "init_session": "user_input: str -> dict"
-        "build_next_round_task": "user_response: str -> dict"
-        "read_round_output": "() -> dict"
-        "build_confirmation_task": "user_confirmation: dict -> str"
-        "get_status": "() -> dict"
-        "is_done": "() -> bool"
-
+        __init__: 'scenario: str = ''genesis'', mode: str = ''standard'', session_prefix: str = None -> None'
+        init_session: 'user_input: str -> dict'
+        build_next_round_task: 'user_response: str -> dict'
+        read_round_output: () -> dict
+        build_confirmation_task: 'user_confirmation: dict -> str'
+        get_status: () -> dict
+        is_done: () -> bool
     models:
-      path: "core/spec_pro/models.py"
+      path: core/spec_pro/models.py
       max_lines: 200
-      classes: ["QualityLevel", "Scenario", "DialogState", "QuestionType", "LivingSpec", "QualityReport", "RouteRecommendation"]
-      note: "纯数据结构，无业务逻辑"
-
+      classes:
+      - QualityLevel
+      - Scenario
+      - DialogState
+      - QuestionType
+      - LivingSpec
+      - QualityReport
+      - RouteRecommendation
+      note: 纯数据结构，无业务逻辑
     init:
-      path: "core/spec_pro/__init__.py"
-      exports: ["SpecProCoordinator", "LivingSpec", "QualityLevel", "Scenario"]
-
+      path: core/spec_pro/__init__.py
+      exports:
+      - SpecProCoordinator
+      - LivingSpec
+      - QualityLevel
+      - Scenario
   worker_agents:
     orchestrator:
-      prompt: "prompts/spec_pro/orchestrator.md"
-      role: "管线调度器，按阶段 spawn Workers"
-      # FIX-02: 明确 Orchestrator 使用 OpenClaw sessions_spawn 工具
-      tools: ["sessions_spawn", "sessions_yield", "read", "write", "exec"]
-      spawns: ["parse_worker", "question_worker", "response_worker", "assess_worker", "structure_worker", "harness_worker"]
-      timeout_seconds: 600  # Orchestrator 本身超时（含等待所有 Workers）
-
+      prompt: prompts/spec_pro/orchestrator.md
+      role: 管线调度器，按阶段 spawn Workers
+      tools:
+      - sessions_spawn
+      - sessions_yield
+      - read
+      - write
+      - exec
+      spawns:
+      - parse_worker
+      - question_worker
+      - response_worker
+      - assess_worker
+      - structure_worker
+      - harness_worker
+      timeout_seconds: 600
     parse_worker:
-      prompt: "prompts/spec_pro/parse.md"
-      role: "解析用户输入 + 行业推断"
-      reads: ["spec/input.md"]
-      writes: ["stages/round_NN_parse.json"]
+      prompt: prompts/spec_pro/parse.md
+      role: 解析用户输入 + 行业推断
+      reads:
+      - spec/input.md
+      writes:
+      - stages/round_NN_parse.json
       timeout_seconds: 180
-
     question_worker:
-      prompt: "prompts/spec_pro/guide.md"
-      role: "苏格拉底六类问题生成"
-      reads: ["spec/living_spec.json", "spec/quality_report.json"]
-      writes: ["stages/round_NN_questions.json"]
+      prompt: prompts/spec_pro/guide.md
+      role: 苏格拉底六类问题生成
+      reads:
+      - spec/living_spec.json
+      - spec/quality_report.json
+      writes:
+      - stages/round_NN_questions.json
       timeout_seconds: 180
-
     response_worker:
-      prompt: "prompts/spec_pro/parse_response.md"
-      role: "解析用户回答 + Input Guard"
-      reads: ["spec/living_spec.json", "spec/user_response_round_NN.md", "stages/round_NN_questions.json"]
-      writes: ["stages/round_NN_response.json"]
+      prompt: prompts/spec_pro/parse_response.md
+      role: 解析用户回答 + Input Guard
+      reads:
+      - spec/living_spec.json
+      - spec/user_response_round_NN.md
+      - stages/round_NN_questions.json
+      writes:
+      - stages/round_NN_response.json
       timeout_seconds: 180
-
     assess_worker:
-      prompt: "prompts/spec_pro/assess.md"
-      role: "7维度需求质量评估"
-      reads: ["spec/living_spec.json"]
-      writes: ["spec/quality_report.json"]
+      prompt: prompts/spec_pro/assess.md
+      role: 7维度需求质量评估
+      reads:
+      - spec/living_spec.json
+      writes:
+      - spec/quality_report.json
       timeout_seconds: 180
-
     structure_worker:
-      prompt: "prompts/spec_pro/structure.md"
-      role: "最终结构化 + 路由建议 + solution_pro_hints"
-      reads: ["spec/living_spec.json", "spec/quality_report.json"]
-      writes: ["spec/round_result.json"]
+      prompt: prompts/spec_pro/structure.md
+      role: 最终结构化 + 路由建议 + solution_pro_hints
+      reads:
+      - spec/living_spec.json
+      - spec/quality_report.json
+      writes:
+      - spec/round_result.json
       timeout_seconds: 180
-
     harness_worker:
-      prompt: "prompts/spec_pro/harness.md"
-      role: "Output Guard 最终质量门禁"
-      reads: ["spec/living_spec.json", "spec/quality_report.json", "spec/conversation_log.json", "spec/quality_trajectory.json"]
-      writes: ["spec/harness_report.json"]
+      prompt: prompts/spec_pro/harness.md
+      role: Output Guard 最终质量门禁
+      reads:
+      - spec/living_spec.json
+      - spec/quality_report.json
+      - spec/conversation_log.json
+      - spec/quality_trajectory.json
+      writes:
+      - spec/harness_report.json
       timeout_seconds: 240
-
-# =============================================================================
-# L2: 行为契约
-# =============================================================================
 behavior:
   init_session:
     input:
-      user_input: "必填，str，≥5字符，≤2000字符"
+      user_input: 必填，str，≥5字符，≤2000字符
     output:
-      type: "dict"
+      type: dict
       schema:
-        session_id: "str，格式: {prefix}_spec_{hash8}，≤50字符"
-        base_path: "str，Blackboard 路径"
-        orchestrator_task: "str，首轮 Orchestrator Worker 的完整 task prompt"
-    success: "创建 Blackboard 目录，写入 spec/input.md，返回首轮 task"
-    failure: "ValueError（输入过短/过长）或 OSError（目录创建失败）"
-
+        session_id: 'str，格式: {prefix}_spec_{hash8}，≤50字符'
+        base_path: str，Blackboard 路径
+        orchestrator_task: str，首轮 Orchestrator Worker 的完整 task prompt
+    success: 创建 Blackboard 目录，写入 spec/input.md，返回首轮 task
+    failure: ValueError（输入过短/过长）或 OSError（目录创建失败）
   build_next_round_task:
     input:
-      user_response: "必填，str，用户本轮回答"
+      user_response: 必填，str，用户本轮回答
     output:
-      type: "dict"
+      type: dict
       schema:
-        orchestrator_task: "str，本轮 Orchestrator Worker task"
-        round_num: "int，当前轮次"
-    success: "写入 spec/user_response_round_N.md，构建 task prompt"
-    failure: "RuntimeError（session 未初始化）"
-    # FIX-07: Safety Valve max_rounds 由此方法检查
-    safety_check: "如果 round_num > max_rounds → 返回 {action: 'safety_stop', reason: 'max_rounds'}"
-
+        orchestrator_task: str，本轮 Orchestrator Worker task
+        round_num: int，当前轮次
+    success: 写入 spec/user_response_round_N.md，构建 task prompt
+    failure: RuntimeError（session 未初始化）
+    safety_check: '如果 round_num > max_rounds → 返回 {action: ''safety_stop'', reason: ''max_rounds''}'
   read_round_output:
     input: {}
     output:
-      type: "dict"
+      type: dict
       schema:
-        action: "enum: questions | summary | done | error | safety_stop"
-        questions: "list（action=questions时）"
-        quality: "dict（当前质量评分）"
-        summary_text: "str（action=summary时）"
-        living_spec: "dict（action=done时）"
-        harness_report: "dict（action=done时）"
-    success: "读取 spec/round_result.json 并返回"
-    failure: "返回 {action: 'error', message: '...'}（文件不存在或格式错误）"
-
-  # FIX-08: 补充 get_status / is_done 行为定义
+        action: 'enum: questions | summary | done | error | safety_stop'
+        questions: list（action=questions时）
+        quality: dict（当前质量评分）
+        summary_text: str（action=summary时）
+        living_spec: dict（action=done时）
+        harness_report: dict（action=done时）
+    success: 读取 spec/round_result.json 并返回
+    failure: '返回 {action: ''error'', message: ''...''}（文件不存在或格式错误）'
   get_status:
     input: {}
     output:
-      type: "dict"
+      type: dict
       schema:
-        session_id: "str | None"
-        initialized: "bool"
-        current_round: "int"
-        last_action: "str | None（上次 read_round_output 的 action）"
-        mode: "str"
-        scenario: "str"
-    success: "从 Coordinator 内部状态和 Blackboard 文件读取当前状态"
-    failure: "返回 {initialized: false}（session 未初始化时）"
-
+        session_id: str | None
+        initialized: bool
+        current_round: int
+        last_action: str | None（上次 read_round_output 的 action）
+        mode: str
+        scenario: str
+    success: 从 Coordinator 内部状态和 Blackboard 文件读取当前状态
+    failure: '返回 {initialized: false}（session 未初始化时）'
   is_done:
     input: {}
     output:
-      type: "bool"
-    success: "检查 spec/round_result.json 的 action 是否为 'done' 或 'error' 或 'safety_stop'"
-    failure: "返回 False（文件不存在时视为未完成）"
-
-  # FIX-09: conversation_log.json schema
-  # FIX-10: confirmation 输入输出细化
+      type: bool
+    success: 检查 spec/round_result.json 的 action 是否为 'done' 或 'error' 或 'safety_stop'
+    failure: 返回 False（文件不存在时视为未完成）
   build_confirmation_task:
     input:
       user_confirmation:
-        type: "dict"
+        type: dict
         schema:
-          action: "enum: confirm | revise"
-          revisions: "list[dict]，仅 action=revise 时存在"
-          revision_item: {dimension: "str", field: "str", old_value: "any", new_value: "any"}
+          action: 'enum: confirm | revise'
+          revisions: list[dict]，仅 action=revise 时存在
+          revision_item:
+            dimension: str
+            field: str
+            old_value: any
+            new_value: any
     output:
-      type: "str（Orchestrator Worker task prompt）"
-    success: "写入 spec/user_confirmation.md，构建 confirmation phase task"
-    failure: "RuntimeError（session 未初始化）"
-
-  # FIX-11: Orchestrator task 格式规范
+      type: str（Orchestrator Worker task prompt）
+    success: 写入 spec/user_confirmation.md，构建 confirmation phase task
+    failure: RuntimeError（session 未初始化）
   task_format:
-    structure: |
-      {orchestrator.md 全文}
-      
-      ---
-      ## 当前任务上下文
-      
-      - Session: {session_id}
-      - Blackboard: {base_path}
-      - 场景: {scenario}
-      - 模式: {mode}
-      - 当前轮次: {round_num}
-      - 阶段: {phase}
-      - 质量阈值: {threshold}
-      - 最大轮数: {max_rounds}
-      
-      ## 本轮执行指令
-      
-      {phase_specific_instructions}
-    phases:
-      init: "Round 1: spawn ParseWorker → AssessWorker → QuestionWorker"
-      collecting: "Round N: spawn ResponseWorker → AssessWorker → (QuestionWorker | HarnessWorker → StructureWorker)"
-      confirmation: "spawn ResponseWorker(if revise) → AssessWorker → QuestionWorker | StructureWorker"
+    structure: '{orchestrator.md 全文}
 
-  # FIX-05: 修正 collecting_phase 流程（HarnessWorker 在 StructureWorker 之前）
+
+      ---
+
+      ## 当前任务上下文
+
+
+      - Session: {session_id}
+
+      - Blackboard: {base_path}
+
+      - 场景: {scenario}
+
+      - 模式: {mode}
+
+      - 当前轮次: {round_num}
+
+      - 阶段: {phase}
+
+      - 质量阈值: {threshold}
+
+      - 最大轮数: {max_rounds}
+
+
+      ## 本轮执行指令
+
+
+      {phase_specific_instructions}
+
+      '
+    phases:
+      init: 'Round 1: spawn ParseWorker → AssessWorker → QuestionWorker'
+      collecting: 'Round N: spawn ResponseWorker → AssessWorker → (QuestionWorker | HarnessWorker → StructureWorker)'
+      confirmation: spawn ResponseWorker(if revise) → AssessWorker → QuestionWorker | StructureWorker
   orchestrator_worker:
     init_phase:
       steps:
-        - "spawn ParseWorker → 等待完成 → 读取 stages/round_01_parse.json"
-        - "spawn AssessWorker → 等待完成 → 读取 spec/quality_report.json"
-        - "spawn QuestionWorker → 等待完成 → 读取 stages/round_01_questions.json"
-        - "写入 spec/round_result.json: {action: 'questions', ...}"
-      output_action: "questions"
-
+      - spawn ParseWorker → 等待完成 → 读取 stages/round_01_parse.json
+      - spawn AssessWorker → 等待完成 → 读取 spec/quality_report.json
+      - spawn QuestionWorker → 等待完成 → 读取 stages/round_01_questions.json
+      - '写入 spec/round_result.json: {action: ''questions'', ...}'
+      output_action: questions
     collecting_phase:
       steps:
-        - "spawn ResponseWorker → 等待完成 → 读取 stages/round_NN_response.json"
-        - "Orchestrator 合并 response 到 living_spec.json（按 writer_protocol）"
-        - "spawn AssessWorker → 等待完成 → 读取 spec/quality_report.json"
-        - "更新 spec/quality_trajectory.json"
-        - "执行 Process Guard 检查（读 quality_trajectory.json）"
-        - "判断停止条件:"
-        - "  质量达标 → spawn HarnessWorker → 读 harness_report.json"
-        - "    Harness PASS → spawn StructureWorker → action=summary/done"
-        - "    Harness WARN → spawn StructureWorker → action=summary（标注风险）"
-        - "    Harness BLOCK → action=questions（继续收集）"
-        - "  质量未达标 → spawn QuestionWorker → action=questions"
-      output_action: "questions | summary | done"
-
+      - spawn ResponseWorker → 等待完成 → 读取 stages/round_NN_response.json
+      - Orchestrator 合并 response 到 living_spec.json（按 writer_protocol）
+      - spawn AssessWorker → 等待完成 → 读取 spec/quality_report.json
+      - 更新 spec/quality_trajectory.json
+      - 执行 Process Guard 检查（读 quality_trajectory.json）
+      - '判断停止条件:'
+      - '  质量达标 → spawn HarnessWorker → 读 harness_report.json'
+      - '    Harness PASS → spawn StructureWorker → action=summary/done'
+      - '    Harness WARN → spawn StructureWorker → action=summary（标注风险）'
+      - '    Harness BLOCK → action=questions（继续收集）'
+      - '  质量未达标 → spawn QuestionWorker → action=questions'
+      output_action: questions | summary | done
     confirmation_phase:
       steps:
-        - "读取 spec/user_confirmation.md"
-        - "action=confirm → spawn StructureWorker → action=done"
-        - "action=revise → spawn ResponseWorker + AssessWorker → 回到 collecting 判断逻辑"
-      output_action: "done | questions"
-
-  # FIX-04: Worker 失败处理策略
+      - 读取 spec/user_confirmation.md
+      - action=confirm → spawn StructureWorker → action=done
+      - action=revise → spawn ResponseWorker + AssessWorker → 回到 collecting 判断逻辑
+      output_action: done | questions
   failure_handling:
     worker_timeout:
-      strategy: "fallback_output"
+      strategy: fallback_output
       fallback:
-        parse_worker: "{status: 'timeout', parsed: {}, inferred: [], confidence: 0}"
-        question_worker: "{questions: [{type: 'clarification', text: '请再展开说说你的需求？'}]}"
-        response_worker: "{input_guard: {valid: false}, parsed_updates: {}}"
-        assess_worker: "{overall_score: 0, level: 'C', dimensions: []}"
-        structure_worker: "{summary_text: '需求收集完成，但结构化输出失败'}"
-        harness_worker: "{final_decision: 'WARN', final_reasoning: 'Harness Worker 超时，跳过门禁'}"
+        parse_worker: '{status: ''timeout'', parsed: {}, inferred: [], confidence: 0}'
+        question_worker: '{questions: [{type: ''clarification'', text: ''请再展开说说你的需求？''}]}'
+        response_worker: '{input_guard: {valid: false}, parsed_updates: {}}'
+        assess_worker: '{overall_score: 0, level: ''C'', dimensions: []}'
+        structure_worker: '{summary_text: ''需求收集完成，但结构化输出失败''}'
+        harness_worker: '{final_decision: ''WARN'', final_reasoning: ''Harness Worker 超时，跳过门禁''}'
     worker_error:
-      strategy: "same_as_timeout"
+      strategy: same_as_timeout
     orchestrator_reads_missing_file:
-      strategy: "use_fallback + log_warning"
-      log_to: "execution_log.json"
-
-# =============================================================================
-# L3: 数据结构契约
-# =============================================================================
+      strategy: use_fallback + log_warning
+      log_to: execution_log.json
 data:
   living_spec:
-    path: "blackboard/{session_id}/spec/living_spec.json"
+    path: blackboard/{session_id}/spec/living_spec.json
     structure:
       meta:
-        required_fields: ["engine", "version", "spec_version", "scenario", "created_at", "updated_at", "conversation_rounds", "quality_score", "quality_level"]
+        required_fields:
+        - engine
+        - version
+        - spec_version
+        - scenario
+        - created_at
+        - updated_at
+        - conversation_rounds
+        - quality_score
+        - quality_level
       layers:
         confirmed:
-          required_fields: ["objective", "pain_points", "success_metrics", "users", "key_scenarios", "capabilities", "quality_attributes", "constraints", "integration", "risks_and_assumptions"]
-          rule: "用户已确认的需求，权威来源"
+          required_fields:
+          - objective
+          - pain_points
+          - success_metrics
+          - users
+          - key_scenarios
+          - capabilities
+          - quality_attributes
+          - constraints
+          - integration
+          - risks_and_assumptions
+          rule: 用户已确认的需求，权威来源
         inferred:
-          item_schema: {id: str, dimension: str, content: str, confidence: "float 0-1", basis: str, status: "pending|confirmed|rejected"}
-          rule: "AI推断，标注置信度，必须用户确认才能移入confirmed"
+          item_schema:
+            id: str
+            dimension: str
+            content: str
+            confidence: float 0-1
+            basis: str
+            status: pending|confirmed|rejected
+          rule: AI推断，标注置信度，必须用户确认才能移入confirmed
         guardrails:
-          required_fields: ["always_do", "ask_first", "never_do"]
-          rule: "三层边界（必须做/需确认/禁止做）"
+          required_fields:
+          - always_do
+          - ask_first
+          - never_do
+          rule: 三层边界（必须做/需确认/禁止做）
       route_recommendation:
-        required_fields: ["suggested_engine", "suggested_mode", "reasoning", "confidence", "complexity_score"]
-        rule: "建议权，无决定权"
+        required_fields:
+        - suggested_engine
+        - suggested_mode
+        - reasoning
+        - confidence
+        - complexity_score
+        rule: 建议权，无决定权
       solution_pro_hints:
-        required_fields: ["focus_areas", "layer2_hints", "anti_patterns"]
-        rule: "下游引擎参考信息"
-
-    # FIX-03: 写者协议
+        required_fields:
+        - focus_areas
+        - layer2_hints
+        - anti_patterns
+        rule: 下游引擎参考信息
     writer_protocol:
-      creator: "ParseWorker（首次创建）"
-      updater: "Orchestrator Worker（合并 ResponseWorker 增量到 living_spec.json）"
-      readers: ["QuestionWorker", "AssessWorker", "StructureWorker", "HarnessWorker"]
-      merge_rule: |
-        Orchestrator 读取 stages/round_NN_response.json 中的 parsed_updates，
-        按以下规则合并到 living_spec.json:
-        1. confirmed 层: 追加新项，不删除已有项
-        2. inferred 层: 
-           - status=confirmed → 移入 confirmed 层
-           - status=rejected → 标记 status=rejected（保留记录）
-           - 新增推断 → 追加
-        3. guardrails: 追加新项
-      conflict_resolution: "新信息与已有 confirmed 矛盾时，保留两者并标注 contradiction"
-
+      creator: ParseWorker（首次创建）
+      updater: Orchestrator Worker（合并 ResponseWorker 增量到 living_spec.json）
+      readers:
+      - QuestionWorker
+      - AssessWorker
+      - StructureWorker
+      - HarnessWorker
+      merge_rule: "Orchestrator 读取 stages/round_NN_response.json 中的 parsed_updates，\n按以下规则合并到 living_spec.json:\n1. confirmed\
+        \ 层: 追加新项，不删除已有项\n2. inferred 层: \n   - status=confirmed → 移入 confirmed 层\n   - status=rejected → 标记 status=rejected（保留记录）\n\
+        \   - 新增推断 → 追加\n3. guardrails: 追加新项\n"
+      conflict_resolution: 新信息与已有 confirmed 矛盾时，保留两者并标注 contradiction
   quality_report:
-    path: "blackboard/{session_id}/spec/quality_report.json"
+    path: blackboard/{session_id}/spec/quality_report.json
     structure:
-      required_fields: ["overall_score", "level", "dimensions", "top_missing", "recommendation"]
-      score_range: "0-100"
-      levels: {S: "90-100", A: "75-89", B: "60-74", C: "<60"}
+      required_fields:
+      - overall_score
+      - level
+      - dimensions
+      - top_missing
+      - recommendation
+      score_range: 0-100
+      levels:
+        S: 90-100
+        A: 75-89
+        B: 60-74
+        C: <60
       dimensions: 7
       dimension_weights:
-        objective: 0.20
+        objective: 0.2
         users: 0.15
         capabilities: 0.15
         quality_attributes: 0.15
         constraints: 0.15
-        integration: 0.10
-        risks: 0.10
-
-  # FIX-06: 新增质量轨迹文件
+        integration: 0.1
+        risks: 0.1
   quality_trajectory:
-    path: "blackboard/{session_id}/spec/quality_trajectory.json"
+    path: blackboard/{session_id}/spec/quality_trajectory.json
     structure:
-      type: "array"
+      type: array
       item_schema:
-        round: "int"
-        overall_score: "float 0-100"
-        level: "str (S/A/B/C)"
-        dimension_scores: "dict {dimension_key: score}"
-        delta: "float（与上一轮的分数差）"
-        questions_asked: "int"
-        inferences_validated: "int"
-    writer: "Orchestrator Worker（每轮 AssessWorker 完成后追加）"
-    readers: ["Orchestrator Worker（Process Guard）", "HarnessWorker（Trajectory Audit）"]
-
-  # FIX-09: conversation_log.json schema
+        round: int
+        overall_score: float 0-100
+        level: str (S/A/B/C)
+        dimension_scores: 'dict {dimension_key: score}'
+        delta: float（与上一轮的分数差）
+        questions_asked: int
+        inferences_validated: int
+    writer: Orchestrator Worker（每轮 AssessWorker 完成后追加）
+    readers:
+    - Orchestrator Worker（Process Guard）
+    - HarnessWorker（Trajectory Audit）
   conversation_log:
-    path: "blackboard/{session_id}/spec/conversation_log.json"
+    path: blackboard/{session_id}/spec/conversation_log.json
     structure:
-      type: "array"
+      type: array
       item_schema:
-        round: "int"
-        timestamp: "str (ISO 8601)"
-        phase: "str (init | collecting | confirmation)"
+        round: int
+        timestamp: str (ISO 8601)
+        phase: str (init | collecting | confirmation)
         questions:
-          type: "array"
-          item: {id: str, type: str, dimension: str, text: str}
-        user_response: "str（用户原始回答，截断500字）"
-        parsed_updates_summary: "str（本轮解析出的关键更新，1-2句）"
-        quality_before: "float"
-        quality_after: "float"
-        quality_delta: "float"
-        inferences_created: "int"
-        inferences_confirmed: "int"
-        inferences_rejected: "int"
-    writer: "Orchestrator Worker（每轮结束时追加）"
-    readers: ["HarnessWorker（Trajectory Audit）"]
-
+          type: array
+          item:
+            id: str
+            type: str
+            dimension: str
+            text: str
+        user_response: str（用户原始回答，截断500字）
+        parsed_updates_summary: str（本轮解析出的关键更新，1-2句）
+        quality_before: float
+        quality_after: float
+        quality_delta: float
+        inferences_created: int
+        inferences_confirmed: int
+        inferences_rejected: int
+    writer: Orchestrator Worker（每轮结束时追加）
+    readers:
+    - HarnessWorker（Trajectory Audit）
   harness_report:
-    path: "blackboard/{session_id}/spec/harness_report.json"
+    path: blackboard/{session_id}/spec/harness_report.json
     structure:
-      required_fields: ["harness_version", "dimensions", "overall_score", "gates", "final_decision", "final_reasoning"]
+      required_fields:
+      - harness_version
+      - dimensions
+      - overall_score
+      - gates
+      - final_decision
+      - final_reasoning
       dimensions: 5
       dimension_weights:
         clarity: 0.25
         completeness: 0.25
-        executability: 0.20
+        executability: 0.2
         consistency: 0.15
         downstream_fitness: 0.15
       gates:
-        spec_quality: "PASS | WARN | SOFT_BLOCK | HARD_BLOCK"
-        inference_audit: "PASS | WARN"
-        trajectory_audit: "PASS | WARN"
+        spec_quality: PASS | WARN | SOFT_BLOCK | HARD_BLOCK
+        inference_audit: PASS | WARN
+        trajectory_audit: PASS | WARN
       decisions:
-        PASS: "总分 ≥ 75 且无子门禁 HARD_BLOCK"
-        WARN: "总分 60-74"
-        SOFT_BLOCK: "总分 45-59，用户可 override"
-        HARD_BLOCK: "总分 < 45 或一致度 < 40"
+        PASS: 总分 ≥ 75 且无子门禁 HARD_BLOCK
+        WARN: 总分 60-74
+        SOFT_BLOCK: 总分 45-59，用户可 override
+        HARD_BLOCK: 总分 < 45 或一致度 < 40
       special_rules:
-        - "清晰度 < 50 → 至少 WARN"
-        - "一致度 < 40 → 至少 SOFT_BLOCK"
-        - "可执行度 < 40 → 至少 WARN"
-
+      - 清晰度 < 50 → 至少 WARN
+      - 一致度 < 40 → 至少 SOFT_BLOCK
+      - 可执行度 < 40 → 至少 WARN
   blackboard_layout:
-    base: "blackboard/{session_id}/"
+    base: blackboard/{session_id}/
     directories:
-      - "spec/"
-      - "stages/"
+    - spec/
+    - stages/
     files:
-      - "spec/input.md"
-      - "spec/living_spec.json"
-      - "spec/quality_report.json"
-      - "spec/quality_trajectory.json"     # FIX-06 新增
-      - "spec/conversation_log.json"
-      - "spec/round_result.json"
-      - "spec/harness_report.json"
-      - "spec/user_response_round_N.md"
-      - "spec/user_confirmation.md"
-      - "stages/round_NN_parse.json"
-      - "stages/round_NN_questions.json"
-      - "stages/round_NN_response.json"
-      - "execution_log.json"
-
-# =============================================================================
-# L4: Harness 契约（四层质量保障）
-# =============================================================================
+    - spec/input.md
+    - spec/living_spec.json
+    - spec/quality_report.json
+    - spec/quality_trajectory.json
+    - spec/conversation_log.json
+    - spec/round_result.json
+    - spec/harness_report.json
+    - spec/user_response_round_N.md
+    - spec/user_confirmation.md
+    - stages/round_NN_parse.json
+    - stages/round_NN_questions.json
+    - stages/round_NN_response.json
+    - execution_log.json
 harness:
   layer_1_input_guard:
-    timing: "每轮收到用户回答时"
-    executor: "ResponseWorker（内嵌，非独立Worker）"
+    timing: 每轮收到用户回答时
+    executor: ResponseWorker（内嵌，非独立Worker）
     checks:
-      - name: "non_empty"
-        rule: "回答不为空或纯空白"
-        on_fail: "主Agent提示用户重新输入"
-      - name: "meaningful"
-        rule: "回答有实质内容（非纯'嗯''哦'）"
-        on_fail: "追问'能否展开说说？'"
-      - name: "contradiction"
-        rule: "新信息不与已确认Spec矛盾"
-        on_fail: "标注矛盾点，请用户澄清"
-      - name: "relevance"
-        rule: "回答跟当前问题相关"
-        on_fail: "温和引导回主题"
-    output_field: "input_guard（在 stages/round_NN_response.json 中）"
-
+    - name: non_empty
+      rule: 回答不为空或纯空白
+      on_fail: 主Agent提示用户重新输入
+    - name: meaningful
+      rule: 回答有实质内容（非纯'嗯''哦'）
+      on_fail: 追问'能否展开说说？'
+    - name: contradiction
+      rule: 新信息不与已确认Spec矛盾
+      on_fail: 标注矛盾点，请用户澄清
+    - name: relevance
+      rule: 回答跟当前问题相关
+      on_fail: 温和引导回主题
+    output_field: input_guard（在 stages/round_NN_response.json 中）
   layer_2_process_guard:
-    timing: "每轮Orchestrator Worker内部（AssessWorker完成后）"
-    executor: "Orchestrator Worker（Prompt指令驱动，读 quality_trajectory.json）"
-    # FIX-06: 明确数据来源
-    data_source: "spec/quality_trajectory.json"
+    timing: 每轮Orchestrator Worker内部（AssessWorker完成后）
+    executor: Orchestrator Worker（Prompt指令驱动，读 quality_trajectory.json）
+    data_source: spec/quality_trajectory.json
     checks:
       progress_rate:
-        healthy: "前3轮 +8~15分/轮，4-6轮 +3~8分/轮，7+轮 +1~3分/轮"
-        warning: "连续2轮 delta < 3"
-        critical: "单轮 delta < 0（质量回退）"
+        healthy: 前3轮 +8~15分/轮，4-6轮 +3~8分/轮，7+轮 +1~3分/轮
+        warning: 连续2轮 delta < 3
+        critical: 单轮 delta < 0（质量回退）
       inference_integrity:
-        healthy: "推断确认率 40-80%"
-        warning: "连续3个推断被拒绝"
-        critical: "推断拒绝率 > 80%"
+        healthy: 推断确认率 40-80%
+        warning: 连续3个推断被拒绝
+        critical: 推断拒绝率 > 80%
       conversation_balance:
-        healthy: "维度间分差 ≤ 40"
-        warning: "维度间分差 > 40"
-        critical: "某维度连续3轮被追问仍为0"
+        healthy: 维度间分差 ≤ 40
+        warning: 维度间分差 > 40
+        critical: 某维度连续3轮被追问仍为0
     actions:
-      healthy: "正常继续"
-      warning: "继续，在 QuestionWorker task 中注入调整指令"
-      critical: "触发 Safety Valve Kill Criteria"
-
+      healthy: 正常继续
+      warning: 继续，在 QuestionWorker task 中注入调整指令
+      critical: 触发 Safety Valve Kill Criteria
   layer_3_output_guard:
-    timing: "质量评分达到停止条件时"
-    executor: "HarnessWorker（独立Agent，由 Orchestrator spawn）"
-    # FIX-05: 明确在 StructureWorker 之前
-    position: "在 StructureWorker 之前执行"
+    timing: 质量评分达到停止条件时
+    executor: HarnessWorker（独立Agent，由 Orchestrator spawn）
+    position: 在 StructureWorker 之前执行
     dimensions: 5
     sub_gates:
-      - spec_quality: "5维度加权评分（清晰度25%/完整度25%/可执行度20%/一致度15%/适配度15%）"
-      - inference_audit: "推断处理完整性 + 拒绝影响 + basis清晰度"
-      - trajectory_audit: "轮次合理性 + 质量单调性 + 维度均衡性"
-    decision: "worst(三个子门禁)"
-    user_override: "WARN/SOFT_BLOCK 可被用户 override，HARD_BLOCK 可被用户强制放行（标注）"
-
+    - spec_quality: 5维度加权评分（清晰度25%/完整度25%/可执行度20%/一致度15%/适配度15%）
+    - inference_audit: 推断处理完整性 + 拒绝影响 + basis清晰度
+    - trajectory_audit: 轮次合理性 + 质量单调性 + 维度均衡性
+    decision: worst(三个子门禁)
+    user_override: WARN/SOFT_BLOCK 可被用户 override，HARD_BLOCK 可被用户强制放行（标注）
   layer_4_safety_valve:
-    timing: "全程"
-    # FIX-07: 明确分工
+    timing: 全程
     executors:
-      coordinator: "检查 max_rounds（纯计数，在 build_next_round_task 中）"
-      orchestrator: "检查 quality_regression / inference_collapse / spec_contradiction（读 history 数据）"
-      main_agent: "检查 invalid_input_streak / worker_failure_streak（运行时异常）"
+      coordinator: 检查 max_rounds（纯计数，在 build_next_round_task 中）
+      orchestrator: 检查 quality_regression / inference_collapse / spec_contradiction（读 history 数据）
+      main_agent: 检查 invalid_input_streak / worker_failure_streak（运行时异常）
     hard_limits:
-      max_rounds: {quick: 5, standard: 10, deep: 15}
+      max_rounds:
+        quick: 5
+        standard: 10
+        deep: 15
       max_inferences: 20
       max_worker_timeout: 300
     kill_criteria:
-      - name: "quality_regression"
-        condition: "连续3轮质量不升反降"
-        executor: "orchestrator"
-        action: "写入 round_result.json: {action: 'safety_stop', reason: 'quality_regression'}"
-      - name: "invalid_input_streak"
-        condition: "用户输入连续3次无效"
-        executor: "main_agent"
-        action: "Coordinator 返回 {action: 'safety_stop', reason: 'invalid_input_streak'}"
-      - name: "worker_failure_streak"
-        condition: "Worker Agent连续2次超时"
-        executor: "main_agent"
-        action: "Coordinator 返回 {action: 'safety_stop', reason: 'worker_failure_streak'}"
-      - name: "inference_collapse"
-        condition: "推断拒绝率 > 80%"
-        executor: "orchestrator"
-        action: "写入 round_result.json: {action: 'safety_stop', reason: 'inference_collapse'}"
-      - name: "spec_contradiction"
-        condition: "Living Spec被检测到严重自相矛盾"
-        executor: "orchestrator"
-        action: "写入 round_result.json: {action: 'safety_stop', reason: 'spec_contradiction'}"
-    override: "Safety Valve 不可被用户 override"
-
-# =============================================================================
-# L5: 对话契约（苏格拉底框架）
-# =============================================================================
+    - name: quality_regression
+      condition: 连续3轮质量不升反降
+      executor: orchestrator
+      action: '写入 round_result.json: {action: ''safety_stop'', reason: ''quality_regression''}'
+    - name: invalid_input_streak
+      condition: 用户输入连续3次无效
+      executor: main_agent
+      action: 'Coordinator 返回 {action: ''safety_stop'', reason: ''invalid_input_streak''}'
+    - name: worker_failure_streak
+      condition: Worker Agent连续2次超时
+      executor: main_agent
+      action: 'Coordinator 返回 {action: ''safety_stop'', reason: ''worker_failure_streak''}'
+    - name: inference_collapse
+      condition: 推断拒绝率 > 80%
+      executor: orchestrator
+      action: '写入 round_result.json: {action: ''safety_stop'', reason: ''inference_collapse''}'
+    - name: spec_contradiction
+      condition: Living Spec被检测到严重自相矛盾
+      executor: orchestrator
+      action: '写入 round_result.json: {action: ''safety_stop'', reason: ''spec_contradiction''}'
+    override: Safety Valve 不可被用户 override
 dialog:
-  paradigm: "苏格拉底式对话"
+  paradigm: 苏格拉底式对话
   principles:
-    - "不告诉用户答案，通过提问帮用户自己想清楚"
-    - "推断-验证: 基于行业知识推断，让用户确认"
-    - "渐进收敛: 先宽后窄，先大局后细节"
-    - "有温度: 像资深顾问在聊天，不像在审问"
-
+  - 不告诉用户答案，通过提问帮用户自己想清楚
+  - '推断-验证: 基于行业知识推断，让用户确认'
+  - '渐进收敛: 先宽后窄，先大局后细节'
+  - '有温度: 像资深顾问在聊天，不像在审问'
   question_types:
     clarification:
-      name: "澄清"
-      purpose: "追问模糊概念的具体定义"
-      example: "你说的'高性能'具体指什么指标？"
+      name: 澄清
+      purpose: 追问模糊概念的具体定义
+      example: 你说的'高性能'具体指什么指标？
     probe_assumption:
-      name: "挑战假设"
-      purpose: "暴露用户的隐含假设"
-      example: "你假设用户都熟悉K8s，如果不呢？"
+      name: 挑战假设
+      purpose: 暴露用户的隐含假设
+      example: 你假设用户都熟悉K8s，如果不呢？
     probe_evidence:
-      name: "追问证据"
-      purpose: "验证需求的合理性基础"
-      example: "99.99%可用性目标的依据是什么？"
+      name: 追问证据
+      purpose: 验证需求的合理性基础
+      example: 99.99%可用性目标的依据是什么？
     alternative_view:
-      name: "换视角"
-      purpose: "引入不同stakeholder视角"
-      example: "运维团队会怎么看这个设计？"
+      name: 换视角
+      purpose: 引入不同stakeholder视角
+      example: 运维团队会怎么看这个设计？
     implication:
-      name: "推演后果"
-      purpose: "测试需求的优先级和取舍"
-      example: "如果预算砍半，哪些功能先不做？"
+      name: 推演后果
+      purpose: 测试需求的优先级和取舍
+      example: 如果预算砍半，哪些功能先不做？
     meta:
-      name: "反思"
-      purpose: "检验问题定义是否正确"
-      example: "我们是不是在解决正确的问题？"
-
+      name: 反思
+      purpose: 检验问题定义是否正确
+      example: 我们是不是在解决正确的问题？
   question_strategy:
-    rounds_1_2: "侧重 澄清 + 追问证据（理解基础）"
-    rounds_3_4: "侧重 挑战假设 + 换视角（深挖）"
-    rounds_5_plus: "侧重 推演后果 + 反思（验证完整性）"
+    rounds_1_2: 侧重 澄清 + 追问证据（理解基础）
+    rounds_3_4: 侧重 挑战假设 + 换视角（深挖）
+    rounds_5_plus: 侧重 推演后果 + 反思（验证完整性）
     per_round_max: 3
-    type_diversity: "每轮至少混合2种问题类型"
-    inference_validation: "高置信度推断(≥0.6)加入验证问题，每轮最多2个"
-
+    type_diversity: 每轮至少混合2种问题类型
+    inference_validation: 高置信度推断(≥0.6)加入验证问题，每轮最多2个
   stop_conditions:
-    - name: "quality_threshold"
-      rule: "质量评分 ≥ 阈值（quick:60/standard:75/deep:85）"
-    - name: "max_rounds"
-      rule: "达到模式最大轮数"
-    - name: "diminishing_returns"
-      rule: "连续2轮质量提升 < 3分"
-    - name: "user_said_enough"
-      rule: "用户明确表示'够了'"
-
-# =============================================================================
-# L6: 与 Solution Pro 集成契约
-# =============================================================================
+  - name: quality_threshold
+    rule: 质量评分 ≥ 阈值（quick:60/standard:75/deep:85）
+  - name: max_rounds
+    rule: 达到模式最大轮数
+  - name: diminishing_returns
+    rule: 连续2轮质量提升 < 3分
+  - name: user_said_enough
+    rule: 用户明确表示'够了'
 integration:
   solution_pro:
-    parameter: "living_spec: Optional[dict] = None"
-    backward_compat: "living_spec 为 None 时，Solution Pro 行为完全不变"
-    # FIX-12: 明确注入方式
-    injection_method: |
-      Spec Pro 完成后，living_spec.json 已在 Blackboard 中。
+    parameter: 'living_spec: Optional[dict] = None'
+    backward_compat: living_spec 为 None 时，Solution Pro 行为完全不变
+    injection_method: 'Spec Pro 完成后，living_spec.json 已在 Blackboard 中。
+
       Solution Pro Orchestrator 通过以下方式获取:
+
       1. 主Agent 从 Blackboard 读取 living_spec.json
+
       2. 作为 JSON 字符串嵌入 Solution Pro Orchestrator 的 task prompt
+
       3. Solution Pro 各 Worker 的 task prompt 中引用 living_spec 的关键部分
+
+      '
     injection_points:
-      data_collection: "基于 confirmed 需求生成精准搜索关键词"
-      planning: "注入完整 Living Spec 作为规划依据"
-      research: "注入 focus_areas + guardrails"
-      reviewers: "评审基准从'自己猜的需求'变为'用户确认的需求'"
-      harness_final: "基于 confirmed 需求做覆盖度评估"
-      summarizer: "标注需求覆盖情况"
-
+      data_collection: 基于 confirmed 需求生成精准搜索关键词
+      planning: 注入完整 Living Spec 作为规划依据
+      research: 注入 focus_areas + guardrails
+      reviewers: 评审基准从'自己猜的需求'变为'用户确认的需求'
+      harness_final: 基于 confirmed 需求做覆盖度评估
+      summarizer: 标注需求覆盖情况
   route_recommendation:
-    engines: ["solution_pro", "lightweight", "direct_answer"]
-    modes: ["quick", "standard", "rigorous"]
-    nature: "建议权，无决定权"
-    required_fields: ["suggested_engine", "suggested_mode", "reasoning", "confidence"]
-
-# =============================================================================
-# 文件清单
-# =============================================================================
-deliverables:
-  python:
-    - path: "core/spec_pro/__init__.py"
-      max_lines: 30
-      gates: ["python -m py_compile {file}"]
-    - path: "core/spec_pro/coordinator.py"
-      max_lines: 300
-      gates: ["python -m py_compile {file}", "python -c 'from core.spec_pro import SpecProCoordinator'"]
-    - path: "core/spec_pro/models.py"
-      max_lines: 200
-      gates: ["python -m py_compile {file}", "python -c 'from core.spec_pro.models import LivingSpec'"]
-
-  prompts:
-    - path: "prompts/spec_pro/orchestrator.md"
-      description: "Orchestrator Worker 系统Prompt（含 sessions_spawn 工具声明）"
-    - path: "prompts/spec_pro/parse.md"
-      description: "ParseWorker Prompt（解析+推断）"
-    - path: "prompts/spec_pro/guide.md"
-      description: "QuestionWorker Prompt（苏格拉底问题）"
-    - path: "prompts/spec_pro/parse_response.md"
-      description: "ResponseWorker Prompt（解析回答+Input Guard）"
-    - path: "prompts/spec_pro/assess.md"
-      description: "AssessWorker Prompt（7维度质量评估）"
-    - path: "prompts/spec_pro/structure.md"
-      description: "StructureWorker Prompt（最终结构化+路由）"
-    - path: "prompts/spec_pro/harness.md"
-      description: "HarnessWorker Prompt（Output Guard 5维度）"
-
-  # FIX-01: Prompt Registry 注册
-  registry:
-    - path: "prompts/registry.yaml"
-      change: "新增 spec_pro 域，注册 7 个 Prompt"
-      constraint: "不修改已有域（solution/investment）"
-
-  modified:
-    - path: "domains/solution/orchestrator_agent.py"
-      change: "新增 living_spec 参数（__init__ + run_harness_v2）"
-      constraint: "不改变现有行为，只扩展"
-    - path: "domains/solution/task_builder.py"
-      change: "各 build_xxx_task 函数新增 living_spec 参数"
-      constraint: "living_spec=None 时行为不变"
-
-# =============================================================================
-# 质量门禁
-# =============================================================================
+    engines:
+    - solution_pro
+    - lightweight
+    - direct_answer
+    modes:
+    - quick
+    - standard
+    - rigorous
+    nature: 建议权，无决定权
+    required_fields:
+    - suggested_engine
+    - suggested_mode
+    - reasoning
+    - confidence
 quality_gates:
   p0:
-    - "RED-SP2-001 到 RED-SP2-007 全部通过"
-    - "Coordinator 不含 LLM 推理代码"
-    - "所有 Worker Prompt 在 prompts/registry.yaml 中注册"
-    - "init_session 产出合法的 orchestrator_task（非空字符串）"
-    - "read_round_output 返回合法 action（questions/summary/done/error/safety_stop）"
-    - "living_spec.json 结构符合 L3 契约"
-    - "harness_report.json 结构符合 L3 契约"
-    - "quality_trajectory.json 每轮追加一条记录"
-    - "conversation_log.json 每轮追加一条记录"
-    - "Solution Pro living_spec=None 时行为完全不变"
-    - "Orchestrator Prompt 中声明 sessions_spawn 工具"
-    - "Worker 失败时 Orchestrator 使用 fallback 继续"
-
+  - RED-SP2-001 到 RED-SP2-007 全部通过
+  - Coordinator 不含 LLM 推理代码
+  - 所有 Worker Prompt 在 prompts/registry.yaml 中注册
+  - init_session 产出合法的 orchestrator_task（非空字符串）
+  - read_round_output 返回合法 action（questions/summary/done/error/safety_stop）
+  - living_spec.json 结构符合 L3 契约
+  - harness_report.json 结构符合 L3 契约
+  - quality_trajectory.json 每轮追加一条记录
+  - conversation_log.json 每轮追加一条记录
+  - Solution Pro living_spec=None 时行为完全不变
+  - Orchestrator Prompt 中声明 sessions_spawn 工具
+  - Worker 失败时 Orchestrator 使用 fallback 继续
   p1:
-    - "所有 Python 公开方法有类型注解和 docstring"
-    - "无 bare except"
-    - "所有 Prompt 有明确的输入/输出/写入路径"
-    - "四层 Harness 全部实现"
-    - "苏格拉底六类问题类型全部在 guide.md 中覆盖"
-    - "writer_protocol 在 Orchestrator Prompt 中明确"
-
+  - 所有 Python 公开方法有类型注解和 docstring
+  - 无 bare except
+  - 所有 Prompt 有明确的输入/输出/写入路径
+  - 四层 Harness 全部实现
+  - 苏格拉底六类问题类型全部在 guide.md 中覆盖
+  - writer_protocol 在 Orchestrator Prompt 中明确
   p2:
-    - "对话风格自然、有温度（人工抽检）"
-    - "推断置信度标注合理（人工抽检）"
-    - "路由建议有充分理由"
-
-# =============================================================================
-# 开发步骤
-# =============================================================================
-development_steps:
-  - step: 1
-    name: "契约"
-    action: "创建本契约文件（v2.1）"
-    output: "cage/spec_pro_v2.0.yaml"
-    status: done
-
-  - step: 2
-    name: "数据结构"
-    action: "实现 models.py（所有数据类）"
-    output: "core/spec_pro/models.py"
-    gates: ["py_compile", "import"]
-    status: pending
-
-  - step: 3
-    name: "协调器"
-    action: "实现 coordinator.py（状态管理+task构建）"
-    output: "core/spec_pro/coordinator.py"
-    gates: ["py_compile", "import", "init_session", "get_status", "is_done"]
-    status: pending
-
-  - step: 4
-    name: "Registry注册"
-    action: "在 prompts/registry.yaml 中注册 spec_pro 域"
-    output: "prompts/registry.yaml（修改）"
-    gates: ["registry_valid_yaml", "spec_pro_domain_exists"]
-    status: pending
-
-  - step: 5
-    name: "Prompt-编排"
-    action: "编写 orchestrator.md（含 sessions_spawn 工具声明 + writer_protocol）"
-    output: "prompts/spec_pro/orchestrator.md"
-    gates: ["prompt_registry_read", "spawn_tool_declared"]
-    status: pending
-
-  - step: 6
-    name: "Prompt-解析"
-    action: "编写 parse.md + parse_response.md"
-    output: "prompts/spec_pro/parse.md + parse_response.md"
-    gates: ["prompt_registry_read"]
-    status: pending
-
-  - step: 7
-    name: "Prompt-提问"
-    action: "编写 guide.md（苏格拉底六类问题）"
-    output: "prompts/spec_pro/guide.md"
-    gates: ["prompt_registry_read", "six_types_covered"]
-    status: pending
-
-  - step: 8
-    name: "Prompt-评估"
-    action: "编写 assess.md（7维度评分）"
-    output: "prompts/spec_pro/assess.md"
-    gates: ["prompt_registry_read", "seven_dimensions_covered"]
-    status: pending
-
-  - step: 9
-    name: "Prompt-结构化"
-    action: "编写 structure.md（路由+Hints）"
-    output: "prompts/spec_pro/structure.md"
-    gates: ["prompt_registry_read"]
-    status: pending
-
-  - step: 10
-    name: "Prompt-Harness"
-    action: "编写 harness.md（Output Guard 5维度）"
-    output: "prompts/spec_pro/harness.md"
-    gates: ["prompt_registry_read", "five_dimensions_covered", "three_sub_gates"]
-    status: pending
-
-  - step: 11
-    name: "Solution Pro集成"
-    action: "修改 orchestrator_agent.py + task_builder.py"
-    output: "living_spec 参数支持"
-    gates: ["backward_compat_test"]
-    status: pending
-
-  - step: 12
-    name: "端到端验证"
-    action: "POC: 真实需求跑完整流程"
-    output: "验证报告"
-    gates: ["living_spec_quality_ge_75", "solution_pro_consumes_spec", "harness_pass"]
-    status: pending
-
-# =============================================================================
-# 废弃声明
-# =============================================================================
-deprecation:
-  old_contract: "cage/spec_pro_v1.0.yaml"
-  reason: "V1.0 是文档上传→LLM提取模式，已被 V2.1 苏格拉底对话模式替代"
-  migration: "V1.0 前端上传组件保留但不再作为 Spec Pro 核心流程"
+  - 对话风格自然、有温度（人工抽检）
+  - 推断置信度标注合理（人工抽检）
+  - 路由建议有充分理由

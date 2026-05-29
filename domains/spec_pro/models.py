@@ -2,7 +2,7 @@
 Spec Pro 数据模型
 =================
 
-契约: cage/spec_pro_v2.0.yaml (L3)
+契约: cage/active/spec_pro_v2.0.yaml (L3)
 纯数据结构，无业务逻辑。
 
 所有 Living Spec、质量报告、路由建议等的类型定义。

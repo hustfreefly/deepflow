@@ -2,7 +2,7 @@
 Spec Pro Coordinator
 ====================
 
-契约: cage/spec_pro_v2.0.yaml (L1, L2)
+契约: cage/active/spec_pro_v2.0.yaml (L1, L2)
 主Agent侧协调器,负责流程控制和状态管理.
 
 职责:

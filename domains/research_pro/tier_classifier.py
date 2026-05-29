@@ -1,6 +1,6 @@
 """
 TierClassifier — ResearchPro 三层质量排序
-契约: cage/research_pro_v1.0.yaml (L3: source_registry.quality_tier, RED-DC-006)
+契约: cage/active/research_pro_v1.0.yaml (L3: source_registry.quality_tier, RED-DC-006)
 
 Tier 1 (官方/学术) 来源必须优先于 Tier 3 (社区/论坛) (RED-DC-006)。
 """

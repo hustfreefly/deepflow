@@ -3,7 +3,7 @@
 import json
 import pytest
 from pathlib import Path
-from blackboard_manager import BlackboardManager
+from core.blackboard.blackboard_manager import BlackboardManager
 
 
 @pytest.fixture

@@ -1,0 +1,851 @@
+{
+  "total_matches": 165,
+  "affected_files": 29,
+  "by_variant": {
+    "DeepClaw": 108,
+    "deepclaw": 47,
+    "deep_claw": 3,
+    "DEEPCLAW": 3,
+    "Deep Claw": 2,
+    "deep claw": 2
+  },
+  "details": {
+    "DeepClaw": [
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/unit/validate_deepflow_navigator.py",
+        29,
+        "\"DeepClaw\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/unit/validate_deepflow_navigator.py",
+        46,
+        "modules = [\"Spec Pro\", \"Solution Pro\", \"Investment\", \"DeepClaw\"]"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_citation_verifier.py",
+        2,
+        "DeepClaw 单元测试 — CitationVerifier"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_source_registry.py",
+        2,
+        "DeepClaw 单元测试 — SourceRegistry"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_keyword_generator.py",
+        2,
+        "DeepClaw 单元测试 — KeywordGenerator"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        2,
+        "DeepClaw 单元测试 — DeepClawOrchestrator"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        13,
+        "from lib.orchestrator import DeepClawOrchestrator"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        16,
+        "Orchestrator = DeepClawOrchestrator"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        22,
+        "\"\"\"DeepClawOrchestrator 单元测试。\"\"\""
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        35,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        42,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        52,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        57,
+        "orch = DeepClawOrchestrator(mode='standard', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        62,
+        "orch = DeepClawOrchestrator(base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        69,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        77,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        83,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        94,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        100,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        106,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        115,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        122,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        129,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        138,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        147,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        157,
+        "orch = DeepClawOrchestrator(mode='standard', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        165,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        174,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        185,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        194,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        207,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        217,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        226,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        237,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        247,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        260,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        276,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=self.bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        282,
+        "\"\"\"DeepClawOrchestrator 完整管线集成测试。\"\"\""
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        293,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        311,
+        "orch = DeepClawOrchestrator(mode='standard', base_path=bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        328,
+        "orch = DeepClawOrchestrator(mode='quick', base_path=bp)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_tier_classifier.py",
+        2,
+        "DeepClaw 单元测试 — TierClassifier"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/e2e/run_real_e2e.py",
+        3,
+        "DeepClaw E2E 真实测试管线"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/e2e/run_real_e2e.py",
+        38,
+        "from orchestrator import DeepClawOrchestrator"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/e2e/run_real_e2e.py",
+        44,
+        "class DeepClawE2ETest:"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/e2e/run_real_e2e.py",
+        52,
+        "self.orch: Optional[DeepClawOrchestrator] = None"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/e2e/run_real_e2e.py",
+        58,
+        "self.orch = DeepClawOrchestrator(base_path=self.base_path)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/rename_deepclaw_to_research_pro.md",
+        1,
+        "# DeepClaw → Research Pro 改名契约"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/rename_deepclaw_to_research_pro.md",
+        7,
+        "将系统中的 \"DeepClaw\" 统一重命名为 \"Research Pro\"，确保代码、文档、配置的完全一致性。"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/rename_deepclaw_to_research_pro.md",
+        41,
+        "- [ ] `grep -r \"DeepClaw\\|deepclaw\\|deep_claw\\|DEEPCLAW\"` 返回空（除历史文件）"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/rename_deepclaw_to_research_pro.md",
+        55,
+        "1. 扫描所有 DeepClaw 引用"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_v1.0.yaml",
+        1,
+        "# DeepClaw v1.0 契约"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_v1.0.yaml",
+        7,
+        "# 项目名: DeepClaw (Deep + Claw, OpenClaw 基因 + Deep Research 能力)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_v1.0.yaml",
+        21,
+        "DeepClaw 是 OpenClaw 的 Deep Research Skill。"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_v1.0.yaml",
+        30,
+        "差异化定位: \"通用研究用 Gemini, 投资研究用 DeepClaw\""
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_v1.0.yaml",
+        133,
+        "class: \"DeepClawOrchestrator\""
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_v1.0.yaml",
+        593,
+        "- \"python -c 'from skills.deep_research.lib.orchestrator import DeepClawOrchestrator'\""
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepflow_navigator_v1.0.yaml",
+        24,
+        "3. 具体分析（Investment 30-40分钟 + DeepClaw）"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_dev_instructions.md",
+        1,
+        "# DeepClaw 自驱开发指令"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        3,
+        "DeepClaw → Research Pro 改名清单生成器"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        17,
+        "VARIANTS = [\"DeepClaw\", \"deepclaw\", \"deep_claw\", \"DEEPCLAW\", \"Deep Claw\", \"deep claw\"]"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        39,
+        "\"\"\"扫描所有文件，返回包含 DeepClaw 的文件和行号\"\"\""
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        66,
+        "\"DeepClaw\": \"ResearchPro\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        76,
+        "print(\"DeepClaw → Research Pro 改名清单\")"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/SKILL.md",
+        40,
+        "# DeepClaw — Deep Research Skill"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/SKILL.md",
+        44,
+        "DeepClaw 是 OpenClaw 的 Deep Research Skill，对标 Gemini Deep Research / Perplexity Pro。"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/SKILL.md",
+        78,
+        "orch = DeepClawOrchestrator(mode=\"quick\", base_path=\"blackboard/session_id/\")"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/SKILL.md",
+        87,
+        "orch = DeepClawOrchestrator(mode=\"standard\", base_path=\"blackboard/session_id/\")"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/config/tier_domains.json",
+        3,
+        "\"description\": \"DeepClaw Tier 域名分类白名单/黑名单\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/config/time_budgets.json",
+        3,
+        "\"description\": \"DeepClaw 时间预算配置\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/config/completion_criteria.json",
+        3,
+        "\"description\": \"DeepClaw 完成标准矩阵\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/tier_classifier.py",
+        2,
+        "TierClassifier — DeepClaw 三层质量排序"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/citation_verifier.py",
+        2,
+        "CitationVerifier — DeepClaw 引用验证器"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/citation_verifier.py",
+        91,
+        "req.add_header('User-Agent', 'DeepClaw/1.0')"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/citation_verifier.py",
+        115,
+        "req.add_header('User-Agent', 'DeepClaw/1.0')"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/orchestrator.py",
+        2,
+        "Orchestrator — DeepClaw 核心编排器"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/orchestrator.py",
+        62,
+        "class DeepClawOrchestrator:"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/orchestrator.py",
+        64,
+        "DeepClaw 核心编排器 — 四阶段状态机 + 三级 Agent 模式。"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/orchestrator.py",
+        89,
+        "初始化 DeepClawOrchestrator。"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/orchestrator.py",
+        529,
+        "report = f\"\"\"# DeepClaw 研究报告"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/keyword_generator.py",
+        2,
+        "KeywordGenerator — DeepClaw 6维关键词扩展引擎"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/source_registry.py",
+        2,
+        "SourceRegistry — DeepClaw 防幻觉核心"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/prompts/search.md",
+        3,
+        "你是 DeepClaw 的数据搜索器。你的任务是根据分析计划执行多源融合搜索, 收集高质量数据并注册到 Source Registry。"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/prompts/planning.md",
+        3,
+        "你是 DeepClaw 的研究规划器。你的任务是将用户的研究查询分解为结构化的分析计划。"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/prompts/finance_analysis.md",
+        3,
+        "你是 DeepClaw 的金融分析器。你的任务是基于收集到的数据生成深度投资分析报告。"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/prompts/citation_verify.md",
+        3,
+        "你是 DeepClaw 的引用验证器。你的任务是验证报告中所有引用的准确性和可靠性。"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        205885,
+        "\"snippet\": \"User: [Subagent Context] You are running as a subagent (depth 1/1). Results auto-announce to your requester; do not busy-poll for status. [Subagent Task] 你是一位**OpenClaw 平台专家**，精通 OpenClaw Skill 开发规范、sessions_spawn 多 Agent 编排、Blackboard 文件持久化。请对 DeepClaw 项目进行平台合规性审查。 ## 审查范围 所有文件在\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        206706,
+        "\"snippet\": \"Assistant: 你说得对，那些专家从通用产品角度评审，但这是你自己的效率工具，关键指标是： 1. **引用可信度** — Source Registry 防幻觉是核心价值 2. **中文投资研究深度** — 数据壁垒 3. **架构合理性** — sessions_spawn 释放主 agent 正是 OpenClaw 的最佳实践 --- ## 🎯 项目命名：**DeepClaw** **理由**： - OpenClaw 基因 + Deep Research 能力 - 简洁、有辨识度、好记 - 符合你现有的 DeepFlow 生态命名风格 ---\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        206770,
+        "\"snippet\": \"User: [Subagent Context] You are running as a subagent (depth 1/1). Results auto-announce to your requester; do not busy-poll for status. [Subagent Task] 你是一位**资深 Python 架构师**，精通 SOLID 原则、设计模式和代码质量。请对 DeepClaw 项目进行全面代码审查。 ## 审查范围 所有文件在 `/Users/allen/.openclaw/workspace/.deepflow/\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        206898,
+        "\"snippet\": \"Assistant: Review complete. Here's the summary: ## DeepClaw Code Review — Summary **Overall Grade: C** (及格但有较多问题) ### Scores (0-10) | 维度 | 分数 | 说明 | |------|------|------| | SOLID 合规 | 5/10 | Orchestrator 违反 SRP（1 个类做 5 件事），OCP 有缺口 | | 代码质量 | 5/10 | bare except、硬编码、配置与代码脱节 | | 设计\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        206962,
+        "\"snippet\": \"User: [Subagent Context] You are running as a subagent (depth 1/1). Results auto-announce to your requester; do not busy-poll for status. [Subagent Task] 你是一位**安全专家**，精通应用安全、OWASP Top 10 和防御性编程。请对 DeepClaw 项目进行安全审查。 ## 审查范围 所有文件在 `/Users/allen/.openclaw/workspace/.deepflow/skills\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        207212,
+        "\"snippet\": \"Assistant: 安全审查已完成。以下是审查结果摘要： --- ## DeepClaw 安全审查报告 **总体评级: C (中)** ### 各维度评分 | 维度 | 分数 | 评价 | |------|------|------| | 注入防护 | 40/100 | 🔴 有意识但执行不足 | | 数据验证 | 55/100 | 🟡 部分到位 | | 资源管理 | 65/100 | 🟡 基本合格 | | 认证授权 | 30/100 | 🔴 薄弱 | | 日志审计 | 10/100 | 🔴 几乎为零 | ### 🔴 高危漏洞 (3项) 1.\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        208116,
+        "\"snippet\": \"User: [Subagent Context] You are running as a subagent (depth 1/1). Results auto-announce to your requester; do not busy-poll for status. [Subagent Task] # DeepClaw 自驱开发任务 (Step 2 → Step 15) 你是 DeepClaw 项目的自驱开发工程师。整个夜晚按契约笼子自动迭代完成全部开发。 ## 工作目录 /Users/allen/.openclaw/workspace/.dee\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        209223,
+        "\"snippet\": \"Assistant: 好，参考 Spec Pro 契约结构，我来写 DeepClaw 的契约笼子。先确认项目名。\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        209280,
+        "\"snippet\": \"Assistant: ## ✅ DeepClaw 契约笼子 v1.0 已完成 **文件**: `cage/deepclaw_v1.0.yaml`（918 行，32KB） --- ### 📋 契约结构总览 | 层级 | 内容 | 数量 | |------|------|------| | **🔴 红线** | 绝对不可违反的规则 | 7 条 | | **L1 接口** | Python 模块 + Prompt 模板 | 5 模块 + 4 Prompt | | **L2 行为** | 每个方法的输入/输出/成功/失败 | 7 个方法 | | **L3 数\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        1,
+        "[main2/sessions/main2/0aa5aa08-59ff-428d-9030-615ab9257dde.jsonl#L5] User: [Subagent Context] You are running as a subagent (depth 1/1). Results auto-announce to your requester; do not busy-poll for status. [Subagent Task] 你是一位**OpenClaw 平台专家**，精通 OpenClaw Skill 开发规范、sessions_spawn 多 Agent 编排、Blackboard 文件持久化。请对 DeepClaw 项目进行平台合规性审查。 ## 审查范围"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        27,
+        "[main2/sessions/main2/39f52a3d-6c32-4590-9c4f-b9e506d871ae.jsonl#L12] Assistant: 你说得对，那些专家从通用产品角度评审，但这是你自己的效率工具，关键指标是： 1. **引用可信度** — Source Registry 防幻觉是核心价值 2. **中文投资研究深度** — 数据壁垒 3. **架构合理性** — sessions_spawn 释放主 agent 正是 OpenClaw 的最佳实践 --- ## 🎯 项目命名：**DeepClaw** **理由**： - OpenClaw 基因 + Deep Research 能力 - 简洁、有辨识度、好记 - 符合你现有的 DeepFlow 生态命名"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        29,
+        "[main2/sessions/main2/4307dcf8-b05c-49aa-8550-9eabae93f790.jsonl#L5] User: [Subagent Context] You are running as a subagent (depth 1/1). Results auto-announce to your requester; do not busy-poll for status. [Subagent Task] 你是一位**资深 Python 架构师**，精通 SOLID 原则、设计模式和代码质量。请对 DeepClaw 项目进行全面代码审查。 ## 审查范围 所有文件在 `/Users/allen/.openclaw/workspace/.deep"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        33,
+        "[main2/sessions/main2/4307dcf8-b05c-49aa-8550-9eabae93f790.jsonl#L31] Assistant: Review complete. Here's the summary: ## DeepClaw Code Review — Summary **Overall Grade: C** (及格但有较多问题) ### Scores (0-10) | 维度 | 分数 | 说明 | |------|------|------| | SOLID 合规 | 5/10 | Orchestrator 违反 SRP（1 个类做 5 件事），OCP 有缺口 | | 代码质量 | 5/10 | bare except、硬编码、配置与代码脱节"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        35,
+        "[main2/sessions/main2/4613731c-267d-4668-be77-35b0a9db0e31.jsonl#L5] User: [Subagent Context] You are running as a subagent (depth 1/1). Results auto-announce to your requester; do not busy-poll for status. [Subagent Task] 你是一位**安全专家**，精通应用安全、OWASP Top 10 和防御性编程。请对 DeepClaw 项目进行安全审查。 ## 审查范围 所有文件在 `/Users/allen/.openclaw/workspace/.deepflow/s"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        43,
+        "[main2/sessions/main2/4613731c-267d-4668-be77-35b0a9db0e31.jsonl#L29] Assistant: 安全审查已完成。以下是审查结果摘要： --- ## DeepClaw 安全审查报告 **总体评级: C (中)** ### 各维度评分 | 维度 | 分数 | 评价 | |------|------|------| | 注入防护 | 40/100 | 🔴 有意识但执行不足 | | 数据验证 | 55/100 | 🟡 部分到位 | | 资源管理 | 65/100 | 🟡 基本合格 | | 认证授权 | 30/100 | 🔴 薄弱 | | 日志审计 | 10/100 | 🔴 几乎为零 | ### 🔴 高危漏洞 ("
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        72,
+        "[researcher/sessions/researcher/17421b23-5bc6-4742-b0c0-8c918bad81aa.jsonl#L5] User: [Subagent Context] You are running as a subagent (depth 1/1). Results auto-announce to your requester; do not busy-poll for status. [Subagent Task] # DeepClaw 自驱开发任务 (Step 2 → Step 15) 你是 DeepClaw 项目的自驱开发工程师。整个夜晚按契约笼子自动迭代完成全部开发。 ## 工作目录 /Users/allen/.openclaw"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        82,
+        "[main2/sessions/main2/39f52a3d-6c32-4590-9c4f-b9e506d871ae.jsonl#L18] Assistant: 好，参考 Spec Pro 契约结构，我来写 DeepClaw 的契约笼子。先确认项目名。"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        84,
+        "[main2/sessions/main2/39f52a3d-6c32-4590-9c4f-b9e506d871ae.jsonl#L23] Assistant: ## ✅ DeepClaw 契约笼子 v1.0 已完成 **文件**: `cage/deepclaw_v1.0.yaml`（918 行，32KB） --- ### 📋 契约结构总览 | 层级 | 内容 | 数量 | |------|------|------| | **🔴 红线** | 绝对不可违反的规则 | 7 条 | | **L1 接口** | Python 模块 + Prompt 模板 | 5 模块 + 4 Prompt | | **L2 行为** | 每个方法的输入/输出/成功/失败 | 7 个方法 | |"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/skills/deepflow/SKILL.md",
+        26,
+        "→ DeepClaw：通用深度研究报告"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/skills/deepflow/SKILL.md",
+        38,
+        "- 如果用户要写通用报告 → 启动 DeepClaw"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/skills/deepflow/SKILL.md",
+        47,
+        "- `DeepClaw` + 研究主题"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/reports/nvidia-q1-fy2027-investment-report.md",
+        6,
+        "> **分析师**: DeepClaw 金融分析器"
+      ]
+    ],
+    "deepclaw": [
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_citation_verifier.py",
+        3,
+        "契约: cage/deepclaw_v1.0.yaml (L1: citation_verifier, RED-DC-001, RED-DC-005)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_source_registry.py",
+        3,
+        "契约: cage/deepclaw_v1.0.yaml (L1: source_registry)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_keyword_generator.py",
+        3,
+        "契约: cage/deepclaw_v1.0.yaml (L1: keyword_generator)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_orchestrator.py",
+        3,
+        "契约: cage/deepclaw_v1.0.yaml (L1: orchestrator, RED-DC-002, RED-DC-003, RED-DC-005)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/deepclaw/test_tier_classifier.py",
+        3,
+        "契约: cage/deepclaw_v1.0.yaml (L1: tier_classifier, RED-DC-006)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/tests/e2e/run_real_e2e.py",
+        49,
+        "base_path = tempfile.mkdtemp(prefix=f'deepclaw_e2e_{session_id}_')"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/rename_deepclaw_to_research_pro.md",
+        41,
+        "- [ ] `grep -r \"DeepClaw\\|deepclaw\\|deep_claw\\|DEEPCLAW\"` 返回空（除历史文件）"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_v1.0.yaml",
+        13,
+        "module: deepclaw"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_v1.0.yaml",
+        193,
+        "session_id: \"str, 格式: deepclaw_{hash8}, ≤50字符\""
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_v1.0.yaml",
+        691,
+        "output: \"cage/deepclaw_v1.0.yaml\""
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_dev_instructions.md",
+        4,
+        "按 `cage/deepclaw_v1.0.yaml` 契约，从 Step 2 到 Step 15 自动迭代完成全部开发。"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_dev_instructions.md",
+        11,
+        "1. **读取契约** — 读 `cage/deepclaw_v1.0.yaml` 中当前 step 的定义"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_dev_instructions.md",
+        14,
+        "4. **写 checkpoint** — 写入 `blackboard/deepclaw_checkpoints/step_{N}.json`"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_dev_instructions.md",
+        53,
+        "1. **每步必须读契约** — 不要凭记忆，每步开始时重新读 `cage/deepclaw_v1.0.yaml`"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_dev_instructions.md",
+        86,
+        "tests/deepclaw/"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/deepclaw_dev_instructions.md",
+        95,
+        "blackboard/deepclaw_checkpoints/"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        17,
+        "VARIANTS = [\"DeepClaw\", \"deepclaw\", \"deep_claw\", \"DEEPCLAW\", \"Deep Claw\", \"deep claw\"]"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        67,
+        "\"deepclaw\": \"research_pro\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/tier_classifier.py",
+        3,
+        "契约: cage/deepclaw_v1.0.yaml (L3: source_registry.quality_tier, RED-DC-006)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/citation_verifier.py",
+        3,
+        "契约: cage/deepclaw_v1.0.yaml (L1: citation_verifier, RED-DC-001, RED-DC-005)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/orchestrator.py",
+        3,
+        "契约: cage/deepclaw_v1.0.yaml (L1: orchestrator)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/orchestrator.py",
+        66,
+        "契约: cage/deepclaw_v1.0.yaml (L1: orchestrator)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/orchestrator.py",
+        91,
+        "契约: cage/deepclaw_v1.0.yaml L1 (__init__)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/orchestrator.py",
+        252,
+        "契约: cage/deepclaw_v1.0.yaml L1 (confirm_plan)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/orchestrator.py",
+        575,
+        "契约: cage/deepclaw_v1.0.yaml L1 (resume_from_state)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/keyword_generator.py",
+        3,
+        "契约: cage/deepclaw_v1.0.yaml (L1: keyword_generator)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/skills/deep-research/lib/source_registry.py",
+        3,
+        "契约: cage/deepclaw_v1.0.yaml (L3: source_registry)"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        206199,
+        "\"snippet\": \"Assistant: 审查完成。结果已写入： ``` .deepflow/blackboard/deepclaw_checkpoints/code_review_platform.json ``` ## 审查结果摘要 ### 总体评级: **C** (7 条红线通过 5 条，25 个详细发现) ### 红线检查结果: **5/7 通过** | 红线 | 状态 | 说明 | |------|------|------| | RED-DC-001 | ✅ PASS | Source Registry 引用链路完整 | | RED-DC-002 | ✅ PAS\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        206802,
+        "\"snippet\": \"User: - 边界条件处理 ### 3. 设计模式 - 状态机实现是否健壮？ - 策略模式 (Agent 模式切换) 是否清晰？ - 是否有过度设计或设计不足？ ### 4. 可维护性 - 代码行数是否合理？ - 函数长度是否过长？ - 是否有魔法数字？ - 配置是否外部化？ ## 输出要求 将审查结果写入 `/Users/allen/.openclaw/workspace/.deepflow/blackboard/deepclaw_checkpoints/code_review_architecture.json` 格式： ```json { \\\"re\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        206920,
+        "\"deepclaw\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        206930,
+        "\"snippet\": \"Assistant: 定义了详细规则但代码中零引用 ### 做得好的地方 - state.json 原子写入（.tmp + os.replace） - Source Registry 防幻觉设计理念正确 - 红线约束在 docstring 中明确引用 - 配置文件结构合理，Prompt 模板规范 Review 已写入 `/Users/allen/.openclaw/workspace/.deepflow/blackboard/deepclaw_checkpoints/code_review_architecture.json`（35 条详细发现，含行号和\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        206994,
+        "\"snippet\": \"User: 3. 资源管理 - 文件句柄: 是否正确关闭？ - 网络连接: HTTP 请求是否有超时？ - 内存泄漏: 大文件处理是否合理？ ### 4. 认证授权 - API Key: 是否硬编码？ - 权限检查: 文件操作是否有权限验证？ ### 5. 日志与审计 - 敏感信息: 日志中是否泄露密码/token？ - 操作日志: 关键操作是否有记录？ ## 输出要求 将审查结果写入 `/Users/allen/.openclaw/workspace/.deepflow/blackboard/deepclaw_checkpoints/code_revi\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        208180,
+        "\"snippet\": \"User: 端到端测试验证 | | 14 | E2E 标准模式 | 端到端测试验证 | | 15 | Harness 验证 | Harness 完整验证 | ## 关键约束 1. **每步必须读契约** — `cage/deepclaw_v1.0.yaml` 是权威，不要凭记忆 2. **7 条红线不可违反** — RED-DC-001 到 RED-DC-007 3. **gate 必须全部通过** — 任何 gate 失败 → 修复 → 重试 → 直到通过 4. **Python 模块必须可 import** — 写完立即 `python3 -c \\\"i\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        208196,
+        "\"cage/deepclaw-v1.0.yaml\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        208212,
+        "\"snippet\": \"User: 后，写一份最终总结到 `blackboard/deepclaw_checkpoints/SUMMARY.md`，包含： - 每步状态和通过/失败的 gates - 红线合规检查结果 - 所有已创建文件清单 - 待解决的问题 Begin. Execute the assigned task to completion.\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        208233,
+        "\"deepclaw-checkpoints\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        209245,
+        "\"deepclaw\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        209280,
+        "\"snippet\": \"Assistant: ## ✅ DeepClaw 契约笼子 v1.0 已完成 **文件**: `cage/deepclaw_v1.0.yaml`（918 行，32KB） --- ### 📋 契约结构总览 | 层级 | 内容 | 数量 | |------|------|------| | **🔴 红线** | 绝对不可违反的规则 | 7 条 | | **L1 接口** | Python 模块 + Prompt 模板 | 5 模块 + 4 Prompt | | **L2 行为** | 每个方法的输入/输出/成功/失败 | 7 个方法 | | **L3 数\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        209297,
+        "\"cage/deepclaw-v1.0.yaml\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/short-term-recall.json",
+        209299,
+        "\"deepclaw\","
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        11,
+        "[main2/sessions/main2/0aa5aa08-59ff-428d-9030-615ab9257dde.jsonl#L50] Assistant: 审查完成。结果已写入： ``` .deepflow/blackboard/deepclaw_checkpoints/code_review_platform.json ``` ## 审查结果摘要 ### 总体评级: **C** (7 条红线通过 5 条，25 个详细发现) ### 红线检查结果: **5/7 通过** | 红线 | 状态 | 说明 | |------|------|------| | RED-DC-001 | ✅ PASS | Source Registry 引用链路完整 | | RED-DC-002 |"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        30,
+        "[main2/sessions/main2/4307dcf8-b05c-49aa-8550-9eabae93f790.jsonl#L5] User: - 边界条件处理 ### 3. 设计模式 - 状态机实现是否健壮？ - 策略模式 (Agent 模式切换) 是否清晰？ - 是否有过度设计或设计不足？ ### 4. 可维护性 - 代码行数是否合理？ - 函数长度是否过长？ - 是否有魔法数字？ - 配置是否外部化？ ## 输出要求 将审查结果写入 `/Users/allen/.openclaw/workspace/.deepflow/blackboard/deepclaw_checkpoints/code_review_architecture.json` 格式： ```json"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        34,
+        "[main2/sessions/main2/4307dcf8-b05c-49aa-8550-9eabae93f790.jsonl#L31] Assistant: 定义了详细规则但代码中零引用 ### 做得好的地方 - state.json 原子写入（.tmp + os.replace） - Source Registry 防幻觉设计理念正确 - 红线约束在 docstring 中明确引用 - 配置文件结构合理，Prompt 模板规范 Review 已写入 `/Users/allen/.openclaw/workspace/.deepflow/blackboard/deepclaw_checkpoints/code_review_architecture.json`（35 条详细发"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        36,
+        "[main2/sessions/main2/4613731c-267d-4668-be77-35b0a9db0e31.jsonl#L5] User: 3. 资源管理 - 文件句柄: 是否正确关闭？ - 网络连接: HTTP 请求是否有超时？ - 内存泄漏: 大文件处理是否合理？ ### 4. 认证授权 - API Key: 是否硬编码？ - 权限检查: 文件操作是否有权限验证？ ### 5. 日志与审计 - 敏感信息: 日志中是否泄露密码/token？ - 操作日志: 关键操作是否有记录？ ## 输出要求 将审查结果写入 `/Users/allen/.openclaw/workspace/.deepflow/blackboard/deepclaw_checkpoints/code"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        74,
+        "[researcher/sessions/researcher/17421b23-5bc6-4742-b0c0-8c918bad81aa.jsonl#L5] User: 端到端测试验证 | | 14 | E2E 标准模式 | 端到端测试验证 | | 15 | Harness 验证 | Harness 完整验证 | ## 关键约束 1. **每步必须读契约** — `cage/deepclaw_v1.0.yaml` 是权威，不要凭记忆 2. **7 条红线不可违反** — RED-DC-001 到 RED-DC-007 3. **gate 必须全部通过** — 任何 gate 失败 → 修复 → 重试 → 直到通过 4. **Python 模块必须可 import** — 写完立即"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        75,
+        "[researcher/sessions/researcher/17421b23-5bc6-4742-b0c0-8c918bad81aa.jsonl#L5] User: 后，写一份最终总结到 `blackboard/deepclaw_checkpoints/SUMMARY.md`，包含： - 每步状态和通过/失败的 gates - 红线合规检查结果 - 所有已创建文件清单 - 待解决的问题 Begin. Execute the assigned task to completion."
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/memory/.dreams/session-corpus/2026-05-29.txt",
+        84,
+        "[main2/sessions/main2/39f52a3d-6c32-4590-9c4f-b9e506d871ae.jsonl#L23] Assistant: ## ✅ DeepClaw 契约笼子 v1.0 已完成 **文件**: `cage/deepclaw_v1.0.yaml`（918 行，32KB） --- ### 📋 契约结构总览 | 层级 | 内容 | 数量 | |------|------|------| | **🔴 红线** | 绝对不可违反的规则 | 7 条 | | **L1 接口** | Python 模块 + Prompt 模板 | 5 模块 + 4 Prompt | | **L2 行为** | 每个方法的输入/输出/成功/失败 | 7 个方法 | |"
+      ]
+    ],
+    "deep_claw": [
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/rename_deepclaw_to_research_pro.md",
+        41,
+        "- [ ] `grep -r \"DeepClaw\\|deepclaw\\|deep_claw\\|DEEPCLAW\"` 返回空（除历史文件）"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        17,
+        "VARIANTS = [\"DeepClaw\", \"deepclaw\", \"deep_claw\", \"DEEPCLAW\", \"Deep Claw\", \"deep claw\"]"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        68,
+        "\"deep_claw\": \"research_pro\","
+      ]
+    ],
+    "DEEPCLAW": [
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/rename_deepclaw_to_research_pro.md",
+        41,
+        "- [ ] `grep -r \"DeepClaw\\|deepclaw\\|deep_claw\\|DEEPCLAW\"` 返回空（除历史文件）"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        17,
+        "VARIANTS = [\"DeepClaw\", \"deepclaw\", \"deep_claw\", \"DEEPCLAW\", \"Deep Claw\", \"deep claw\"]"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        69,
+        "\"DEEPCLAW\": \"RESEARCH_PRO\","
+      ]
+    ],
+    "Deep Claw": [
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        17,
+        "VARIANTS = [\"DeepClaw\", \"deepclaw\", \"deep_claw\", \"DEEPCLAW\", \"Deep Claw\", \"deep claw\"]"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        70,
+        "\"Deep Claw\": \"Research Pro\","
+      ]
+    ],
+    "deep claw": [
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        17,
+        "VARIANTS = [\"DeepClaw\", \"deepclaw\", \"deep_claw\", \"DEEPCLAW\", \"Deep Claw\", \"deep claw\"]"
+      ],
+      [
+        "/Users/allen/.openclaw/workspace/.deepflow/cage/generate_rename_inventory.py",
+        71,
+        "\"deep claw\": \"research pro\","
+      ]
+    ]
+  }
+}

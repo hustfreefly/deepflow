@@ -1,6 +1,6 @@
 """
 CitationVerifier — ResearchPro 引用验证器
-契约: cage/research_pro_v1.0.yaml (L1: citation_verifier, RED-DC-001, RED-DC-005)
+契约: cage/active/research_pro_v1.0.yaml (L1: citation_verifier, RED-DC-001, RED-DC-005)
 
 五步验证循环:
 1. 正则提取 [N] 引用标记

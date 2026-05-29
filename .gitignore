@@ -35,16 +35,6 @@ logs/
 *.tmp
 *~
 
-# 临时测试文件
-test_*.py
-*_test.py
-
-# 临时验证报告
-*_test_report.md
-*_test_result.json
-*_report.json
-*_audit.json
-
 # cage 临时契约文件（保留正式契约）
 cage/*_contract.yaml
 cage/*_fix_*.md
@@ -52,11 +42,12 @@ cage/*_test_*.py
 cage/*_preplay_*.md
 cage/*_plan*.md
 cage/*_summary*.md
-!cage/update_docs_contract.yaml
-!cage/release_cleanup_contract.yaml
-!cage/english_refactor_contract.yaml
-!cage/frontend_design_requirements_v1.2.md
-!cage/frontend_phase1_contract.yaml
+!cage/*_contract.yaml
+!cage/*_phase*.yaml
+!cage/*_test_contract.yaml
+!cage/*_requirements*.md
+!cage/DEVELOPMENT_CONTRACT.md
+!cage/prompt-output-fix.md
 
 # 前端依赖和构建产物
 frontend/web/node_modules/
@@ -71,6 +62,9 @@ analysis_context.json
 tasks.json
 prompts_full_analysis.*
 prompts_inventory.*
+
+# 归档的旧代码
+ARCHIVED/
 
 # 临时文件
 *.tmp
@@ -102,11 +96,11 @@ config.json
 # 生成的报告
 reports/
 
-# 临时检查脚本
-cage/check_*.py
-
 # 上传文件目录
 frontend/backend/routers/uploads/
 
 # 任务队列测试数据
 frontend/task_queue/*.json
+
+# frontend/frontend 嵌套目录
+frontend/frontend/

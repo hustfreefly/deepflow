@@ -8,7 +8,7 @@ Orchestrator V4.0 - 纯调度实现
 3. 生成所有 Worker Tasks
 4. （由主Agent）使用 sessions_spawn 创建 Workers
 
-契约: cage/orchestrator_contract.yaml
+契约: cage/active/ (see orchestration contract)
 """
 
 import sys

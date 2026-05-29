@@ -1,7 +1,7 @@
 """
 Protocols模块契约测试
 
-验证protocols.py模块符合cage/protocols.yaml契约规范。
+验证protocols.py模块符合cage/active/ (see protocols contract)契约规范。
 """
 
 import unittest

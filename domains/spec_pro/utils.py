@@ -5,7 +5,7 @@ Spec Pro 确定性工具函数
 用途：让 Orchestrator 通过 exec 调用确定性逻辑（merge、fallback 检查、log）。
 这些操作不应交给 LLM 推理。
 
-契约: cage/spec_pro_v2.0.yaml (L3 writer_protocol, L2 failure_handling)
+契约: cage/active/spec_pro_v2.0.yaml (L3 writer_protocol, L2 failure_handling)
 
 使用方式:
   python3 core/spec_pro/utils.py merge <response_path> <living_spec_path>

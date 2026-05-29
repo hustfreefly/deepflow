@@ -14,9 +14,9 @@
 - 重点在于数据完整性和分析覆盖度
 
 契约约束来源：
-- cage/domain_investment.yaml（领域契约 v2.0）
-- cage/stage_data_collection.yaml（数据采集阶段契约）
-- cage/worker_researcher.yaml（Worker 契约）
+- cage/active/investment_v2.0.yaml（领域契约 v2.0）
+- cage/active/investment_v2.0.yaml (stage section)（数据采集阶段契约）
+- cage/active/investment_v2.0.yaml (worker section)（Worker 契约）
 - V1_BLUEPRINT.md（架构蓝图）
 
 V1.1 变更日志：
@@ -117,7 +117,7 @@ class InvestmentOrchestrator:
             ValueError: 输入验证失败
             RuntimeError: 关键依赖缺失
         """
-        # ========== 输入验证（cage/domain_investment.yaml interface.input）==========
+        # ========== 输入验证（cage/active/investment_v2.0.yaml interface.input）==========
         code = context.get("code", "")
         name = context.get("name", "")
         
@@ -165,7 +165,7 @@ class InvestmentOrchestrator:
         """
         执行管线（R3 修复：只做一轮，不做多轮迭代）
         
-        符合 cage/domain_investment.yaml behavior.stages.required_order:
+        符合 cage/active/investment_v2.0.yaml behavior.stages.required_order:
         [data_collection, search, planning, research, financial_analysis, 
          audit, fix, verify, summarize]
         
@@ -319,7 +319,7 @@ class InvestmentOrchestrator:
         STEP 1: DataManager 数据采集
         
         契约依据：
-        - cage/stage_data_collection.yaml（数据采集阶段契约）
+        - cage/active/investment_v2.0.yaml (stage section)（数据采集阶段契约）
         - domains/investment/config/investment.yaml（数据源配置）
         - V1_BLUEPRINT.md §1.3（DataManager 作为 Python 辅助模块）
         
@@ -402,7 +402,7 @@ class InvestmentOrchestrator:
             else:
                 raise  # 其他错误继续抛出
         
-        # 5. 验证关键文件存在（cage/stage_data_collection.yaml assertions）
+        # 5. 验证关键文件存在（cage/active/investment_v2.0.yaml (stage section) assertions）
         data_dir = self.blackboard.session_dir / "data"
         index_exists = (data_dir / "INDEX.json").exists()
         financials_exists = (data_dir / "v0" / "financials.json").exists() or \
@@ -444,7 +444,7 @@ class InvestmentOrchestrator:
         契约依据：
         - domains/investment.yaml search_priority（搜索工具优先级）
         - domains/investment/config/investment.yaml dynamic_rules（动态补充规则）
-        - cage/domain_investment.yaml behavior.stages.required_order[1] = "search"
+        - cage/active/investment_v2.0.yaml behavior.stages.required_order[1] = "search"
         
         P0-4 修复：调用 Gemini CLI 执行真实搜索，不再使用 placeholder。
         
@@ -553,8 +553,8 @@ class InvestmentOrchestrator:
         R6 Fix: 在第1轮末尾添加 summarizer（当收敛或达到max_iterations时）
         
         契约依据：
-        - cage/worker_researcher.yaml（Worker 契约）
-        - cage/domain_investment.yaml behavior.workers
+        - cage/active/investment_v2.0.yaml (worker section)（Worker 契约）
+        - cage/active/investment_v2.0.yaml behavior.workers
         - domains/investment.yaml pipeline.stages
         
         Returns:
@@ -1065,7 +1065,7 @@ with open(output_path, "w") as f:
         iteration: int
     ) -> str:
         """
-        构建 Worker 任务描述（符合 cage/worker_researcher.yaml 契约）
+        构建 Worker 任务描述（符合 cage/active/investment_v2.0.yaml (worker section) 契约）
         
         R4 Fix: 双重保障 - Prompt 侧明确要求写入 Blackboard 文件，Orchestrator 侧 fallback 到 sessions_history。
         
@@ -1149,7 +1149,7 @@ with open(output_path, "w") as f:
 
 这些数据请求会被 DataManager 处理，并在下一轮迭代中提供给你。
 
-## 输出格式要求（cage/worker_researcher.yaml）
+## 输出格式要求（cage/active/investment_v2.0.yaml (worker section)）
 你必须输出结构化 JSON，包含以下字段：
 ```json
 {{
@@ -1213,7 +1213,7 @@ print(f"Output written to {{output_path}}")
         stall_threshold: float
     ) -> dict:
         """
-        收敛检测（符合 cage/convergence_rules.yaml）
+        收敛检测（符合 cage/active/investment_v2.0.yaml (convergence section)）
         
         收敛规则：
         1. min_iterations: 至少2轮才能收敛

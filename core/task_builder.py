@@ -10,7 +10,7 @@ Task Builder V4.0
 3. 注入完整上下文
 4. 生成最终 Task
 
-契约: cage/task_builder_contract.yaml
+契约: cage/active/solution_v1.0.yaml (task builder section)
 """
 
 import os

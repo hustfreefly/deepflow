@@ -1,6 +1,6 @@
 """
 Orchestrator — ResearchPro 核心编排器
-契约: cage/research_pro_v1.0.yaml (L1: orchestrator)
+契约: cage/active/research_pro_v1.0.yaml (L1: orchestrator)
 
 职责:
 1. 四阶段状态机管理 (planning → confirming → executing → reporting)
@@ -67,7 +67,7 @@ class ResearchProOrchestrator:
     """
     ResearchPro 核心编排器 — 四阶段状态机 + 三级 Agent 模式。
     
-    契约: cage/research_pro_v1.0.yaml (L1: orchestrator)
+    契约: cage/active/research_pro_v1.0.yaml (L1: orchestrator)
     
     状态机:
     - planning: 生成研究计划
@@ -92,7 +92,7 @@ class ResearchProOrchestrator:
         """
         初始化 ResearchProOrchestrator。
         
-        契约: cage/research_pro_v1.0.yaml L1 (__init__)
+        契约: cage/active/research_pro_v1.0.yaml L1 (__init__)
 
         Args:
             mode: 模式 ('quick' | 'standard'), 默认 'standard'
@@ -250,7 +250,7 @@ class ResearchProOrchestrator:
         """
         确认、修改或取消分析计划。
         
-        契约: cage/research_pro_v1.0.yaml L1 (confirm_plan)
+        契约: cage/active/research_pro_v1.0.yaml L1 (confirm_plan)
         
         Args:
             user_confirmation: dict, 必须包含:
@@ -573,7 +573,7 @@ class ResearchProOrchestrator:
         """
         从当前状态恢复执行。
         
-        契约: cage/research_pro_v1.0.yaml L1 (resume_from_state)
+        契约: cage/active/research_pro_v1.0.yaml L1 (resume_from_state)
 
         Args:
             state_path: 可选，指定 state.json 路径。如不提供则使用默认路径。

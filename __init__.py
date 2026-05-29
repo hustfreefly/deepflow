@@ -9,23 +9,14 @@ DeepFlow — V1.0 多 Agent 管线引擎
 __version__ = "1.0.0"
 __author__ = "小满 🦞"
 
-# Phase 1 模块导出
-try:
-    from .observability import Observability
-    from .blackboard_manager import BlackboardManager
-    from .config_loader import (
-        ConfigLoader, DomainConfig, PipelineTemplate,
-        AgentConfig, QualityDimension, DomainQualityConfig,
-        DeliveryConfig, ResilienceConfig, PipelineStage,
-    )
-except ImportError:
-    from observability import Observability
-    from blackboard_manager import BlackboardManager
-    from config_loader import (
-        ConfigLoader, DomainConfig, PipelineTemplate,
-        AgentConfig, QualityDimension, DomainQualityConfig,
-        DeliveryConfig, ResilienceConfig, PipelineStage,
-    )
+# 模块导出（重构后路径：core/）
+from core.quality.observability import Observability
+from core.blackboard.blackboard_manager import BlackboardManager
+from core.config_loader import (
+    ConfigLoader, DomainConfig, PipelineTemplate,
+    AgentConfig, QualityDimension, DomainQualityConfig,
+    DeliveryConfig, ResilienceConfig, PipelineStage,
+)
 
 __all__ = [
     # 可观测性

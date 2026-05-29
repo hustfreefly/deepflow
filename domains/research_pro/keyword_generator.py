@@ -1,6 +1,6 @@
 """
 KeywordGenerator — ResearchPro 6维关键词扩展引擎
-契约: cage/research_pro_v1.0.yaml (L1: keyword_generator)
+契约: cage/active/research_pro_v1.0.yaml (L1: keyword_generator)
 
 6维扩展:
 1. 主题词直译

@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 import yaml
-from config_loader import ConfigLoader
+from core.config_loader import ConfigLoader
 
 
 @pytest.fixture

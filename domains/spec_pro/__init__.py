@@ -10,7 +10,7 @@ Public API:
     QualityLevel:       质量等级枚举 (S/A/B/C)
     Scenario:           场景枚举 (genesis/supplement/refine/pivot)
 
-契约: cage/spec_pro_v2.0.yaml
+契约: cage/active/spec_pro_v2.0.yaml
 """
 
 from domains.spec_pro.coordinator import SpecProCoordinator

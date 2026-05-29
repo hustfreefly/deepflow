@@ -8,7 +8,7 @@ DeepFlow Prompt注册表管理器 V2.0 (修复版)
 - get_by_role: 修复逻辑错误
 - 异常处理: bare except改为具体异常
 
-契约引用: cage/prompt_registry_fix_contract.yaml
+契约引用: cage/active/ (see registry.yaml)
 版本: 2.0.0
 日期: 2026-05-01
 """

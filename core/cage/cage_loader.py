@@ -148,12 +148,42 @@ class CageLoader:
     """
     笼子契约加载器
     
-    从 YAML 文件加载契约定义，提供查询接口
+    从 YAML 文件加载契约定义，提供查询接口。
+    支持重构后的目录结构：cage/active/ 子目录 + 版本化命名。
     """
+    
+    # 搜索子目录（按优先级）
+    _SEARCH_SUBDIRS = ["", "active"]
     
     def __init__(self, cage_dir: str = None):
         self.cage_dir = Path(cage_dir or PathConfig.resolve().base_dir / "cage")
         self._cache: Dict[str, Any] = {}
+    
+    def _find_contract_file(self, name: str, domain: str = None) -> Optional[Path]:
+        """
+        在 cage/ 和 cage/active/ 中查找契约文件（兼容新旧命名）。
+        
+        搜索策略（按优先级）：
+        1. cage/{name}.yaml（旧命名，如 domain_investment.yaml）
+        2. cage/active/{name}.yaml
+        3. cage/active/{domain}_v*.yaml（版本化命名，如 investment_v2.0.yaml）
+        """
+        # 策略 1 & 2: 精确匹配
+        for subdir in self._SEARCH_SUBDIRS:
+            candidate = self.cage_dir / subdir / f"{name}.yaml" if subdir else self.cage_dir / f"{name}.yaml"
+            if candidate.exists():
+                return candidate
+        
+        # 策略 3: 版本化命名模糊匹配
+        if domain:
+            active_dir = self.cage_dir / "active"
+            if active_dir.exists():
+                pattern = f"{domain}_v*.yaml"
+                matches = sorted(active_dir.glob(pattern))
+                if matches:
+                    return matches[-1]  # 取最新版本
+        
+        return None
     
     def load_domain_contract(self, domain: str) -> Optional[DomainContract]:
         """
@@ -169,9 +199,9 @@ class CageLoader:
         if cache_key in self._cache:
             return self._cache[cache_key]
         
-        contract_file = self.cage_dir / f"domain_{domain}.yaml"
-        if not contract_file.exists():
-            print(f"[CageLoader] WARNING: Domain contract not found: {contract_file}")
+        contract_file = self._find_contract_file(f"domain_{domain}", domain=domain)
+        if not contract_file:
+            print(f"[CageLoader] WARNING: Domain contract not found for '{domain}' in {self.cage_dir}")
             return None
         
         try:
@@ -209,19 +239,14 @@ class CageLoader:
         if cache_key in self._cache:
             return self._cache[cache_key]
         
-        contract_file = self.cage_dir / f"stage_{stage}.yaml"
-        if not contract_file.exists():
-            print(f"[CageLoader] WARNING: Stage contract not found: {contract_file}")
+        contract_file = self._find_contract_file(f"stage_{stage}", domain=f"{domain}_{stage}")
+        if not contract_file:
+            print(f"[CageLoader] WARNING: Stage contract not found for '{stage}' (domain={domain}) in {self.cage_dir}")
             return None
         
         try:
             with open(contract_file, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
-            
-            # 验证 domain 匹配
-            if data.get("domain") != domain:
-                print(f"[CageLoader] WARNING: Stage domain mismatch: expected '{domain}', got '{data.get('domain')}'")
-                return None
             
             contract = StageContract(
                 stage=data.get("stage", stage),
@@ -254,19 +279,14 @@ class CageLoader:
         if cache_key in self._cache:
             return self._cache[cache_key]
         
-        contract_file = self.cage_dir / f"worker_{worker}.yaml"
-        if not contract_file.exists():
-            print(f"[CageLoader] WARNING: Worker contract not found: {contract_file}")
+        contract_file = self._find_contract_file(f"worker_{worker}", domain=worker)
+        if not contract_file:
+            print(f"[CageLoader] WARNING: Worker contract not found for '{worker}' (domain={domain}) in {self.cage_dir}")
             return None
         
         try:
             with open(contract_file, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
-            
-            # 验证 domain 匹配
-            if data.get("domain") != domain:
-                print(f"[CageLoader] WARNING: Worker domain mismatch: expected '{domain}', got '{data.get('domain')}'")
-                return None
             
             contract = WorkerContract(
                 worker=data.get("worker", worker),
@@ -300,19 +320,14 @@ class CageLoader:
         if cache_key in self._cache:
             return self._cache[cache_key]
         
-        contract_file = self.cage_dir / "convergence_rules.yaml"
-        if not contract_file.exists():
-            print(f"[CageLoader] WARNING: Convergence rules not found: {contract_file}")
+        contract_file = self._find_contract_file("convergence_rules", domain=f"{domain}_convergence")
+        if not contract_file:
+            print(f"[CageLoader] WARNING: Convergence rules not found for '{domain}' in {self.cage_dir}")
             return None
         
         try:
             with open(contract_file, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
-            
-            # 验证 domain 匹配
-            if data.get("domain") != domain:
-                print(f"[CageLoader] WARNING: Convergence domain mismatch: expected '{domain}', got '{data.get('domain')}'")
-                return None
             
             rules = ConvergenceRules(
                 domain=data.get("domain", domain),

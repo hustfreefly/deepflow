@@ -35,7 +35,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["core*", "domains*", "data_providers*", "providers*"]
+include = ["core*", "domains*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

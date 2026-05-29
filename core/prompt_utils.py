@@ -4,7 +4,7 @@ Prompt工具函数 - 契约笼子合规版
 
 统一所有领域的prompt加载方式，消除编码风格漂移。
 
-契约引用: cage/prompt_loading_standard.yaml
+契约引用: cage/active/ (see registry.yaml)
 版本: 1.0.0
 日期: 2026-05-01
 """

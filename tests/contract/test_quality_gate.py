@@ -1,10 +1,10 @@
 """契约测试 - quality_gate模块.
 
-验证QualityGate是否符合cage/quality_gate.yaml契约规范.
+验证QualityGate是否符合cage/active/ (see quality gate contract)契约规范.
 """
 
 import pytest
-from quality_gate import QualityGate, GateDecision, ConvergenceResult, QualityReport
+from core.quality.quality_gate import QualityGate, GateDecision, QualityReport
 
 
 class TestQualityGateContract:

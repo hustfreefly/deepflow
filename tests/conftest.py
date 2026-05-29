@@ -110,52 +110,42 @@ def sample_session_id() -> str:
 # 模拟 Fixtures
 # =============================================================================
 
-@pytest.fixture
-def mock_coordinator() -> Mock:
-    """提供模拟的 Coordinator 实例."""
-    from coordinator import Coordinator
-    mock = Mock(spec=Coordinator)
-    mock.start = Mock(return_value=Mock(
-        state="RUNNING",
-        session_id="test-session-001",
-        is_completed=False,
-        is_waiting_agent=False,
-    ))
-    mock.resume = Mock(return_value=Mock(
-        state="COMPLETED",
-        session_id="test-session-001",
-        is_completed=True,
-    ))
-    return mock
-
-
-@pytest.fixture
-def mock_quality_gate() -> Mock:
-    """提供模拟的 QualityGate 实例."""
-    from quality_gate import QualityGate, QualityReport, GateDecision
-    mock = Mock(spec=QualityGate)
-    mock.evaluate = Mock(return_value=QualityReport(
-        overall_score=0.85,
-        dimensions={"accuracy": 0.9, "completeness": 0.8, "depth": 0.85, "elegance": 0.8},
-        decision=GateDecision.PASS,
-        reasoning="测试通过",
-    ))
-    return mock
-
-
-@pytest.fixture
-def mock_blackboard_manager() -> Mock:
-    """提供模拟的 BlackboardManager 实例."""
-    mock = Mock()
-    mock.create_session = Mock(return_value="test-session-001")
-    mock.get_session = Mock(return_value={
-        "session_id": "test-session-001",
-        "state": "RUNNING",
-        "tasks": [],
-    })
-    mock.update_session = Mock(return_value=True)
-    mock.delete_session = Mock(return_value=True)
-    return mock
+# ⚠️ 以下 fixture 引用已删除/重命名的模块，暂时禁用
+# 待测试迁移后重新启用
+#
+# @pytest.fixture
+# def mock_coordinator() -> Mock:
+#     """提供模拟的 Coordinator 实例."""
+#     # Coordinator 已迁移到 core/orchestrator/
+#     pass
+#
+# @pytest.fixture
+# def mock_quality_gate() -> Mock:
+#     """提供模拟的 QualityGate 实例."""
+#     from core.quality.quality_gate import QualityGate, QualityReport, GateDecision
+#     mock = Mock(spec=QualityGate)
+#     mock.evaluate = Mock(return_value=QualityReport(
+#         overall_score=0.85,
+#         dimensions={"accuracy": 0.9, "completeness": 0.8, "depth": 0.85, "elegance": 0.8},
+#         decision=GateDecision.PASS,
+#         reasoning="测试通过",
+#     ))
+#     return mock
+#
+# @pytest.fixture
+# def mock_blackboard_manager() -> Mock:
+#     """提供模拟的 BlackboardManager 实例."""
+#     from core.blackboard.blackboard_manager import BlackboardManager
+#     mock = Mock()
+#     mock.create_session = Mock(return_value="test-session-001")
+#     mock.get_session = Mock(return_value={
+#         "session_id": "test-session-001",
+#         "state": "RUNNING",
+#         "tasks": [],
+#     })
+#     mock.update_session = Mock(return_value=True)
+#     mock.delete_session = Mock(return_value=True)
+#     return mock
 
 
 # =============================================================================
@@ -225,28 +215,9 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture
-async def async_mock_coordinator():
-    """提供异步模拟 Coordinator."""
-    from coordinator import Coordinator
-    mock = Mock(spec=Coordinator)
-    
-    async def async_start(*args, **kwargs):
-        return Mock(
-            state="RUNNING",
-            session_id="test-session-001",
-            is_completed=False,
-            is_waiting_agent=True,
-            pending_requests=[],
-        )
-    
-    async def async_resume(*args, **kwargs):
-        return Mock(
-            state="COMPLETED",
-            session_id="test-session-001",
-            is_completed=True,
-        )
-    
-    mock.start = async_start
-    mock.resume = async_resume
-    return mock
+# ⚠️ 以下 fixture 引用已删除的 Coordinator，暂时禁用
+#
+# @pytest.fixture
+# async def async_mock_coordinator():
+#     """提供异步模拟 Coordinator."""
+#     pass
