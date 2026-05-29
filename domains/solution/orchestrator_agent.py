@@ -511,7 +511,7 @@ class SolutionOrchestratorV21:
         execution_plan_path = f"{self.base_path}/execution_plan.json"
 
         # Step 2: 使用 EntryHarness 初始化并创建 PipelineOrchestrator
-        from core.entry_harness import EntryHarness
+        from core.quality.entry_harness import EntryHarness
         harness = EntryHarness()
 
         orchestrator = harness.validate_and_start(

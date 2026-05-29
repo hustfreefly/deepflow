@@ -1,6 +1,6 @@
 # ============================================================
 # 投资领域数据采集配置
-# 文件: config/data_sources/investment.yaml
+# 文件: domains/investment/config/investment.yaml
 # ============================================================
 
 domain: investment

@@ -21,7 +21,7 @@ from core.config.path_config import PathConfig
 
 sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
-from core.cage_loader import CageLoader
+from core.cage.cage_loader import CageLoader
 
 
 # ============================================================================

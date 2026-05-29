@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict
 
-from core.data_manager import DataProvider, DataQuery, DataResult, DataFinding, Observability
+from core.data.data_manager import DataProvider, DataQuery, DataResult, DataFinding, Observability
 
 logger = Observability.get_logger("investment_providers")
 
@@ -257,7 +257,7 @@ class WebFetchProvider(DataProvider):
 
 def register_providers():
     """注册所有投资领域 Provider"""
-    from core.data_manager import ProviderRegistry
+    from core.data.data_manager import ProviderRegistry
 
     ProviderRegistry.register("akshare", AKShareProvider())
     ProviderRegistry.register("sina_finance", SinaProvider())

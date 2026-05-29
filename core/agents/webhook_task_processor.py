@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from frontend.backend.database import get_db, Task
 
 # DeepFlow imports
-from core.entry_harness import EntryHarness
+from core.quality.entry_harness import EntryHarness
 
 # OpenClaw tool (injected by Main Agent or resolved at runtime)
 _spawn_fn: Optional[callable] = None

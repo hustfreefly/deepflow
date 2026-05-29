@@ -9,12 +9,12 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
 from core.config.path_config import PathConfig
-from core.entry_harness import EntryHarness
+from core.quality.entry_harness import EntryHarness
 
 sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
-from core.cage_loader import CageLoader
-from core.cage_validator import CageValidator
+from core.cage.cage_loader import CageLoader
+from core.cage.cage_validator import CageValidator
 
 
 @dataclass

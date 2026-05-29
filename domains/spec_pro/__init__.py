@@ -13,7 +13,7 @@ Public API:
 契约: cage/spec_pro_v2.0.yaml
 """
 
-from core.spec_pro.coordinator import SpecProCoordinator
-from core.spec_pro.models import LivingSpec, QualityLevel, Scenario
+from domains.spec_pro.coordinator import SpecProCoordinator
+from domains.spec_pro.models import LivingSpec, QualityLevel, Scenario
 
 __all__ = ["SpecProCoordinator", "LivingSpec", "QualityLevel", "Scenario"]

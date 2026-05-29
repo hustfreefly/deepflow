@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.config.path_config import PathConfig
-from core.blackboard_manager import BlackboardManager
+from core.blackboard.blackboard_manager import BlackboardManager
 
 _DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 

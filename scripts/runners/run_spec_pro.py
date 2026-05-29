@@ -24,7 +24,7 @@ from core.config.path_config import PathConfig
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 sys.path.insert(0, DEEPFLOW_BASE)
 
-from core.spec_pro import SpecProCoordinator, LivingSpec
+from domains.spec_pro import SpecProCoordinator, LivingSpec
 
 
 def run_spec_pro(user_input: str, mode: str = "standard", scenario: str = "genesis") -> dict:

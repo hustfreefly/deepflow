@@ -32,7 +32,7 @@ from core.config.path_config import PathConfig
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 sys.path.insert(0, DEEPFLOW_BASE)
 
-from core.spec_pro import SpecProCoordinator
+from domains.spec_pro import SpecProCoordinator
 
 
 def save_coord_state(coord: SpecProCoordinator) -> str:
@@ -78,7 +78,7 @@ def reconstruct_coord(state: dict) -> SpecProCoordinator:
     修复: __init__ 会正确初始化 _config（通过 mode），
     然后恢复被序列化的状态字段。
     """
-    from core.spec_pro.models import DialogState
+    from domains.spec_pro.models import DialogState
 
     coord = SpecProCoordinator(
         scenario=state["scenario"],

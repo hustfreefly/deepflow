@@ -94,7 +94,7 @@ def build_data_manager_task(session_id: str, company_code: str, company_name: st
 import sys, os, json
 sys.path.insert(0, "{DEEPFLOW_BASE}/")
 
-from core.data_manager_worker import DataManagerWorker
+from core.data.data_manager_worker import DataManagerWorker
 
 # 初始化 Worker
 worker = DataManagerWorker(

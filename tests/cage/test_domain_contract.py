@@ -10,7 +10,7 @@ import os
 import unittest
 
 sys.path.insert(0, str(PathConfig.resolve().base_dir))
-from core.cage_validator import CageValidator, ValidationResult
+from core.cage.cage_validator import CageValidator, ValidationResult
 
 
 class TestDomainContract(unittest.TestCase):

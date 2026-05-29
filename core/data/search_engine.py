@@ -9,7 +9,7 @@ SearchEngine - DeepFlow 统一搜索接口（方案C：混合模式）
 - 无配置时自动检测并智能排序
 
 使用方式：
-    from core.search_engine import SearchEngine
+    from core.data.search_engine import SearchEngine
     
     search = SearchEngine(domain="investment")
     results = search.search("中芯国际 2026年 业绩")
@@ -435,7 +435,7 @@ def get_search_tools_prompt() -> str:
         if name == "gemini":
             lines.append(f"1. **Gemini Search** (weight={weight}) - 使用 Gemini 2.5 Flash 模型 + Google 搜索增强")
             lines.append(f"   - 特点: {features}")
-            lines.append(f"   - 使用: `from core.search_engine import SearchEngine; search = SearchEngine(); results = search.search('查询')`")
+            lines.append(f"   - 使用: `from core.data.search_engine import SearchEngine; search = SearchEngine(); results = search.search('查询')`")
         elif name == "duckduckgo":
             lines.append(f"2. **DuckDuckGo** (weight={weight}) - 免费匿名搜索引擎")
             lines.append(f"   - 特点: {features}")
@@ -453,7 +453,7 @@ def get_search_tools_prompt() -> str:
     lines.append("```python")
     lines.append("import sys")
     lines.append(f'sys.path.insert(0, "{DEEPFLOW_BASE}")')
-    lines.append("from core.search_engine import SearchEngine")
+    lines.append("from core.data.search_engine import SearchEngine")
     lines.append("")
     lines.append("search = SearchEngine(domain='investment')  # 投资领域自动优化")
     lines.append("results = search.search('你的查询', max_results=5)")

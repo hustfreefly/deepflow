@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from core.observability import Observability
+from core.quality.observability import Observability
 
 
 logger = Observability.get_logger("quality_gate")

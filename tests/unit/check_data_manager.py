@@ -207,7 +207,7 @@ def check_investment_provider():
 
 def check_yaml_config():
     """验证 YAML 配置文件"""
-    yaml_file = DEEPFLOW_DIR / "config/config/config/data_sources/investment.yaml"
+    yaml_file = DEEPFLOW_DIR / "domains/investment/config/investment.yaml"
     if not yaml_file.exists():
         print("❌ FAIL: investment.yaml 不存在")
         return False

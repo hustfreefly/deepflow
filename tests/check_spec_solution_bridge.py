@@ -83,7 +83,7 @@ check("SolutionOrchestratorV21 构造调用包含 living_spec",
 print("\n=== 5. 向后兼容（运行时测试） ===")
 
 # 模拟不传 spec_session_id 的情况
-from core.entry_harness import EntryHarness
+from core.quality.entry_harness import EntryHarness
 
 eh = EntryHarness()
 # validate_and_start 需要 spawn_fn，我们只测试 _generate_execution_plan 的兼容性

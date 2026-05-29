@@ -121,8 +121,8 @@ class DataManagerWorker:
         try:
             # 导入 DeepFlow 模块
             from core.data_providers.investment import register_providers
-            from core.data_manager import DataEvolutionLoop, ConfigDrivenCollector
-            from core.blackboard_manager import BlackboardManager
+            from core.data.data_manager import DataEvolutionLoop, ConfigDrivenCollector
+            from core.blackboard.blackboard_manager import BlackboardManager
             
             # 注册数据源
             self.log("  注册数据源...")
@@ -202,7 +202,7 @@ class DataManagerWorker:
     def unified_search(self, query: str, max_retries: int = 2) -> Dict[str, Any]:
         """统一搜索接口（使用SearchEngine）"""
         try:
-            from core.search_engine import SearchEngine
+            from core.data.search_engine import SearchEngine
             
             search = SearchEngine(domain="investment")
             results = search.search(query, max_results=5)

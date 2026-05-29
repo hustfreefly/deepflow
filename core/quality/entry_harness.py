@@ -20,8 +20,8 @@ import os
 from typing import Any, Dict
 
 from core.config.path_config import PathConfig
-from core.blackboard_manager import BlackboardManager
-from core.pipeline_orchestrator import PipelineOrchestrator
+from core.blackboard.blackboard_manager import BlackboardManager
+from core.orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
 _DEEPFLOW_BASE = PathConfig.resolve().base_dir
 

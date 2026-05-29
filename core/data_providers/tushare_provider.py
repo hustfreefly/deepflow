@@ -13,7 +13,7 @@ import json
 from datetime import datetime
 from typing import Any, Dict
 
-from core.data_manager import DataProvider, DataQuery, DataResult, DataFinding, Observability
+from core.data.data_manager import DataProvider, DataQuery, DataResult, DataFinding, Observability
 
 logger = Observability.get_logger("tushare_provider")
 
@@ -218,5 +218,5 @@ class TushareProvider(DataProvider):
 # 自动注册
 def register():
     """注册 Tushare Provider"""
-    from core.data_manager import ProviderRegistry
+    from core.data.data_manager import ProviderRegistry
     ProviderRegistry.register("tushare", TushareProvider())

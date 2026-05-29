@@ -31,13 +31,13 @@ _DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 sys.path.insert(0, _DEEPFLOW_BASE)
 
 from core.config_loader import ConfigLoader
-from core.data_manager import (
+from core.data.data_manager import (
     ConfigDrivenCollector,
     DataEvolutionLoop,
     ProviderRegistry,
 )
-from core.blackboard_manager import BlackboardManager
-from core.quality_gate import QualityGate
+from core.blackboard.blackboard_manager import BlackboardManager
+from core.quality.quality_gate import QualityGate
 import uuid
 import json
 import os
@@ -57,7 +57,7 @@ class InvestmentOrchestrator:
     ┌─────────────────────────────────────────────┐
     │ run(context)                                │
     │   ├── STEP 1: DataManager bootstrap 采集     │
-    │   │     ├── 加载 config/config/config/data_sources/investment.yaml│
+    │   │     ├── 加载 domains/investment/config/investment.yaml│
     │   │     ├── ConfigDrivenCollector            │
     │   │     ├── DataEvolutionLoop.bootstrap()   │
     │   │     └── 验证: blackboard/{session}/data/INDEX.json │
@@ -320,13 +320,13 @@ class InvestmentOrchestrator:
         
         契约依据：
         - cage/stage_data_collection.yaml（数据采集阶段契约）
-        - config/config/config/data_sources/investment.yaml（数据源配置）
+        - domains/investment/config/investment.yaml（数据源配置）
         - V1_BLUEPRINT.md §1.3（DataManager 作为 Python 辅助模块）
         
         R2 Fix: URL 占位符替换，确保 context 中包含 exchange/code_num 等变量。
         
         流程：
-        1. 加载 config/config/config/data_sources/investment.yaml
+        1. 加载 domains/investment/config/investment.yaml
         2. 创建 ConfigDrivenCollector
         3. 创建 DataEvolutionLoop
         4. R2 Fix: 替换 URL 占位符
@@ -341,7 +341,7 @@ class InvestmentOrchestrator:
                 verification: {index: bool, financials: bool, market: bool}
             }
         """
-        config_path = os.path.join(_DEEPFLOW_BASE, "data_sources", "investment.yaml")
+        config_path = os.path.join(_DEEPFLOW_BASE, "domains", "investment", "config", "investment.yaml")
         
         # 1. 创建 ConfigDrivenCollector
         collector = ConfigDrivenCollector(config_path=config_path)
@@ -443,7 +443,7 @@ class InvestmentOrchestrator:
         
         契约依据：
         - domains/investment.yaml search_priority（搜索工具优先级）
-        - config/config/config/data_sources/investment.yaml dynamic_rules（动态补充规则）
+        - domains/investment/config/investment.yaml dynamic_rules（动态补充规则）
         - cage/domain_investment.yaml behavior.stages.required_order[1] = "search"
         
         P0-4 修复：调用 Gemini CLI 执行真实搜索，不再使用 placeholder。
@@ -1368,7 +1368,7 @@ print(f"Output written to {{output_path}}")
         print(f"  [DataManager] Attempting non-tushare data collection...")
         
         # 重新初始化 collector，排除 tushare 任务
-        config_path = os.path.join(_DEEPFLOW_BASE, "data_sources", "investment.yaml")
+        config_path = os.path.join(_DEEPFLOW_BASE, "domains", "investment", "config", "investment.yaml")
         collector = ConfigDrivenCollector(config_path=config_path)
         
         # 过滤掉 tushare 相关的 bootstrap 任务
@@ -1410,7 +1410,7 @@ print(f"Output written to {{output_path}}")
             搜索结果字典
         """
         try:
-            from core.search_engine import SearchEngine
+            from core.data.search_engine import SearchEngine
             
             # 初始化 SearchEngine（investment domain）
             search = SearchEngine(domain="investment")

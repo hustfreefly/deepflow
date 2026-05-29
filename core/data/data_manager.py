@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from core.observability import Observability
+from core.quality.observability import Observability
 
 logger = Observability.get_logger("data_manager")
 

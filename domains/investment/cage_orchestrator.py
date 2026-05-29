@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.config.path_config import PathConfig
-from core.blackboard_manager import BlackboardManager
-from core.entry_harness import EntryHarness
+from core.blackboard.blackboard_manager import BlackboardManager
+from core.quality.entry_harness import EntryHarness
 
 _DEEPFLOW_BASE = Path(PathConfig.resolve().base_dir)
 

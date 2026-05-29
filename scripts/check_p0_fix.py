@@ -58,7 +58,7 @@ def check_master_agent():
     print("\n[Check] Master Agent 功能")
     
     try:
-        from core.master_agent import init_session, generate_tasks, save_tasks
+        from core.orchestrator.master_agent import init_session, generate_tasks, save_tasks
         
         # 测试初始化
         session_id = init_session("688981.SH", "中芯国际", "半导体制造")

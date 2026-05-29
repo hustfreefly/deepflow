@@ -20,14 +20,14 @@ def step1_bootstrap():
     try:
         # 直接导入具体模块，避免 __init__.py 的循环依赖
         from core.data_providers.investment import register_providers
-        from core.data_manager import DataEvolutionLoop, ConfigDrivenCollector
-        from core.blackboard_manager import BlackboardManager
+        from core.data.data_manager import DataEvolutionLoop, ConfigDrivenCollector
+        from core.blackboard.blackboard_manager import BlackboardManager
         
         # 注册数据源
         register_providers()
         
         # 初始化采集器
-        config_path = "/Users/allen/.openclaw/workspace/.deepflow/config/config/data_sources/investment.yaml"
+        config_path = "/Users/allen/.openclaw/workspace/.deepflow/domains/investment/config/investment.yaml"
         collector = ConfigDrivenCollector(config_path)
         
         # 初始化 Blackboard

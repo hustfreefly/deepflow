@@ -24,7 +24,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from core.config.path_config import PathConfig
-from core.spec_pro.models import (
+from domains.spec_pro.models import (
     DialogState,
     LivingSpec,
     MODE_CONFIG,
@@ -345,7 +345,7 @@ class SpecProCoordinator:
         """
         构建 Orchestrator Worker task prompt.
 
-        从 prompts/spec_pro/orchestrator.md 读取基础 Prompt,
+        从 domains/spec_pro/prompts/orchestrator.md 读取基础 Prompt,
         注入上下文变量(session_id, base_path, round, phase, etc.).
         """
         from core.prompt_registry import read_prompt
@@ -396,7 +396,7 @@ class SpecProCoordinator:
 使用 sessions_spawn 创建 ParseWorker:
 - runtime: "subagent"
 - mode: "run"
-- task: 读取 prompts/spec_pro/parse.md 的内容作为 task,并注入以下上下文:
+- task: 读取 domains/spec_pro/prompts/parse.md 的内容作为 task,并注入以下上下文:
   - 读取文件: {Blackboard}/spec/input.md
   - 写入文件: {Blackboard}/stages/round_01_parse.json
   - 写入文件: {Blackboard}/spec/living_spec.json
@@ -412,11 +412,11 @@ test -f {Blackboard}/stages/round_01_parse.json && echo EXISTS || echo MISSING
 ```
 如果输出 MISSING,执行:
 ```
-python3 .deepflow/core/spec_pro/worker_fallback.py parse {Blackboard}/stages/round_01_parse.json
+python3 .deepflow/domains/spec_pro/worker_fallback.py parse {Blackboard}/stages/round_01_parse.json
 ```
 
 ## Step 2: spawn AssessWorker
-- task: 读取 prompts/spec_pro/assess.md 的内容,注入上下文:
+- task: 读取 domains/spec_pro/prompts/assess.md 的内容,注入上下文:
   - 读取: {Blackboard}/spec/living_spec.json
   - 写入: {Blackboard}/spec/quality_report.json
 - timeoutSeconds: 180
@@ -426,11 +426,11 @@ python3 .deepflow/core/spec_pro/worker_fallback.py parse {Blackboard}/stages/rou
 ## Step 2.5: Worker 存在性检查
 如果 spec/quality_report.json 不存在:
 ```
-python3 .deepflow/core/spec_pro/worker_fallback.py assess {Blackboard}/spec/quality_report.json
+python3 .deepflow/domains/spec_pro/worker_fallback.py assess {Blackboard}/spec/quality_report.json
 ```
 
 ## Step 3: spawn QuestionWorker
-- task: 读取 prompts/spec_pro/guide.md 的内容,注入上下文:
+- task: 读取 domains/spec_pro/prompts/guide.md 的内容,注入上下文:
   - 读取: {Blackboard}/spec/living_spec.json
   - 读取: {Blackboard}/spec/quality_report.json
   - 写入: {Blackboard}/stages/round_01_questions.json
@@ -441,7 +441,7 @@ python3 .deepflow/core/spec_pro/worker_fallback.py assess {Blackboard}/spec/qual
 ## Step 3.5: Worker 存在性检查
 如果 stages/round_01_questions.json 不存在:
 ```
-python3 .deepflow/core/spec_pro/worker_fallback.py question {Blackboard}/stages/round_01_questions.json
+python3 .deepflow/domains/spec_pro/worker_fallback.py question {Blackboard}/stages/round_01_questions.json
 ```
 
 ## Step 4: 汇总
@@ -463,7 +463,7 @@ python3 .deepflow/core/spec_pro/worker_fallback.py question {Blackboard}/stages/
 ## Step 5: 更新 quality_trajectory.json
 执行以下命令追加轨迹记录:
 ```
-python3 .deepflow/core/spec_pro/worker_fallback.py append_trajectory {Blackboard} 1 [quality_report.json 的 overall_score] [quality_report.json 的 level] [questions.json 中 questions 数组长度]
+python3 .deepflow/domains/spec_pro/worker_fallback.py append_trajectory {Blackboard} 1 [quality_report.json 的 overall_score] [quality_report.json 的 level] [questions.json 中 questions 数组长度]
 ```
 
 轨迹条目格式:
@@ -491,7 +491,7 @@ python3 .deepflow/core/spec_pro/worker_fallback.py append_trajectory {Blackboard
 上轮问题在: {{Blackboard}}/stages/round_{pp}_questions.json
 
 ## Step 1: spawn ResponseWorker
-- task: 读取 prompts/spec_pro/parse_response.md,注入上下文:
+- task: 读取 domains/spec_pro/prompts/parse_response.md,注入上下文:
   - 读取: {{Blackboard}}/spec/living_spec.json
   - 读取: {{Blackboard}}/spec/user_response_round_{prev_round}.md
   - 读取: {{Blackboard}}/stages/round_{pp}_questions.json
@@ -501,13 +501,13 @@ python3 .deepflow/core/spec_pro/worker_fallback.py append_trajectory {Blackboard
 ## Step 1.5: Worker 存在性检查
 如果 stages/round_{nn}_response.json 不存在:
 ```
-python3 .deepflow/core/spec_pro/worker_fallback.py response {{Blackboard}}/stages/round_{nn}_response.json
+python3 .deepflow/domains/spec_pro/worker_fallback.py response {{Blackboard}}/stages/round_{nn}_response.json
 ```
 
 ## Step 2: 合并 living_spec.json(代码化,不靠 LLM)
 执行以下命令合并:
 ```
-python3 .deepflow/core/spec_pro/merge_spec.py {{Blackboard}}/stages/round_{nn}_response.json {{Blackboard}}/spec/living_spec.json
+python3 .deepflow/domains/spec_pro/merge_spec.py {{Blackboard}}/stages/round_{nn}_response.json {{Blackboard}}/spec/living_spec.json
 ```
 该脚本会按 writer_protocol 规则合并:
 - confirmed 层: 追加新项,不删除已有项
@@ -516,7 +516,7 @@ python3 .deepflow/core/spec_pro/merge_spec.py {{Blackboard}}/stages/round_{nn}_r
 - 矛盾处理: 保留两者并标注 contradiction
 
 ## Step 3: spawn AssessWorker
-- task: 读取 prompts/spec_pro/assess.md,注入上下文:
+- task: 读取 domains/spec_pro/prompts/assess.md,注入上下文:
   - 读取: {{Blackboard}}/spec/living_spec.json
   - 写入: {{Blackboard}}/spec/quality_report.json
 - timeoutSeconds: 180
@@ -524,13 +524,13 @@ python3 .deepflow/core/spec_pro/merge_spec.py {{Blackboard}}/stages/round_{nn}_r
 ## Step 3.5: Worker 存在性检查
 如果 spec/quality_report.json 不存在:
 ```
-python3 .deepflow/core/spec_pro/worker_fallback.py assess {{Blackboard}}/spec/quality_report.json
+python3 .deepflow/domains/spec_pro/worker_fallback.py assess {{Blackboard}}/spec/quality_report.json
 ```
 
 ## Step 4: Process Guard 检查
 执行以下命令检查质量轨迹:
 ```
-python3 .deepflow/core/spec_pro/process_guard.py {{Blackboard}} {round_num}
+python3 .deepflow/domains/spec_pro/process_guard.py {{Blackboard}} {round_num}
 ```
 该脚本读取 quality_trajectory.json,检查 progress_rate / inference_integrity / conversation_balance.
 如果发现异常,输出调整指令文本;否则输出空.
@@ -538,7 +538,7 @@ python3 .deepflow/core/spec_pro/process_guard.py {{Blackboard}} {round_num}
 ## Step 5: 更新 quality_trajectory.json
 执行以下命令追加轨迹记录:
 ```
-python3 .deepflow/core/spec_pro/worker_fallback.py append_trajectory {{Blackboard}} {round_num} [quality_report.json overall_score] [quality_report.json level] [上轮 questions 数量] [推断确认数]
+python3 .deepflow/domains/spec_pro/worker_fallback.py append_trajectory {{Blackboard}} {round_num} [quality_report.json overall_score] [quality_report.json level] [上轮 questions 数量] [推断确认数]
 ```
 轨迹条目格式:
 ```json
@@ -550,7 +550,7 @@ python3 .deepflow/core/spec_pro/worker_fallback.py append_trajectory {{Blackboar
 
 ### 如果 overall_score >= {threshold}:
 spawn HarnessWorker:
-- task: 读取 prompts/spec_pro/harness.md,注入上下文:
+- task: 读取 domains/spec_pro/prompts/harness.md,注入上下文:
   - 读取: {{Blackboard}}/spec/living_spec.json
   - 读取: {{Blackboard}}/spec/quality_report.json
   - 读取: {{Blackboard}}/spec/conversation_log.json
@@ -563,19 +563,19 @@ spawn HarnessWorker:
 ## Step 6.5: HarnessWorker 存在性检查
 如果 spec/harness_report.json 不存在:
 ```
-python3 .deepflow/core/spec_pro/worker_fallback.py harness {{Blackboard}}/spec/harness_report.json
+python3 .deepflow/domains/spec_pro/worker_fallback.py harness {{Blackboard}}/spec/harness_report.json
 ```
 
 读取 harness_report.json 的 final_decision:
 - PASS 或 WARN -> spawn StructureWorker:
-  - task: 读取 prompts/spec_pro/structure.md,注入上下文:
+  - task: 读取 domains/spec_pro/prompts/structure.md,注入上下文:
     - 读取: {{Blackboard}}/spec/living_spec.json
     - 读取: {{Blackboard}}/spec/quality_report.json
     - 写入: {{Blackboard}}/spec/round_result.json
     - action: "summary" (WARN时在round_result中添加 "harness_warning": true)
   - timeoutSeconds: 180
 - SOFT_BLOCK 或 HARD_BLOCK -> spawn QuestionWorker:
-  - task: 读取 prompts/spec_pro/guide.md,注入上下文:
+  - task: 读取 domains/spec_pro/prompts/guide.md,注入上下文:
     - 读取: {{Blackboard}}/spec/living_spec.json
     - 读取: {{Blackboard}}/spec/quality_report.json
     - 写入: {{Blackboard}}/stages/round_{nn}_questions.json
@@ -584,7 +584,7 @@ python3 .deepflow/core/spec_pro/worker_fallback.py harness {{Blackboard}}/spec/h
 
 ### 如果 overall_score < {threshold}:
 spawn QuestionWorker:
-- task: 读取 prompts/spec_pro/guide.md,注入上下文:
+- task: 读取 domains/spec_pro/prompts/guide.md,注入上下文:
   - 读取: {{Blackboard}}/spec/living_spec.json
   - 读取: {{Blackboard}}/spec/quality_report.json
   - 写入: {{Blackboard}}/stages/round_{nn}_questions.json
@@ -619,7 +619,7 @@ spawn QuestionWorker:
 
 ## 如果 action = "confirm":
 spawn StructureWorker:
-- task: 读取 prompts/spec_pro/structure.md,注入上下文:
+- task: 读取 domains/spec_pro/prompts/structure.md,注入上下文:
   - 读取: {Blackboard}/spec/living_spec.json
   - 读取: {Blackboard}/spec/quality_report.json
   - 读取: {Blackboard}/spec/harness_report.json(如果存在)
@@ -632,12 +632,12 @@ spawn StructureWorker:
 1. 合并修正内容到 living_spec.json:
    执行命令:
    ```
-   python3 .deepflow/core/spec_pro/merge_spec.py --revisions {Blackboard}/spec/user_confirmation.md {Blackboard}/spec/living_spec.json
+   python3 .deepflow/domains/spec_pro/merge_spec.py --revisions {Blackboard}/spec/user_confirmation.md {Blackboard}/spec/living_spec.json
    ```
    该脚本读取 user_confirmation.md 中的 revisions 数组,逐条更新到 living_spec.json 的 confirmed 层对应字段.
 
 2. spawn AssessWorker(重新评估):
-   - task: 读取 prompts/spec_pro/assess.md,注入上下文:
+   - task: 读取 domains/spec_pro/prompts/assess.md,注入上下文:
      - 读取: {Blackboard}/spec/living_spec.json
      - 写入: {Blackboard}/spec/quality_report.json
    - timeoutSeconds: 180
@@ -645,7 +645,7 @@ spawn StructureWorker:
 3. AssessWorker 存在性检查:
    如果 spec/quality_report.json 不存在:
    ```
-   python3 .deepflow/core/spec_pro/worker_fallback.py assess {Blackboard}/spec/quality_report.json
+   python3 .deepflow/domains/spec_pro/worker_fallback.py assess {Blackboard}/spec/quality_report.json
    ```
 
 4. 读取 quality_report.json 的 overall_score:

@@ -23,7 +23,7 @@ DEEPFLOW_BASE = "/Users/allen/.openclaw/workspace/.deepflow"
 sys.path.insert(0, DEEPFLOW_BASE)
 
 # 复用 master_agent 的函数
-from core.master_agent import (
+from core.orchestrator.master_agent import (
     init_session,
     generate_tasks,
     save_tasks,
