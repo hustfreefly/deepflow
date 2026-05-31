@@ -340,7 +340,7 @@ domains:
           - name: all_outputs
       harness_final_v2:
         name: Solution Harness Final V2
-        filename: harness_final_v2.md
+        filename: reviewer_v2_harness.md
         version: 2.1.0
         role: harness
         author: deepflow-team
@@ -358,27 +358,6 @@ domains:
           optional:
           - name: solution_path
 
-
-        filename: reviewer_template.md
-        version: 1.0.0
-        role: reviewer
-        template: true
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 1.0.0
-          date: '2026-05-01'
-          changes:
-          - 初始版本
-        variables:
-          required:
-          - name: review_type
-          - name: review_focus
-          - name: input_plan
-          optional:
-          - name: constraints
-      
       harness_v3:
         name: Solution Harness V3
         filename: harness_v3.md
@@ -399,29 +378,6 @@ domains:
           - name: current_solution
           optional:
           - name: is_final
-      
-      harness_v3_enhanced:
-        name: Solution Harness V3 Enhanced
-        filename: harness_v3_enhanced.md
-        version: 1.0.0
-        role: harness
-        author: deepflow-team
-        created: '2026-05-02'
-        updated: '2026-05-02'
-        changelog:
-        - version: 1.0.0
-          date: '2026-05-02'
-          changes:
-          - 完整双维度评分Prompt
-          - 11个子项详细评分标准
-          - 防放水机制说明
-          - 明确write指令
-        variables:
-          required:
-          - name: solution
-          - name: quality_goals
-          - name: blackboard_path
-          - name: session_id
       
       consolidator:
         name: Solution Consolidator
@@ -541,30 +497,6 @@ domains:
           - name: CONSTRAINTS_TEXT
           - name: DEEPFLOW_BASE
           - name: SESSION_ID
-      fixer_with_audit:
-        name: Solution Fixer Agent (with Audit)
-        filename: fixer_with_audit.md
-        version: 2.0.0
-        role: fixer
-        subtype: with_audit
-        author: deepflow-team
-        created: '2026-04-27'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.0.0
-          date: '2026-05-01'
-          changes:
-          - 完善YAML元数据
-        - version: 1.0.0
-          date: '2026-04-27'
-          changes:
-          - 从硬编码提取
-        variables:
-          required:
-          - name: TOPIC
-          - name: AUDIT_PATH
-          - name: DEEPFLOW_BASE
-          - name: SESSION_ID
       deliver:
         name: Solution Deliver Agent
         filename: deliver.md
@@ -588,6 +520,25 @@ domains:
           - name: CONTEXT_JSON
           - name: DEEPFLOW_BASE
           - name: SESSION_ID
+      pipeline_orchestrator:
+        name: Solution Pipeline Orchestrator
+        filename: pipeline_orchestrator.md
+        version: 2.0.0
+        role: orchestrator
+        author: deepflow-team
+        created: '2026-04-27'
+        updated: '2026-05-31'
+        changelog:
+        - version: 2.0.0
+          date: '2026-05-31'
+          changes:
+          - 注册已存在的prompt文件
+        variables:
+          required:
+          - name: TOPIC
+          - name: SESSION_ID
+          - name: DEEPFLOW_BASE
+          optional: []
   investment:
     version: 2.0.0
     prompts:

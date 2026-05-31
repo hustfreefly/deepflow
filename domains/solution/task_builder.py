@@ -689,7 +689,7 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str) ->
     """构建 Fixer Task，从 audit.json 读取问题清单（P0 Fix + P3-002 fallback）"""
     # Phase 2: 尝试从文件读取prompt（优先），失败则使用硬编码兜底
     try:
-        prompt = read_prompt("solution/fixer_with_audit")
+        prompt = read_prompt("solution/fixer_v2_harness")
         # 替换模板变量
         prompt = prompt.replace("{{TOPIC}}", topic)
         prompt = prompt.replace("{{AUDIT_PATH}}", audit_path)
