@@ -14,6 +14,14 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# CodeGraph 运行时文件
+.codegraph/daemon.pid
+.codegraph/daemon.sock
+.codegraph/daemon.log
+
+# 测试结果（运行时产物）
+tests/results/*.json
+
 # IDE
 .vscode/
 .idea/
