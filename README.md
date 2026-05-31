@@ -1,10 +1,10 @@
 # DeepFlow
 
 > ⚠️ **Platform Dependency**: DeepFlow currently **only supports the OpenClaw platform**. Core scheduling depends on OpenClaw native APIs such as `sessions_spawn` / `sessions_yield`. Standalone execution or integration with other agent frameworks (e.g., AutoGen, LangChain, CrewAI) is not yet supported.
-> **Date**: 2026-05-06
-> **Status**: ✅ Phase 1 complete + PromptRegistry migration complete + Solution Pro V3.1 released
-> **Version**: 0.1.1
-> **Positioning**: DeepFlow is an **extensible multi-agent pipeline framework** that provides a general-purpose orchestration engine and quality gates. Domain-specific applications (e.g., Investment Analysis) are built on top of this framework.
+> **Date**: 2026-05-31
+> **Status**: ✅ Four-domain architecture complete: Spec Pro v2.3 + Solution Pro v3.2 + Investment + Research Pro
+> **Version**: 0.2.0
+> **Positioning**: DeepFlow is an **extensible multi-agent pipeline framework** that provides a general-purpose orchestration engine and quality gates. Domain-specific applications are built on top of this framework.
 
 ---
 
@@ -12,18 +12,50 @@
 
 DeepFlow is a **multi-agent collaborative automation pipeline** running on the **OpenClaw** platform.
 
-> **Architecture**: See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture design, including the original blueprint (Deep Dive V3.0) and analysis of deviations in the current implementation.
+> **Architecture**: See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture design.
+
+### Four-Domain Architecture
+
+| Domain | Version | Positioning | Description |
+|--------|---------|-------------|-------------|
+| **Spec Pro** | v2.3 | 需求梳理引擎 | 苏格拉底式对话收集需求，输出 Living Spec |
+| **Solution Pro** | v3.2 | 方案设计引擎 | 10 阶段管线：理解需求 → 并行研究/评审 → 整合审计 → 质量门禁输出方案 |
+| **Investment** | - | 投资分析引擎 | 投资研究管线：数据收集 → 多维分析 → 审计 → 投资简报 |
+| **Research Pro** | - | 深度研究引擎 | 多源搜索 → 分层研究 → 引用验证 → 研究报告 |
+
+### Domain Collaboration Flow
+
+```
+用户描述需求
+    ↓
+┌─────────────────┐
+│    Spec Pro     │  苏格拉底式对话
+│  (需求梳理)      │  → 输出 Living Spec
+└────────┬────────┘
+         ↓ Living Spec 交接
+┌─────────────────┐
+│  Solution Pro   │  10 阶段管线
+│  (方案设计)      │  → 输出 final_solution.md
+└─────────────────┘
+
+或独立使用:
+┌─────────────────┐     ┌─────────────────┐
+│   Investment    │     │   Research Pro  │
+│  (投资分析)      │     │  (深度研究)      │
+└─────────────────┘     └─────────────────┘
+```
 
 ### Core Capabilities
 
 | Capability | Description |
 |------------|-------------|
-| **Multi-Agent Pipeline** | 10-Stage full pipeline: Data Collection → Planning → Reviewers → Research → Consolidator → Audit → Fix → Harness Final → Summarizer |
-| **Quality Gates** | Harness V2: Completeness / Necessity / Target Consistency scoring at Planning + Final stages |
-| **Data-Driven** | DataManager Worker for unified data collection and search |
-| **Contract Validation** | Contract Cage verification framework |
+| **Four-Domain Architecture** | Spec Pro → Solution Pro → Investment → Research Pro |
+| **Multi-Agent Pipeline** | 10-Stage full pipeline with parallel workers and quality gates |
+| **Quality Gates** | Harness V3: Completeness / Necessity / Target Consistency / Global Impact |
+| **Living Spec Handoff** | Spec Pro → Solution Pro 无缝交接，需求自动传递 |
+| **Contract Cage** | 契约笼子验证框架，确保输出质量 |
 | **Fault Tolerance** | Worker failures do not block the pipeline |
-| **Configuration-Driven** | Domain YAML + Prompt Registry for extensibility
+| **Configuration-Driven** | Domain YAML + Prompt Registry for extensibility |
 
 ---
 
@@ -50,31 +82,17 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
                     ↓
 ┌──────────────────────────────────────────┐
 │      Domain Application Layer            │
-│  • Solution Pro (General-purpose)        │
-│  • Investment Analysis (Vertical)        │
+│  • Spec Pro (需求梳理)                    │
+│  • Solution Pro (方案设计)                │
+│  • Investment (投资分析)                  │
+│  • Research Pro (深度研究)                │
 └──────────────────────────────────────────┘
 ```
 
-**Execution Flow (Three-Layer)**:
-```
-Main Agent (depth-0)
-  └── sessions_spawn → EntryHarness (depth-1)
-        └── validate_and_start() → PipelineOrchestrator (depth-1)
-              ├── sessions_spawn → DataManager Worker (depth-2)
-              ├── sessions_spawn → Planner Worker (depth-2)
-              ├── sessions_spawn → Reviewers ×3 (parallel, depth-2)
-              ├── sessions_spawn → Researchers ×N (parallel, depth-2)
-              ├── sessions_spawn → Consolidator Worker (depth-2)
-              ├── sessions_spawn → Auditors ×3 (parallel, depth-2)
-              ├── sessions_spawn → Fixer Worker (depth-2)
-              ├── sessions_spawn → Harness Final Worker (depth-2)
-              └── sessions_spawn → Summarizer Worker (depth-2)
-```
-
 **Key Components**:
-- **EntryHarness** (`core/entry_harness.py`): Startup validation, configuration check, and execution plan generation.
-- **PipelineOrchestrator** (`core/pipeline_orchestrator.py`): Reads the execution plan and schedules Workers by phase.
-- **Three-Layer Separation**: EntryHarness handles startup, PipelineOrchestrator handles scheduling, and Workers handle execution.
+- **EntryHarness** (`core/entry_harness.py`): Startup validation, configuration check
+- **PipelineOrchestrator** (`core/pipeline_orchestrator.py`): Schedules Workers by phase
+- **Three-Layer Separation**: EntryHarness → PipelineOrchestrator → Workers
 
 ---
 
@@ -82,93 +100,92 @@ Main Agent (depth-0)
 
 | Dependency | Version | Notes |
 |:---|:---|:---|
-| **OpenClaw** | ≥ 2026.4.x | **Required**. Core scheduling depends on OpenClaw's `sessions_spawn` tool. |
+| **OpenClaw** | ≥ 2026.4.x | **Required**. Core scheduling depends on `sessions_spawn`. |
 | Python | 3.10+ | Runtime environment |
 | Node.js | 20+ | OpenClaw runtime requirement |
 
 ### Why OpenClaw is Required
 
-DeepFlow's Orchestrator uses `sessions_spawn` to create child agents, which is an OpenClaw native tool API. The current implementation has not abstracted the platform layer and cannot run independently without OpenClaw.
+DeepFlow's Orchestrator uses `sessions_spawn` to create child agents, which is an OpenClaw native tool API. The current implementation has not abstracted the platform layer.
 
 ### Future Plans
 
-- **Short-term**: Maintain OpenClaw exclusivity and deepen the Investment Analysis scenario.
-- **Medium-term**: Abstract an `AgentRuntime` interface to support multi-platform adaptation (OpenClaw / standalone Python / other frameworks).
-- **Long-term**: Fully decouple platform dependencies to become a general-purpose multi-agent pipeline engine.
+- **Short-term**: Deepen Spec Pro + Solution Pro integration, add more vertical domains
+- **Medium-term**: Abstract an `AgentRuntime` interface for multi-platform support
+- **Long-term**: Fully decouple platform dependencies
 
 ---
 
 ## Quick Start
 
-### Investment Module (Domain-Specific Application)
-
-```bash
-# Method 1: Unified entry (recommended)
-python3 tools/deepflow_cli.py --code 688981.SH --name SMIC --industry "Semiconductor Manufacturing"
-
-# Method 2: Python API (for integration)
-from domains.investment import InvestmentOrchestrator
-
-orch = InvestmentOrchestrator(spawn_fn=your_spawn_adapter)
-result = orch.run({
-    "code": "688981.SH",
-    "name": "SMIC"
-})
-```
-
-### Solution Pro Module (Core Framework)
+### Spec Pro (需求梳理)
 
 ```python
-from core.entry_harness import EntryHarness
+# 通过 OpenClaw 命令触发
+/spec-pro
 
-# Method 1: Launch full pipeline via EntryHarness (recommended)
-harness = EntryHarness()
-orchestrator = harness.validate_and_start(
-    domain="solution",
-    context={
-        "topic": "Design an intelligent logistics warehouse upgrade plan",
-        "solution_type": "architecture",
-        "constraints": ["Budget 5M", "Timeline 6 months"],
-        "stakeholders": ["Tech Team", "CFO"],
-        "session_prefix": "smart-warehouse",  # ← V3 short naming
-    },
-    spawn_fn=your_spawn_adapter,
-)
-result = orchestrator.run_pipeline()
-
-# Method 2: Direct SolutionOrchestratorV21 call (backward compatible)
-from domains.solution import SolutionOrchestratorV21
-import asyncio
-
-result = await SolutionOrchestratorV21.run(
-    topic="Design an intelligent logistics warehouse upgrade plan",
-    solution_type="architecture",
-    constraints=["Budget 5M", "Timeline 6 months"],
-    stakeholders=["Tech Team", "CFO"],
-    session_prefix="smart-warehouse",  # ← V3 short naming
-    spawn_fn=your_spawn_adapter,
-)
+# 或直接描述需求
+"帮我梳理需求：我要做一个 AI 算力调度平台"
 ```
 
-**New Features (V3 Naming Fix)**:
-- ✅ **Short session_prefix**: Supports explicit prefix input to avoid超长 session_id.
-- ✅ **Three-Layer Architecture**: EntryHarness → PipelineOrchestrator → Workers.
-- ✅ **Harness V2 Quality Gates**: Mid-term review (Reviewers) + Final gate (Harness Final).
-- ✅ **Layer 2 Constraint Validation**: Planning dynamically generates constraints; Researchers explicitly validate them.
-- ✅ **10-Stage Complete Pipeline**: Data Collection → Planning → Reviewers → Research → Consolidator → Audit → Fix → Harness Final → Summarizer.
+详见 [domains/spec_pro/SKILL.md](domains/spec_pro/_overview.md)
 
-**session_id Format**:
-- With prefix: `{prefix}_{type}_{hash8}` (e.g., `smart-warehouse_architecture_a1b2c3d4`)
-- Without prefix: `{topic_first_20_chars}_{type}_{hash8}`
-- Ensures length ≤ 50 characters.
+### Solution Pro (方案设计)
 
-See [docs/SOLUTION_PRO_MODE_DESIGN.md](docs/SOLUTION_PRO_MODE_DESIGN.md) for details.
+```python
+# 正确方式：通过 sessions_spawn 执行
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label="solution_pro",
+    task="""
+你是 DeepFlow Solution Pro Orchestrator Agent。
 
-### Force Rebuild
+任务: 设计一个智能物流仓储系统升级方案
+类型: architecture
+约束: 预算500万，周期6个月
+利益相关者: 技术团队，财务总监
+session_prefix: 智能仓储
+""",
+    timeout_seconds=1800
+)
+sessions_yield()  # 等待完成推送
+```
+
+**带 Living Spec（从 Spec Pro 传递）**:
+```python
+import json
+with open("blackboard/spec_xxx/spec/living_spec.json") as f:
+    living_spec = json.load(f)
+
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label="solution_pro",
+    task=f"""
+你是 DeepFlow Solution Pro Orchestrator Agent。
+任务: {living_spec['confirmed']['objective']}
+living_spec: {json.dumps(living_spec, ensure_ascii=False)}
+...""",
+    timeout_seconds=1800
+)
+sessions_yield()
+```
+
+详见 [domains/solution/SKILL.md](domains/solution/SKILL.md)
+
+### Investment (投资分析)
 
 ```bash
-python3 tools/deepflow_cli.py --code 688981.SH --name SMIC --force-rebuild
+# CLI 入口
+python3 tools/deepflow_cli.py --code 688981.SH --name SMIC --industry "Semiconductor Manufacturing"
 ```
+
+详见 [domains/investment/](domains/investment/)
+
+### Research Pro (深度研究)
+
+详见 [domains/research_pro/](domains/research_pro/)
 
 ---
 
@@ -177,73 +194,59 @@ python3 tools/deepflow_cli.py --code 688981.SH --name SMIC --force-rebuild
 ```
 .deepflow/
 ├── core/                      # Core framework modules
-│   ├── core/agents/                # Agent definitions (webhook_task_processor, cron_task_checker)
-│   ├── data_providers/        # Data source providers
-│   ├── orchestrators/         # Orchestrator implementations
+│   ├── agents/                # Agent utilities (spawn_resolver)
 │   ├── blackboard/            # Blackboard manager
-│   ├── config/                # Path configuration
 │   ├── cage/                  # Contract cage loader/validator
-│   ├── config/data/                  # Data manager
+│   ├── config/                # Path & data configuration
+│   ├── data/                  # Data manager
+│   ├── data_providers/        # Data source providers
+│   ├── orchestrator/          # Pipeline orchestrator
 │   ├── quality/               # Quality gate
-│   ├── spec_pro/              # Spec Pro module
-│   ├── master_agent.py        # Master Agent
-│   ├── task_builder.py        # Task Builder
-│   ├── data_manager_worker.py # DataManager
-│   ├── search_engine.py       # Unified search interface
-│   ├── config_loader.py       # Configuration loader
-│   ├── blackboard_manager.py  # Blackboard
-│   ├── pipeline_orchestrator.py  # ← Pipeline Orchestrator (depth-1)
-│   ├── entry_harness.py       # ← Entry/Startup Harness
-│   └── unified_entry.py       # Unified entry (uses EntryHarness)
-├── domains/                   # Domain-specific applications
-│   ├── investment/            # Investment Analysis (vertical scenario)
-│   └── solution/              # Solution Pro (core framework)
+│   └── search/                # Unified search interface
+├── domains/                   # Four domain applications
+│   ├── spec_pro/              # Spec Pro (需求梳理引擎)
+│   │   ├── prompts/           # Worker prompts (guide/assess/parse/structure)
+│   │   ├── coordinator.py     # Spec Pro Coordinator
+│   │   └── merge_spec.py      # Living Spec merge logic
+│   ├── solution/              # Solution Pro (方案设计引擎)
+│   │   ├── prompts/           # Worker prompts (planner/researcher/reviewer/...)
+│   │   ├── orchestrator_agent.py
+│   │   ├── task_builder.py
+│   │   └── SKILL.md           # Agent execution guide
+│   ├── investment/            # Investment (投资分析引擎)
+│   └── research_pro/          # Research Pro (深度研究引擎)
 ├── config/                    # Configuration files
-│   ├── config/data/                  # Search/output configuration
-│   ├── config/data_sources/          # Data source configurations
-│   ├── config/industries/            # Industry configurations
-│   └── pipelines/             # Pipeline configurations
-├── cage/                      # Contract Cage
+├── cage/                      # Contract Cage (契约笼子)
+├── contracts/                 # Integration contracts
+│   └── integration/           # Cross-domain contracts (spec_to_solution.md)
 ├── docs/                      # Documentation
-│   ├── design/                # Design documents
-│   ├── reference/             # Reference documents
-│   ├── archive/               # Archived documents
-│   ├── docs/research/              # Research documents
-│   ├── docs/reports/               # Reports
-│   └── ARCHITECTURE.md        # Architecture design documentation
-├── prompts/                   # Prompt templates
-├── scripts/                   # Scripts
-│   ├── ci/                    # CI scripts
-│   ├── runners/               # Runner scripts
-│   ├── maintenance/           # Maintenance scripts
-│   └── checks/                # Check scripts
-├── tests/                     # Tests
-│   ├── unit/                  # Unit tests
-│   ├── integration/           # Integration tests
-│   └── results/               # Test results
-├── tools/                     # Tools
-│   ├── deepflow_cli.py        # CLI tool
-│   └── spec_pro_api.py        # Spec Pro API
+│   ├── ARCHITECTURE.md
+│   ├── QUICKSTART.md
+│   └── ...
+├── prompts/                   # Prompt templates (symlinks to domains/*/prompts)
+├── scripts/                   # Scripts (ci/runners/maintenance/checks)
+├── tests/                     # Tests (unit/integration)
+├── tools/                     # CLI tools
 ├── frontend/                  # Frontend (independent project)
-├── skills/                    # Skills
 ├── blackboard/                # Runtime data (not versioned)
-├── README.md                  # Project documentation
+├── README.md                  # This file
 ├── CHANGELOG.md               # Change log
-├── DIRECTORY_STRUCTURE_CONTRACT.md  # Directory structure contract
-└── SKILL.md                   # Skill definition
+├── SKILL.md                   # DeepFlow skill definition
+└── .gitignore                 # Git ignore rules
 ```
 
-## Architecture Documents
+---
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Complete architecture design (blueprint vs. implementation)
-- [docs/SOLUTION_PRO_MODE_DESIGN.md](docs/SOLUTION_PRO_MODE_DESIGN.md) — Solution Pro detailed design
-- [docs/SOLUTION_MODULE_DESIGN.md](docs/SOLUTION_MODULE_DESIGN.md) — Solution module architecture
-- [docs/configuration.md](docs/configuration.md) — User configuration documentation
-- [docs/STANDARD_EXECUTION.md](docs/STANDARD_EXECUTION.md) — Investment Analysis standard execution flow
-- [docs/QUICKSTART.md](docs/QUICKSTART.md) — Quick start guide
-- [docs/harness_architecture_v2_final.md](docs/harness_architecture_v2_final.md) — Harness V2 quality gate design
-- [docs/PATH_DESIGN_SPEC.md](docs/PATH_DESIGN_SPEC.md) — PathConfig path management specification
-- [docs/CAGE_PREREQUISITE_BANS.md](docs/CAGE_PREREQUISITE_BANS.md) — Contract Cage prerequisite bans (**mandatory reading**)
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Complete architecture design |
+| [QUICKSTART.md](docs/QUICKSTART.md) | Quick start guide |
+| [Spec Pro SKILL](domains/spec_pro/_overview.md) | Spec Pro execution guide |
+| [Solution Pro SKILL](domains/solution/SKILL.md) | Solution Pro execution guide |
+| [Spec → Solution Contract](contracts/integration/spec_to_solution.md) | Living Spec handoff contract |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
 
 ---
 
@@ -255,4 +258,5 @@ See [CHANGELOG.md](CHANGELOG.md)
 
 ## Development Standards
 
-- [docs/archive/DEVELOPMENT_RULES.md](docs/archive/DEVELOPMENT_RULES.md) and [docs/archive/CODING_STANDARDS.md](docs/archive/CODING_STANDARDS.md)
+- [docs/archive/DEVELOPMENT_RULES.md](docs/archive/DEVELOPMENT_RULES.md)
+- [docs/archive/CODING_STANDARDS.md](docs/archive/CODING_STANDARDS.md)
