@@ -33,6 +33,7 @@ import json
 import re
 import unicodedata
 import glob
+import warnings
 
 from typing import Optional, List, Dict, Any, Callable
 
@@ -604,6 +605,9 @@ class SolutionOrchestratorV21:
         """
         执行完整 Solution 流程(Harness V2 完整闭环 - 默认执行方式)
 
+        .. deprecated:: 2026-05-31
+            此方法已废弃。请使用 domains/solution/SKILL.md 中的标准执行方式。
+
         这是 Solution Pro 的唯一执行入口,使用 EntryHarness + PipelineOrchestrator
         完整闭环:
         - EntryHarness 验证配置、初始化 Blackboard、生成执行计划
@@ -626,6 +630,13 @@ class SolutionOrchestratorV21:
         Returns:
             执行结果字典
         """
+        warnings.warn(
+            "SolutionOrchestratorV21.run() 已废弃 (2026-05-31)。"
+            "请使用 domains/solution/SKILL.md 中的标准执行方式。",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         orch = SolutionOrchestratorV21(
             topic=topic,
             solution_type=solution_type,
@@ -672,12 +683,22 @@ class SolutionOrchestratorV21:
         """
         传统执行方式(方式2,用于调试和向后兼容)
 
+        .. deprecated:: 2026-05-31
+            此方法已废弃。请使用 domains/solution/SKILL.md 中的标准执行方式。
+
         一次性生成所有任务,不执行Harness V2闭环。
         适用于快速查看任务结构或测试。
 
         Returns:
             任务配置字典
         """
+        warnings.warn(
+            "SolutionOrchestratorV21.run_legacy() 已废弃 (2026-05-31)。"
+            "请使用 domains/solution/SKILL.md 中的标准执行方式。",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         session_id = self.init()
         tasks = self.get_all_tasks()
         plan = self.save_execution_plan()
@@ -1033,7 +1054,19 @@ Worker自检: {json.dumps(worker_gates, ensure_ascii=False, indent=2)}
         return out
 
     def run_v3(self, spawn_fn: Callable = None) -> dict:
-        """V3完整执行入口"""
+        """
+        V3完整执行入口
+
+        .. deprecated:: 2026-05-31
+            此方法已废弃。请使用 domains/solution/SKILL.md 中的标准执行方式。
+        """
+        warnings.warn(
+            "SolutionOrchestratorV21.run_v3() 已废弃 (2026-05-31)。"
+            "请使用 domains/solution/SKILL.md 中的标准执行方式。",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         spawn = spawn_fn or self._spawn_fn
         if not spawn:
             raise RuntimeError("spawn_fn不可用")
