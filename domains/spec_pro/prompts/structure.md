@@ -36,6 +36,12 @@
 🔧 技术栈: [tech_stack]
 🔌 已有系统: [existing_systems]
 
+📌 用户指令:
+  🎯 对标参考: [benchmark_references]
+  🤝 设计委托: [design_delegations]
+  🔄 自适应需求: [adaptive_requirements]
+  ⭐ 质量优先级: [quality_priorities]
+
 ⚠️ 待确认推断: [pending inferred 数量]
 ```
 

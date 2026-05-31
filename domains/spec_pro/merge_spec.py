@@ -50,7 +50,7 @@ def merge_confirmed(spec: dict, updates: dict) -> None:
     for field in ["pain_points", "success_metrics", "key_scenarios"]:
         new_items = updates.get(field, [])
         if isinstance(new_items, list):
-            append_unique(confirmed.get(field, []), new_items)
+            append_unique(confirmed.setdefault(field, []), new_items)
 
     # users: merge by role
     new_users = updates.get("users", [])
@@ -65,12 +65,12 @@ def merge_confirmed(spec: dict, updates: dict) -> None:
     new_caps = updates.get("capabilities", {})
     caps = confirmed.setdefault("capabilities", {"always_do": [], "should_do": [], "never_do": []})
     for sub in ["always_do", "should_do", "never_do"]:
-        append_unique(caps.get(sub, []), new_caps.get(sub, []))
+        append_unique(caps.setdefault(sub, []), new_caps.get(sub, []))
 
     # quality_attributes: append unique
     new_qa = updates.get("quality_attributes", [])
     if isinstance(new_qa, list):
-        append_unique(confirmed.get("quality_attributes", []), new_qa)
+        append_unique(confirmed.setdefault("quality_attributes", []), new_qa)
 
     # constraints: merge dict
     new_constraints = updates.get("constraints", {})
@@ -83,14 +83,14 @@ def merge_confirmed(spec: dict, updates: dict) -> None:
     new_integration = updates.get("integration", {})
     integration = confirmed.setdefault("integration", {"existing_systems": [], "requirements": []})
     new_systems = new_integration.get("existing_systems", [])
-    append_unique(integration.get("existing_systems", []), new_systems, key="name")
-    append_unique(integration.get("requirements", []), new_integration.get("requirements", []))
+    append_unique(integration.setdefault("existing_systems", []), new_systems, key="name")
+    append_unique(integration.setdefault("requirements", []), new_integration.get("requirements", []))
 
     # risks_and_assumptions
     new_risks = updates.get("risks_and_assumptions", {})
     risks = confirmed.setdefault("risks_and_assumptions", {"risks": [], "assumptions": [], "dependencies": []})
     for sub in ["risks", "assumptions", "dependencies"]:
-        append_unique(risks.get(sub, []), new_risks.get(sub, []))
+        append_unique(risks.setdefault(sub, []), new_risks.get(sub, []))
 
 
 def merge_inferred(spec: dict, response: dict) -> None:
@@ -108,7 +108,8 @@ def merge_inferred(spec: dict, response: dict) -> None:
                 elif action == "reject":
                     item["status"] = "rejected"
                 elif action == "modify":
-                    item["content"] = ir.get("modified_content", item["content"])
+                    modified = ir.get("modified_content", item.get("content", item.get("description", "")))
+                    item["content"] = modified
                     item["status"] = "modified"
 
     # Move confirmed inferences to confirmed layer
@@ -150,7 +151,7 @@ def merge_guardrails(spec: dict, response: dict) -> None:
     new_guardrails = response.get("guardrails", {})
     for key in ["always_do", "ask_first", "never_do"]:
         new_items = new_guardrails.get(key, [])
-        append_unique(guardrails.get(key, []), new_items)
+        append_unique(guardrails.setdefault(key, []), new_items)
 
     # meta_signals.new_guardrails (from ResponseWorker output)
     parsed = response.get("parsed_updates", {})
@@ -158,7 +159,7 @@ def merge_guardrails(spec: dict, response: dict) -> None:
     new_from_meta = meta_signals.get("new_guardrails", {})
     for key in ["always_do", "ask_first", "never_do"]:
         new_items = new_from_meta.get(key, [])
-        append_unique(guardrails.get(key, []), new_items)
+        append_unique(guardrails.setdefault(key, []), new_items)
 
 
 def check_contradictions(spec: dict) -> list:

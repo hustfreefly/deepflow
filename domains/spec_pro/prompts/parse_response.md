@@ -20,6 +20,12 @@
 1. **有效性**: 回答是否有实质信息？
    - 如果用户只说"嗯"/"好的"/"知道了" → `needs_followup: true`
    - 如果用户说"我不想回答这个" → `skipped`
+   - **重要**: 以下回答模式是**有效需求声明**，不是模糊回答：
+     - "参考业界规范/对标 XXX" → `valid_requirement: "benchmark_reference"`
+     - "你们来设计/这是设计层面的事" → `valid_requirement: "design_delegation"`
+     - "自适应/智能调整" → `valid_requirement: "adaptive_expectation"`
+     - "高质量优先/不妥协" → `valid_requirement: "quality_priority"`
+   - 这些回答应提取到 `parsed_updates` 中，传递给下游引擎
 
 2. **一致性**: 新信息是否与已确认的需求矛盾？
    - 例: 之前确认"预算500万"，现在说"预算50万" → `contradiction`
@@ -34,6 +40,24 @@
 1. 从用户自然语言中提取结构化信息
 2. 映射到 Living Spec confirmed 层的对应维度
 3. **只提取新增信息**，不重复已有内容
+
+### 有效需求声明识别（重要）
+
+用户常用以下表达代替具体描述，这些是**有效需求声明**，不是模糊回答：
+
+| 用户表达 | 类型 | 提取到 Living Spec |
+|---------|------|-------------------|
+| "参考业界规范/对标 XXX" | `benchmark_reference` | `confirmed.benchmark_references` |
+| "你们来设计/这是设计层面的事" | `design_delegation` | `confirmed.design_delegations` |
+| "自适应/智能调整" | `adaptive_expectation` | `confirmed.adaptive_requirements` |
+| "高质量优先/不妥协" | `quality_priority` | `confirmed.quality_priorities` |
+| "参考业界最佳实践" | `industry_reference` | `confirmed.industry_references` |
+
+**处理规则**：
+- 提取原始用户表述（保留原话）
+- 标注类型（benchmark_reference / design_delegation 等）
+- 关联到对应维度（如"参考业界"关联到 quality_attributes）
+- **不要追问**用户具体指什么，除非用户主动想讨论
 
 ### 推断处理
 - 用户确认推断 → `status: "confirmed"`
@@ -79,7 +103,15 @@
       "risks": [],
       "assumptions": [],
       "dependencies": []
-    }
+    },
+    "user_directives": [
+      {
+        "type": "benchmark_reference|design_delegation|adaptive_expectation|quality_priority|industry_reference",
+        "content": "用户原话",
+        "dimension": "关联的需求维度",
+        "status": "confirmed"
+      }
+    ]
   },
   "inference_responses": [
     {

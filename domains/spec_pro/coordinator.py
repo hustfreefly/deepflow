@@ -341,19 +341,72 @@ class SpecProCoordinator:
         sid = f"{prefix}_spec_{hash8}"
         return sid[:50]  # ensure <= 50 chars
 
+    def _compute_dynamic_threshold(self) -> int:
+        """
+        动态计算质量阈值 (D6: 阈值僵硬修复).
+
+        基础阈值来自 MODE_CONFIG,根据轨迹停滞情况动态下调:
+        - 连续 2 轮 delta < 3 分: 降 10 分
+        - 连续 3 轮 delta < 3 分: 降 15 分
+        - 最低不低于 50 分
+
+        Returns:
+            调整后的阈值(整数)
+        """
+        base = self._config["threshold"]
+        if not self.base_path:
+            return base
+
+        trajectory_path = os.path.join(self.base_path, "spec", "quality_trajectory.json")
+        trajectory: list = []
+        if os.path.exists(trajectory_path):
+            try:
+                with open(trajectory_path, "r", encoding="utf-8") as f:
+                    trajectory = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        if len(trajectory) < 2:
+            return base
+
+        # Count consecutive stagnation rounds (delta < 3)
+        stagnation_count = 0
+        for point in reversed(trajectory):
+            if abs(point.get("delta", 0)) < 3:
+                stagnation_count += 1
+            else:
+                break
+
+        adjustment = 0
+        if stagnation_count >= 3:
+            adjustment = 15
+        elif stagnation_count >= 2:
+            adjustment = 10
+
+        return max(base - adjustment, 50)
+
     def _build_orchestrator_task(self, round_num: int, phase: str) -> str:
         """
         构建 Orchestrator Worker task prompt.
 
         从 domains/spec_pro/prompts/orchestrator.md 读取基础 Prompt,
         注入上下文变量(session_id, base_path, round, phase, etc.).
+        
+        D6 修复: 使用动态阈值而非固定值.
         """
         from core.prompt_registry import read_prompt
 
         orchestrator_prompt = read_prompt("spec_pro/orchestrator")
 
-        threshold = self._config["threshold"]
+        # D6: 使用动态阈值
+        threshold = self._compute_dynamic_threshold()
+        base_threshold = self._config["threshold"]
         max_rounds = self._config["max_rounds"]
+        
+        # 如果动态阈值与基础阈值不同,添加说明
+        threshold_note = ""
+        if threshold != base_threshold:
+            threshold_note = f"\n**注意**: 质量阈值已从 {base_threshold} 动态调整为 {threshold} (检测到停滞趋势)\n"
 
         task = f"""{orchestrator_prompt}
 
@@ -433,7 +486,16 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py assess {Blackboard}/spec/q
 - task: 读取 domains/spec_pro/prompts/guide.md 的内容,注入上下文:
   - 读取: {Blackboard}/spec/living_spec.json
   - 读取: {Blackboard}/spec/quality_report.json
+  - 读取: {Blackboard}/spec/conversation_log.json (历史对话记录)
+  - 读取: {Blackboard}/stages/round_01_questions.json (本轮已生成问题,用于自检去重)
   - 写入: {Blackboard}/stages/round_01_questions.json
+  
+  **已问去重规则** (必须遵守):
+  1. 读取 conversation_log.json 中所有轮的 meta_directives
+     - 如果用户明确说"不要再问 X",则该维度**禁止提问**
+  2. 不要重复提问已经得到明确回答的维度
+  3. 如果某维度被标记为 deliberately_omitted (用户主动放弃),跳过该维度
+
 - timeoutSeconds: 180
 
 等待完成.
@@ -444,7 +506,7 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py assess {Blackboard}/spec/q
 python3 .deepflow/domains/spec_pro/worker_fallback.py question {Blackboard}/stages/round_01_questions.json
 ```
 
-## Step 4: 汇总
+## Step 4: 汇总 (D3: 包含 7 维分数)
 读取以下文件:
 - {Blackboard}/stages/round_01_questions.json
 - {Blackboard}/spec/quality_report.json
@@ -455,7 +517,21 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py question {Blackboard}/stag
   "action": "questions",
   "round": 1,
   "questions": [从 questions.json 读取的 questions 数组],
-  "quality": {"overall_score": [quality_report.json 的 overall_score], "level": [quality_report.json 的 level]},
+  "quality": {
+    "overall_score": [quality_report.json 的 overall_score],
+    "level": [quality_report.json 的 level],
+    "dimension_scores": {
+      "objective": {"score": [分数], "delta": 0, "change": "new"},
+      "users": {"score": [分数], "delta": 0, "change": "new"},
+      "capabilities": {"score": [分数], "delta": 0, "change": "new"},
+      "quality_attributes": {"score": [分数], "delta": 0, "change": "new"},
+      "constraints": {"score": [分数], "delta": 0, "change": "new"},
+      "integration": {"score": [分数], "delta": 0, "change": "new"},
+      "risks": {"score": [分数], "delta": 0, "change": "new"}
+    },
+    "top_improvements": [],
+    "top_missing": [quality_report.json 的 top_missing]
+  },
   "inferred_items": [从 living_spec.json 的 inferred 层读取 status=pending 的项]
 }
 ```
@@ -474,16 +550,40 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py append_trajectory {Blackbo
 ## Step 6: 更新 conversation_log.json
 追加第一条对话日志,格式:
 ```json
-{"round": 1, "timestamp": "ISO8601", "phase": "init", "questions": [questions.json 中的 questions 数组], "user_response": "[用户初始输入,截断500字]", "parsed_updates_summary": "ParseWorker 解析摘要", "quality_before": 0, "quality_after": [quality_report.json overall_score], "quality_delta": [overall_score], "inferences_created": [living_spec.json inferred 层数量], "inferences_confirmed": 0, "inferences_rejected": 0}
+{
+  "round": 1,
+  "timestamp": "ISO8601",
+  "phase": "init",
+  "questions": [questions.json 中的 questions 数组],
+  "user_response": "[用户初始输入,截断500字]",
+  "parsed_updates_summary": "ParseWorker 解析摘要",
+  "quality_before": 0,
+  "quality_after": [quality_report.json overall_score],
+  "quality_delta": [overall_score],
+  "inferences_created": [living_spec.json inferred 层数量],
+  "inferences_confirmed": 0,
+  "inferences_rejected": 0,
+  "meta_directives": [],
+  "stop_asking_dimensions": []
+}
 ```
 """
 
     def _collecting_phase_instructions(self, round_num: int) -> str:
-        """Round N: Response -> Assess -> (Question | Harness -> Structure)"""
+        """Round N: Response -> Merge -> ProcessGuard -> Assess -> (Question | Proposal | Harness -> Structure)
+        
+        v2.1 改进:
+        - D1: QuestionWorker 注入历史对话 + 已问去重规则
+        - D2: ResponseWorker 增加用户指令检测, AssessWorker 增加 deliberately_omitted 规则
+        - D3: round_result 包含 7 维分数 + delta
+        - D4: QuestionWorker 增加 Process Guard 优先级规则
+        - D5: 增加停滞检测分支 -> proposal 模式
+        - D7: ProcessGuard 提前到 AssessWorker 之前
+        """
         prev_round = round_num - 1
         nn = f"{round_num:02d}"
         pp = f"{prev_round:02d}"
-        threshold = self._config["threshold"]
+        threshold = self._compute_dynamic_threshold()
 
         return f"""# Phase: collecting (Round {round_num})
 
@@ -496,6 +596,20 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py append_trajectory {Blackbo
   - 读取: {{Blackboard}}/spec/user_response_round_{prev_round}.md
   - 读取: {{Blackboard}}/stages/round_{pp}_questions.json
   - 写入: {{Blackboard}}/stages/round_{nn}_response.json
+  
+  **用户指令检测规则** (D2: 评分区分拒绝):
+  如果用户明确说"不要再问 X"、"X 不需要考虑"、"X 不重要"等:
+  - 在 parsed_updates 中新增 user_directives 数组
+  - 每条指令包含: dimension, directive="deliberately_omitted", reason
+  
+  示例输出:
+  ```json
+  "parsed_updates": {{
+    "user_directives": [
+      {{"dimension": "users", "directive": "deliberately_omitted", "reason": "用户原话: '不要再问用户相关的问题'"}}
+    ]
+  }}
+  ```
 - timeoutSeconds: 180
 
 ## Step 1.5: Worker 存在性检查
@@ -513,27 +627,41 @@ python3 .deepflow/domains/spec_pro/merge_spec.py {{Blackboard}}/stages/round_{nn
 - confirmed 层: 追加新项,不删除已有项
 - inferred 层: status=confirmed->移入confirmed层, status=rejected->标记rejected, 新推断->追加
 - guardrails: 追加新项
+- user_directives: 如果 parsed_updates 中存在 user_directives,合并到 living_spec.confirmed.user_directives
 - 矛盾处理: 保留两者并标注 contradiction
 
-## Step 3: spawn AssessWorker
-- task: 读取 domains/spec_pro/prompts/assess.md,注入上下文:
-  - 读取: {{Blackboard}}/spec/living_spec.json
-  - 写入: {{Blackboard}}/spec/quality_report.json
-- timeoutSeconds: 180
-
-## Step 3.5: Worker 存在性检查
-如果 spec/quality_report.json 不存在:
-```
-python3 .deepflow/domains/spec_pro/worker_fallback.py assess {{Blackboard}}/spec/quality_report.json
-```
-
-## Step 4: Process Guard 检查
+## Step 3: Process Guard 检查 (D7: 提前到 AssessWorker 之前)
 执行以下命令检查质量轨迹:
 ```
 python3 .deepflow/domains/spec_pro/process_guard.py {{Blackboard}} {round_num}
 ```
 该脚本读取 quality_trajectory.json,检查 progress_rate / inference_integrity / conversation_balance.
 如果发现异常,输出调整指令文本;否则输出空.
+
+**保存 Process Guard 输出**,后续注入到 QuestionWorker.
+
+## Step 4: spawn AssessWorker
+- task: 读取 domains/spec_pro/prompts/assess.md,注入上下文:
+  - 读取: {{Blackboard}}/spec/living_spec.json
+  - 写入: {{Blackboard}}/spec/quality_report.json
+  
+  **特殊状态: deliberately_omitted (D2: 评分区分拒绝)**:
+  如果 living_spec.confirmed.user_directives 中某维度被标记为 deliberately_omitted:
+  - 该维度**不扣分**,给默认分 50 (表示"用户选择不提供,非缺失")
+  - 该维度不出现在 top_missing 中
+  - 该维度不计入维度分差检查
+  
+  示例: 如果 user_directives 包含 {{"dimension": "users", "directive": "deliberately_omitted"}},
+  则 users 维度评分应为 50 分,而非 0 分.
+- timeoutSeconds: 180
+
+等待 AssessWorker 完成.
+
+## Step 4.5: Worker 存在性检查
+如果 spec/quality_report.json 不存在:
+```
+python3 .deepflow/domains/spec_pro/worker_fallback.py assess {{Blackboard}}/spec/quality_report.json
+```
 
 ## Step 5: 更新 quality_trajectory.json
 执行以下命令追加轨迹记录:
@@ -545,10 +673,50 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py append_trajectory {{Blackb
 {{"round": {round_num}, "overall_score": 数字, "level": "S/A/B/C", "dimension_scores": {{"objective": 数字, "users": 数字, "capabilities": 数字, "quality_attributes": 数字, "constraints": 数字, "integration": 数字, "risks": 数字}}, "delta": [与上一轮分数差], "questions_asked": 数字, "inferences_validated": 数字}}
 ```
 
-## Step 6: 检查停止条件
-读取 quality_report.json 的 overall_score.
+## Step 6: 检查停止条件 (D5: 增加停滞检测)
+读取 quality_report.json 的 overall_score 和 quality_trajectory.json.
 
-### 如果 overall_score >= {threshold}:
+### 分支 A: 停滞检测 (D5: 方案确认模式)
+如果满足以下**所有**条件:
+1. round_num >= 3 (至少已进行 3 轮)
+2. 最近 2 轮的 delta 绝对值都 < 3 (质量停滞)
+3. overall_score >= 50 (至少有基础信息)
+
+则**不再问问题**,直接输出 Spec 草稿让用户确认:
+- spawn StructureWorker:
+  - task: 读取 domains/spec_pro/prompts/structure.md,注入上下文:
+    - 读取: {{Blackboard}}/spec/living_spec.json
+    - 读取: {{Blackboard}}/spec/quality_report.json
+    - 写入: {{Blackboard}}/spec/round_result.json
+    - action: "proposal" (注意:不是 "summary")
+  - timeoutSeconds: 180
+- round_result.json 格式:
+```json
+{{
+  "action": "proposal",
+  "round": {round_num},
+  "proposal_text": "[StructureWorker 生成的 Spec 草稿摘要]",
+  "stagnation_reason": "连续 2 轮质量提升 < 3 分,建议用户确认当前 Spec 是否满足需求",
+  "quality": {{
+    "overall_score": [overall_score],
+    "level": [level],
+    "dimension_scores": {{
+      "objective": {{"score": [分数], "delta": [与上轮差值], "change": "up/down/flat"}},
+      "users": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}},
+      "capabilities": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}},
+      "quality_attributes": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}},
+      "constraints": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}},
+      "integration": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}},
+      "risks": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}}
+    }},
+    "top_improvements": [本轮提升最大的 2-3 个维度],
+    "top_missing": [quality_report.json 的 top_missing]
+  }},
+  "inferred_items": [pending 状态的推断]
+}}
+```
+
+### 分支 B: 质量达标 (overall_score >= {threshold})
 spawn HarnessWorker:
 - task: 读取 domains/spec_pro/prompts/harness.md,注入上下文:
   - 读取: {{Blackboard}}/spec/living_spec.json
@@ -574,38 +742,81 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py harness {{Blackboard}}/spe
     - 写入: {{Blackboard}}/spec/round_result.json
     - action: "summary" (WARN时在round_result中添加 "harness_warning": true)
   - timeoutSeconds: 180
-- SOFT_BLOCK 或 HARD_BLOCK -> spawn QuestionWorker:
-  - task: 读取 domains/spec_pro/prompts/guide.md,注入上下文:
-    - 读取: {{Blackboard}}/spec/living_spec.json
-    - 读取: {{Blackboard}}/spec/quality_report.json
-    - 写入: {{Blackboard}}/stages/round_{nn}_questions.json
-  - timeoutSeconds: 180
-  - 汇总到 round_result.json: action: "questions"
+- SOFT_BLOCK 或 HARD_BLOCK -> spawn QuestionWorker (进入分支 C)
 
-### 如果 overall_score < {threshold}:
+### 分支 C: 质量未达标且未停滞 (overall_score < {threshold} 且不满足停滞条件)
 spawn QuestionWorker:
 - task: 读取 domains/spec_pro/prompts/guide.md,注入上下文:
   - 读取: {{Blackboard}}/spec/living_spec.json
   - 读取: {{Blackboard}}/spec/quality_report.json
+  - 读取: {{Blackboard}}/spec/conversation_log.json (历史对话记录)
+  - 读取: {{Blackboard}}/stages/round_{pp}_questions.json (上轮问题)
+  - 读取: {{Blackboard}}/stages/round_{pp}_response.json (上轮回答解析)
   - 写入: {{Blackboard}}/stages/round_{nn}_questions.json
-  - Process Guard 调整指令: [Step 4 的输出]
+  
+  **已问去重规则** (D1: 问题重复修复,必须遵守):
+  1. 读取 conversation_log.json 中所有轮的 meta_directives
+     - 如果用户明确说"不要再问 X",则该维度**禁止提问**
+  2. 读取上轮 questions.json
+     - 如果某个维度的某类问题已经问过且用户已回答,不再重复
+  3. 读取上轮 response.json 的 meta_signals
+     - 如果 directive_stop_asking = true,遵守 stop_asking_dimensions
+     - 如果 user_said_enough = true,减少问题数量到 1-2 个
+  4. 如果某维度被标记为 deliberately_omitted,跳过该维度
+  
+  **Process Guard 优先级规则** (D4: Process Guard 有力修复):
+  如果 Step 3 的 Process Guard 输出了 adjustment_instruction:
+  - 将调整指令**作为最高优先级**注入到问题生成逻辑
+  - Process Guard 的 adjustments 优先级高于默认策略
+  - 如果 Process Guard 说"某维度已被充分覆盖",则该维度不再提问
+  
+  Process Guard 调整指令: [Step 3 的输出]
 - timeoutSeconds: 180
 
-汇总到 round_result.json:
+汇总到 round_result.json (D3: 包含 7 维分数):
 ```json
 {{
   "action": "questions",
   "round": {round_num},
   "questions": [从 questions.json 读取],
-  "quality": {{"overall_score": [quality_report overall_score], "level": [quality_report level]}},
+  "quality": {{
+    "overall_score": [quality_report overall_score],
+    "level": [quality_report level],
+    "dimension_scores": {{
+      "objective": {{"score": [分数], "delta": [与上轮差值], "change": "up/down/flat"}},
+      "users": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}},
+      "capabilities": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}},
+      "quality_attributes": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}},
+      "constraints": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}},
+      "integration": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}},
+      "risks": {{"score": [分数], "delta": [差值], "change": "up/down/flat"}}
+    }},
+    "top_improvements": [本轮提升最大的 2-3 个维度,包含 dimension/delta/reason],
+    "top_missing": [quality_report.json 的 top_missing]
+  }},
   "inferred_items": [从 living_spec.json inferred 层读取 pending 项]
 }}
 ```
 
-## Step 7: 更新 conversation_log.json
+## Step 7: 更新 conversation_log.json (D1: 增加元信号记录)
 追加本轮对话日志,格式:
 ```json
-{{"round": {round_num}, "timestamp": "ISO8601", "phase": "collecting", "questions": [上轮 questions], "user_response": "[用户回答,截断500字]", "parsed_updates_summary": "[ResponseWorker 解析摘要,1-2句]", "quality_before": [上轮分数], "quality_after": [本轮分数], "quality_delta": [分数差], "inferences_created": [新增推断数], "inferences_confirmed": [确认数], "inferences_rejected": [拒绝数]}}
+{{
+  "round": {round_num},
+  "timestamp": "ISO8601",
+  "phase": "collecting",
+  "questions": [上轮 questions],
+  "user_response": "[用户回答,截断500字]",
+  "parsed_updates_summary": "[ResponseWorker 解析摘要,1-2句]",
+  "quality_before": [上轮分数],
+  "quality_after": [本轮分数],
+  "quality_delta": [分数差],
+  "inferences_created": [新增推断数],
+  "inferences_confirmed": [确认数],
+  "inferences_rejected": [拒绝数],
+  "meta_directives": [本轮新发现的用户指令,如 deliberately_omitted],
+  "stop_asking_dimensions": [用户明确要求停止提问的维度]
+}}
 ```
 """
 

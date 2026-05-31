@@ -1,0 +1,57 @@
+# Spec Pro Direct Driver 改进契约
+# 创建时间: 2026-05-31
+# 契约类型: 架构改进 + Bug修复
+
+## 背景
+
+### 已验证的事实
+1. 子 Agent（depth-1）**没有** sessions_spawn 工具（已通过测试验证）
+2. OpenClaw CLI **没有** sessions spawn 命令
+3. 只有主 Agent（depth-0）能调用 sessions_spawn
+4. Spec Pro 原始设计假设 Orchestrator Worker（子 Agent）能 spawn 孙 Agent → 假设不成立
+
+### 问题根因
+- merge_spec.py 有原始 bug：`confirmed.get(field, [])` 对不存在的字段返回临时列表，数据丢失
+- 手动驱动导致：跳过步骤（quality_trajectory）、注入干扰信息（弱维度摘要）
+- 根本原因：Spec Pro 没有提供主 Agent 可直接执行的计划
+
+## 声明目标
+
+### 目标 1: 修复 merge_spec.py 原始 bug
+- **范围**: `merge_confirmed()` 和 `merge_guardrails()` 中所有 `confirmed.get(field, [])` → `confirmed.setdefault(field, [])`
+- **标准**: 字段不存在时，setdefault 创建字段并返回字典中的真实引用
+
+### 目标 2: 添加 plan_round / plan_after_assess 方法
+- **范围**: `coordinator.py` 新增方法，生成结构化执行计划（JSON）
+- **标准**: 
+  - 计划包含所有步骤：spawn/merge/read
+  - 计划**不包含**弱维度摘要等干扰信息
+  - spawn action 包含 prompt_file + context（不含 LLM 生成的额外指令）
+  - plan_after_assess 根据 quality_report.json 的分数决定下一步
+
+### 目标 3: 添加 spec_pro_api.py CLI 命令
+- **范围**: `plan_round` 和 `plan_after_assess` CLI 命令
+- **标准**: 输出 JSON 格式的执行计划，主 Agent 可机械执行
+
+### 目标 4: 端到端验证
+- **范围**: 新建 session → Round 1 → Round 2 → 验证 merge 正确 + trajectory 更新
+- **标准**: 
+  - merge 后 confirmed 层数据完整（success_metrics/quality_attributes 不丢失）
+  - quality_trajectory.json 非空，有 2 轮记录
+  - conversation_log.json 非空，有 2 轮记录
+  - 主 Agent 无需手动判断任何步骤
+
+## 不改的东西
+- Coordinator 的核心逻辑（init_session, build_next_round_task, read_round_output）
+- Worker prompts（parse.md, assess.md, guide.md 等）
+- merge_spec.py 的合并逻辑（只修复 get→setdefault）
+- 其他模块（Solution Pro, Investment 等）
+
+## 验证矩阵
+
+| 声明目标 | 验证方法 | 通过标准 |
+|---------|---------|---------|
+| 目标 1: merge bug | 单元测试：对空字段 merge | 数据不丢失 |
+| 目标 2: plan_round | 检查输出 JSON 结构 | 包含 spawn/merge/read，无弱维度摘要 |
+| 目标 3: CLI 命令 | exec 调用并检查输出 | JSON 格式正确 |
+| 目标 4: E2E 验证 | 完整 2 轮对话 | trajectory 非空 + merge 正确 |
