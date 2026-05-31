@@ -12,11 +12,8 @@ __author__ = "小满 🦞"
 # 模块导出（重构后路径：core/）
 from core.quality.observability import Observability
 from core.blackboard.blackboard_manager import BlackboardManager
-from core.config_loader import (
-    ConfigLoader, DomainConfig, PipelineTemplate,
-    AgentConfig, QualityDimension, DomainQualityConfig,
-    DeliveryConfig, ResilienceConfig, PipelineStage,
-)
+from core.config_loader import ConfigLoader
+from core.orchestrator.orchestrator_base import DomainConfig
 
 __all__ = [
     # 可观测性
@@ -25,12 +22,6 @@ __all__ = [
     "BlackboardManager",
     # 配置加载
     "ConfigLoader",
+    # 编排器基础
     "DomainConfig",
-    "PipelineTemplate",
-    "AgentConfig",
-    "QualityDimension",
-    "DomainQualityConfig",
-    "DeliveryConfig",
-    "ResilienceConfig",
-    "PipelineStage",
 ]

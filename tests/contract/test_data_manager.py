@@ -11,11 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-# 添加路径
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from data_manager import (
+from core.data.data_manager import (
     DataProvider, DataQuery, DataResult, DataRequest, DataFinding,
     ProviderRegistry, ConfigDrivenCollector, DataEvolutionLoop,
     ConditionEvaluator

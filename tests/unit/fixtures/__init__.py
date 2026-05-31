@@ -10,9 +10,6 @@ from tests.unit.fixtures.test_helpers import (
     assert_valid_session_id,
     assert_valid_score,
     wait_for_async,
-    setup_test_environment,
-    teardown_test_environment,
-    load_test_config,
     MockFileSystem,
 )
 
@@ -24,8 +21,5 @@ __all__ = [
     "assert_valid_session_id",
     "assert_valid_score",
     "wait_for_async",
-    "setup_test_environment",
-    "teardown_test_environment",
-    "load_test_config",
     "MockFileSystem",
 ]

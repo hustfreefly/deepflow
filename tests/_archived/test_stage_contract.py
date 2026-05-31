@@ -18,7 +18,7 @@ class TestStageContract(unittest.TestCase):
     
     def setUp(self):
         self.validator = CageValidator()
-        self.contract_path = str(PathConfig.resolve().base_dir / "cage" / "stage_data_collection.yaml")
+        self.contract_path = str(PathConfig.resolve().base_dir / "cage" / "active" / "solution_v1.0.yaml")
     
     def test_validate_valid_stage_contract(self):
         """测试有效的阶段契约"""

@@ -18,7 +18,7 @@ class TestWorkerContract(unittest.TestCase):
     
     def setUp(self):
         self.validator = CageValidator()
-        self.contract_path = str(PathConfig.resolve().base_dir / "cage" / "worker_researcher.yaml")
+        self.contract_path = str(PathConfig.resolve().base_dir / "cage" / "active" / "spec_pro_v2.0.yaml")
     
     def test_validate_valid_worker_contract(self):
         """测试有效的 Worker 契约"""

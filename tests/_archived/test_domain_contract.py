@@ -18,7 +18,7 @@ class TestDomainContract(unittest.TestCase):
     
     def setUp(self):
         self.validator = CageValidator()
-        self.contract_path = str(PathConfig.resolve().base_dir / "cage" / "domain_investment.yaml")
+        self.contract_path = str(PathConfig.resolve().base_dir / "cage" / "active" / "investment_v2.0.yaml")
     
     def test_validate_valid_domain_contract(self):
         """测试有效的领域契约"""

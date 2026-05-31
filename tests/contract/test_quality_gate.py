@@ -4,7 +4,7 @@
 """
 
 import pytest
-from core.quality.quality_gate import QualityGate, GateDecision, QualityReport
+from core.quality.quality_gate import QualityGate, GateDecision, QualityReport, ConvergenceResult, ConvergenceResult
 
 
 class TestQualityGateContract:
