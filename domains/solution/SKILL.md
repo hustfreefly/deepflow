@@ -22,6 +22,7 @@ sessions_spawn(
 约束: {CONSTRAINTS}
 利益相关者: {STAKEHOLDERS}
 session_prefix: {PREFIX}
+living_spec: {LIVING_SPEC}  # 可选，来自 Spec Pro 的 Living Spec dict
 
 执行 10 阶段完整管线:
 1. Data Collection
@@ -48,6 +49,7 @@ sessions_yield()  # ← 等待完成推送，禁止轮询
 | `CONSTRAINTS` | ❌ | "无" | "预算500万，周期6个月" |
 | `STAKEHOLDERS` | ❌ | "无" | "技术团队，财务总监" |
 | `PREFIX` | ❌ | 从TOPIC提取 | "智能仓储" |
+| `LIVING_SPEC` | ❌ | `None` | Spec Pro 产出的 Living Spec dict |
 
 ---
 
@@ -159,7 +161,7 @@ sessions_yield()
 
 - [Solution Pro README](./README.md)
 - [QUICKSTART](../../docs/QUICKSTART.md)
-- [架构设计](./REFACTORING_SUMMARY.md)
+- [Spec → Solution 交接契约](../../contracts/integration/spec_to_solution.md)
 - [CHANGELOG](../../CHANGELOG.md)
 
 ---

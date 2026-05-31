@@ -11,6 +11,7 @@
 | V2.0 | 2026-04-29 | 六阶段管线（Data Collection + Planning + Review + Research + Consolidator + Audit） |
 | V3.0 | 2026-05-04 | 九阶段管线增加Fix + Harness Final + Summarizer，structured_requirements.json |
 | **V3.1** | **2026-05-05** | **Planning Agent语义理解+自我验证+结构化理由** |
+| **V3.2** | **2026-05-31** | **Living Spec交接支持 + 主Agent行为约束 + SKILL.md统一入口** |
 
 ## V3.1 特性
 
@@ -29,20 +30,59 @@
 
 ## 使用方式
 
+### 正确方式：通过 sessions_spawn 执行
+
 ```python
-from domains.solution.orchestrator_agent import SolutionOrchestratorV21
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label="solution_pro",
+    task="""
+你是 DeepFlow Solution Pro Orchestrator Agent。
 
-orch = SolutionOrchestratorV21(
-    topic='设计一个AI算力调度平台',
-    solution_type='architecture',
-    mode='rigorous',  # rigorous | standard
-    constraints=['10000+并发', '延迟<5秒'],
-    stakeholders=['平台方', '供给方', '需求方'],
-    spawn_fn=sessions_spawn
+任务: 设计一个AI算力调度平台
+类型: architecture
+约束: 10000+并发，延迟<5秒
+利益相关者: 平台方，供给方，需求方
+session_prefix: AI算力调度
+""",
+    timeout_seconds=1800
 )
+sessions_yield()  # 等待完成推送
+```
 
+### 带 Living Spec（从 Spec Pro 传递）
+
+```python
+# 读取 Spec Pro 产出的 Living Spec
+import json
+with open("blackboard/spec_xxx/spec/living_spec.json") as f:
+    living_spec = json.load(f)
+
+# 传递给 Solution Pro
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label="solution_pro",
+    task=f"""
+你是 DeepFlow Solution Pro Orchestrator Agent。
+
+任务: {living_spec['confirmed']['objective']}
+living_spec: {json.dumps(living_spec, ensure_ascii=False)}
+...""",
+    timeout_seconds=1800
+)
+sessions_yield()
+```
+
+### ❌ 禁止使用的旧入口
+
+```python
+# 以下已废弃，禁止使用
+from domains.solution.orchestrator_agent import SolutionOrchestratorV21
+orch = SolutionOrchestratorV21(topic="...")
 orch.init()
-result = orch.run_v3()
+orch.run_v3()  # 已废弃
 ```
 
 ## 10阶段管线

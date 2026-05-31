@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Spec Pro v2.3** — 需求vs设计边界/角色分离/主动检索/有效需求声明
+  - prompts/guide.md: 边界自检 + boundary_check字段 + 问题数量3-5
+  - prompts/assess.md: 宽容评分哲学（参考业界=有效需求）
+  - prompts/parse_response.md: 有效需求声明识别（user_directives）
+  - prompts/orchestrator.md: 主Agent行为约束 + API降级策略
+  - prompts/structure.md: 摘要增加用户指令板块
+  - IMPROVEMENTS.md: 8个问题完整复盘文档
+  - update_conversation_log.py: 对话日志更新脚本
+- **Solution Pro v3.2** — Living Spec交接 + 主Agent行为约束
+  - SKILL.md: 统一执行入口 + living_spec参数
+  - README.md: 更新使用方式 + 废弃旧入口
+- **基础设施**
+  - core/agents/spawn_resolver.py: 统一 spawn_fn 解析模块
+  - contracts/skill_md_unification_contract.md: Skill MD 统一化契约
+  - cage/spec_pro_direct_driver.yaml: Spec Pro 直接驱动契约
+
+### Fixed
+- Solution Pro prompt 注册表 + task_builder 断链
+- 重构遗留的 import 断裂 + 测试适配
+
+### Changed
+- chore: gitignore 补全（.codegraph运行时文件 + tests/results JSON）
+- refactor: core/ 基础设施重组 + domains/ 四大领域模块化迁移
+- refactor: 契约笼子整理 + 代码清理 + 文档更新
+- refactor: 遗留项清理 — 兼容层移除 + 路径修复 + 配置合并
+- feat: 目录结构整理 — docs/config/tests/scripts 标准化迁移
+
 ## [0.1.2] - 2026-05-30
 
 ### Changed
