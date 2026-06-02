@@ -1,3 +1,9 @@
+---
+id: contracts/directory_structure
+version: "3.1.0"
+updated: "2026-06-01"
+---
+
 # DeepFlow 目录结构契约
 
 > **版本**: 3.1.0

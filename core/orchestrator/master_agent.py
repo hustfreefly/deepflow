@@ -19,8 +19,11 @@ Master Agent V4.0
 
 import sys
 import os
+import re
 import json
 import uuid
+import yaml
+from pathlib import Path
 import argparse
 from datetime import datetime
 
@@ -28,6 +31,21 @@ from datetime import datetime
 from core.config.path_config import PathConfig
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 sys.path.insert(0, DEEPFLOW_BASE)
+
+
+def _get_deepflow_version() -> str:
+    """从 CHANGELOG.md 读取当前全局版本号"""
+    changelog = Path(DEEPFLOW_BASE) / "CHANGELOG.md"
+    if changelog.exists():
+        try:
+            with open(changelog, 'r', encoding='utf-8') as f:
+                for line in f:
+                    m = re.match(r'^## \[(\d+\.\d+\.\d+)\]', line)
+                    if m:
+                        return m.group(1)
+        except Exception:
+            pass
+    return "unknown"
 
 from core.task_builder import (
     build_data_manager_task,
@@ -110,7 +128,7 @@ def save_execution_plan(session_id: str, company_code: str, company_name: str, i
         "company_code": company_code,
         "company_name": company_name,
         "industry": industry,
-        "version": "4.0",
+        "version": _get_deepflow_version(),
         "force_rebuild": force_rebuild,
         "created_at": datetime.now().isoformat(),
         "phases": [
@@ -132,6 +150,64 @@ def save_execution_plan(session_id: str, company_code: str, company_name: str, i
     
     print(f"[MasterAgent] 执行计划已保存: {plan_path}")
     return plan_path
+
+
+def write_version_snapshot(session_id: str) -> str:
+    """
+    写入运行时版本快照到 blackboard。
+    记录本次 Pipeline 使用的所有组件和 prompt 版本。
+    """
+    from core.prompt_registry import PromptRegistry
+    
+    base_path = f"{DEEPFLOW_BASE}/blackboard/{session_id}"
+    snapshot_path = f"{base_path}/version_snapshot.json"
+    
+    registry = PromptRegistry()
+    prompts_snapshot = {}
+    for pid, info in registry._prompts_by_id.items():
+        prompts_snapshot[pid] = info.version
+    
+    snapshot = {
+        "global_version": _get_deepflow_version(),
+        "components": {},
+        "prompts_loaded": prompts_snapshot,
+        "session_id": session_id,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # 加载组件版本
+    domains_path = Path(DEEPFLOW_BASE) / "domains"
+    if domains_path.exists():
+        for yf in sorted(domains_path.glob("*.yaml")):
+            if yf.name.startswith("_"):
+                continue
+            try:
+                with open(yf, 'r', encoding='utf-8') as f:
+                    data = yaml.safe_load(f)
+                if data and "component_version" in data:
+                    snapshot["components"][data.get("domain", yf.stem)] = data["component_version"]
+            except Exception:
+                pass
+        # 子目录 config
+        for sub in sorted(domains_path.iterdir()):
+            if not sub.is_dir():
+                continue
+            cfg = sub / "config" / f"{sub.name}.yaml"
+            if cfg.exists():
+                try:
+                    with open(cfg, 'r', encoding='utf-8') as f:
+                        data = yaml.safe_load(f)
+                    if data and "component_version" in data:
+                        snapshot["components"][sub.name] = data["component_version"]
+                except Exception:
+                    pass
+    
+    os.makedirs(base_path, exist_ok=True)
+    with open(snapshot_path, 'w', encoding='utf-8') as f:
+        json.dump(snapshot, f, ensure_ascii=False, indent=2)
+    
+    print(f"[MasterAgent] 版本快照已保存: {snapshot_path}")
+    return snapshot_path
 
 
 def generate_orchestrator_task(session_id: str) -> str:
@@ -174,6 +250,9 @@ def main():
     
     # Step 4: 保存执行计划
     plan_path = save_execution_plan(session_id, args.code, args.name, args.industry, args.force_rebuild)
+    
+    # Step 4b: 写入版本快照
+    write_version_snapshot(session_id)
     
     # Step 5: 生成 Orchestrator Task
     orchestrator_task = generate_orchestrator_task(session_id)

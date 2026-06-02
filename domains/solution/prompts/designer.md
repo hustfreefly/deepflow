@@ -1,3 +1,11 @@
+---
+id: solution/designer
+version: "2.0.0"
+component: solution
+role: designer
+updated: "2026-05-01"
+---
+
 # Solution Designer Agent Prompt
 # 角色：方案设计师
 # 目标：整合并产出最终方案文档

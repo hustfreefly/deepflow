@@ -1,3 +1,10 @@
+---
+id: general/verifier
+version: "1.0.0"
+component: general
+updated: "2026-06-01"
+---
+
 # Verifier Prompt
 
 Verify the quality and correctness of fixes and improvements.

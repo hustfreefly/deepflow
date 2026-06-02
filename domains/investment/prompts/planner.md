@@ -1,3 +1,11 @@
+---
+id: investment/planner
+version: "2.0.0"
+component: investment
+role: planner
+updated: "2026-05-01"
+---
+
 # Investment Planner - 投资规划师 Agent Prompt
 
 ## 角色定位

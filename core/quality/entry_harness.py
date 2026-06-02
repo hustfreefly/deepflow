@@ -161,7 +161,7 @@ class EntryHarness:
             return existing_session_id
 
         if domain == "solution":
-            from domains.solution.orchestrator_agent import SolutionOrchestratorV21
+            from domains.solution.orchestrator_agent import _SolutionDispatcher
 
             topic = context.get("topic", "")
             solution_type = context.get("solution_type", "architecture")
@@ -170,7 +170,7 @@ class EntryHarness:
             if not topic:
                 raise ValueError("Domain 'solution' requires 'topic' in context")
 
-            orch = SolutionOrchestratorV21(
+            orch = _SolutionDispatcher(
                 topic=topic,
                 solution_type=solution_type,
                 mode=context.get("mode", "standard"),
@@ -250,8 +250,8 @@ class EntryHarness:
         session_dir = _DEEPFLOW_BASE / "blackboard" / session_id
 
         if domain == "solution":
-            # 使用 SolutionOrchestratorV21 生成任务和计划
-            from domains.solution.orchestrator_agent import SolutionOrchestratorV21
+            # 使用 _SolutionDispatcher 生成任务和计划
+            from domains.solution.orchestrator_agent import _SolutionDispatcher
 
             topic = context.get("topic", "")
             solution_type = context.get("solution_type", "architecture")
@@ -275,7 +275,7 @@ class EntryHarness:
                         print(f"[EntryHarness] ⚠️ Living Spec 加载失败，跳过: {e}")
                         living_spec = None
 
-            orch = SolutionOrchestratorV21(
+            orch = _SolutionDispatcher(
                 topic=topic,
                 solution_type=solution_type,
                 mode=context.get("mode", "standard"),

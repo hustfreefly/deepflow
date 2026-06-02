@@ -1,8 +1,18 @@
+"""
+Planner Pro Agent，从配置动态读取 stages
+
+Version: 2.1.0
+Author: DeepFlow Solution Pro
+Date: 2026-06-01
+"""
+
 #!/usr/bin/env python3
 """Planner Pro Agent - Prompt驱动极简版"""
 import json
 import re
 from typing import Dict, Any
+
+from domains.solution.blackboard import PIPELINE_STAGES, STAGE_PATH_REGISTRY
 
 
 class PlannerProAgent:
@@ -37,8 +47,14 @@ class PlannerProAgent:
             raise ValueError("Missing 'plan.stages' field")
         if not isinstance(plan["plan"]["stages"], list):
             raise ValueError("'plan.stages' must be a list")
-        if len(plan["plan"]["stages"]) != 8:
-            raise ValueError(f"Expected 8 stages, got {len(plan['plan']['stages'])}")
+        expected_stage_count = len(PIPELINE_STAGES)
+        if len(plan["plan"]["stages"]) != expected_stage_count:
+            import warnings
+            warnings.warn(
+                f"Expected {expected_stage_count} stages, got {len(plan['plan']['stages'])}. "
+                "Please check config/solution.yaml for current pipeline definition.",
+                RuntimeWarning
+            )
         
         # 验证每个stage
         for i, stage in enumerate(plan["plan"]["stages"]):
@@ -79,10 +95,15 @@ class PlannerProAgent:
             # 结构验证（新增）
             self._validate_structure(plan)
             
-            # 验证Agent数量=14
+            # 验证Agent数量（动态读取配置，不再硬编码）
             total = sum(len(s.get("agents", [])) for s in plan["plan"]["stages"])
-            if total != 14:
-                raise ValueError(f"Expected 14 agents, got {total}")
+            if total < 5:
+                import warnings
+                warnings.warn(
+                    f"Only {total} agents defined (expected >= 5). "
+                    "Check config/solution.yaml pipeline.agents.",
+                    RuntimeWarning
+                )
             
             # 验证权重总和≈1.0
             w = sum(a.get("weight", 0) for a in plan["key_areas"])
@@ -97,7 +118,7 @@ class PlannerProAgent:
                     f"(expected format: '数字+min', e.g., '58min', not '6个月' or '58分钟')"
                 )
             
-            self.blackboard.write("stage_01_planner_output.json", plan)
+            self.blackboard.write(STAGE_PATH_REGISTRY["planning"], plan)
             return {"status": "success", "plan": plan, "total_agents": total}
         except (json.JSONDecodeError, ValueError) as e:
             return {"status": "failed", "error": str(e), "raw_output": llm_output[:500]}

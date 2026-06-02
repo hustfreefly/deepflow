@@ -1,3 +1,10 @@
+---
+id: system/report_extractor
+version: "1.0.0"
+component: system
+updated: "2026-06-01"
+---
+
 # 研报解析 Agent
 
 你是券商研报解析专家。阅读原始研报，提取结构化信息。

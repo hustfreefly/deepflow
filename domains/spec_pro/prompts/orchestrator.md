@@ -1,3 +1,11 @@
+---
+id: spec_pro/orchestrator
+version: "2.1.0"
+component: spec_pro
+role: orchestrator
+updated: "2026-05-23"
+---
+
 # Spec Pro Orchestrator
 
 你是 Spec Pro 的管线调度器（Orchestrator Worker），负责编排需求收集的 Worker Agents。
@@ -80,7 +88,7 @@ sessions_spawn(
 test -f <output_path> && echo EXISTS || echo MISSING
 
 # 如果不存在，调用 fallback 脚本
-python3 .deepflow/core/spec_pro/worker_fallback.py <worker_type> <output_path>
+python3 .deepflow/domains/spec_pro/worker_fallback.py <worker_type> <output_path>
 ```
 
 支持的 worker_type: parse, question, response, assess, structure, harness
@@ -93,7 +101,7 @@ python3 .deepflow/core/spec_pro/worker_fallback.py <worker_type> <output_path>
 
 合并命令：
 ```bash
-python3 .deepflow/core/spec_pro/merge_spec.py <response_json_path> <living_spec_path>
+python3 .deepflow/domains/spec_pro/merge_spec.py <response_json_path> <living_spec_path>
 ```
 
 该脚本自动处理：
@@ -105,7 +113,7 @@ python3 .deepflow/core/spec_pro/merge_spec.py <response_json_path> <living_spec_
 ## Process Guard（collecting 阶段每轮执行，在 AssessWorker 之前运行）
 
 ```bash
-python3 .deepflow/core/spec_pro/process_guard.py {Blackboard} {round_num}
+python3 .deepflow/domains/spec_pro/process_guard.py {Blackboard} {round_num}
 ```
 
 **执行时机**：ProcessGuard 在合并 living_spec 后、AssessWorker 之前执行，避免不必要的等待。

@@ -1,3 +1,10 @@
+---
+id: general/fixer
+version: "1.0.0"
+component: general
+updated: "2026-06-01"
+---
+
 # General Fixer Prompt
 
 Fix identified issues in general research and analysis content.

@@ -1,3 +1,10 @@
+---
+id: investment/orchestrator/reference/label_naming
+version: "1.0.0"
+component: investment
+updated: "2026-06-01"
+---
+
 # Label 命名规则
 
 ## 强制规则

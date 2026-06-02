@@ -1,0 +1,25 @@
+# DeepFlow Domain Configuration - Research Pro
+component_version: "1.0.0"
+component_name: "Research Pro"
+domain: research_pro
+name: "深度研究"
+description: "通用深度研究管线，支持多源信息搜索、财务分析、引用验证"
+
+context:
+  schema:
+    required: ["query", "depth"]
+    optional: ["sources", "max_iterations"]
+
+agents:
+  - role: orchestrator
+    prompt: "prompts/planning.md"
+    timeout: 180
+  - role: searcher
+    prompt: "prompts/search.md"
+    timeout: 300
+  - role: finance_analyst
+    prompt: "prompts/finance_analysis.md"
+    timeout: 240
+  - role: citation_verifier
+    prompt: "prompts/citation_verify.md"
+    timeout: 180

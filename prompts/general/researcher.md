@@ -1,3 +1,10 @@
+---
+id: general/researcher
+version: "1.0.0"
+component: general
+updated: "2026-06-01"
+---
+
 # General Researcher Prompt
 
 Conduct research on the given topic.

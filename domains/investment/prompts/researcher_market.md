@@ -1,3 +1,11 @@
+---
+id: investment/researcher_market
+version: "2.0.0"
+component: investment
+role: researcher
+updated: "2026-05-01"
+---
+
 # Investment Researcher - 市场研究 Agent Prompt
 
 ## 角色定位

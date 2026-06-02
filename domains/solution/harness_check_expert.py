@@ -1,3 +1,11 @@
+"""
+Harness 专家检查器
+
+Version: 2.1.0
+Author: DeepFlow Solution Pro
+Date: 2026-06-01
+"""
+
 #!/usr/bin/env python3
 """
 Stage 7 专家修复后的Harness检查
@@ -7,6 +15,8 @@ PragmaticGuard - 实用性和防发散检查
 import json
 import sys
 from pathlib import Path
+
+from domains.solution.blackboard import STAGE_PATH_REGISTRY
 
 def check_expert_fix(session_id: str, blackboard_path: Path) -> dict:
     """
@@ -21,8 +31,8 @@ def check_expert_fix(session_id: str, blackboard_path: Path) -> dict:
         }
     """
     # 读取输入
-    audit_path = blackboard_path / session_id / "stage_06_audit_output.json"
-    fix_path = blackboard_path / session_id / "stage_07_fixer_expert_output.json"
+    audit_path = blackboard_path / session_id / STAGE_PATH_REGISTRY["audit"]
+    fix_path = blackboard_path / session_id / STAGE_PATH_REGISTRY["fixer_expert"]
     
     if not audit_path.exists() or not fix_path.exists():
         return {
@@ -42,15 +52,17 @@ def check_expert_fix(session_id: str, blackboard_path: Path) -> dict:
     
     # === 质量检查 ===
     # 汇总所有审计问题
-    all_issues = []
-    for auditor_output in audit.get("auditors", []):
-        all_issues.extend(auditor_output.get("issues", []))
+    all_issues = audit.get("data", {}).get("audit_findings") or audit.get("data", {}).get("issues") or []
+    if not all_issues:
+        for auditor_output in audit.get("auditors", []):
+            all_issues.extend(auditor_output.get("issues", []))
     
-    p0_total = len([i for i in all_issues if i.get("level") == "P0"])
-    p1_total = len([i for i in all_issues if i.get("level") == "P1"])
+    p0_total = len([i for i in all_issues if i.get("level") == "P0" or i.get("severity") == "critical"])
+    p1_total = len([i for i in all_issues if i.get("level") == "P1" or i.get("severity") == "major"])
     
-    p0_fixed = fix.get("harness_check", {}).get("P0_resolved", 0)
-    p1_fixed = fix.get("harness_check", {}).get("P1_resolved", 0)
+    summary = fix.get("data", {}).get("summary", {})
+    p0_fixed = fix.get("harness_check", {}).get("P0_resolved", summary.get("critical_fixed", 0))
+    p1_fixed = fix.get("harness_check", {}).get("P1_resolved", summary.get("major_fixed", 0))
     
     # P0必须100%修复
     if p0_total > 0 and p0_fixed < p0_total:
@@ -63,10 +75,11 @@ def check_expert_fix(session_id: str, blackboard_path: Path) -> dict:
         score -= 15
     
     # 修复方案可执行性检查
-    fixes = fix.get("fixes", [])
+    fixes = fix.get("data", {}).get("deep_fixes") or fix.get("data", {}).get("fixes_applied") or fix.get("fixes", [])
     for f in fixes:
-        if not f.get("fix") or f.get("fix") == "TODO":
-            issues.append(f"修复方案不够具体: {f.get('issue_id')}")
+        fix_text = f.get("fix") or f.get("fix_strategy") or f.get("fix_description") or f.get("implementation")
+        if not fix_text or fix_text == "TODO":
+            issues.append(f"修复方案不够具体: {f.get('issue_id') or f.get('audit_id')}")
             score -= 10
     
     # === 发散检查（PragmaticGuard）===

@@ -1,3 +1,6 @@
+component_version: "1.0.0"
+component_name: "解决方案设计"
+
 # DeepFlow Domain Configuration - Solution Designer (通用解决方案设计)
 # Version: 2026-04-26-v1
 
@@ -8,31 +11,31 @@ description: "通用解决方案与架构设计产出，支持软件架构、业
 # Mode 系统配置（Quick/Standard/Rigorous）
 modes:
   quick:
-    stages: [planning, design, deliver]
+    stages: [data_collection, planning, reviewers, research, consolidator, audit, fix, fixer_expert, harness_final, summarizer]
     max_iterations: 1
-    audit: false
-    research: false
-    data_collection: false
-    expected_duration: "30 minutes"
-    description: "快速模式：仅核心阶段，产出方案框架"
+    audit: standard
+    research: true
+    data_collection: basic
+    expected_duration: "50 minutes"
+    description: "兼容入口：执行固定10阶段管线"
   
   standard:
-    stages: [data_collection, planning, research, design, audit, fix, deliver]
+    stages: [data_collection, planning, reviewers, research, consolidator, audit, fix, fixer_expert, harness_final, summarizer]
     max_iterations: 2
     audit: standard
     research: true
     data_collection: basic
-    expected_duration: "1-2 hours"
-    description: "标准模式：完整流程，产出完整方案"
+    expected_duration: "50 minutes"
+    description: "标准模式：固定10阶段 Harness V2 管线，产出完整方案"
   
   rigorous:
-    stages: [data_collection, planning, research, design, audit, fix, deliver]
+    stages: [data_collection, planning, reviewers, research, consolidator, audit, fix, fixer_expert, harness_final, summarizer]
     max_iterations: 3
     audit: strict
     research: deep
     data_collection: full
-    expected_duration: "3-4 hours"
-    description: "严谨模式：深度审计，产出深度方案含追溯"
+    expected_duration: "50 minutes"
+    description: "严谨模式：固定10阶段管线，强化审计和追溯"
 
 # 上下文 Schema（定义该领域需要的字段）
 context:
@@ -82,128 +85,178 @@ solution_types:
 
 # Agents 列表（PipelineEngine 从这里读取）
 agents:
-  - role: solution_planner
-    prompt: "prompts/solution/planner.md"
-    timeout: 180
+  - role: data_collection
+    prompt: "domains/solution/prompts/data_collection.md"
+    timeout: 300
     model: "bailian/qwen3.5-plus"
-    description: "分析需求，确定方案类型和关键维度"
+    description: "采集背景资料并生成结构化需求"
   
-  - role: solution_researcher
-    prompt: "prompts/solution/researcher.md"
-    timeout: 240
+  - role: planning
+    prompt: "domains/solution/prompts/planner_v2_harness.md"
+    timeout: 300
     model: "bailian/qwen3.5-plus"
-    parallel: all
-    description: "研究约束条件、行业最佳实践、技术选型"
-    instances:
-      - name: constraint_analyst
-        angle: "约束条件分析"
-      - name: best_practice_researcher
-        angle: "行业最佳实践研究"
-      - name: tech_evaluator
-        angle: "技术方案评估"
+    description: "分析需求并生成 Planner 动态契约"
   
-  - role: solution_architect
-    prompt: "prompts/solution/architect.md"
+  - role: reviewer
+    prompt: "domains/solution/prompts/reviewer_v2_harness.md"
     timeout: 300
     model: "kimi/kimi-code"
-    description: "产出核心架构/方案设计"
-  
-  - role: solution_auditor
-    prompt: "prompts/solution/auditor.md"
-    timeout: 180
-    model: "kimi/kimi-code"
     parallel: all
-    description: "多维度审计方案合理性"
+    description: "三视角评审：技术、业务、风险"
     instances:
-      - name: feasibility_auditor
-        angle: "可行性审计"
-      - name: risk_auditor
-        angle: "风险审计"
-      - name: completeness_auditor
-        angle: "完整性审计"
+      - name: technical
+        angle: "技术架构合理性"
+      - name: business
+        angle: "业务可行性"
+      - name: risk
+        angle: "风险与合规"
   
-  - role: solution_fixer
-    prompt: "prompts/solution/fixer.md"
-    timeout: 240
+  - role: researcher
+    prompt: "domains/solution/prompts/researcher_v2_harness.md"
+    timeout: 300
+    model: "bailian/qwen3.5-plus"
+    parallel: all
+    description: "Planner 映射后的三专家并行研究"
+    instances:
+      - name: expert_1
+        angle: "动态专家槽位1"
+      - name: expert_2
+        angle: "动态专家槽位2"
+      - name: expert_3
+        angle: "动态专家槽位3"
+  
+  - role: consolidator
+    prompt: "domains/solution/prompts/consolidator_v2_harness.md"
+    timeout: 300
+    model: "kimi/kimi-code"
+    description: "整合研究结果为统一方案"
+  
+  - role: auditor
+    prompt: "domains/solution/prompts/auditor_v2_harness.md"
+    timeout: 300
+    model: "kimi/kimi-code"
+    description: "审计统一方案"
+  
+  - role: fixer
+    prompt: "domains/solution/prompts/fixer_v2_harness.md"
+    timeout: 300
     model: "bailian/qwen3.5-plus"
     description: "根据审计意见修复方案"
   
-  - role: solution_designer
-    prompt: "prompts/solution/designer.md"
+  - role: fixer_expert
+    prompt: "domains/solution/prompts/fixer_expert_v2_harness.md"
     timeout: 300
     model: "bailian/qwen3.5-plus"
-    description: "整合最终方案文档"
+    description: "深度修复关键问题"
+  
+  - role: harness_final
+    prompt: "domains/solution/prompts/harness_v3.md"
+    timeout: 300
+    model: "kimi/kimi-code"
+    description: "最终质量门禁并产出需求追溯矩阵"
+  
+  - role: summarizer
+    prompt: "domains/solution/prompts/summarizer_v2_harness.md"
+    timeout: 300
+    model: "bailian/qwen3.5-plus"
+    description: "生成最终结构化结果和方案文档"
 
 # Pipeline 阶段定义
 pipeline:
   stages:
-    # Stage 0: 数据采集（在 planning 之前执行）
+    # Stage 1: 数据采集
     - name: data_collection
-      type: custom
-      custom_handler: _execute_data_collection
+      type: single_worker
+      workers:
+        - role: data_collection
+          timeout: 300
       description: "根据 mode 采集技术文档、行业报告、竞品分析数据"
     
-    # Stage 1: 需求分析
+    # Stage 2: 需求分析
     - name: planning
       type: single_worker
       workers:
-        - role: solution_planner
-          timeout: 180
-      description: "分析需求，确定方案类型和关键维度"
+        - role: planning
+          timeout: 300
+      description: "分析需求，生成动态专家、Layer2约束和验收标准"
     
-    # Stage 2: 研究阶段（3个researcher并行）
+    # Stage 3: 评审阶段（三视角并行）
+    - name: reviewers
+      type: parallel_workers
+      workers:
+        - role: technical
+          count: 1
+          timeout: 300
+        - role: business
+          count: 1
+          timeout: 300
+        - role: risk
+          count: 1
+          timeout: 300
+      description: "三视角并行评审：技术、业务、风险"
+    
+    # Stage 4: 研究阶段（3个researcher并行）
     - name: research
       type: parallel_workers
       workers:
-        - role: constraint_analyst
+        - role: expert_1
           count: 1
-          timeout: 240
-        - role: best_practice_researcher
+          timeout: 300
+        - role: expert_2
           count: 1
-          timeout: 240
-        - role: tech_evaluator
+          timeout: 300
+        - role: expert_3
           count: 1
-          timeout: 240
-      description: "三角度并行研究：约束/最佳实践/技术评估"
+          timeout: 300
+      description: "Planner 映射后的三专家并行研究"
     
-    # Stage 3: 架构设计
-    - name: design
+    # Stage 5: 成果整合
+    - name: consolidator
       type: single_worker
       workers:
-        - role: solution_architect
+        - role: consolidator
           timeout: 300
-      description: "产出核心架构/方案设计"
+      description: "整合研究结果并形成统一方案"
     
-    # Stage 4: 审计阶段（迭代式，支持收敛检测）
+    # Stage 6: 审计阶段
     - name: audit
-      type: iterative
+      type: single_worker
       workers:
-        - role: feasibility_auditor
-          count: 1
-          timeout: 180
-        - role: risk_auditor
-          count: 1
-          timeout: 180
-        - role: completeness_auditor
-          count: 1
-          timeout: 180
-      description: "三视角审计：可行性/风险/完整性（支持迭代修复）"
+        - role: auditor
+          timeout: 300
+      description: "审计统一方案的完整性、必要性、目标一致性和全局影响"
     
-    # Stage 5: 修复阶段
+    # Stage 7: 修复阶段
     - name: fix
       type: single_worker
       workers:
-        - role: solution_fixer
-          timeout: 240
+        - role: fixer
+          timeout: 300
       description: "根据审计意见修正方案"
     
-    # Stage 6: 方案产出
-    - name: deliver
+    # Stage 8: 专家深度修复
+    - name: fixer_expert
       type: single_worker
       workers:
-        - role: solution_designer
+        - role: fixer_expert
           timeout: 300
-      description: "整合并产出最终方案文档"
+      description: "深度修复关键问题"
+    
+    # Stage 9: 最终质量门禁
+    - name: harness_final
+      type: single_worker
+      workers:
+        - role: harness_final
+          timeout: 300
+      description: "最终质量门禁并生成 requirements_traceability_matrix.json"
+    
+    # Stage 10: 方案产出
+    - name: summarizer
+      type: single_worker
+      workers:
+        - role: summarizer
+          timeout: 300
+      description: "整合并产出 final_result.json 和 final_solution.md"
 
 # 模型 Fallback 链配置 (P1-002)
 model_chain:

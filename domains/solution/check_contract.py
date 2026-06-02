@@ -1,3 +1,11 @@
+"""
+契约检查脚本，验证配置完整性
+
+Version: 2.1.0
+Author: DeepFlow Solution Pro
+Date: 2026-06-01
+"""
+
 # Solution Domain Contract Validation
 # DeepFlow 解决方案设计领域契约笼子
 
@@ -5,10 +13,13 @@ import os
 import sys
 import yaml
 import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from core.config.path_config import PathConfig
-
-sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
 def check_contract():
     """
@@ -18,7 +29,7 @@ def check_contract():
     warnings = []
     
     # 1. 检查领域配置文件
-    config_path = str(PathConfig.resolve().base_dir / "domains/solution.yaml")
+    config_path = str(PathConfig.resolve().base_dir / "domains/solution/config/solution.yaml")
     if not os.path.exists(config_path):
         errors.append("P0: solution.yaml 不存在")
         return {"pass": False, "errors": errors, "warnings": warnings}
@@ -34,8 +45,18 @@ def check_contract():
     
     # 3. 验证 agents 配置
     if 'agents' in config:
-        required_roles = ['solution_planner', 'solution_researcher', 'solution_architect', 
-                         'solution_auditor', 'solution_fixer', 'solution_designer']
+        required_roles = [
+            'data_collection',
+            'planning',
+            'reviewer',
+            'researcher',
+            'consolidator',
+            'auditor',
+            'fixer',
+            'fixer_expert',
+            'harness_final',
+            'summarizer',
+        ]
         found_roles = [a['role'] for a in config['agents']]
         for role in required_roles:
             if role not in found_roles:
@@ -44,17 +65,36 @@ def check_contract():
     # 4. 验证 pipeline stages
     if 'pipeline' in config and 'stages' in config['pipeline']:
         stages = config['pipeline']['stages']
-        required_stages = ['planning', 'research', 'design', 'audit', 'fix', 'deliver']
+        required_stages = [
+            'data_collection',
+            'planning',
+            'reviewers',
+            'research',
+            'consolidator',
+            'audit',
+            'fix',
+            'fixer_expert',
+            'harness_final',
+            'summarizer',
+        ]
         found_stages = [s['name'] for s in stages]
-        for stage in required_stages:
-            if stage not in found_stages:
-                errors.append(f"P0: 缺少必需阶段 '{stage}'")
+        if found_stages != required_stages:
+            errors.append(f"P0: pipeline stages 不匹配，期望 {required_stages}，实际 {found_stages}")
     
     # 5. 验证 prompts 文件
-    prompt_dir = str(PathConfig.resolve().base_dir / "prompts/solution/")
-    required_prompts = ['planner.md', 'researcher.md', 'researcher_template.md',
-                       'auditor.md', 'fixer.md', 'designer.md']
-    # Note: architect.md 当前未使用，已从检查列表移除
+    prompt_dir = str(PathConfig.resolve().base_dir / "domains/solution/prompts/")
+    required_prompts = [
+        'data_collection.md',
+        'planner_v2_harness.md',
+        'reviewer_v2_harness.md',
+        'researcher_v2_harness.md',
+        'consolidator_v2_harness.md',
+        'auditor_v2_harness.md',
+        'fixer_v2_harness.md',
+        'fixer_expert_v2_harness.md',
+        'harness_v3.md',
+        'summarizer_v2_harness.md',
+    ]
     for prompt in required_prompts:
         prompt_path = os.path.join(prompt_dir, prompt)
         if not os.path.exists(prompt_path):
@@ -68,8 +108,8 @@ def check_contract():
     
     # 6. 验证 orchestrator 可导入
     try:
-        from domains.solution.orchestrator_agent import SolutionOrchestratorV2
-        orch = SolutionOrchestratorV2(
+        from domains.solution.orchestrator_agent import _SolutionDispatcher
+        orch = _SolutionDispatcher(
             topic='测试解决方案设计',
             solution_type='architecture'
         )

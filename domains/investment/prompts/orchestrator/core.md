@@ -1,3 +1,10 @@
+---
+id: investment/orchestrator/core
+version: "1.0.0"
+component: investment
+updated: "2026-06-01"
+---
+
 # DeepFlow V2.0 Orchestrator Core
 
 ## 身份与强制复述

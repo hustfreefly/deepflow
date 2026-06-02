@@ -1,3 +1,11 @@
+---
+id: investment/researcher_finance
+version: "2.0.0"
+component: investment
+role: researcher
+updated: "2026-05-01"
+---
+
 # Investment Researcher - Finance
 
 ## 角色定义

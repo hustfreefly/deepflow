@@ -11,6 +11,21 @@ Spec Pro 数据模型
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
+import yaml
+from pathlib import Path
+
+
+def _read_spec_pro_version() -> str:
+    """从 config/spec_pro.yaml 读取版本号"""
+    try:
+        config_path = Path(__file__).parent / "config" / "spec_pro.yaml"
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+                return config.get('component_version', '2.1.0')
+    except Exception:
+        pass
+    return '2.1.0'  # fallback
 
 
 class QualityLevel(Enum):
@@ -56,6 +71,7 @@ class RoundAction(Enum):
     """Orchestrator 每轮输出动作"""
     QUESTIONS = "questions"
     SUMMARY = "summary"
+    PROPOSAL = "proposal"  # D5 停滞检测: 向用户提议 Living Spec 草案
     DONE = "done"
     ERROR = "error"
     SAFETY_STOP = "safety_stop"
@@ -73,7 +89,7 @@ class LivingSpec:
     """
     meta: Dict[str, Any] = field(default_factory=lambda: {
         "engine": "spec_pro",
-        "version": "2.1",
+        "version": _read_spec_pro_version(),
         "spec_version": 1,
         "scenario": "genesis",
         "created_at": "",
@@ -117,6 +133,7 @@ class LivingSpec:
 
     route_recommendation: Optional[Dict[str, Any]] = None
     solution_pro_hints: Optional[Dict[str, Any]] = None
+    user_directives: List[Dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass

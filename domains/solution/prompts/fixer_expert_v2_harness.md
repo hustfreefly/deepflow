@@ -1,3 +1,11 @@
+---
+id: solution/fixer_expert_v2_harness
+version: "2.1.0"
+component: solution
+role: fixer
+updated: "2026-05-01"
+---
+
 # Solution Fixer Expert V2 Harness Agent Prompt
 # 角色：深度修复专家
 # 目标：进行深度问题修复，解决复杂技术问题
@@ -67,7 +75,7 @@
         "root_cause": "根本原因分析",
         "fix_strategy": "修复策略",
         "implementation": "实施细节",
-        "files_modified": ["文件1", "文件2"],
+        "sections_updated": ["设计文档章节1", "章节2"],
         "verification": "验证结果"
       }
     ],
@@ -81,7 +89,7 @@
     ],
     "refactoring": [
       {
-        "component": "重构组件",
+        "design_component": "重构的设计组件",
         "changes": "变更描述",
         "rationale": "重构理由"
       }
@@ -94,13 +102,14 @@
       "overall_assessment": "significant_improvement|moderate_improvement|minimal_improvement"
     }
   },
-  "harness_self_assessment": {
-    "completeness_score": 85,
-    "necessity_score": 90,
-    "alignment_score": 88,
-    "global_impact_score": 82,
-    "overall": "green|yellow|red",
-    "issues": ["自检发现的问题1", "问题2"]
+  "harness_check": {
+    "completeness": {"score": 0.85, "level": "high|medium|low", "reasoning": "完整性判断理由"},
+    "necessity": {"score": 0.90, "level": "high|medium|low", "reasoning": "必要性判断理由"},
+    "alignment": {"score": 0.88, "level": "high|medium|low", "reasoning": "目标一致性判断理由"},
+    "global_impact": {"score": 0.82, "level": "high|medium|low", "reasoning": "全局影响判断理由"},
+    "overall_score": 0.86,
+    "decision": "PASS|PASS_WITH_CONDITIONS|WARNING|CRITICAL_WARNING|BLOCK_RECOMMENDATION",
+    "improvements": ["自检发现的问题1", "问题2"]
   }
 }
 ```
@@ -146,11 +155,11 @@
 ## 输出要求（子Agent直接写入模式）
 
 1. 使用 **write** 工具将结果写入：
-   `{blackboard_path}/stages/fixer_expert.json`
+   `stages/fixer_expert.json`
 
 2. 写入前确保目录存在（必要时创建）
 
 3. 写入格式为JSON（见上方格式）
 
 4. 在最终回复中确认：
-   - ✅ 结果已写入 `{blackboard_path}/stages/fixer_expert.json`
+   - ✅ 结果已写入 `stages/fixer_expert.json`

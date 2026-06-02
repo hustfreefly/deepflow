@@ -18,11 +18,16 @@ import sys
 import os
 import json
 import argparse
+from pathlib import Path
 
 # DeepFlow 基础路径
+DEEPFLOW_BASE = str(Path(__file__).resolve().parents[2])
+if DEEPFLOW_BASE not in sys.path:
+    sys.path.insert(0, DEEPFLOW_BASE)
 from core.config.path_config import PathConfig
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
-sys.path.insert(0, DEEPFLOW_BASE)
+if DEEPFLOW_BASE not in sys.path:
+    sys.path.insert(0, DEEPFLOW_BASE)
 
 from domains.spec_pro import SpecProCoordinator, LivingSpec
 
@@ -153,4 +158,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())  # F3: 确保错误时 exit code 非零

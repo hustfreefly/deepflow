@@ -1,3 +1,11 @@
+---
+id: spec_pro/improvements
+version: "2.3.0"
+component: spec_pro
+role: documentation
+updated: "2026-06-02"
+---
+
 # Spec Pro 改进方案
 
 > 基于 6 轮测试的完整复盘，识别出 8 个设计层面的问题。
@@ -7,16 +15,16 @@
 
 ## 问题总览
 
-| # | 严重性 | 问题 | 一句话根因 | 影响 |
-|---|--------|------|-----------|------|
-| P1 | 🔴 致命 | 管线太慢，每轮 3-5 分钟 | 每轮 3-4 次串行 subagent spawn | 6 轮耗时 30 分钟 |
-| P2 | 🔴 致命 | 问题反复重复 | QuestionWorker 没有对话记忆 | 用户角色被问 5 次，风险被问 4 次 |
-| P3 | 🔴 致命 | 评分不区分"缺失"和"拒绝" | assess.md 硬编码 checklist | users 永远 0 分，系统永远不结束 |
-| P4 | 🟡 重要 | 反馈信息丢失 | round_result 只返回总分 | 用户看不到 7 维逐项进展 |
-| P5 | 🟡 重要 | Process Guard 无力纠正 | 只能追加文字建议，不能修改规则 | 检测到问题但每轮都犯同样的错 |
-| P6 | 🟡 重要 | 只有提问模式，没有方案确认模式 | 状态机设计缺陷 | 信息够了还在问，不会主动给草稿 |
-| P7 | 🟢 改进 | Spec 膨胀无去重 | merge_spec.py 只追加不去重 | 19 条重复质量属性浪费 token |
-| P8 | 🟢 改进 | 阈值僵硬无停滞检测 | MODE_CONFIG 固定值 | 用户不配合时，跑满 10 轮才停 |
+| # | 严重性 | 问题 | 一句话根因 | 影响 | 状态 |
+|---|--------|------|-----------|------|------|
+| P1 | 🔴 致命 | 管线太慢，每轮 3-5 分钟 | 每轮 3-4 次串行 subagent spawn | 6 轮耗时 30 分钟 | ✅ 已实施（coordinator.py 并行编排） |
+| P2 | 🔴 致命 | 问题反复重复 | QuestionWorker 没有对话记忆 | 用户角色被问 5 次，风险被问 4 次 | ✅ 已实施（注入 conversation_log + 已问去重规则） |
+| P3 | 🔴 致命 | 评分不区分"缺失"和"拒绝" | assess.md 硬编码 checklist | users 永远 0 分，系统永远不结束 | ✅ 已实施（deliberately_omitted 规则 + user_directives） |
+| P4 | 🟡 重要 | 反馈信息丢失 | round_result 只返回总分 | 用户看不到 7 维逐项进展 | ✅ 已实施（round_result 含 7 维分数 + delta） |
+| P5 | 🟡 重要 | Process Guard 无力纠正 | 只能追加文字建议，不能修改规则 | 检测到问题但每轮都犯同样的错 | ✅ 已实施（Process Guard 优先级注入 QuestionWorker） |
+| P6 | 🟡 重要 | 只有提问模式，没有方案确认模式 | 状态机设计缺陷 | 信息够了还在问，不会主动给草稿 | ✅ 已实施（RoundAction.PROPOSAL + 停滞检测分支） |
+| P7 | 🟢 改进 | Spec 膨胀无去重 | merge_spec.py 只追加不去重 | 19 条重复质量属性浪费 token | ⚠️ 部分实施（merge_spec.py 已改写，去重逻辑需验证） |
+| P8 | 🟢 改进 | 阈值僵硬无停滞检测 | MODE_CONFIG 固定值 | 用户不配合时，跑满 10 轮才停 | ✅ 已实施（_compute_dynamic_threshold 动态调整） |
 
 ---
 
@@ -602,9 +610,31 @@ def calculate_effective_threshold(trajectory: list, user_directives: list) -> in
 
 ---
 
-## 实施优先级
+## 实施状态（更新 2026-06-03）
 
-### 第一优先级（解决核心体验问题）
+### ✅ 已完成（7/8）
+
+| 改什么 | 状态 | 备注 |
+|--------|------|------|
+| P1: 合并 Worker 提速 | ✅ 已完成 | coordinator.py 并行编排 |
+| P2: QuestionWorker 加记忆 | ✅ 已完成 | 注入 conversation_log + 已问去重规则 |
+| P3: 评分区分拒绝 | ✅ 已完成 | deliberately_omitted 规则 + user_directives |
+| P4: 反馈 7 维分数 | ✅ 已完成 | round_result 含 7 维分数 + delta |
+| P5: Process Guard 有力 | ✅ 已完成 | Process Guard 优先级注入 |
+| P6: 增加 PROPOSAL 模式 | ✅ 已完成 | RoundAction.PROPOSAL + 停滞检测分支 |
+| P8: 动态阈值 | ✅ 已完成 | _compute_dynamic_threshold 动态调整 |
+
+### ⚠️ 待验证（1/8）
+
+| 改什么 | 状态 | 待办 |
+|--------|------|------|
+| P7: Spec 去重 | ⚠️ 部分实施 | merge_spec.py 已改写，需验证 category 级语义去重是否生效 |
+
+---
+
+## 实施优先级（原始计划，已全部实施）
+
+~~### 第一优先级（解决核心体验问题）~~ **→ 已全部完成**
 
 | 改什么 | 改哪些文件 | 工作量 |
 |--------|-----------|--------|
@@ -614,7 +644,7 @@ def calculate_effective_threshold(trajectory: list, user_directives: list) -> in
 
 **改完这三个**：体验从"绕圈 30 分钟"变成"3-4 轮 10 分钟出结果"。
 
-### 第二优先级（补全功能）
+~~### 第二优先级（补全功能）~~ **→ 已全部完成**
 
 | 改什么 | 改哪些文件 | 工作量 |
 |--------|-----------|--------|
@@ -622,7 +652,7 @@ def calculate_effective_threshold(trajectory: list, user_directives: list) -> in
 | P5: Process Guard 有力 | process_guard.py, coordinator.py | 半天 |
 | P6: 增加 PROPOSAL 模式 | models.py, coordinator.py | 1 天 |
 
-### 第三优先级（打磨）
+~~### 第三优先级（打磨）~~ **→ 1 项待验证**
 
 | 改什么 | 改哪些文件 | 工作量 |
 |--------|-----------|--------|

@@ -1,3 +1,10 @@
+---
+id: system/deepflow_navigator
+version: "1.0.0"
+component: system
+updated: "2026-06-01"
+---
+
 # DeepFlow 导览页输出模板
 
 > **版本**: 1.0

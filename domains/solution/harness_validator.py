@@ -1,4 +1,12 @@
 """
+Harness 验证器
+
+Version: 2.1.0
+Author: DeepFlow Solution Pro
+Date: 2026-06-01
+"""
+
+"""
 Harness V2 验证器
 =================
 

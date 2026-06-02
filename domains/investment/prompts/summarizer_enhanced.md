@@ -1,3 +1,11 @@
+---
+id: investment/summarizer_enhanced
+version: "2.0.0"
+component: investment
+role: summarizer
+updated: "2026-05-01"
+---
+
 # Investment Summarizer Agent Prompt（强化版）
 
 ## 角色定位

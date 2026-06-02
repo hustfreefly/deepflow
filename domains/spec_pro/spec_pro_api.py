@@ -28,9 +28,13 @@ import argparse
 from pathlib import Path
 
 # DeepFlow 基础路径
+DEEPFLOW_BASE = str(Path(__file__).resolve().parents[2])
+if DEEPFLOW_BASE not in sys.path:
+    sys.path.insert(0, DEEPFLOW_BASE)
 from core.config.path_config import PathConfig
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
-sys.path.insert(0, DEEPFLOW_BASE)
+if DEEPFLOW_BASE not in sys.path:
+    sys.path.insert(0, DEEPFLOW_BASE)
 
 from domains.spec_pro import SpecProCoordinator
 
@@ -68,8 +72,11 @@ def load_coord_state(session_id: str) -> dict:
     if not os.path.exists(state_path):
         raise ValueError(f"State file not found: {state_path}")
     
-    with open(state_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(state_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Corrupted JSON in {state_path}: {e}") from e
 
 
 def reconstruct_coord(state: dict) -> SpecProCoordinator:
@@ -144,6 +151,7 @@ def cmd_read_output(args):
     coord = reconstruct_coord(state)
     
     result = coord.read_round_output()
+    save_coord_state(coord)
     
     return {
         "success": True,
@@ -173,7 +181,10 @@ def cmd_confirm(args):
     
     confirmation = {"action": args.action}
     if args.action == "revise" and args.revisions:
-        confirmation["revisions"] = json.loads(args.revisions)
+        try:
+            confirmation["revisions"] = json.loads(args.revisions)
+        except json.JSONDecodeError as e:
+            return {"success": False, "error": f"Invalid revisions JSON: {e}"}
     
     task = coord.build_confirmation_task(confirmation)
     save_coord_state(coord)
@@ -243,4 +254,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())  # F3: 确保错误时 exit code 非零

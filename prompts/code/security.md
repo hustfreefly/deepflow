@@ -1,3 +1,10 @@
+---
+id: code/security
+version: "1.0.0"
+component: code
+updated: "2026-06-01"
+---
+
 # Code Auditor - Security
 
 Security review of code implementation.

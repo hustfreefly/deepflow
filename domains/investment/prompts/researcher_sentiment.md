@@ -1,3 +1,11 @@
+---
+id: investment/researcher_sentiment
+version: "2.0.0"
+component: investment
+role: researcher
+updated: "2026-05-01"
+---
+
 # Investment Researcher - 舆情/事件驱动 Agent Prompt
 
 ## 角色定位

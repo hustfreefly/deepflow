@@ -13,9 +13,11 @@ Orchestrator V4.0 - 纯调度实现
 
 import sys
 import os
+import re
 import json
 import uuid
 import time
+from pathlib import Path
 
 from core.config.path_config import PathConfig
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
@@ -26,6 +28,21 @@ from core.task_builder import (
     build_researcher_task, build_auditor_task,
     build_fixer_task, build_summarizer_task
 )
+
+
+def _get_deepflow_version() -> str:
+    """从 CHANGELOG.md 读取当前全局版本号"""
+    changelog = Path(DEEPFLOW_BASE) / "CHANGELOG.md"
+    if changelog.exists():
+        try:
+            with open(changelog, 'r', encoding='utf-8') as f:
+                for line in f:
+                    m = re.match(r'^## \[(\d+\.\d+\.\d+)\]', line)
+                    if m:
+                        return m.group(1)
+        except Exception:
+            pass
+    return "unknown"
 
 
 class OrchestratorV4:
@@ -70,7 +87,7 @@ class OrchestratorV4:
             "session_id": self.session_id,
             "company_code": self.company_code,
             "company_name": self.company_name,
-            "version": "4.0",
+            "version": _get_deepflow_version(),
             "phases": [
                 {"phase": 1, "worker": "data_manager", "timeout": 300},
                 {"phase": 2, "worker": "planner", "timeout": 180},

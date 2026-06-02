@@ -1,3 +1,10 @@
+---
+id: investment/orchestrator/step_search
+version: "1.0.0"
+component: investment
+updated: "2026-06-01"
+---
+
 # STEP 2: 统一搜索（补充基础数据）
 
 ## 任务目标

@@ -1,3 +1,10 @@
+---
+id: system/summarizer
+version: "1.0.0"
+component: system
+updated: "2026-06-01"
+---
+
 # Summarizer Prompt
 
 Create comprehensive summary of all work.

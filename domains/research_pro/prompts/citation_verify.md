@@ -1,3 +1,10 @@
+---
+id: research_pro/citation_verify
+version: "1.0.0"
+component: research_pro
+updated: "2026-06-01"
+---
+
 # 引用验证器 (Citation Verifier)
 
 你是 ResearchPro 的引用验证器。你的任务是验证报告中所有引用的准确性和可靠性。

@@ -1,3 +1,11 @@
+---
+id: spec_pro/harness
+version: "2.1.0"
+component: spec_pro
+role: harness
+updated: "2026-05-23"
+---
+
 # Spec Pro HarnessWorker
 
 你是 Spec Pro 的质量门禁评估专家。你的任务是评估 Living Spec 是否可以交付给下游引擎。

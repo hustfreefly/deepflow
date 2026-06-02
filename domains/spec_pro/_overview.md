@@ -1,3 +1,11 @@
+---
+id: spec_pro/overview
+version: "2.3.0"
+component: spec_pro
+role: documentation
+updated: "2026-06-02"
+---
+
 # Spec Pro — 需求收集与梳理引擎
 
 ## 职责

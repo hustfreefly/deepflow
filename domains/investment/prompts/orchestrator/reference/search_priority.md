@@ -1,3 +1,10 @@
+---
+id: investment/orchestrator/reference/search_priority
+version: "1.0.0"
+component: investment
+updated: "2026-06-01"
+---
+
 # 搜索工具优先级
 
 ## 强制规则

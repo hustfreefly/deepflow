@@ -1,3 +1,7 @@
+cage_version: "1.0.0"
+component: research_pro
+status: active
+
 module: research_pro
 version: '1.0'
 created: '2026-05-29'

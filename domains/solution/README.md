@@ -1,115 +1,88 @@
-# Solution Pro Orchestrator
+# Solution Pro - 系统级解决方案设计引擎
 
-> DeepFlow Solution Domain - 系统级方案设计引擎
-> 当前版本: V3.1
+> 通过 10 阶段 pipeline 自动化生成高质量技术解决方案
+
+## 当前版本
+
+- **版本**: V4.3 (B方案 - 完整10阶段)
+- **架构**: 固定10阶段流水线 + 4维质量门禁 + REQ-ID 需求追踪
+- **模型**: 默认使用 Qwen 3.6 Plus
+
+## 快速开始
+
+### 1. 生成执行计划
+
+```python
+from domains.solution import run_solution_pro
+
+plan = run_solution_pro(
+    topic="AI智能客服系统",
+    solution_type="architecture",
+    mode="standard",
+    constraints=["支持10万+日对话", "响应时间<2秒"],
+    stakeholders=["技术团队", "产品团队"]
+)
+
+# plan 包含: session_id, base_path, execution_plan_path, tasks_path
+```
+
+### 2. 执行完整流程
+
+参见 [SKILL.md](SKILL.md) 中的 6 步执行指南。
+
+### 3. 验证结果
+
+```bash
+# Golden Case 验证（推荐）
+python3 tests/golden/verify_golden_case.py <session_id>
+
+# 快速 dry-run
+python3 scripts/golden_solution_pro_dry_run.py
+
+# 契约验证
+python3 scripts/validate_solution_pro_contract.py <session_dir>
+```
+
+## 核心概念
+
+### 10 阶段流水线
+
+1. **Data Collection** - 结构化需求收集
+2. **Planning** - 任务规划与分解
+3. **Reviewers (×3 并行)** - 多角度审查
+4. **Research (×3 并行)** - 领域研究
+5. **Consolidator** - 结果整合
+6. **Audit** - 质量审计
+7. **Fix** - 问题修复
+8. **Fixer Expert** - 专家级修复
+9. **Harness Final** - 4维质量门禁
+10. **Summarizer** - 最终总结
+
+### 质量契约
+
+- **Schema 分层**: 核心层（必需）+ 标准层（可选）+ 元数据层（可选）
+- **质量门禁**: 完整性/必要性/目标一致性/全局影响 4维评分
+- **需求追踪**: REQ-ID 全链路追踪
+
+详细 schema 定义见 [docs/contracts/solution_pro_schema.md](../../docs/contracts/solution_pro_schema.md)
+
+## 文档导航
+
+| 文档 | 用途 | 受众 |
+|------|------|------|
+| [SKILL.md](SKILL.md) | Agent 执行步骤 | AI Agent |
+| [_overview.md](_overview.md) | 代码文件索引 | 开发者 |
+| [docs/contracts/solution_pro_schema.md](../../docs/contracts/solution_pro_schema.md) | Schema 契约 | 开发者 |
+| [prompts/pipeline_orchestrator_v4.md](prompts/pipeline_orchestrator_v4.md) | Orchestrator 指令 | 运行时 |
+| [tests/golden/README.md](../../tests/golden/README.md) | Golden Case 测试 | 测试工程师 |
+
+## 禁止事项
+
+- ❌ Python 代码中禁止直接 import OpenClaw SDK（使用 `sessions_spawn` 工具）
+- ❌ `run_solution_pro()` 不接收 `spawn_fn` 参数
+- ❌ 不要修改 `STAGE_OUTPUT_SCHEMA` 的核心层字段（status, stage, covered_req_ids）
+- ❌ 不要删除 `HARNESS_EXEMPT_STAGES` 中的豁免阶段
 
 ## 版本历史
 
-| 版本 | 日期 | 核心改进 |
-|------|------|---------|
-| V1.0 | 2026-04-28 | 架构重构，按Investment V4.0模式实现 |
-| V2.0 | 2026-04-29 | 六阶段管线（Data Collection + Planning + Review + Research + Consolidator + Audit） |
-| V3.0 | 2026-05-04 | 九阶段管线增加Fix + Harness Final + Summarizer，structured_requirements.json |
-| **V3.1** | **2026-05-05** | **Planning Agent语义理解+自我验证+结构化理由** |
-| **V3.2** | **2026-05-31** | **Living Spec交接支持 + 主Agent行为约束 + SKILL.md统一入口** |
-
-## V3.1 特性
-
-### Planning Agent增强
-- **语义理解**：不做关键词匹配，完整阅读REQ描述理解技术领域
-- **术语澄清**：对易混淆术语明确含义（如"隔离"=硬件资源隔离）
-- **自我验证**：6个问题确保分配合理性
-- **结构化理由**：技术领域判定 + 专长匹配逻辑 + 产出能力评估 + 反例说明
-- **置信度评分**：1-10分，≤6分重新考虑
-- **allocation_rationale**：每个分配都有明确理由
-
-### 验证效果
-- Planning Harness: 81 → 91 (+10)
-- 覆盖率: 75% → 87.5% (+12.5%)
-- REQ-ID错配率: 24.2% → 0%
-
-## 使用方式
-
-### 正确方式：通过 sessions_spawn 执行
-
-```python
-sessions_spawn(
-    runtime="subagent",
-    mode="run",
-    label="solution_pro",
-    task="""
-你是 DeepFlow Solution Pro Orchestrator Agent。
-
-任务: 设计一个AI算力调度平台
-类型: architecture
-约束: 10000+并发，延迟<5秒
-利益相关者: 平台方，供给方，需求方
-session_prefix: AI算力调度
-""",
-    timeout_seconds=1800
-)
-sessions_yield()  # 等待完成推送
-```
-
-### 带 Living Spec（从 Spec Pro 传递）
-
-```python
-# 读取 Spec Pro 产出的 Living Spec
-import json
-with open("blackboard/spec_xxx/spec/living_spec.json") as f:
-    living_spec = json.load(f)
-
-# 传递给 Solution Pro
-sessions_spawn(
-    runtime="subagent",
-    mode="run",
-    label="solution_pro",
-    task=f"""
-你是 DeepFlow Solution Pro Orchestrator Agent。
-
-任务: {living_spec['confirmed']['objective']}
-living_spec: {json.dumps(living_spec, ensure_ascii=False)}
-...""",
-    timeout_seconds=1800
-)
-sessions_yield()
-```
-
-### ❌ 禁止使用的旧入口
-
-```python
-# 以下已废弃，禁止使用
-from domains.solution.orchestrator_agent import SolutionOrchestratorV21
-orch = SolutionOrchestratorV21(topic="...")
-orch.init()
-orch.run_v3()  # 已废弃
-```
-
-## 10阶段管线
-
-1. Data Collection - 需求收集
-2. Planning - 规划方案（含自我验证）
-3. Reviewers（3并行）- 技术/商业/风险评审
-4. Researchers（3并行）- 深度研究
-5. Consolidator - 方案整合
-6. Audit - 质量审计
-7. Fix - 修复
-8. Fixer Expert - 专家修复
-9. Harness Final - 最终质量门禁
-10. Summarizer - 最终文档
-
-## 产出文件
-
-| 文件 | 说明 |
-|------|------|
-| `stages/planning.json` | 规划方案（含allocation_rationale） |
-| `stages/consolidator.json` | 整合方案 |
-| `stages/audit.json` | 审计报告 |
-| `stages/harness_final.json` | 最终质量门禁 |
-| `final_solution.md` | 最终文档 |
-
-## 相关文档
-
-- [CHANGELOG](../CHANGELOG.md)
-- [REFACTORING_SUMMARY](REFACTORING_SUMMARY.md)
-- [契约文件](../cage/solution_orchestrator_v3_1.yaml)
+详见 [CHANGELOG.md](../../CHANGELOG.md)

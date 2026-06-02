@@ -1,3 +1,10 @@
+---
+id: architecture/correctness
+version: "1.0.0"
+component: architecture
+updated: "2026-06-01"
+---
+
 # Architecture Auditor - Correctness
 
 Verify architectural correctness and feasibility.

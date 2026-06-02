@@ -1,3 +1,6 @@
+cage_version: "1.0.0"
+component: integrate_codegraph
+status: active
 # CodeGraph 集成 OpenClaw 契约
 
 module: codegraph_integration

@@ -1,3 +1,11 @@
+---
+id: solution/fixer_v2_harness
+version: "2.1.0"
+component: solution
+role: fixer
+updated: "2026-05-01"
+---
+
 # Solution Fixer V2 Harness Agent Prompt
 # 角色：问题修复专家
 # 目标：根据审计发现修复解决方案中的问题
@@ -24,9 +32,10 @@
 ## 修复流程
 
 1. **阅读审计报告**
-   - 读取 audit.json
-   - 理解所有发现的问题
-   - 按严重程度排序
+   - 通过 write 工具读取 `audit.json`
+   - 优先读取 `data.audit_findings`
+   - 若 `data.audit_findings` 不存在，则兼容读取 `data.issues`
+   - 使用 `severity: critical|major|minor|info` 排序；若只有 `level: P0|P1|P2|INFO`，映射为 `P0=critical`、`P1=major`、`P2=minor`、`INFO=info`
 
 2. **制定修复策略**
    - 针对每个问题制定修复方案
@@ -57,12 +66,13 @@
   "status": "completed",
   "stage": "fix",
   "data": {
-    "fixes_applied": [
-      {
-        "audit_id": "AUD-001",
-        "severity": "critical|major|minor",
-        "fix_description": "修复描述",
-        "files_modified": ["修改的文件1", "文件2"],
+	    "fixes_applied": [
+	      {
+	        "audit_id": "AUD-001",
+	        "severity": "critical|major|minor",
+	        "level": "P0|P1|P2",
+	        "fix_description": "修复描述",
+        "sections_updated": ["更新的设计文档章节1", "章节2"],
         "verification": "修复验证结果"
       }
     ],
@@ -87,13 +97,14 @@
       "overall_assessment": "significant_improvement|moderate_improvement|minimal_improvement"
     }
   },
-  "harness_self_assessment": {
-    "completeness_score": 85,
-    "necessity_score": 90,
-    "alignment_score": 88,
-    "global_impact_score": 82,
-    "overall": "green|yellow|red",
-    "issues": ["自检发现的问题1", "问题2"]
+  "harness_check": {
+    "completeness": {"score": 0.85, "level": "high|medium|low", "reasoning": "完整性判断理由"},
+    "necessity": {"score": 0.90, "level": "high|medium|low", "reasoning": "必要性判断理由"},
+    "alignment": {"score": 0.88, "level": "high|medium|low", "reasoning": "目标一致性判断理由"},
+    "global_impact": {"score": 0.82, "level": "high|medium|low", "reasoning": "全局影响判断理由"},
+    "overall_score": 0.86,
+    "decision": "PASS|PASS_WITH_CONDITIONS|WARNING|CRITICAL_WARNING|BLOCK_RECOMMENDATION",
+    "improvements": ["自检发现的问题1", "问题2"]
   }
 }
 ```
@@ -139,11 +150,11 @@
 ## 输出要求（子Agent直接写入模式）
 
 1. 使用 **write** 工具将结果写入：
-   `{blackboard_path}/stages/fix.json`
+   `stages/fix.json`
 
 2. 写入前确保目录存在（必要时创建）
 
 3. 写入格式为JSON（见上方格式）
 
 4. 在最终回复中确认：
-   - ✅ 结果已写入 `{blackboard_path}/stages/fix.json`
+   - ✅ 结果已写入 `stages/fix.json`

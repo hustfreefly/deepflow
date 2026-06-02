@@ -1,3 +1,10 @@
+---
+id: code/verifier
+version: "1.0.0"
+component: code
+updated: "2026-06-01"
+---
+
 # Code Verifier Prompt
 
 Verify the correctness of code fixes and improvements.

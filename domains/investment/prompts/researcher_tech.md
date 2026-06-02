@@ -1,3 +1,11 @@
+---
+id: investment/researcher_tech
+version: "2.0.0"
+component: investment
+role: researcher
+updated: "2026-05-01"
+---
+
 # Investment Researcher - 技术研究 Agent Prompt
 
 ## 角色定位

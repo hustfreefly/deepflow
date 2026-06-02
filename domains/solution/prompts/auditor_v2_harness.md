@@ -1,3 +1,11 @@
+---
+id: solution/auditor_v2_harness
+version: "2.1.0"
+component: solution
+role: auditor
+updated: "2026-05-01"
+---
+
 # Solution Auditor V2 Harness Agent Prompt
 # 角色：质量审计员
 # 目标：审计解决方案的完整性、正确性和可行性
@@ -56,9 +64,10 @@
 ## 审计流程
 
 1. **阅读输入文件**
-   - 读取 planning.json
-   - 读取所有 research_*.json
-   - 读取 consolidator.json
+   - 通过 write 工具读取 `stages/planning.json`
+   - 读取所有 `stages/research_expert_*.json`
+   - 读取 `stages/consolidator.json`（统一方案视角，Auditor 在 Consolidator 之后执行）
+   - 如果某个文件缺失，记录到 `data.missing_inputs`，不得假装已读取
 
 2. **逐项审计**
    - 按照审计维度逐项检查
@@ -88,17 +97,27 @@
 {
   "status": "completed",
   "stage": "audit",
-  "data": {
-    "audit_findings": [
-      {
-        "id": "AUD-001",
-        "dimension": "completeness|feasibility|risk|consistency",
-        "severity": "critical|major|minor|info",
-        "description": "问题描述",
-        "location": "问题位置（文件/章节）",
-        "recommendation": "改进建议"
-      }
-    ],
+	  "data": {
+	    "audit_findings": [
+	      {
+	        "id": "AUD-001",
+	        "dimension": "completeness|feasibility|risk|consistency",
+	        "severity": "critical|major|minor|info",
+	        "level": "P0|P1|P2|INFO",
+	        "description": "问题描述",
+	        "location": "问题位置（文件/章节）",
+	        "recommendation": "改进建议"
+	      }
+	    ],
+	    "issues": [
+	      {
+	        "id": "AUD-001",
+	        "severity": "critical|major|minor|info",
+	        "level": "P0|P1|P2|INFO",
+	        "description": "兼容字段，内容与 audit_findings 对齐"
+	      }
+	    ],
+	    "missing_inputs": [],
     "worker_honesty_check": [
       {
         "worker": "worker_name",
@@ -116,13 +135,14 @@
       "overall_assessment": "pass|conditional_pass|fail"
     }
   },
-  "harness_self_assessment": {
-    "completeness_score": 85,
-    "necessity_score": 90,
-    "alignment_score": 88,
-    "global_impact_score": 82,
-    "overall": "green|yellow|red",
-    "issues": ["自检发现的问题1", "问题2"]
+  "harness_check": {
+    "completeness": {"score": 0.85, "level": "high|medium|low", "reasoning": "完整性判断理由"},
+    "necessity": {"score": 0.90, "level": "high|medium|low", "reasoning": "必要性判断理由"},
+    "alignment": {"score": 0.88, "level": "high|medium|low", "reasoning": "目标一致性判断理由"},
+    "global_impact": {"score": 0.82, "level": "high|medium|low", "reasoning": "全局影响判断理由"},
+    "overall_score": 0.86,
+    "decision": "PASS|PASS_WITH_CONDITIONS|WARNING|CRITICAL_WARNING|BLOCK_RECOMMENDATION",
+    "improvements": ["自检发现的问题1", "问题2"]
   }
 }
 ```
@@ -181,11 +201,11 @@
 ## 输出要求（子Agent直接写入模式）
 
 1. 使用 **write** 工具将结果写入：
-   `{blackboard_path}/stages/audit.json`
+   `stages/audit.json`
 
 2. 写入前确保目录存在（必要时创建）
 
 3. 写入格式为JSON（见上方格式）
 
 4. 在最终回复中确认：
-   - ✅ 结果已写入 `{blackboard_path}/stages/audit.json`
+   - ✅ 结果已写入 `stages/audit.json`

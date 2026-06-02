@@ -1,3 +1,6 @@
+cage_version: "2.0.0"
+component: investment
+status: active
 # Investment v2.0 契约
 # 投资研究引擎 — 股票/基金投资分析管线
 

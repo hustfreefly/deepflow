@@ -1,3 +1,10 @@
+---
+id: architecture/auditor
+version: "1.0.0"
+component: architecture
+updated: "2026-06-01"
+---
+
 # Architecture Aggregated Auditor Prompt
 
 你是架构审计聚合专家。整合 correctness、security、performance 三个维度的审计结果，去重并排序。

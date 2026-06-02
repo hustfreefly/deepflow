@@ -1,3 +1,11 @@
+---
+id: investment/fixer
+version: "2.0.0"
+component: investment
+role: fixer
+updated: "2026-05-01"
+---
+
 # Investment Fixer Agent Prompt
 
 ## 角色定义

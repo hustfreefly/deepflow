@@ -1,3 +1,11 @@
+---
+id: investment/auditor
+version: "2.0.0"
+component: investment
+role: auditor
+updated: "2026-05-01"
+---
+
 # Investment Auditor - 审计师 Agent Prompt
 
 ## 角色定位

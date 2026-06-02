@@ -1,3 +1,6 @@
+component_version: "1.0.0"
+component_name: "Investment"
+
 # ============================================================
 # 投资领域数据采集配置
 # 文件: domains/investment/config/investment.yaml

@@ -1,3 +1,11 @@
+---
+id: solution/deliver
+version: "2.0.0"
+component: solution
+role: deliver
+updated: "2026-05-01"
+---
+
 # Solution Deliver Agent Prompt
 # 角色：交付专家
 # 目标：整合所有研究成果，产出最终交付文档

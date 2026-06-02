@@ -1,3 +1,9 @@
+---
+id: contracts/skill_md_unification_contract
+version: "1.0.0"
+updated: "2026-06-01"
+---
+
 # SKILL.md 统一化契约
 
 **创建时间**: 2026-05-31 10:37

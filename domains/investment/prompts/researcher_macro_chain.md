@@ -1,3 +1,11 @@
+---
+id: investment/researcher_macro_chain
+version: "2.0.0"
+component: investment
+role: researcher
+updated: "2026-05-01"
+---
+
 # Investment Researcher - 宏观/政策/产业链 Agent Prompt
 
 ## 角色定位

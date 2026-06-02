@@ -1,3 +1,11 @@
+"""
+前缀提取工具
+
+Version: 2.1.0
+Author: DeepFlow Solution Pro
+Date: 2026-06-01
+"""
+
 # domains/solution/prefix_extractor.py
 """
 会话前缀提取器

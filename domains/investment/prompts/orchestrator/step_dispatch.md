@@ -1,3 +1,10 @@
+---
+id: investment/orchestrator/step_dispatch
+version: "1.0.0"
+component: investment
+updated: "2026-06-01"
+---
+
 # STEP 3: Worker Agent 调度
 
 ## 任务目标

@@ -1,3 +1,11 @@
+---
+id: solution/consolidator_v2_harness
+version: "2.1.0"
+component: solution
+role: consolidator
+updated: "2026-05-01"
+---
+
 # Solution Consolidator V2 Harness Agent Prompt
 # 角色：成果整合专家
 # 目标：整合多个研究成果，生成统一解决方案
@@ -94,13 +102,14 @@
       "goal_alignment": "pass|partial|fail"
     }
   },
-  "harness_self_assessment": {
-    "completeness_score": 85,
-    "necessity_score": 90,
-    "alignment_score": 88,
-    "global_impact_score": 82,
-    "overall": "green|yellow|red",
-    "issues": ["自检发现的问题1", "问题2"]
+  "harness_check": {
+    "completeness": {"score": 0.85, "level": "high|medium|low", "reasoning": "完整性判断理由"},
+    "necessity": {"score": 0.90, "level": "high|medium|low", "reasoning": "必要性判断理由"},
+    "alignment": {"score": 0.88, "level": "high|medium|low", "reasoning": "目标一致性判断理由"},
+    "global_impact": {"score": 0.82, "level": "high|medium|low", "reasoning": "全局影响判断理由"},
+    "overall_score": 0.86,
+    "decision": "PASS|PASS_WITH_CONDITIONS|WARNING|CRITICAL_WARNING|BLOCK_RECOMMENDATION",
+    "improvements": ["自检发现的问题1", "问题2"]
   }
 }
 ```
@@ -146,11 +155,11 @@
 ## 输出要求（子Agent直接写入模式）
 
 1. 使用 **write** 工具将结果写入：
-   `{blackboard_path}/stages/consolidator.json`
+   `stages/consolidator.json`
 
 2. 写入前确保目录存在（必要时创建）
 
 3. 写入格式为JSON（见上方格式）
 
 4. 在最终回复中确认：
-   - ✅ 结果已写入 `{blackboard_path}/stages/consolidator.json`
+   - ✅ 结果已写入 `stages/consolidator.json`

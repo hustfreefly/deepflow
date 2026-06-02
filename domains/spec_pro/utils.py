@@ -8,9 +8,9 @@ Spec Pro 确定性工具函数
 契约: cage/active/spec_pro_v2.0.yaml (L3 writer_protocol, L2 failure_handling)
 
 使用方式:
-  python3 core/spec_pro/utils.py merge <response_path> <living_spec_path>
-  python3 core/spec_pro/utils.py fallback <worker_name> <output_path>
-  python3 core/spec_pro/utils.py log <execution_log_path> <event> <data_json>
+  python3 domains/spec_pro/utils.py merge <response_path> <living_spec_path>
+  python3 domains/spec_pro/utils.py fallback <worker_name> <output_path>
+  python3 domains/spec_pro/utils.py log <execution_log_path> <event> <data_json>
 """
 
 import json
@@ -21,50 +21,24 @@ from typing import Any, Dict, List
 
 
 # ============================================================================
-# Fallback 数据
+# Fallback 数据 (从 worker_fallback.py 导入, P0-4 去重)
 # ============================================================================
 
+from domains.spec_pro.worker_fallback import FALLBACKS as _FALLBACKS_SHORT
+
+# 短名 → 长名映射
 FALLBACKS: Dict[str, Dict[str, Any]] = {
-    "parse_worker": {
-        "status": "timeout",
-        "parsed": {},
-        "inferred": [],
-        "confidence": 0,
-    },
-    "question_worker": {
-        "questions": [
-            {
-                "type": "clarification",
-                "text": "请再展开说说你的需求？",
-                "dimension": "objective",
-            }
-        ],
-        "strategy_note": "fallback",
-    },
-    "response_worker": {
-        "input_guard": {"valid": False},
-        "parsed_updates": {},
-        "meta_signals": {},
-    },
-    "assess_worker": {
-        "overall_score": 0,
-        "level": "C",
-        "dimensions": [],
-        "top_missing": ["评估超时"],
-        "recommendation": "请继续补充信息",
-    },
-    "structure_worker": {
-        "summary_text": "需求收集完成，但结构化输出失败",
-    },
-    "harness_worker": {
-        "final_decision": "WARN",
-        "final_reasoning": "Harness Worker 超时，跳过门禁",
-    },
+    "parse_worker": _FALLBACKS_SHORT["parse"],
+    "question_worker": _FALLBACKS_SHORT["question"],
+    "response_worker": _FALLBACKS_SHORT["response"],
+    "assess_worker": _FALLBACKS_SHORT["assess"],
+    "structure_worker": _FALLBACKS_SHORT["structure"],
+    "harness_worker": _FALLBACKS_SHORT["harness"],
 }
 
 
 # ============================================================================
-# Merge: 确定性合并 response → living_spec
+# Merge: 委托给 merge_spec.py 唯一实现 (F1: 消除分叉)
 # ============================================================================
 
 def merge_response_to_living_spec(
@@ -74,221 +48,11 @@ def merge_response_to_living_spec(
     """
     按 writer_protocol 将 ResponseWorker 的 parsed_updates 合并到 living_spec.json。
 
-    规则:
-    1. confirmed 层: 追加新项，不删除已有项
-    2. inferred 层:
-       - status=confirmed → 移入 confirmed 层
-       - status=rejected → 标记 rejected（保留记录）
-       - 新增推断 → 追加
-    3. guardrails: 追加新项
-    4. 矛盾处理: 新信息与已有 confirmed 矛盾时，保留两者并标注 contradiction
-
-    Returns:
-        dict: 合并摘要
+    委托给 merge_spec.merge_spec() — 唯一权威实现。
+    保留此函数签名以兼容 utils.py CLI 和其他调用方。
     """
-    # 读取 response
-    if not os.path.exists(response_path):
-        return {
-            "status": "error",
-            "message": f"Response file not found: {response_path}",
-        }
-
-    with open(response_path, "r", encoding="utf-8") as f:
-        response = json.load(f)
-
-    parsed_updates = response.get("parsed_updates", {})
-    inference_responses = response.get("inference_responses", [])
-    new_inferences = response.get("new_inferences", [])
-
-    # 读取或创建 living_spec
-    if os.path.exists(living_spec_path):
-        with open(living_spec_path, "r", encoding="utf-8") as f:
-            living_spec = json.load(f)
-    else:
-        living_spec = _create_default_living_spec()
-
-    confirmed = living_spec.setdefault("confirmed", {})
-    inferred = living_spec.setdefault("inferred", [])
-    guardrails = living_spec.setdefault("guardrails", {"always_do": [], "ask_first": [], "never_do": []})
-
-    stats = {
-        "confirmed_appended": 0,
-        "inferences_confirmed": 0,
-        "inferences_rejected": 0,
-        "inferences_new": 0,
-        "guardrails_appended": 0,
-    }
-
-    # --- 1. 合并 parsed_updates 到 confirmed 层 ---
-    _merge_dict_append(confirmed, parsed_updates, stats)
-
-    # --- 2. 处理推断确认/拒绝 ---
-    for inf_resp in inference_responses:
-        inf_id = inf_resp.get("id")
-        action = inf_resp.get("action")
-        # 在 inferred 列表中找到对应项
-        for inf in inferred:
-            if inf.get("id") == inf_id:
-                if action == "confirm":
-                    # 移入 confirmed 层
-                    _move_inference_to_confirmed(inf, confirmed, stats)
-                elif action == "reject":
-                    inf["status"] = "rejected"
-                    stats["inferences_rejected"] += 1
-                elif action == "modify":
-                    modified = inf_resp.get("modified_content", "")
-                    if modified:
-                        inf["content"] = modified
-                        inf["status"] = "pending"
-                break
-
-    # --- 3. 追加新增推断 ---
-    for new_inf in new_inferences:
-        if new_inf not in inferred:
-            inferred.append(new_inf)
-            stats["inferences_new"] += 1
-
-    # --- 3.5. 合并 guardrails ---
-    meta_signals = parsed_updates.get("meta_signals", {})
-    new_guardrails = meta_signals.get("new_guardrails", {})
-    direct_guardrails = response.get("guardrails", {})
-    for key in ["always_do", "ask_first", "never_do"]:
-        new_items = new_guardrails.get(key, []) or direct_guardrails.get(key, [])
-        existing = set(str(x) for x in guardrails[key])
-        for item in new_items:
-            if str(item) not in existing:
-                guardrails[key].append(item)
-                existing.add(str(item))
-                stats["guardrails_appended"] += 1
-
-    # --- 4. 更新 meta ---
-    meta = living_spec.get("meta", {})
-    meta["updated_at"] = datetime.now().isoformat()
-    meta["conversation_rounds"] = meta.get("conversation_rounds", 0) + 1
-    living_spec["meta"] = meta
-
-    # --- 5. 写回 ---
-    with open(living_spec_path, "w", encoding="utf-8") as f:
-        json.dump(living_spec, f, ensure_ascii=False, indent=2)
-
-    return {
-        "status": "merged",
-        "stats": stats,
-    }
-
-
-def _merge_dict_append(
-    confirmed: Dict[str, Any],
-    updates: Dict[str, Any],
-    stats: Dict[str, int],
-) -> None:
-    """合并 updates 到 confirmed，追加不覆盖。"""
-    for key, value in updates.items():
-        if value is None or value == "" or value == [] or value == {}:
-            continue
-
-        if key not in confirmed:
-            confirmed[key] = value
-            stats["confirmed_appended"] += 1
-        elif isinstance(confirmed[key], list) and isinstance(value, list):
-            # 列表去重追加
-            existing_strs = {json.dumps(x, ensure_ascii=False, sort_keys=True) if isinstance(x, dict) else str(x) for x in confirmed[key]}
-            added = 0
-            for item in value:
-                item_key = json.dumps(item, ensure_ascii=False, sort_keys=True) if isinstance(item, dict) else str(item)
-                if item_key not in existing_strs:
-                    confirmed[key].append(item)
-                    existing_strs.add(item_key)
-                    added += 1
-            if added:
-                stats["confirmed_appended"] += added
-        elif isinstance(confirmed[key], dict) and isinstance(value, dict):
-            # 递归合并
-            for sub_key, sub_value in value.items():
-                if sub_key not in confirmed[key] or confirmed[key][sub_key] is None:
-                    confirmed[key][sub_key] = sub_value
-                    stats["confirmed_appended"] += 1
-                elif isinstance(confirmed[key][sub_key], list) and isinstance(sub_value, list):
-                    existing = set(str(x) for x in confirmed[key][sub_key])
-                    for item in sub_value:
-                        if str(item) not in existing:
-                            confirmed[key][sub_key].append(item)
-                            existing.add(str(item))
-                            stats["confirmed_appended"] += 1
-        else:
-            # 标量值：仅在原值为空时更新
-            if not confirmed[key]:
-                confirmed[key] = value
-                stats["confirmed_appended"] += 1
-
-
-def _move_inference_to_confirmed(
-    inference: Dict[str, Any],
-    confirmed: Dict[str, Any],
-    stats: Dict[str, int],
-) -> None:
-    """将确认的推断移入 confirmed 层对应维度。"""
-    inference["status"] = "confirmed"
-    dimension = inference.get("dimension", "")
-    content = inference.get("content", "")
-
-    # 根据维度映射到 confirmed 字段
-    dimension_map = {
-        "objective": "objective",
-        "pain_points": "pain_points",
-        "success_metrics": "success_metrics",
-        "users": "users",
-        "key_scenarios": "key_scenarios",
-        "capabilities": "capabilities",
-        "quality_attributes": "quality_attributes",
-        "constraints": "constraints",
-        "integration": "integration",
-        "risks": "risks_and_assumptions",
-    }
-
-    target_key = dimension_map.get(dimension)
-    if target_key and content:
-        target = confirmed.get(target_key)
-        if isinstance(target, list):
-            if content not in target:
-                target.append(content)
-        elif isinstance(target, dict):
-            confirmed[target_key] = content
-        stats["inferences_confirmed"] += 1
-
-
-def _create_default_living_spec() -> Dict[str, Any]:
-    """创建默认 living_spec 结构。"""
-    now = datetime.now().isoformat()
-    return {
-        "meta": {
-            "engine": "spec_pro",
-            "version": "2.1",
-            "spec_version": 1,
-            "scenario": "genesis",
-            "created_at": now,
-            "updated_at": now,
-            "conversation_rounds": 0,
-            "quality_score": 0,
-            "quality_level": "C",
-        },
-        "confirmed": {
-            "objective": "",
-            "pain_points": [],
-            "success_metrics": [],
-            "users": [],
-            "key_scenarios": [],
-            "capabilities": {"always_do": [], "should_do": [], "never_do": []},
-            "quality_attributes": [],
-            "constraints": {},
-            "integration": {"existing_systems": [], "requirements": []},
-            "risks_and_assumptions": {"risks": [], "assumptions": [], "dependencies": []},
-        },
-        "inferred": [],
-        "guardrails": {"always_do": [], "ask_first": [], "never_do": []},
-        "route_recommendation": None,
-        "solution_pro_hints": None,
-    }
+    from domains.spec_pro.merge_spec import merge_spec as _canonical_merge
+    return _canonical_merge(response_path, living_spec_path)
 
 
 # ============================================================================
@@ -460,76 +224,8 @@ def append_conversation_log(
 
 
 # ============================================================================
-# Process Guard 检查
+# Process Guard 检查 (已删除 — 使用 process_guard.py 作为唯一入口)
 # ============================================================================
-
-def check_process_guard(trajectory_path: str) -> Dict[str, Any]:
-    """
-    检查质量轨迹是否健康。
-
-    Returns:
-        {healthy: bool, issues: [...], adjustments: [...]}
-    """
-    result = {"healthy": True, "issues": [], "adjustments": []}
-
-    if not os.path.exists(trajectory_path):
-        return result
-
-    try:
-        with open(trajectory_path, "r", encoding="utf-8") as f:
-            trajectory = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return result
-
-    if len(trajectory) < 2:
-        return result  # 至少2轮才能检查进度
-
-    # --- progress_rate ---
-    for i in range(1, len(trajectory)):
-        delta = trajectory[i]["delta"]
-        round_num = trajectory[i]["round"]
-        if round_num <= 3:
-            expected_range = (8, 15)
-        elif round_num <= 6:
-            expected_range = (3, 8)
-        else:
-            expected_range = (1, 3)
-
-        if delta < expected_range[0] and trajectory[i]["overall_score"] < 75:
-            result["issues"].append(
-                f"第{round_num}轮进度不足 (delta={delta}, 期望>={expected_range[0]})"
-            )
-            result["adjustments"].append("需要更深入地追问当前维度")
-
-    # --- inference_integrity ---
-    total_confirmed = sum(t.get("inferences_validated", 0) for t in trajectory)
-    total_inferences = sum(t.get("questions_asked", 0) for t in trajectory)
-    if total_inferences > 0:
-        rate = total_confirmed / total_inferences
-        if rate < 0.2 or rate > 0.9:
-            result["issues"].append(
-                f"推断确认率异常 ({rate:.1%}, 期望40-80%)"
-            )
-            result["adjustments"].append("调整推断置信度阈值")
-
-    # --- conversation_balance ---
-    if trajectory:
-        latest = trajectory[-1]
-        dim_scores = latest.get("dimension_scores", {})
-        if dim_scores:
-            scores = [s for s in dim_scores.values() if s > 0]
-            if scores and (max(scores) - min(scores)) > 40:
-                result["issues"].append(
-                    f"维度间分差过大 ({max(scores)} - {min(scores)} = {max(scores) - min(scores)})"
-                )
-                min_dim = min(dim_scores, key=dim_scores.get)
-                result["adjustments"].append(f"优先关注薄弱维度: {min_dim}")
-
-    if result["issues"]:
-        result["healthy"] = False
-
-    return result
-
 
 # ============================================================================
 # CLI 入口
@@ -582,13 +278,6 @@ def main():
             entry = json.loads(sys.argv[3])
             append_conversation_log(sys.argv[2], **entry)
             print(json.dumps({"status": "logged"}, ensure_ascii=False))
-
-        elif command == "process_guard":
-            if len(sys.argv) < 3:
-                print("Usage: python3 utils.py process_guard <trajectory_path>")
-                return 1
-            result = check_process_guard(sys.argv[2])
-            print(json.dumps(result, ensure_ascii=False, indent=2))
 
         else:
             print(f"Unknown command: {command}")

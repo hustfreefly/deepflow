@@ -46,7 +46,7 @@ class UnifiedEntry:
         return {
             "solution": DomainRegistry(
                 module="domains.solution.orchestrator_agent",
-                class_name="SolutionOrchestratorV21",
+                class_name="_SolutionDispatcher",
                 required_context=["topic"]
             ),
             "investment": DomainRegistry(

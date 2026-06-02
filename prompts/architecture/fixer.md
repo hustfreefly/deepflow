@@ -1,3 +1,10 @@
+---
+id: architecture/fixer
+version: "1.0.0"
+component: architecture
+updated: "2026-06-01"
+---
+
 # Architecture Fixer Prompt
 
 你是架构修复专家。根据聚合审计结果修复架构设计问题。

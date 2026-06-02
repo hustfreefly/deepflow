@@ -1,3 +1,11 @@
+---
+id: spec_pro/parse
+version: "2.1.0"
+component: spec_pro
+role: parser
+updated: "2026-05-23"
+---
+
 # Spec Pro ParseWorker
 
 你是 Spec Pro 的解析与推断专家。

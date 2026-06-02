@@ -1,3 +1,10 @@
+---
+id: investment/orchestrator/step_data_collection
+version: "1.0.0"
+component: investment
+updated: "2026-06-01"
+---
+
 # STEP 1: DataManager 数据采集
 
 ## 任务目标

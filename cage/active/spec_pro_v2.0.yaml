@@ -1,3 +1,7 @@
+cage_version: "2.0.0"
+component: spec_pro
+status: active
+
 module: spec_pro
 version: '2.1'
 created: '2026-05-23'
@@ -22,11 +26,11 @@ redlines:
 - id: RED-SP2-001
   rule: Spec Pro Python 层（Coordinator）禁止包含 LLM 推理逻辑
   reason: 所有LLM推理必须通过 sessions_spawn Worker Agent 完成
-  check: grep -r 'openai\|anthropic\|llm\|chat_completion' core/spec_pro/ → 无匹配
+  check: grep -r 'openai\|anthropic\|llm\|chat_completion' domains/spec_pro/ → 无匹配
 - id: RED-SP2-002
   rule: Coordinator 禁止直接调用 sessions_spawn
   reason: Coordinator 运行在主Agent进程，由主Agent调用 spawn
-  check: grep 'sessions_spawn\|spawn_fn' core/spec_pro/coordinator.py → 无匹配
+  check: grep 'sessions_spawn\|spawn_fn' domains/spec_pro/coordinator.py → 无匹配
 - id: RED-SP2-003
   rule: Worker Agent 禁止直接调用 openclaw SDK
   reason: exec 环境无 openclaw，有 import 就失败
@@ -50,7 +54,7 @@ redlines:
 interface:
   python_modules:
     coordinator:
-      path: core/spec_pro/coordinator.py
+      path: domains/spec_pro/coordinator.py
       max_lines: 300
       class: SpecProCoordinator
       methods:
@@ -62,7 +66,7 @@ interface:
         get_status: () -> dict
         is_done: () -> bool
     models:
-      path: core/spec_pro/models.py
+      path: domains/spec_pro/models.py
       max_lines: 200
       classes:
       - QualityLevel
@@ -74,7 +78,7 @@ interface:
       - RouteRecommendation
       note: 纯数据结构，无业务逻辑
     init:
-      path: core/spec_pro/__init__.py
+      path: domains/spec_pro/__init__.py
       exports:
       - SpecProCoordinator
       - LivingSpec

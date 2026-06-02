@@ -1,3 +1,10 @@
+---
+id: code/correctness
+version: "1.0.0"
+component: code
+updated: "2026-06-01"
+---
+
 # Code Auditor - Correctness
 
 Review code for correctness and bugs.

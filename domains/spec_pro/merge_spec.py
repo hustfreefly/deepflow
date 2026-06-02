@@ -13,7 +13,6 @@ Usage:
 import json
 import os
 import sys
-import copy
 from datetime import datetime
 
 
@@ -37,8 +36,22 @@ def append_unique(target: list, source: list, key: str = None) -> None:
 
 
 def merge_confirmed(spec: dict, updates: dict) -> None:
-    """Merge new confirmed data into spec['confirmed'], never deleting existing."""
+    """Merge new confirmed data into spec['confirmed'], never deleting existing.
+    
+    Defensive checks at entry:
+    - Ensure spec and updates are dicts
+    - Ensure spec['confirmed'] exists and is a dict
+    """
+    if not isinstance(spec, dict):
+        raise ValueError(f"spec must be dict, got {type(spec).__name__}")
+    if not isinstance(updates, dict):
+        raise ValueError(f"updates must be dict, got {type(updates).__name__}")
+    
+    spec.setdefault("confirmed", {})
     confirmed = spec["confirmed"]
+    
+    if not isinstance(confirmed, dict):
+        raise ValueError(f"spec['confirmed'] must be dict, got {type(confirmed).__name__}")
 
     # Simple string fields: only overwrite if new value is non-empty and different
     for field in ["objective"]:
@@ -54,7 +67,7 @@ def merge_confirmed(spec: dict, updates: dict) -> None:
 
     # users: merge by role
     new_users = updates.get("users", [])
-    existing_users = confirmed.get("users", [])
+    existing_users = confirmed.setdefault("users", [])  # F1: setdefault 确保字段存在
     existing_roles = {u.get("role") for u in existing_users if isinstance(u, dict)}
     for u in new_users:
         if isinstance(u, dict) and u.get("role") not in existing_roles:
@@ -67,16 +80,30 @@ def merge_confirmed(spec: dict, updates: dict) -> None:
     for sub in ["always_do", "should_do", "never_do"]:
         append_unique(caps.setdefault(sub, []), new_caps.get(sub, []))
 
-    # quality_attributes: append unique
+    # quality_attributes: semantic dedup by category + spec[:15] (F6)
     new_qa = updates.get("quality_attributes", [])
     if isinstance(new_qa, list):
-        append_unique(confirmed.setdefault("quality_attributes", []), new_qa)
+        qa_list = confirmed.setdefault("quality_attributes", [])
+        existing_keys = {
+            (item.get("category", ""), str(item.get("spec", ""))[:15])
+            for item in qa_list if isinstance(item, dict)
+        }
+        for qa in new_qa:
+            if isinstance(qa, dict):
+                key = (qa.get("category", ""), str(qa.get("spec", ""))[:15])
+                if key not in existing_keys:
+                    qa_list.append(qa)
+                    existing_keys.add(key)
+            else:
+                # 非 dict 类型，按普通去重
+                if qa not in qa_list:
+                    qa_list.append(qa)
 
-    # constraints: merge dict
+    # constraints: merge dict (F2: allow overwrite when new value is non-empty)
     new_constraints = updates.get("constraints", {})
     constraints = confirmed.setdefault("constraints", {})
     for k, v in new_constraints.items():
-        if v and not constraints.get(k):
+        if v:
             constraints[k] = v
 
     # integration
@@ -95,7 +122,7 @@ def merge_confirmed(spec: dict, updates: dict) -> None:
 
 def merge_inferred(spec: dict, response: dict) -> None:
     """Merge inference responses and new inferences into spec['inferred']."""
-    inferred = spec.get("inferred", [])
+    inferred = spec.setdefault("inferred", [])  # F2: setdefault 确保字段存在
 
     # Process inference responses
     for ir in response.get("inference_responses", []):
@@ -112,29 +139,42 @@ def merge_inferred(spec: dict, response: dict) -> None:
                     item["content"] = modified
                     item["status"] = "modified"
 
-    # Move confirmed inferences to confirmed layer
+    # Move confirmed inferences to confirmed layer (F1: all 10 dimensions)
     confirmed_inferred = [i for i in inferred if i.get("status") == "confirmed"]
     for inf in confirmed_inferred:
-        # Add to appropriate confirmed field based on dimension
         dim = inf.get("dimension", "")
         content = inf.get("content", "")
+        c = spec["confirmed"]
         if dim == "objective":
-            if not spec["confirmed"].get("objective"):
-                spec["confirmed"]["objective"] = content
+            if not c.get("objective"):
+                c["objective"] = content
+        elif dim == "pain_points":
+            append_unique(c.setdefault("pain_points", []), [content])
+        elif dim == "success_metrics":
+            append_unique(c.setdefault("success_metrics", []), [content])
         elif dim == "users":
-            spec["confirmed"].setdefault("users", [])
-            spec["confirmed"]["users"].append({"role": content, "key_needs": ""})
+            c.setdefault("users", []).append({"role": content, "key_needs": ""})
+        elif dim == "key_scenarios":
+            append_unique(c.setdefault("key_scenarios", []), [content])
+        elif dim == "capabilities":
+            caps = c.setdefault("capabilities", {"always_do": [], "should_do": [], "never_do": []})
+            append_unique(caps.setdefault("should_do", []), [content])
         elif dim == "quality_attributes":
-            spec["confirmed"].setdefault("quality_attributes", [])
-            spec["confirmed"]["quality_attributes"].append({"category": "推断", "spec": content, "priority": "P1"})
+            c.setdefault("quality_attributes", []).append({"category": "推断", "spec": content, "priority": "P1"})
         elif dim == "constraints":
-            spec["confirmed"].setdefault("constraints", {})
-            spec["confirmed"]["constraints"]["inferred"] = content
+            c.setdefault("constraints", {})["inferred"] = content
+        elif dim == "integration":
+            integ = c.setdefault("integration", {"existing_systems": [], "requirements": []})
+            append_unique(integ.setdefault("requirements", []), [content])
         elif dim == "risks":
-            spec["confirmed"].setdefault("risks_and_assumptions", {"risks": [], "assumptions": [], "dependencies": []})
-            spec["confirmed"]["risks_and_assumptions"]["risks"].append(content)
-        # Mark as moved
+            ra = c.setdefault("risks_and_assumptions", {"risks": [], "assumptions": [], "dependencies": []})
+            append_unique(ra.setdefault("risks", []), [content])
+        # P1-3 修复: 迁移后从 inferred 活跃列表中移除，归档到 archived
         inf["_moved_to_confirmed"] = True
+        inf["_archived"] = True
+
+    # P1-3 修复: 将已归档的 inference 从 inferred 列表中移除
+    inferred[:] = [i for i in inferred if not i.get("_archived")]
 
     # Add new inferences
     for ni in response.get("new_inferences", []):
@@ -145,7 +185,7 @@ def merge_guardrails(spec: dict, response: dict) -> None:
     """Merge guardrails from response.
     Handles both response['guardrails'] and parsed_updates['meta_signals']['new_guardrails'].
     """
-    guardrails = spec.get("guardrails", {"always_do": [], "ask_first": [], "never_do": []})
+    guardrails = spec.setdefault("guardrails", {"always_do": [], "ask_first": [], "never_do": []})  # F2: setdefault
 
     # Direct guardrails field
     new_guardrails = response.get("guardrails", {})
@@ -165,7 +205,8 @@ def merge_guardrails(spec: dict, response: dict) -> None:
 def check_contradictions(spec: dict) -> list:
     """Check for contradictions between new and existing confirmed data."""
     contradictions = []
-    # Simple check: if guardrails.always_do conflicts with guardrails.never_do
+    
+    # Check 1: guardrails.always_do conflicts with guardrails.never_do
     always = set(spec.get("guardrails", {}).get("always_do", []))
     never = set(spec.get("guardrails", {}).get("never_do", []))
     conflict = always & never
@@ -175,18 +216,98 @@ def check_contradictions(spec: dict) -> list:
             "items": list(conflict),
             "resolution": "保留两者并标注 contradiction",
         })
+    
+    # Check 2: capabilities.always_do conflicts with capabilities.never_do
+    caps = spec.get("confirmed", {}).get("capabilities", {})
+    caps_always = set(caps.get("always_do", []))
+    caps_never = set(caps.get("never_do", []))
+    caps_conflict = caps_always & caps_never
+    if caps_conflict:
+        contradictions.append({
+            "type": "capability_conflict",
+            "items": list(caps_conflict),
+            "resolution": "always_do 与 never_do 存在冲突，需要澄清",
+        })
+    
+    # Check 3: constraints.conflicts (e.g., budget vs scope)
+    constraints = spec.get("confirmed", {}).get("constraints", {})
+    budget = constraints.get("budget")
+    timeline = constraints.get("timeline")
+    # Simple heuristic: if budget is very low but timeline is very short, flag it
+    # (This is a placeholder for more sophisticated checks)
+    
     return contradictions
 
 
-def merge_spec(response_path: str, living_spec_path: str) -> dict:
-    """Main merge function."""
-    with open(response_path, "r", encoding="utf-8") as f:
-        response = json.load(f)
+def merge_user_directives(spec: dict, response: dict) -> None:
+    """Merge user_directives from parse_response output into confirmed layer."""
+    parsed_updates = response.get("parsed_updates", {})
+    user_directives = parsed_updates.get("user_directives") or response.get("user_directives", [])
+    if not user_directives:
+        return
+    
+    confirmed = spec.setdefault("confirmed", {})
+    directives = confirmed.setdefault("user_directives", [])
+    
+    # Append unique directives by dimension + directive/type + content/reason.
+    existing = {
+        (
+            d.get("dimension"),
+            d.get("directive") or d.get("type"),
+            d.get("content") or d.get("reason"),
+        )
+        for d in directives
+        if isinstance(d, dict)
+    }
+    for directive in user_directives:
+        if isinstance(directive, dict):
+            key = (
+                directive.get("dimension"),
+                directive.get("directive") or directive.get("type"),
+                directive.get("content") or directive.get("reason"),
+            )
+            if key not in existing:
+                directives.append(directive)
+                existing.add(key)
+        elif isinstance(directive, str):
+            key = (None, directive, None)
+            if key not in existing:
+                directives.append({"directive": directive, "source": "user"})
+                existing.add(key)
 
-    with open(living_spec_path, "r", encoding="utf-8") as f:
-        spec = json.load(f)
+
+def merge_spec(response_path: str, living_spec_path: str) -> dict:
+    """Main merge function with robust error handling."""
+    # P0-5: 文件不存在/JSON 格式错误异常处理
+    if not os.path.exists(response_path):
+        return {"status": "error", "message": f"Response file not found: {response_path}"}
+    if not os.path.exists(living_spec_path):
+        return {"status": "error", "message": f"Living spec file not found: {living_spec_path}"}
+    
+    try:
+        with open(response_path, "r", encoding="utf-8") as f:
+            response = json.load(f)
+    except json.JSONDecodeError as e:
+        return {"status": "error", "message": f"Invalid JSON in response file: {e}"}
+    
+    try:
+        with open(living_spec_path, "r", encoding="utf-8") as f:
+            spec = json.load(f)
+    except json.JSONDecodeError as e:
+        return {"status": "error", "message": f"Invalid JSON in living spec file: {e}"}
 
     parsed_updates = response.get("parsed_updates", {})
+
+    # Step 0: Validate structure (F3: 确保 confirmed 层存在)
+    if "confirmed" not in spec:
+        spec["confirmed"] = {
+            "objective": "", "pain_points": [], "success_metrics": [],
+            "users": [], "key_scenarios": [],
+            "capabilities": {"always_do": [], "should_do": [], "never_do": []},
+            "quality_attributes": [], "constraints": {},
+            "integration": {"existing_systems": [], "requirements": []},
+            "risks_and_assumptions": {"risks": [], "assumptions": [], "dependencies": []},
+        }
 
     # Step 1: Merge confirmed
     merge_confirmed(spec, parsed_updates)
@@ -199,10 +320,14 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
 
     # Step 4: Check contradictions
     contradictions = check_contradictions(spec)
+    
+    # Step 5: Merge user_directives (parse_response.md 输出)
+    merge_user_directives(spec, response)
 
     # Update meta
-    spec["meta"]["updated_at"] = datetime.now().isoformat()
-    spec["meta"]["conversation_rounds"] = spec["meta"].get("conversation_rounds", 0) + 1
+    meta = spec.setdefault("meta", {})
+    meta["updated_at"] = datetime.now().isoformat()
+    meta["conversation_rounds"] = meta.get("conversation_rounds", 0) + 1
 
     # Write back
     with open(living_spec_path, "w", encoding="utf-8") as f:
@@ -213,11 +338,22 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
 
 def apply_revisions(confirmation_path: str, living_spec_path: str) -> dict:
     """Apply user revisions from confirmation to living_spec."""
-    with open(confirmation_path, "r", encoding="utf-8") as f:
-        confirmation = json.load(f)
+    if not os.path.exists(confirmation_path):
+        return {"status": "error", "message": f"Confirmation file not found: {confirmation_path}"}
+    if not os.path.exists(living_spec_path):
+        return {"status": "error", "message": f"Living spec file not found: {living_spec_path}"}
 
-    with open(living_spec_path, "r", encoding="utf-8") as f:
-        spec = json.load(f)
+    try:
+        with open(confirmation_path, "r", encoding="utf-8") as f:
+            confirmation = json.load(f)
+    except json.JSONDecodeError as e:
+        return {"status": "error", "message": f"Invalid JSON in confirmation file: {e}"}
+
+    try:
+        with open(living_spec_path, "r", encoding="utf-8") as f:
+            spec = json.load(f)
+    except json.JSONDecodeError as e:
+        return {"status": "error", "message": f"Invalid JSON in living spec file: {e}"}
 
     revisions = confirmation.get("revisions", [])
     for rev in revisions:
@@ -235,15 +371,13 @@ def apply_revisions(confirmation_path: str, living_spec_path: str) -> dict:
                     if item.get("id") == field:
                         item["content"] = new_value
 
-    spec["meta"]["updated_at"] = datetime.now().isoformat()
+    meta = spec.setdefault("meta", {})
+    meta["updated_at"] = datetime.now().isoformat()
 
     with open(living_spec_path, "w", encoding="utf-8") as f:
         json.dump(spec, f, ensure_ascii=False, indent=2)
 
     return {"status": "revised", "revisions_applied": len(revisions)}
-
-
-from datetime import datetime
 
 
 def main():
@@ -262,6 +396,8 @@ def main():
         result = merge_spec(response_path, living_spec_path)
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
+    if result.get("status") == "error":
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,10 @@
+---
+id: investment/orchestrator/step1_data
+version: "1.0.0"
+component: investment
+updated: "2026-06-01"
+---
+
 ## STEP 1: DataManager 数据采集
 
 **目标**：采集基础数据到 Blackboard/data/v0/

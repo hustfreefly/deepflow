@@ -1,3 +1,10 @@
+---
+id: system/data_manager_agent
+version: "1.0.0"
+component: system
+updated: "2026-06-01"
+---
+
 # DataManager Agent Prompt
 
 ## 身份

@@ -1,18 +1,22 @@
+cage_version: "1.0.0"
+component: solution
+status: active
 # Solution Pro v1.0 契约
 # DeepFlow 方案设计引擎 — 需求理解→方案规划→详细设计→验证交付
 
 module: solution_pro
-version: "1.0"
+version: "1.1"
 created: "2026-05-30"
-updated: "2026-05-30"
+updated: "2026-06-01"
 status: active
-complexity: complex  # 13 Python modules + 32 Prompts + Harness V2/V3
+complexity: complex  # 13 Python modules + 32 Prompts + Harness V2/V3 + Cron 巡检
 
 description: |
   Solution Pro 是 DeepFlow 的方案设计引擎, 支持 architecture/business/technical 三种类型。
   核心架构: EntryHarness → PipelineOrchestrator → 10 Stage Workers → Harness Final → Summarizer。
   管线: data_collection→planning→reviewers×3→research×3→consolidator→audit→fix→fixer_expert→harness_final→summarizer。
   Harness V3: 完整性35%/必要性25%/目标一致性40%, 数据通过 Blackboard JSON 传递。
+  V1.1 新增: Cron 巡检架构（每3分钟通知进度）+ 三层退出机制 + 时间戳校验防止旧文件误判。
 
 # =============================================================================
 # 红线 (P0 — 绝对不可违反)
@@ -89,6 +93,24 @@ interface:
     - fixer: {role: "初步修正", prompts: ["worker_fixer.md","fixer_v2_harness.md"]}
     - fixer_expert: {role: "深度修正", prompts: ["fixer_expert.md","fixer_expert_v2_harness.md"]}
     - summarizer: {role: "最终交付", prompts: ["worker_summarizer.md","summarizer_v2_harness.md"]}
+  
+  # V1.1 新增: 双执行模式
+  execution_modes:
+    llm_orchestrator:
+      status: "主推方案 (V4.0+)"
+      entry: "主 Agent 直接 sessions_spawn + Cron 巡检"
+      prompts:
+        - "domains/solution/prompts/pipeline_orchestrator_v4.md"
+        - "domains/solution/prompts/cron_watcher.md"
+      advantages: "进度可视化、三层退出机制、时间戳校验"
+      documentation: "domains/solution/SKILL.md"
+    
+    python_orchestration:
+      status: "备选方案 (兼容旧系统)"
+      entry: "SolutionOrchestratorV21.run_solution_pro()"
+      module: "domains/solution/orchestrator_agent.py"
+      use_case: "需要程序化控制、批量执行、集成测试"
+      limitations: "无进度通知、主 Agent 阻塞"
 
 # =============================================================================
 # L2: 行为契约
@@ -147,6 +169,30 @@ data:
       "stages/harness_final.json": "最终门禁 (coverage_score + missing/misaligned)"
       "progress.json / execution_plan.json / tasks.json": "状态与计划"
       "final_solution.md": "最终交付 (标注 REQ-ID 覆盖)"
+    
+    # V1.1 新增: Cron 巡检架构状态文件
+    "completion_marker.json": "完成标记 (status=completed, timestamp, stages_completed)"
+    ".cron_job_id": "Cron 任务 ID (主 Agent 写入, Cron 自检时读取)"
+    ".cron_run_count": "Cron 运行计数 (count, first_run, last_run, max_runs)"
+    ".notified_stages.json": "已通知阶段列表 (去重, 避免重复通知)"
+    ".run_start_at": "本次运行启动时间 (ISO格式, Cron 用于校验 completion_marker 是否属于本次运行)"
+  
+  cron_watcher:
+    prompt: "domains/solution/prompts/cron_watcher.md"
+    interval: "每3分钟"
+    exit_mechanisms:
+      layer1_normal: "检测到 completion_marker.json → 发送最终报告 → 自杀"
+      layer2_timeout: "运行次数 > 20 (60分钟) → 超时告警 → 自杀"
+      layer3_fallback: "主 Agent 收到 orchestrator announce → 兜底清理 Cron"
+    timestamp_validation: "completion_marker.timestamp 必须 >= run_start_at, 否则视为旧文件残留"
+  
+  main_agent_startup:
+    step1_cleanup: "启动前清理旧状态文件 (completion_marker, .cron_job_id, .cron_run_count, .notified_stages.json, .run_start_at)"
+    step2_record_start: "写入 .run_start_at (ISO格式时间戳)"
+    step3_spawn_orchestrator: "spawn orchestrator (sub-agent)"
+    step4_create_cron: "创建 Cron Watcher (isolated, 每3分钟)"
+    step5_record_cron_id: "写入 .cron_job_id"
+    step6_yield: "yield 等待 orchestrator announce"
 
   config:
     path: "domains/solution/config/solution.yaml"

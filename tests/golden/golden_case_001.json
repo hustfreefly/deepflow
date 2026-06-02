@@ -1,0 +1,155 @@
+{
+  "meta": {
+    "id": "golden_001",
+    "name": "AI智能客服系统 - 标准架构设计",
+    "purpose": "Solution Pro V4.3 E2E Golden Case，覆盖固定10阶段管线全流程验证",
+    "version": "1.0",
+    "created": "2026-06-02",
+    "solution_pro_version": "V4.3",
+    "estimated_duration_min": 30,
+    "estimated_duration_max": 60
+  },
+  "input": {
+    "topic": "设计一个企业级AI智能客服系统，支持多轮对话、意图识别、知识库检索和人工坐席无缝转接",
+    "solution_type": "architecture",
+    "mode": "standard",
+    "constraints": [
+      "日均处理10万+对话请求",
+      "系统可用性≥99.9%",
+      "首次响应延迟<2秒",
+      "支持中文和英文双语",
+      "必须与现有CRM系统集成",
+      "数据存储符合GDPR合规要求"
+    ],
+    "stakeholders": [
+      "技术团队",
+      "产品团队",
+      "客服运营团队",
+      "合规部门"
+    ]
+  },
+  "frozen_spec_expectations": {
+    "min_requirements": 6,
+    "required_categories": ["objective", "constraint"],
+    "must_have_p0": true,
+    "expected_p0_keywords": ["智能客服", "多轮对话", "意图识别", "知识库"],
+    "expected_p1_keywords": ["10万", "99.9%", "2秒", "双语", "CRM", "GDPR"]
+  },
+  "stage_expectations": {
+    "data_collection": {
+      "output_path": "data/collection.json",
+      "must_contain_fields": ["status", "search_keywords", "search_results_summary"],
+      "alias_fields": {"for_planner": ["recommendations_for_planner"]},
+      "status_must_be": "completed",
+      "min_search_keywords": 2,
+      "description": "数据收集阶段必须完成web搜索，产出行业趋势、关键技术、实施案例摘要"
+    },
+    "planning": {
+      "output_path": "stages/planning.json",
+      "must_contain_fields": ["analysis", "required_experts"],
+      "alias_fields": {"status": ["status"]},
+      "must_trigger_control_contract": true,
+      "description": "规划阶段输出解决方案架构蓝图，包含技术选型、模块划分、专家映射"
+    },
+    "reviewers": {
+      "parallel": true,
+      "workers": {
+        "technical": {
+          "output_path": "stages/reviewer_technical.json",
+          "must_contain_fields": ["status", "data"],
+          "description": "技术评审：验证架构可行性、技术选型合理性"
+        },
+        "business": {
+          "output_path": "stages/reviewer_business.json",
+          "must_contain_fields": ["status", "data"],
+          "description": "业务评审：评估ROI、商业价值、用户价值"
+        },
+        "risk": {
+          "output_path": "stages/reviewer_risk.json",
+          "must_contain_fields": ["status", "data"],
+          "description": "风险评审：识别技术/业务/合规风险"
+        }
+      },
+      "min_success_workers": 2,
+      "description": "3个评审Agent并行执行，至少2个成功"
+    },
+    "research": {
+      "parallel": true,
+      "workers": {
+        "expert_1": {
+          "output_path": "stages/research_expert_1.json",
+          "must_contain_fields": ["status"],
+          "description": "研究专家1：对话引擎/NLP技术调研"
+        },
+        "expert_2": {
+          "output_path": "stages/research_expert_2.json",
+          "must_contain_fields": ["status"],
+          "description": "研究专家2：知识库/RAG技术调研"
+        },
+        "expert_3": {
+          "output_path": "stages/research_expert_3.json",
+          "must_contain_fields": ["status"],
+          "description": "研究专家3：系统架构/高可用方案调研"
+        }
+      },
+      "min_success_workers": 2,
+      "description": "3个研究Agent并行执行，至少2个成功"
+    },
+    "consolidator": {
+      "output_path": "stages/consolidator.json",
+      "must_contain_fields": ["status"],
+      "status_must_be": "completed",
+      "description": "整合器：合并评审+研究结果，消除矛盾，生成统一方案"
+    },
+    "audit": {
+      "output_path": "stages/audit.json",
+      "must_contain_fields": ["status"],
+      "status_must_be": "completed",
+      "description": "审计：交叉验证Worker输出诚实性，检查REQ-ID覆盖"
+    },
+    "fix": {
+      "output_path": "stages/fix.json",
+      "must_contain_fields": ["status"],
+      "status_must_be": "completed",
+      "description": "修复：基于审计发现修复问题"
+    },
+    "fixer_expert": {
+      "output_path": "stages/fixer_expert.json",
+      "must_contain_fields": ["status"],
+      "status_must_be": "completed",
+      "description": "深度修复：专家级修复复杂问题"
+    },
+    "harness_final": {
+      "output_path": "stages/harness_final.json",
+      "must_contain_fields": ["status"],
+      "status_must_be": "completed",
+      "must_generate_traceability_matrix": true,
+      "description": "质量门禁：4维评分(完整性30%/必要性20%/目标一致性30%/全局影响20%)"
+    },
+    "summarizer": {
+      "output_path": "stages/summarizer.json",
+      "must_contain_fields": ["status"],
+      "status_must_be": "completed",
+      "must_generate_final_solution": true,
+      "final_solution_path": "final_solution.md",
+      "final_solution_must_contain_sections": [
+        "需求覆盖度",
+        "架构",
+        "技术选型"
+      ],
+      "description": "总结器：生成final_solution.md，包含需求覆盖度章节"
+    }
+  },
+  "global_expectations": {
+    "control_contract_must_exist": true,
+    "frozen_spec_must_exist": true,
+    "traceability_matrix_must_exist": true,
+    "completed_file_must_exist": true,
+    "completed_status_must_be": ["completed", "partial"],
+    "min_stage_completion_rate": 0.7,
+    "all_worker_outputs_must_have_req_ids": true,
+    "no_fabricated_req_ids": true
+  },
+  "verification_script": "verify_golden_case.py",
+  "tags": ["e2e", "golden", "architecture", "standard"]
+}

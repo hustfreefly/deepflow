@@ -1,3 +1,11 @@
+---
+id: investment/send_reporter
+version: "2.0.0"
+component: investment
+role: send_reporter
+updated: "2026-05-01"
+---
+
 # Investment Send Reporter - 报告发送 Agent Prompt
 
 ## 角色定位

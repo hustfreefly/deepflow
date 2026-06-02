@@ -1,0 +1,32 @@
+---
+cage_version: "1.0.0"
+component: deepflow_core
+status: active
+updated: "2026-06-01"
+---
+# 版本管理体系迁移契约
+
+## 目标
+为 DeepFlow 全项目补版本标识，建立三层版本管理架构。
+
+## 声明（Planning）
+
+### S1: 修复 prompt_registry.py 的 read_prompt 不剥离 Front Matter
+- **验证**: 给含 Front Matter 的文件调用 read_prompt，返回内容不含 `---` 元数据块
+
+### S2: 修复 prompt_registry.py 的 validate 把 Front Matter 当 warning
+- **验证**: validate() 不再对正确的 Front Matter 报 warning
+
+### S3: 运行迁移脚本，为所有文件补版本标识
+- **验证**: 所有 prompt/cage/contract/domain 文件头部有版本元数据
+
+### S4: 修复 master_agent.py / orchestrator_agent.py 硬编码版本
+- **验证**: 不再硬编码 "4.0"，改为动态读取
+
+### S5: 统一 Domain YAML 的 component_version 字段
+- **验证**: 4 个 domain YAML 都有 component_version
+
+## 验收标准
+- 所有 S1-S5 验证项通过
+- 跑一次 validate() 无 error、无 false warning
+- 文件可正常加载，LLM 不看到 Front Matter

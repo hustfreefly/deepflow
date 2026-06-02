@@ -1,3 +1,10 @@
+---
+id: architecture/performance
+version: "1.0.0"
+component: architecture
+updated: "2026-06-01"
+---
+
 # Architecture Auditor - Performance
 
 Performance evaluation of architecture design.

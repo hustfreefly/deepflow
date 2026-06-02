@@ -1,3 +1,9 @@
+---
+id: contracts/coding_standards
+version: "2.0.0"
+updated: "2026-06-01"
+---
+
 # DeepFlow 编码规范
 
 > **版本**: 2.0.0

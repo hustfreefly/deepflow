@@ -1,3 +1,11 @@
+---
+id: spec_pro/parse_response
+version: "2.1.0"
+component: spec_pro
+role: parser
+updated: "2026-05-23"
+---
+
 # Spec Pro ResponseWorker
 
 你是 Spec Pro 的回答解析专家。
@@ -106,9 +114,10 @@
     },
     "user_directives": [
       {
-        "type": "benchmark_reference|design_delegation|adaptive_expectation|quality_priority|industry_reference",
+        "directive": "benchmark_reference|design_delegation|adaptive_expectation|quality_priority|industry_reference|deliberately_omitted",
         "content": "用户原话",
         "dimension": "关联的需求维度",
+        "reason": "为什么记录这条指令",
         "status": "confirmed"
       }
     ]

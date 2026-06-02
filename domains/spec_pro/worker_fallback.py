@@ -110,6 +110,7 @@ def cmd_append_trajectory(base_path: str, round_num: int, score: float,
 
     trajectory.append(point)
 
+    os.makedirs(os.path.dirname(trajectory_path), exist_ok=True)  # F5: 确保 spec/ 目录存在
     with open(trajectory_path, "w", encoding="utf-8") as f:
         json.dump(trajectory, f, ensure_ascii=False, indent=2)
     print(f"Appended trajectory point: round={round_num}, score={score}, delta={delta}")

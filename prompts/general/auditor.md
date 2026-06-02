@@ -1,3 +1,10 @@
+---
+id: general/auditor
+version: "1.0.0"
+component: general
+updated: "2026-06-01"
+---
+
 # General Auditor Prompt
 
 Review research findings for quality and completeness.

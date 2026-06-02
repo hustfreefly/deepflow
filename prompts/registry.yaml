@@ -361,23 +361,47 @@ domains:
       harness_v3:
         name: Solution Harness V3
         filename: harness_v3.md
-        version: 1.0.0
+        version: 1.1.0
         role: harness
         author: deepflow-team
         created: '2026-05-01'
-        updated: '2026-05-01'
+        updated: '2026-06-02'
         changelog:
+        - version: 1.1.0
+          date: '2026-06-02'
+          changes:
+          - 统一为4维评分标准
         - version: 1.0.0
           date: '2026-05-01'
           changes:
           - 初始版本
         variables:
           required:
-          - name: completeness_items
-          - name: appropriateness_items
+          - name: harness_scoring
           - name: current_solution
           optional:
+          - name: completeness_items
+          - name: necessity_items
+          - name: alignment_items
+          - name: global_impact_items
           - name: is_final
+
+      harness_scoring:
+        name: Solution Harness Scoring
+        filename: harness_scoring.md
+        version: 1.0.0
+        role: harness
+        author: deepflow-team
+        created: '2026-06-02'
+        updated: '2026-06-02'
+        changelog:
+        - version: 1.0.0
+          date: '2026-06-02'
+          changes:
+          - 统一 Solution Pro 4维评分标准
+        variables:
+          required: []
+          optional: []
       
       consolidator:
         name: Solution Consolidator

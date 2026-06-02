@@ -1,3 +1,9 @@
+---
+id: contracts/development_workflow
+version: "1.0.0"
+updated: "2026-06-01"
+---
+
 # DeepFlow 0.1.0 开发强制规范
 
 > 本文件为 DeepFlow 0.1.0 (V4.0) 开发行为"宪法"，每次修改代码前必须先读。

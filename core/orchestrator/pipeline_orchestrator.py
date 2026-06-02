@@ -26,62 +26,90 @@ from typing import Any, Dict, List, Optional
 from core.config.path_config import PathConfig
 from core.blackboard.blackboard_manager import BlackboardManager
 
+# P0-1 契约修复: 导入 STAGE_PATH_REGISTRY 作为唯一事实源
+# 禁止在此文件维护独立的路径映射（消除双事实源分裂）
+try:
+    from domains.solution.blackboard import STAGE_PATH_REGISTRY
+except ImportError:
+    STAGE_PATH_REGISTRY = {}
+
 _DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 
 # ============================================================================
-# P0-1 修复: Worker 名称 → 实际 Blackboard 输出路径映射
-# 对齐 domains/solution/task_builder.py 中各 prompt 要求写入的文件名
+# P0-1 修复: Worker 名称 → 完整相对路径映射
+# 事实源: domains/solution/blackboard.py::STAGE_PATH_REGISTRY
+# 此字典仅补充 STAGE_PATH_REGISTRY 中没有的别名映射
 # ============================================================================
 WORKER_OUTPUT_PATH_MAP = {
-    "data_collection": "data_collection.json",
-    "planning": "planning.json",
-    "reviewers": None,  # 并行子worker, 由执行时动态映射
-    "research": None,   # 并行子worker, 由执行时动态映射
-    "consolidator": "consolidator.json",
-    "audit": "audit.json",
-    "fix": "fix.json",
-    "fixer_expert": "fixer_expert.json",
-    "harness_final": "harness_final.json",
-    "summarizer": "final_solution.md",
-    # 并行子worker的命名约定
-    "reviewer": "reviewer.json",        # reviewer_type → reviewer_{type}.json
-    "research_expert_1": "research_expert_1.json",
-    "research_expert_2": "research_expert_2.json",
-    "research_expert_3": "research_expert_3.json",
-    "technical": "reviewer_technical.json",
-    "business": "reviewer_business.json",
-    "risk": "reviewer_risk.json",
-    "expert_1": "research_expert_1.json",
-    "expert_2": "research_expert_2.json",
-    "expert_3": "research_expert_3.json",
+    # === 主映射：直接使用 STAGE_PATH_REGISTRY 的完整相对路径 ===
+    "data_collection": "data/collection.json",
+    "planning": "stages/planning.json",
+    "consolidator": "stages/consolidator.json",
+    "audit": "stages/audit.json",
+    "fix": "stages/fix.json",
+    "fixer_expert": "stages/fixer_expert.json",
+    "harness_final": "stages/harness_final.json",
+    "summarizer": "stages/summarizer.json",
+    # === 并行子 Worker 别名（映射到 STAGE_PATH_REGISTRY 路径）===
+    "technical": "stages/reviewer_technical.json",
+    "business": "stages/reviewer_business.json",
+    "risk": "stages/reviewer_risk.json",
+    "reviewer_technical": "stages/reviewer_technical.json",
+    "reviewer_business": "stages/reviewer_business.json",
+    "reviewer_risk": "stages/reviewer_risk.json",
+    "expert_1": "stages/research_expert_1.json",
+    "expert_2": "stages/research_expert_2.json",
+    "expert_3": "stages/research_expert_3.json",
+    "research_expert_1": "stages/research_expert_1.json",
+    "research_expert_2": "stages/research_expert_2.json",
+    "research_expert_3": "stages/research_expert_3.json",
+    # === 并行阶段标记（不直接映射，由执行时动态解析）===
+    "reviewers": None,
+    "research": None,
 }
 
 
 def resolve_worker_output_path(worker_name: str) -> str:
     """
-    P0-1 修复: 根据 worker_name 解析实际的 Blackboard 输出文件路径
+    P0-1 契约修复: 根据 worker_name 解析实际的 Blackboard 输出文件路径
+    
+    返回完整相对路径（包含子目录前缀如 data/ stages/），
+    调用方直接使用，不再额外拼接 "stages/" 前缀。
 
     优先级:
-    1. 精确映射 (WORKER_OUTPUT_PATH_MAP)
-    2. reviewer 类型映射 (reviewer_technical → reviewer_technical.json)
-    3. expert 类型映射 (expert_N → research_expert_N.json)
-    4. 回退到 {worker_name}.json
+    1. WORKER_OUTPUT_PATH_MAP 精确映射（已含完整相对路径）
+    2. STAGE_PATH_REGISTRY 查找（唯一事实源）
+    3. 动态 expert 名映射
+    4. 回退到 stages/{worker_name}.json
     """
+    # 1. 精确映射（已包含完整相对路径）
     if worker_name in WORKER_OUTPUT_PATH_MAP:
         mapped = WORKER_OUTPUT_PATH_MAP[worker_name]
         if mapped is not None:
             return mapped
 
-    # reviewer 子worker
-    if worker_name.startswith("reviewer_"):
-        return f"reviewer_{worker_name.split('_', 1)[1]}.json"
+    # 2. STAGE_PATH_REGISTRY 查找（唯一事实源）
+    if STAGE_PATH_REGISTRY and worker_name in STAGE_PATH_REGISTRY:
+        return STAGE_PATH_REGISTRY[worker_name]
 
-    # expert 子worker
+    # 3. 动态 expert 子worker（Planner 动态生成的专家名）
     if worker_name.startswith("expert_"):
-        return f"research_{worker_name}.json"
+        return f"stages/research_{worker_name}.json"
 
-    # 回退: 直接使用 worker_name
-    return f"{worker_name}.json"
+    # 4. 回退: stages/{worker_name}.json
+    return f"stages/{worker_name}.json"
+
+
+def _lookup_task_by_key(all_tasks: Dict[str, Any], task_key: str) -> Optional[Any]:
+    """Resolve task keys like "research.expert_1" inside tasks.json."""
+    current: Any = all_tasks
+    for part in task_key.split("."):
+        if not isinstance(current, dict):
+            return None
+        current = current.get(part)
+        if current is None:
+            return None
+    return current
 
 
 class PipelineOrchestrator:
@@ -193,28 +221,28 @@ class PipelineOrchestrator:
             workers = phase.get("workers", [])
             single_worker = phase.get("worker")
             timeout = phase.get("timeout", 300)
+            worker_entries = self._normalize_worker_entries(workers, single_worker, phase)
+            worker_list = [entry["id"] for entry in worker_entries]
 
             print(f"\n[Phase {phase_num}/{len(phases)}] {stage_name}")
-            print(f"  Parallel: {is_parallel}, Workers: {workers or single_worker}")
+            print(f"  Parallel: {is_parallel}, Workers: {worker_list}")
 
-            # 确定 Worker 列表
-            worker_list = workers if workers else ([single_worker] if single_worker else [])
-            if not worker_list:
+            if not worker_entries:
                 print(f"  ⚠️ No workers defined, skipping")
                 continue
 
             # 准备 worker tasks
-            tasks = self._load_worker_tasks(plan, stage_name, worker_list)
+            tasks = self._load_worker_tasks(plan, stage_name, worker_entries)
 
             # 执行 phase
             try:
-                if is_parallel and len(worker_list) > 1:
+                if is_parallel and len(worker_entries) > 1:
                     phase_results = self._execute_parallel(
-                        stage_name, worker_list, tasks, timeout, spawn
+                        stage_name, worker_entries, tasks, timeout, spawn
                     )
                 else:
                     phase_results = self._execute_serial(
-                        stage_name, worker_list, tasks, timeout, spawn
+                        stage_name, worker_entries, tasks, timeout, spawn
                     )
 
                 all_results[stage_name] = phase_results
@@ -233,6 +261,10 @@ class PipelineOrchestrator:
                     content=phase_results,
                     subdir="stages",
                 )
+
+                if self.domain == "solution" and stage_name == "planning":
+                    refresh = self._refresh_solution_contract_after_planning()
+                    all_results[stage_name]["control_contract_refresh"] = refresh
 
             except (RuntimeError, OSError, ValueError) as e:
                 error_msg = f"Phase {stage_name} failed: {e}"
@@ -272,8 +304,36 @@ class PipelineOrchestrator:
 
         return result
 
+    def _normalize_worker_entries(
+        self,
+        workers: List[Any],
+        single_worker: Any,
+        phase: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """Normalize string and dict worker plan entries to one internal shape."""
+        raw_workers = workers if workers else ([single_worker] if single_worker else [])
+        entries = []
+        for item in raw_workers:
+            if isinstance(item, dict):
+                worker_id = item.get("id") or item.get("worker") or item.get("name")
+                if not worker_id:
+                    continue
+                entries.append({
+                    "id": str(worker_id),
+                    "task_key": item.get("task_key"),
+                    "expected_output_path": item.get("expected_output_path"),
+                })
+            elif item:
+                worker_id = str(item)
+                entries.append({
+                    "id": worker_id,
+                    "task_key": phase.get("task_key"),
+                    "expected_output_path": phase.get("expected_output_path"),
+                })
+        return entries
+
     def _load_worker_tasks(
-        self, plan: Dict[str, Any], stage_name: str, worker_list: List[str]
+        self, plan: Dict[str, Any], stage_name: str, worker_entries: List[Dict[str, Any]]
     ) -> Dict[str, str]:
         """
         从 tasks.json 加载 Worker 任务描述
@@ -281,7 +341,7 @@ class PipelineOrchestrator:
         Args:
             plan: execution_plan 字典
             stage_name: 阶段名称
-            worker_list: Worker 名称列表
+            worker_entries: normalized Worker entries
 
         Returns:
             {worker_name: task_string}
@@ -303,8 +363,11 @@ class PipelineOrchestrator:
                 # 尝试按 stage 查找
                 stage_tasks = all_tasks.get(stage_name, {})
                 if isinstance(stage_tasks, dict):
-                    for worker_name in worker_list:
+                    for entry in worker_entries:
+                        worker_name = entry["id"]
                         task = stage_tasks.get(worker_name)
+                        if not task and entry.get("task_key"):
+                            task = _lookup_task_by_key(all_tasks, entry["task_key"])
                         if task and isinstance(task, str):
                             tasks[worker_name] = task
                         elif task and isinstance(task, dict):
@@ -312,13 +375,14 @@ class PipelineOrchestrator:
                             tasks[worker_name] = task.get("task", json.dumps(task, ensure_ascii=False))
                 elif isinstance(stage_tasks, str):
                     # 整个 stage 只有一个 task
-                    if len(worker_list) == 1:
-                        tasks[worker_list[0]] = stage_tasks
+                    if len(worker_entries) == 1:
+                        tasks[worker_entries[0]["id"]] = stage_tasks
             except (json.JSONDecodeError, OSError) as e:
                 print(f"  ⚠️ Failed to load tasks.json: {e}")
 
         # 对于未加载到 task 的 worker，生成默认 task
-        for worker_name in worker_list:
+        for entry in worker_entries:
+            worker_name = entry["id"]
             if worker_name not in tasks:
                 tasks[worker_name] = self._build_default_task(worker_name, stage_name)
 
@@ -338,7 +402,7 @@ class PipelineOrchestrator:
 
 ## 输出要求
 请将你的分析和结论写入 Blackboard 文件：
-- 路径: {_DEEPFLOW_BASE}/blackboard/{self.session_id}/stages/{resolve_worker_output_path(worker_name)}
+- 路径: {_DEEPFLOW_BASE}/blackboard/{self.session_id}/{resolve_worker_output_path(worker_name)}
 - 格式: JSON
 
 请确保输出包含真实内容，不要只返回元数据。"""
@@ -346,7 +410,7 @@ class PipelineOrchestrator:
     def _execute_serial(
         self,
         stage_name: str,
-        worker_list: List[str],
+        worker_entries: List[Dict[str, Any]],
         tasks: Dict[str, str],
         timeout: int,
         spawn: Any,
@@ -356,7 +420,7 @@ class PipelineOrchestrator:
 
         Args:
             stage_name: 阶段名称
-            worker_list: Worker 列表
+            worker_entries: normalized Worker entries
             tasks: {worker_name: task}
             timeout: 超时（秒）
             spawn: spawn 函数
@@ -365,12 +429,15 @@ class PipelineOrchestrator:
             {worker_name: result_dict}
         """
         results = {}
-        for worker_name in worker_list:
+        for entry in worker_entries:
+            worker_name = entry["id"]
             task = tasks.get(worker_name, self._build_default_task(worker_name, stage_name))
             label = self._build_label(worker_name, stage_name)
 
             print(f"  [Serial] Spawning {worker_name} (label={label})...")
-            result = self._spawn_and_wait(worker_name, label, task, timeout, spawn)
+            result = self._spawn_and_wait(
+                worker_name, label, task, timeout, spawn, entry.get("expected_output_path")
+            )
             results[worker_name] = result
 
             if result.get("success"):
@@ -383,7 +450,7 @@ class PipelineOrchestrator:
     def _execute_parallel(
         self,
         stage_name: str,
-        worker_list: List[str],
+        worker_entries: List[Dict[str, Any]],
         tasks: Dict[str, str],
         timeout: int,
         spawn: Any,
@@ -393,7 +460,7 @@ class PipelineOrchestrator:
 
         Args:
             stage_name: 阶段名称
-            worker_list: Worker 列表
+            worker_entries: normalized Worker entries
             tasks: {worker_name: task}
             timeout: 超时（秒）
             spawn: spawn 函数
@@ -405,7 +472,8 @@ class PipelineOrchestrator:
         spawned = {}
 
         # 第一阶段：同时 spawn 所有 Worker
-        for worker_name in worker_list:
+        for entry in worker_entries:
+            worker_name = entry["id"]
             task = tasks.get(worker_name, self._build_default_task(worker_name, stage_name))
             label = self._build_label(worker_name, stage_name)
 
@@ -422,6 +490,7 @@ class PipelineOrchestrator:
                     "meta": spawn_meta,
                     "label": label,
                     "start_time": time.time(),
+                    "expected_output_path": entry.get("expected_output_path"),
                 }
                 self.progress["workers_spawned"] += 1
                 print(f"    ⏳ {worker_name} spawned")
@@ -436,7 +505,11 @@ class PipelineOrchestrator:
         # 第二阶段：统一等待
         for worker_name, info in spawned.items():
             result = self._wait_for_worker(
-                worker_name, info["label"], info["start_time"], timeout
+                worker_name,
+                info["label"],
+                info["start_time"],
+                timeout,
+                info.get("expected_output_path"),
             )
             results[worker_name] = result
 
@@ -454,6 +527,7 @@ class PipelineOrchestrator:
         task: str,
         timeout: int,
         spawn: Any,
+        expected_output_path: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Spawn 单个 Worker 并等待完成
@@ -478,7 +552,7 @@ class PipelineOrchestrator:
             )
             self.progress["workers_spawned"] += 1
 
-            return self._wait_for_worker(worker_name, label, time.time(), timeout)
+            return self._wait_for_worker(worker_name, label, time.time(), timeout, expected_output_path)
         except (RuntimeError, OSError, ValueError) as e:
             return {
                 "success": False,
@@ -487,7 +561,12 @@ class PipelineOrchestrator:
             }
 
     def _wait_for_worker(
-        self, worker_name: str, label: str, start_time: float, timeout: int
+        self,
+        worker_name: str,
+        label: str,
+        start_time: float,
+        timeout: int,
+        expected_output_path: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         等待 Worker 完成（Blackboard 轮询）
@@ -508,11 +587,12 @@ class PipelineOrchestrator:
             {"success": bool, "result": any, "error": str, "source": str}
         """
         poll_interval = 5.0
-        # P0-1 修复: 不再硬编码 {worker_name}_output.json
-        output_filename = resolve_worker_output_path(worker_name)
-        blackboard_path = self.blackboard.session_dir / "stages" / output_filename
+        # P0-1 契约修复: resolve_worker_output_path 返回完整相对路径
+        # 不再硬编码 "stages/" 前缀，路径已包含子目录（如 data/ stages/）
+        output_relpath = expected_output_path or resolve_worker_output_path(worker_name)
+        blackboard_path = self.blackboard.session_dir / output_relpath
 
-        print(f"    [{worker_name}] Waiting for {output_filename} (timeout={timeout}s)...")
+        print(f"    [{worker_name}] Waiting for {output_relpath} (timeout={timeout}s)...")
 
         while time.time() - start_time < timeout:
             # 检查 Blackboard 文件
@@ -523,7 +603,7 @@ class PipelineOrchestrator:
 
                     # 验证不是 spawn 元数据
                     if self._is_valid_worker_output(data):
-                        print(f"    [{worker_name}] ✅ Result from Blackboard ({output_filename})")
+                        print(f"    [{worker_name}] ✅ Result from Blackboard ({output_relpath})")
                         return {
                             "success": True,
                             "result": data,
@@ -598,6 +678,25 @@ class PipelineOrchestrator:
                 filename="progress.json",
                 content=self.progress,
             )
+
+    def _refresh_solution_contract_after_planning(self) -> Dict[str, Any]:
+        """Refresh Solution Pro control_contract.json and downstream tasks."""
+        if not self.blackboard:
+            raise RuntimeError("Blackboard is not initialized")
+
+        base_path = str(self.blackboard.session_dir)
+        planning_path = self.blackboard.session_dir / resolve_worker_output_path("planning")
+        if not planning_path.exists():
+            raise RuntimeError(f"planning output missing, cannot refresh control contract: {planning_path}")
+
+        from domains.solution.control_contract import rewrite_after_planning
+
+        refresh = rewrite_after_planning(base_path)
+        print(
+            "  ✅ control_contract.json refreshed "
+            f"({', '.join(refresh.get('research_workers', []))})"
+        )
+        return refresh
 
     def get_progress(self) -> Dict[str, Any]:
         """获取当前进度"""

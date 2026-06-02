@@ -85,11 +85,14 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
         _add_requirement(requirements, "quality_attribute", desc, priority, "living_spec.confirmed.quality_attributes", measurable)
 
     confirmed_constraints = confirmed.get("constraints", {}) if isinstance(confirmed.get("constraints", {}), dict) else {}
-    for key in ("budget", "timeline"):
-        if confirmed_constraints.get(key):
-            _add_requirement(requirements, "constraint", f"{key}: {confirmed_constraints[key]}", "P0", "living_spec.confirmed.constraints")
-    for item in confirmed_constraints.get("tech_stack", []) or []:
-        _add_requirement(requirements, "constraint", f"tech_stack: {item}", "P1", "living_spec.confirmed.constraints.tech_stack")
+    for key, val in confirmed_constraints.items():
+        if not val:
+            continue
+        if isinstance(val, list):
+            for item in val:
+                _add_requirement(requirements, "constraint", f"{key}: {item}", "P1", f"living_spec.confirmed.constraints.{key}")
+        else:
+            _add_requirement(requirements, "constraint", f"{key}: {val}", "P0", f"living_spec.confirmed.constraints.{key}")
 
     integration = confirmed.get("integration", {}) if isinstance(confirmed.get("integration", {}), dict) else {}
     for item in integration.get("requirements", []) or []:
@@ -137,6 +140,14 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
             _add_requirement(requirements, "guardrail", item, "P0", "living_spec.guardrails.always_do")
         for item in guardrails.get("never_do", []) or []:
             _add_requirement(requirements, "guardrail_prohibition", item, "P0", "living_spec.guardrails.never_do")
+        # resolved → 用户确认的设计决策
+        for item in guardrails.get("resolved", []) or []:
+            if isinstance(item, dict):
+                question = item.get("question", "")
+                answer = item.get("answer", "")
+                if question or answer:
+                    desc = f"决策: {question} → {answer}".strip()
+                    _add_requirement(requirements, "design_decision", desc, "P1", "living_spec.guardrails.resolved")
 
     # Solution Pro hints → Spec Pro 给下游的提示
     hints = (living_spec or {}).get("solution_pro_hints", None) if isinstance(living_spec, dict) else None
@@ -146,6 +157,19 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
         elif isinstance(hints, dict):
             for key, value in hints.items():
                 _add_requirement(requirements, "hint", f"{key}: {value}", "P1", f"living_spec.solution_pro_hints.{key}")
+
+    # Inferred → AI 推断需求（顶层字段，不在 confirmed 下）
+    inferred = (living_spec or {}).get("inferred", []) if isinstance(living_spec, dict) else []
+    if isinstance(inferred, list):
+        for item in inferred:
+            if isinstance(item, dict):
+                dimension = item.get("dimension", "")
+                content = item.get("content", "")
+                confidence = item.get("confidence", 0)
+                if content:
+                    desc = f"推断[{dimension}]: {content}".strip()
+                    priority = "P1" if confidence >= 0.8 else "P2"
+                    _add_requirement(requirements, "inferred", desc, priority, "living_spec.inferred")
 
     for item in constraints:
         _add_requirement(requirements, "constraint", item, "P1", "input.constraints")

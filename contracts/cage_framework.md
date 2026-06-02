@@ -1,3 +1,9 @@
+---
+id: contracts/cage_framework
+version: "1.0.0"
+updated: "2026-06-01"
+---
+
 # 契约笼子（Contract Cage）
 
 > DeepFlow V1.0 单个模块开发质量保障系统  

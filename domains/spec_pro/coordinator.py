@@ -172,12 +172,22 @@ class SpecProCoordinator:
         if not self.session_id or not self.base_path:
             raise RuntimeError("Session not initialized. Call init_session() first.")
 
+        # F-safety: 阻止 safety_stop 后继续调用
+        if self.state == DialogState.KILLED:
+            return {
+                "action": "safety_stop",
+                "reason": "already_killed",
+                "message": "Session already killed by safety valve. Cannot continue.",
+            }
+
         self.current_round += 1
 
         # Safety Valve: max_rounds check
         max_rounds = self._config["max_rounds"]
         if self.current_round > max_rounds:
-            return {
+            # F6: 落状态 + 写 round_result
+            self.state = DialogState.KILLED
+            result_data = {
                 "action": "safety_stop",
                 "reason": "max_rounds",
                 "message": (
@@ -185,6 +195,14 @@ class SpecProCoordinator:
                     "Spec Pro is stopping."
                 ),
             }
+            # 写 round_result.json 让 is_done() 能检测到
+            result_path = os.path.join(self.base_path, "spec", "round_result.json")
+            try:
+                with open(result_path, "w", encoding="utf-8") as f:
+                    json.dump(result_data, f, ensure_ascii=False, indent=2)
+            except OSError:
+                pass
+            return result_data
 
         # Write user response
         response_path = os.path.join(
@@ -246,6 +264,8 @@ class SpecProCoordinator:
             self.state = DialogState.FAILED
         elif round_action == RoundAction.SUMMARY:
             self.state = DialogState.CONFIRMING
+        elif round_action == RoundAction.PROPOSAL:
+            self.state = DialogState.CONFIRMING  # F4: proposal 也等待用户确认
         elif round_action == RoundAction.QUESTIONS:
             self.state = DialogState.ASKING
 
@@ -269,7 +289,7 @@ class SpecProCoordinator:
 
         # Write confirmation
         confirm_path = os.path.join(
-            self.base_path, "spec", "user_confirmation.md"
+            self.base_path, "spec", "user_confirmation.json"
         )
         with open(confirm_path, "w", encoding="utf-8") as f:
             json.dump(user_confirmation, f, ensure_ascii=False, indent=2)
@@ -421,13 +441,12 @@ class SpecProCoordinator:
     # ------------------------------------------------------------------
 
     def _generate_session_id(self) -> str:
-        """Generate session ID: {prefix}_spec_{hash8}"""
-        import hashlib
+        """Generate session ID: {prefix}_spec_{uuid16}"""
+        import uuid
 
-        ts = str(time.time()).encode()
-        hash8 = hashlib.md5(ts).hexdigest()[:8]
+        uid = uuid.uuid4().hex[:16]
         prefix = self.session_prefix[:20]  # cap prefix length
-        sid = f"{prefix}_spec_{hash8}"
+        sid = f"{prefix}_spec_{uid}"
         return sid[:50]  # ensure <= 50 chars
 
     def _compute_dynamic_threshold(self) -> int:
@@ -576,7 +595,6 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py assess {Blackboard}/spec/q
   - 读取: {Blackboard}/spec/living_spec.json
   - 读取: {Blackboard}/spec/quality_report.json
   - 读取: {Blackboard}/spec/conversation_log.json (历史对话记录)
-  - 读取: {Blackboard}/stages/round_01_questions.json (本轮已生成问题,用于自检去重)
   - 写入: {Blackboard}/stages/round_01_questions.json
   
   **已问去重规则** (必须遵守):
@@ -600,7 +618,7 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py question {Blackboard}/stag
 - {Blackboard}/stages/round_01_questions.json
 - {Blackboard}/spec/quality_report.json
 
-写入 {Blackboard}/spec/round_result.json:
+使用 write 工具将以下内容写入 {Blackboard}/spec/round_result.json:
 ```json
 {
   "action": "questions",
@@ -637,7 +655,8 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py append_trajectory {Blackbo
 ```
 
 ## Step 6: 更新 conversation_log.json
-追加第一条对话日志,格式:
+
+使用 write 工具追加第一条对话日志到 {Blackboard}/spec/conversation_log.json (如果文件已存在,先读取现有内容并追加),格式:
 ```json
 {
   "round": 1,
@@ -656,7 +675,11 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py append_trajectory {Blackbo
   "stop_asking_dimensions": []
 }
 ```
-"""
+
+**验证**: 确认 {Blackboard}/spec/round_result.json 已创建且为合法 JSON。
+**验证**: 确认 {Blackboard}/spec/conversation_log.json 已更新。
+
+**完成。**"""
 
     def _collecting_phase_instructions(self, round_num: int) -> str:
         """Round N: Response -> Merge -> ProcessGuard -> Assess -> (Question | Proposal | Harness -> Structure)
@@ -862,7 +885,7 @@ spawn QuestionWorker:
   Process Guard 调整指令: [Step 3 的输出]
 - timeoutSeconds: 180
 
-汇总到 round_result.json (D3: 包含 7 维分数):
+使用 write 工具将以下内容写入 {{Blackboard}}/spec/round_result.json (D3: 包含 7 维分数):
 ```json
 {{
   "action": "questions",
@@ -888,7 +911,8 @@ spawn QuestionWorker:
 ```
 
 ## Step 7: 更新 conversation_log.json (D1: 增加元信号记录)
-追加本轮对话日志,格式:
+
+使用 write 工具追加本轮对话日志到 {{Blackboard}}/spec/conversation_log.json (如果文件已存在,先读取现有内容并追加),格式:
 ```json
 {{
   "round": {round_num},
@@ -913,9 +937,9 @@ spawn QuestionWorker:
         """Confirmation: confirm -> Structure / revise -> merge -> Assess -> Question"""
         return """# Phase: confirmation
 
-用户确认/修正已写入: {Blackboard}/spec/user_confirmation.md
+用户确认/修正已写入: {Blackboard}/spec/user_confirmation.json
 
-读取 user_confirmation.md 中的 action:
+读取 user_confirmation.json 中的 action:
 
 ## 如果 action = "confirm":
 spawn StructureWorker:
@@ -932,9 +956,9 @@ spawn StructureWorker:
 1. 合并修正内容到 living_spec.json:
    执行命令:
    ```
-   python3 .deepflow/domains/spec_pro/merge_spec.py --revisions {Blackboard}/spec/user_confirmation.md {Blackboard}/spec/living_spec.json
+   python3 .deepflow/domains/spec_pro/merge_spec.py --revisions {Blackboard}/spec/user_confirmation.json {Blackboard}/spec/living_spec.json
    ```
-   该脚本读取 user_confirmation.md 中的 revisions 数组,逐条更新到 living_spec.json 的 confirmed 层对应字段.
+   该脚本读取 user_confirmation.json 中的 revisions 数组,逐条更新到 living_spec.json 的 confirmed 层对应字段.
 
 2. spawn AssessWorker(重新评估):
    - task: 读取 domains/spec_pro/prompts/assess.md,注入上下文:

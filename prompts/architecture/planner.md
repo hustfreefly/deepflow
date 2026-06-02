@@ -1,3 +1,10 @@
+---
+id: architecture/planner
+version: "1.0.0"
+component: architecture
+updated: "2026-06-01"
+---
+
 # Architecture Planner Prompt
 
 You are a system architecture planner. Design comprehensive architecture solutions.

@@ -213,13 +213,20 @@ class PromptRegistry:
             except version.InvalidVersion:
                 errors.append(f"Invalid version format: {prompt_id} -> {info.version}")
             
-            # 警告：如果文件内容包含YAML Front Matter
+            # 验证：文件如有 Front Matter，版本字段应与 registry 一致
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
-                    # 只读前3行检查
-                    first_lines = ''.join(f.readline() for _ in range(3))
-                    if '---' in first_lines:
-                        warnings.append(f"Prompt contains YAML (should be pure): {prompt_id}")
+                    content = f.read()
+                if content.startswith('---'):
+                    parts = content.split('---', 2)
+                    if len(parts) >= 3:
+                        import yaml as _yaml
+                        meta = _yaml.safe_load(parts[1]) or {}
+                        file_ver = meta.get('version')
+                        if file_ver and file_ver != info.version:
+                            warnings.append(
+                                f"Version drift: {prompt_id} registry={info.version}, file={file_ver}"
+                            )
             except Exception as e:
                 warnings.append(f"Cannot read file {prompt_id}: {e}")
         
@@ -246,6 +253,7 @@ def get_prompt_info(prompt_id: str) -> PromptInfo:
 def read_prompt(prompt_id: str) -> str:
     """
     读取prompt内容（纯净版，无元数据）
+    自动剥离 YAML Front Matter，防止污染 LLM 上下文。
     """
     registry = PromptRegistry()
     info = registry.get(prompt_id)
@@ -254,7 +262,18 @@ def read_prompt(prompt_id: str) -> str:
     file_path = base_path / "prompts" / info.domain / info.filename
     
     with open(file_path, 'r', encoding='utf-8') as f:
-        return f.read()
+        content = f.read()
+    
+    # 自动剥离 YAML Front Matter
+    if content.startswith('---'):
+        try:
+            parts = content.split('---', 2)
+            if len(parts) >= 3:
+                return parts[2].strip()
+        except Exception:
+            pass  # 解析失败时返回原始内容
+    
+    return content
 
 
 def read_prompt_with_vars(prompt_id: str, **variables) -> str:

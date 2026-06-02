@@ -1,3 +1,6 @@
+component_version: "1.0"
+component_name: "architecture"
+
 name: architecture
 version: "1.0"
 description: 架构设计领域配置（高可靠性要求）

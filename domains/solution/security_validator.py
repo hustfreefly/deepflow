@@ -1,4 +1,12 @@
 """
+安全验证器，提供输入清理和路径遍历检测
+
+Version: 2.1.0
+Author: DeepFlow Solution Pro
+Date: 2026-06-01
+"""
+
+"""
 Security Validator - 纯安全验证器
 ==================================
 

@@ -1,3 +1,10 @@
+---
+id: system/pipeline_engine_orchestrator
+version: "1.0.0"
+component: system
+updated: "2026-06-01"
+---
+
 # PipelineEngine Orchestrator Agent
 
 ## 身份

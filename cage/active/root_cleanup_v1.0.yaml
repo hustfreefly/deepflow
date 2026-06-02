@@ -1,3 +1,6 @@
+cage_version: "1.0.0"
+component: root_cleanup
+status: active
 # root_cleanup_v1.0.yaml
 # DeepFlow 根目录文件清理 — 修复违反契约的问题
 

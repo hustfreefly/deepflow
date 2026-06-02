@@ -1,3 +1,10 @@
+---
+id: code/planner
+version: "1.0.0"
+component: code
+updated: "2026-06-01"
+---
+
 # Code Planner Prompt
 
 You are a code architecture planner. Plan implementation approach.

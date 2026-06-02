@@ -15,12 +15,15 @@ Usage:
         [--inferences_rejected <n>]
 
 该脚本读取现有 conversation_log.json，追加一条记录，然后写回。
+注意：核心逻辑已移至 utils.py::append_conversation_log，此处为 CLI 入口（P1-2 去重）。
 """
 
 import json
 import sys
 import argparse
-from datetime import datetime
+
+# 复用 utils.py 的实现（P1-2 去重）
+from domains.spec_pro.utils import append_conversation_log
 
 
 def main():
@@ -41,13 +44,6 @@ def main():
 
     log_path = f"{args.blackboard_path}/spec/conversation_log.json"
 
-    # Read existing log
-    try:
-        with open(log_path, "r", encoding="utf-8") as f:
-            log = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        log = []
-
     # Read questions
     questions = []
     if args.questions_file:
@@ -66,29 +62,25 @@ def main():
                 user_response = f.read()
         except FileNotFoundError:
             pass
-    user_response = user_response[:500] if user_response else ""
 
-    # Append entry
-    entry = {
-        "round": args.round_num,
-        "timestamp": datetime.now().isoformat(),
-        "phase": args.phase,
-        "questions": questions,
-        "user_response": user_response,
-        "parsed_updates_summary": args.parsed_summary,
-        "quality_before": args.quality_before,
-        "quality_after": args.quality_after,
-        "quality_delta": round(args.quality_after - args.quality_before, 1),
-        "inferences_created": args.inferences_created,
-        "inferences_confirmed": args.inferences_confirmed,
-        "inferences_rejected": args.inferences_rejected,
-    }
-    log.append(entry)
+    # 调用 utils.py 的统一实现（P1-2 去重）
+    append_conversation_log(
+        log_path=log_path,
+        round_num=args.round_num,
+        phase=args.phase,
+        questions=questions,
+        user_response=user_response,
+        parsed_updates_summary=args.parsed_summary,
+        quality_before=args.quality_before,
+        quality_after=args.quality_after,
+        inferences_created=args.inferences_created,
+        inferences_confirmed=args.inferences_confirmed,
+        inferences_rejected=args.inferences_rejected,
+    )
 
-    # Write back
-    with open(log_path, "w", encoding="utf-8") as f:
-        json.dump(log, f, ensure_ascii=False, indent=2)
-
+    # 读取更新后的日志以获取 total_entries
+    with open(log_path, "r", encoding="utf-8") as f:
+        log = json.load(f)
     print(json.dumps({"status": "ok", "total_entries": len(log)}))
 
 
