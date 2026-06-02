@@ -280,6 +280,95 @@ class SpecProCoordinator:
             round_num=self.current_round + 1, phase="confirmation"
         )
 
+    def build_annotation_task(self) -> str:
+        """
+        构建 RequirementStructuringWorker task（阶段2：LLM标注增强）.
+
+        在 Spec Pro 收尾阶段调用，对 living_spec.confirmed 中的需求进行语义标注。
+        标注结果写入 living_spec.confirmed.requirement_annotations。
+
+        Returns:
+            RequirementStructuringWorker task prompt string
+
+        Raises:
+            RuntimeError: session 未初始化
+        """
+        if not self.session_id or not self.base_path:
+            raise RuntimeError("Session not initialized. Call init_session() first.")
+
+        return f"""你是 Requirement Structuring Worker。
+
+你的任务是对 living_spec.confirmed 中的需求进行语义标注，为下游 Solution Pro 提供结构化元数据。
+
+## 输入
+读取: {self.base_path}/spec/living_spec.json
+
+## 执行步骤
+1. 读取 living_spec.json 的 confirmed 层
+2. 调用 annotate_requirements(confirmed) 进行 LLM 标注
+3. 如果标注成功，将结果写入 living_spec.confirmed.requirement_annotations
+4. 如果标注失败（JSON解析错误、Schema验证失败、覆盖率<80%），不写入 requirement_annotations，保持 living_spec 不变
+
+## 输出
+更新 {self.base_path}/spec/living_spec.json，在 confirmed 层新增 requirement_annotations 字段（如果标注成功）
+
+## 标注格式
+使用 JSON 格式输出，符合以下 Schema：
+```json
+{{
+  "type": "array",
+  "items": {{
+    "type": "object",
+    "required": ["original_text", "category", "priority"],
+    "properties": {{
+      "original_text": {{"type": "string"}},
+      "category": {{
+        "enum": ["core_objective", "capability", "prohibition", "quality_attribute", 
+                 "constraint", "integration", "pain_point", "success_metric", 
+                 "user", "scenario", "risk", "assumption"]
+      }},
+      "priority": {{"enum": ["P0", "P1", "P2"]}},
+      "dependencies": {{"type": "array", "items": {{"type": "string"}}}},
+      "potential_conflicts": {{"type": "array", "items": {{"type": "string"}}}},
+      "context_note": {{"type": "string"}}
+    }}
+  }}
+}}
+```
+
+## 失败处理
+如果标注失败，不写入 requirement_annotations，下游 frozen_spec.py 会自动 fallback 到纯脚本方案。
+
+## 超时
+180秒
+"""
+
+    def apply_annotations(self, living_spec: Dict[str, Any], annotations: list) -> None:
+        """
+        将 LLM 标注结果写入 living_spec.confirmed.requirement_annotations.
+
+        Args:
+            living_spec: living_spec.json 内容
+            annotations: LLM 标注结果列表
+
+        Raises:
+            RuntimeError: session 未初始化
+        """
+        if not self.base_path:
+            raise RuntimeError("Session not initialized. Call init_session() first.")
+
+        # 写入 requirement_annotations
+        living_spec.setdefault("confirmed", {})["requirement_annotations"] = annotations
+
+        # 保存回文件
+        living_spec_path = os.path.join(self.base_path, "spec", "living_spec.json")
+        with open(living_spec_path, "w", encoding="utf-8") as f:
+            json.dump(living_spec, f, ensure_ascii=False, indent=2)
+
+        self._write_execution_log("annotation_applied", {
+            "annotation_count": len(annotations)
+        })
+
     def get_status(self) -> Dict[str, Any]:
         """
         获取当前 session 状态.
@@ -587,13 +676,13 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py append_trajectory {Blackbo
 
         return f"""# Phase: collecting (Round {round_num})
 
-用户回答已写入: {{Blackboard}}/spec/user_response_round_{prev_round}.md
+用户回答已写入: {{Blackboard}}/spec/user_response_round_{round_num}.md
 上轮问题在: {{Blackboard}}/stages/round_{pp}_questions.json
 
 ## Step 1: spawn ResponseWorker
 - task: 读取 domains/spec_pro/prompts/parse_response.md,注入上下文:
   - 读取: {{Blackboard}}/spec/living_spec.json
-  - 读取: {{Blackboard}}/spec/user_response_round_{prev_round}.md
+  - 读取: {{Blackboard}}/spec/user_response_round_{round_num}.md
   - 读取: {{Blackboard}}/stages/round_{pp}_questions.json
   - 写入: {{Blackboard}}/stages/round_{nn}_response.json
   

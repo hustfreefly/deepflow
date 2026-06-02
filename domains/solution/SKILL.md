@@ -1,178 +1,322 @@
 # Solution Pro - Agent 执行指南
 
-> **版本**: V3.1 | **最后更新**: 2026-05-31  
-> **适用范围**: 所有通过 OpenClaw Agent 执行 Solution Pro 的场景
+> **版本**: V4.3 | **最后更新**: 2026-06-02  
+> **架构**: 固定 10 阶段 B 方案 + LLM Orchestrator + Cron 巡检通知 + REQ-ID 追踪质量门
 
 ---
 
-## 🚀 快速启动（30秒）
+## 🚀 主 Agent 执行步骤
 
-### 执行模板（直接复制）
+### Step 0: 轻量 Spec Agent（场景B入口）
+
+**触发条件**：用户没有先跑 Spec Pro，直接从对话启动 Solution Pro
+
+**执行逻辑**：
+```python
+# 主 Agent 层面（可访问 LLM）
+import json
+from domains.solution.lightweight_spec_agent import infer_living_spec
+
+topic = "{TOPIC}"
+constraints = {CONSTRAINTS}  # 从用户输入提取
+
+# 调用 LLM 推断 living_spec
+def llm_call(prompt):
+    # 主 Agent 的 LLM 调用逻辑
+    return sessions_send(
+        session_key="llm_worker",
+        message=prompt,
+        timeout=30
+    )
+
+living_spec = infer_living_spec(topic, constraints, llm_call)
+
+# 保存为 JSON 文件（可选，便于调试）
+import os
+base_path = f"~/.openclaw/workspace/.deepflow/blackboard/sol_{int(time.time())}"
+os.makedirs(base_path, exist_ok=True)
+with open(f"{base_path}/inferred_living_spec.json", "w") as f:
+    json.dump(living_spec, f, ensure_ascii=False, indent=2)
+```
+
+**注意事项**：
+- 如果 LLM 调用失败，`infer_living_spec()` 会返回最小化的 living_spec（只有 objective）
+- 轻量 Spec Agent 的输出质量不如完整 Spec Pro，但比纯 topic + constraints 好得多
+- 后续可以优化为：先跑轻量 Spec Agent，再让用户确认/补充
+
+### Step 1: exec 生成执行计划
+
+```bash
+cd ~/.openclaw/workspace/.deepflow && python3 -c "
+import json
+from domains.solution import run_solution_pro
+plan = run_solution_pro(
+    topic='{TOPIC}',
+    solution_type='{SOLUTION_TYPE}',
+    constraints={CONSTRAINTS},
+    stakeholders={STAKEHOLDERS},
+    living_spec={LIVING_SPEC},  # 如果 Spec Pro 已产出，传入完整 living_spec
+)
+print(json.dumps(plan, ensure_ascii=False, indent=2))
+"
+```
+
+**living_spec 传递规则**：
+- ✅ **有 Spec Pro 产出** → 传入完整 living_spec（包含 confirmed、inferred、guardrails 等）
+- ✅ **普通对话入口** → 传入轻量 Spec Agent 生成的 living_spec（基于 topic + constraints 推断）
+- ❌ **不传 living_spec** → frozen_spec 退化为 topic + constraints，REQ-ID 严重不足
+
+`run_solution_pro()` 只生成 `tasks.json`、`execution_plan.json` 和 `data/frozen_spec.json`，不直接执行管线，也不接收 `spawn_fn`。
+
+### Step 2: 清理旧状态 + 初始化
+
+**⚠️ 必须先清理旧的 .completed 文件，否则 cron 会误判任务已完成。**
+
+```python
+import sqlite3, time, json, os
+
+db_path = "~/.openclaw/workspace/.deepflow/frontend/backend/data/tasks.db"
+base_path = plan["base_path"]
+session_id = plan["session_id"]
+
+# === 关键：清理旧状态文件 ===
+for old_file in [".completed", ".cron_job_id", ".cron_run_count", ".notified_stages.json", ".send_failures.json", ".run_start_at"]:
+    path = f"{base_path}/{old_file}"
+    if os.path.exists(path):
+        os.remove(path)
+        print(f"🗑️ 清理旧文件: {old_file}")
+
+# 更新 tasks 表
+conn = sqlite3.connect(db_path)
+now = time.time()
+params = {"topic": "{TOPIC}", "solution_type": "{SOLUTION_TYPE}", "constraints": {CONSTRAINTS}}
+conn.execute(
+    "INSERT OR REPLACE INTO tasks (id, session_id, domain, status, parameters, created_at, updated_at, webhook_sent, webhook_retries) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    (session_id, session_id, "solution", "running", json.dumps(params, ensure_ascii=False), now, now, 0, 0)
+)
+conn.commit()
+conn.close()
+
+# 初始化 cron 状态文件
+os.makedirs(base_path, exist_ok=True)
+with open(f"{base_path}/.notified_stages.json", "w") as f:
+    json.dump({"notified": [], "total_messages_sent": 0}, f)
+with open(f"{base_path}/.cron_run_count", "w") as f:
+    json.dump({"count": 0, "max_runs": 20, "run_start_at": "PENDING"}, f)
+```
+
+### Step 3: 向用户发送启动通知
+
+```
+✅ 已启动 DeepFlow Solution Pro 管线
+📋 主题: {TOPIC}
+📊 共 10 个阶段，预计 30-60 分钟
+💬 期间你可以继续问我其他问题，完成后我会通知你
+```
+
+### Step 4: spawn orchestrator 子 Agent
+
+读取 `domains/solution/prompts/pipeline_orchestrator_v4.md`，替换变量后 spawn。
 
 ```python
 sessions_spawn(
     runtime="subagent",
     mode="run",
-    label="solution_pro",
-    task="""
-你是 DeepFlow Solution Pro Orchestrator Agent。
-
-任务: {TOPIC}
-类型: {SOLUTION_TYPE}
-约束: {CONSTRAINTS}
-利益相关者: {STAKEHOLDERS}
-session_prefix: {PREFIX}
-living_spec: {LIVING_SPEC}  # 可选，来自 Spec Pro 的 Living Spec dict
-
-执行 10 阶段完整管线:
-1. Data Collection
-2. Planning + Reviewers（Harness V2 评审）
-3. Research ×N（并行）
-4. Consolidator（整合）
-5. Audit + Fix（审计+修复）
-6. Harness Final（最终质量把关）
-7. Summarizer（生成报告）
-
-所有输出写入 blackboard/ 目录。
-""",
-    timeout_seconds=1800
+    label="solution_orchestrator",
+    task="<orchestrator_v4_prompt 完整内容，替换 {base_path}, {session_id}, {plan_path}>",
+    runTimeoutSeconds=3600
 )
-sessions_yield()  # ← 等待完成推送，禁止轮询
 ```
 
-### 参数说明
-
-| 参数 | 必填 | 默认值 | 示例 |
-|------|------|--------|------|
-| `TOPIC` | ✅ | - | "设计一个智能物流仓储系统升级方案" |
-| `SOLUTION_TYPE` | ❌ | "architecture" | "business" / "technology" / "security" |
-| `CONSTRAINTS` | ❌ | "无" | "预算500万，周期6个月" |
-| `STAKEHOLDERS` | ❌ | "无" | "技术团队，财务总监" |
-| `PREFIX` | ❌ | 从TOPIC提取 | "智能仓储" |
-| `LIVING_SPEC` | ❌ | `None` | Spec Pro 产出的 Living Spec dict |
-
----
-
-## ✅ 执行前自检（必须）
-
-在 spawn 之前，确认以下条件：
+### Step 5: 创建 Cron 巡检 Agent
 
 ```python
-# 检查 1: 运行环境
-assert "Agent Run" in current_context, "❌ 必须在 Agent Run 环境中执行"
+from datetime import datetime
 
-# 检查 2: spawn_fn 可用
-assert sessions_spawn is not None, "❌ sessions_spawn 不可用"
+# 生成运行启动时间（用于时间戳校验）
+run_start_at = datetime.now().isoformat()
 
-# 检查 3: 需求文档完整
-assert len(TOPIC) > 50, "❌ 需求文档过短（建议500字+）"
+# 创建 cron job
+cron_result = cron(
+    action="add",
+    job={
+        "name": f"deepflow_progress_{session_id[:8]}",
+        "schedule": {"kind": "every", "everyMs": 180000},
+        "sessionTarget": "isolated",
+        "payload": {
+            "kind": "agentTurn",
+            "message": "<cron_watcher_prompt，替换 {base_path}, {session_id}, {cron_job_id}, {run_start_at}>",
+            "timeoutSeconds": 120,
+            "lightContext": True
+        },
+        "delivery": {"mode": "announce"},
+        "enabled": True
+    }
+)
+
+# 记录 cron job ID 和 run_start_at
+cron_job_id = cron_result["id"]
+with open(f"{base_path}/.cron_job_id", "w") as f:
+    f.write(cron_job_id)
+with open(f"{base_path}/.run_start_at", "w") as f:
+    f.write(run_start_at)
 ```
 
-**如果检查失败**：
-- 环境问题 → 通过 `/solution-pro` 或 `/deepflow` 触发
-- spawn_fn 问题 → 检查是否在子 Agent 中嵌套调用
-- 需求问题 → 要求用户提供详细需求文档
+**关键点**：`run_start_at` 是本次运行的启动时间，Cron Watcher 用它来校验 `.completed` 文件是否属于本次运行（防止旧文件残留导致误判）。
 
----
-
-## 📋 执行后验证
-
-执行完成后，检查 blackboard 输出：
-
-```bash
-ls blackboard/{session_id}/
-```
-
-**必须存在的文件**：
-- ✅ `stages/planner_output.json` (>2KB)
-- ✅ `stages/reviewer_*_output.json` (3个，每个>2KB)
-- ✅ `stages/researcher_*_output.json` (N个，每个>2KB)
-- ✅ `stages/auditor_*_output.json` (3个，每个>2KB)
-- ✅ `stages/harness_final_output.json` (>2KB)
-- ✅ `final_solution.md` (>10KB)
-
-**验证规则**：
-- 文件大小 < 500 字节 = 失败（只有元数据）
-- 文件大小 > 2KB = 真实输出
-- Harness Final 评分 ≥ 70 = 通过
-
----
-
-## 🔄 10 阶段管线详解
-
-| 阶段 | 名称 | 并行 | 超时 | 输出文件 |
-|------|------|------|------|----------|
-| 1 | Data Collection | ❌ | 600s | `stages/data_collection_output.json` |
-| 2 | Planning | ❌ | 600s | `stages/planner_output.json` |
-| 3 | Reviewers | ✅ ×3 | 600s | `stages/reviewer_*_output.json` |
-| 4 | Research | ✅ ×N | 900s | `stages/researcher_*_output.json` |
-| 5 | Consolidator | ❌ | 600s | `stages/consolidator_output.json` |
-| 6 | Audit | ✅ ×3 | 900s | `stages/auditor_*_output.json` |
-| 7 | Fix | ❌ | 600s | `stages/fix_output.json` |
-| 8 | Harness V2 | ❌ | 600s | `stages/harness_v2_output.json` |
-| 9 | Summarizer | ❌ | 600s | `final_solution.md` |
-| 10 | Delivery | ❌ | 300s | 飞书/邮件发送 |
-
----
-
-## ⚠️ 禁止使用的旧入口
-
-以下入口已废弃，**禁止使用**：
+### Step 6: yield 等待 orchestrator 完成
 
 ```python
-# ❌ 禁止
-from domains.solution.orchestrator_agent import SolutionOrchestratorV21
-orch = SolutionOrchestratorV21(topic="...")
-orch.run_v3()  # 已废弃
-orch.run_legacy()  # 已废弃
-SolutionOrchestratorV21.run(topic="...")  # 已废弃
-```
-
-**正确方式**：
-```python
-# ✅ 正确
-sessions_spawn(task="...", timeout_seconds=1800)
 sessions_yield()
 ```
 
----
-
-## 🐛 故障排查
-
-### 问题 1: "sessions_spawn 不可用"
-**原因**: 不在 Agent Run 环境  
-**解决**: 通过 `/solution-pro` 或 `/deepflow` 触发
-
-### 问题 2: Worker 输出只有元数据（<500字节）
-**原因**: 未等待 Worker 完成就读取  
-**解决**: 使用 `sessions_yield()` 等待完成推送
-
-### 问题 3: Harness Final 评分 < 70
-**原因**: 数据缺口或逻辑矛盾  
-**解决**: 检查 `auditor_*_output.json` 中的 P0/P1 问题
-
-### 问题 4: 执行超时（>1800秒）
-**原因**: 任务复杂度超出预期  
-**解决**: 增加 `timeout_seconds` 至 2400 或 3000
+orchestrator 完成后会自动 announce 回来。
 
 ---
 
-## 📚 相关文档
+## 🔄 Cron 巡检 Agent 行为
 
-- [Solution Pro README](./README.md)
-- [QUICKSTART](../../docs/QUICKSTART.md)
-- [Spec → Solution 交接契约](../../contracts/integration/spec_to_solution.md)
-- [CHANGELOG](../../CHANGELOG.md)
+### Prompt 模板
+
+见 `domains/solution/prompts/cron_watcher.md`
+
+### 核心逻辑
+
+1. **更新运行计数** → 超过 20 次（60 分钟）→ 超时退出
+2. **检查 .completed + 时间戳校验** → 存在且时间戳晚于 run_start_at → 发最终报告 → 自删
+   （如果 .completed 早于 run_start_at → 旧文件残留，忽略，继续巡检）
+3. **扫描 stages/** → 有新文件 → 发进度消息 → 更新 .notified_stages.json
+4. **没有新文件** → NO_REPLY
+
+### 消息策略
+
+- **智能通知**：只在有新阶段完成时发消息（最多 11 条，非 20 条）
+- **并行合并**：同一轮次发现的多个并行阶段合并为 1 条消息
+- **空消息不发**：没有新进度时回复 NO_REPLY
+
+### 状态文件
+
+| 文件 | 创建者 | 用途 |
+|------|--------|------|
+| `.completed` | orchestrator | 完成标记 |
+| `.notified_stages.json` | cron | 已通知的阶段列表 |
+| `.cron_run_count` | cron | 运行次数计数 |
+| `.cron_job_id` | 主 Agent | cron job ID（供兜底删除用） |
+
+---
+
+## 🛡️ 三层退出机制
+
+### 第一层：正常退出
+
+orchestrator 写 `.completed` → cron 检测到 → 发最终报告 → `cron remove` 自杀
+
+### 第二层：超时退出
+
+cron 运行超过 20 次（60 分钟）→ 发超时告警 → `cron remove` 自杀
+
+### 第三层：主 Agent 兜底
+
+主 Agent 收到 orchestrator announce 后：
+```python
+# 读取 cron job ID
+with open(f"{base_path}/.cron_job_id") as f:
+    cron_job_id = f.read().strip()
+
+# 尝试删除（如果 cron 已自杀，会返回 not found，忽略即可）
+try:
+    cron(action="remove", jobId=cron_job_id)
+except:
+    pass  # cron 已经自杀了
+
+# 清理状态文件
+import os
+for f in [".cron_job_id", ".cron_run_count", ".notified_stages.json", ".run_start_at"]:
+    path = f"{base_path}/{f}"
+    if os.path.exists(path):
+        os.remove(path)
+```
+
+### 退出流程总结
+
+```
+正常完成: orchestrator → .completed → cron 发报告 → cron 自删 → 主 Agent announce → 兜底清理
+超时:     cron 计数 > 20 → cron 发超时告警 → cron 自删
+兜底:     主 Agent announce → 主 Agent 主动删 cron → 清理状态文件
+```
+
+---
+
+## 📊 主 Agent 收到 orchestrator announce 后
+
+1. 解析完成状态
+2. 执行兜底清理（删除 cron + 清理状态文件）
+3. 执行 `python3 domains/solution/completion_handler.py <session_id>` 验证
+4. 更新 tasks 数据库为 `completed`
+5. 向用户报告最终结果
+
+---
+
+## 🏗️ 架构总览
+
+```
+主 Agent
+  ├── exec: run_solution_pro() → 生成计划
+  ├── 初始化状态文件
+  ├── sessions_spawn(orchestrator) → 启动管线
+  ├── cron_add(watcher, every=3min) → 启动巡检
+  ├── 记录 cron_job_id
+  └── sessions_yield() → 等待
+
+orchestrator (sub-agent, depth=1)
+  └── 按 execution_plan.json 执行固定 10 阶段
+  └── Stage 2 后运行 control_contract.py 刷新控制面
+  └── 按 expected_output_path 检查 stages/*.json / data/*.json
+  └── 最后写 .completed
+  └── announce 回主 Agent
+
+cron watcher (isolated, 每 3 分钟)
+  └── 扫描 stages/ → 有新文件 → message 通知用户
+  └── 检测 .completed → 最终报告 → cron remove 自杀
+
+主 Agent 收到 announce
+  └── 兜底清理 cron + 状态文件
+  └── 更新 tasks DB
+  └── 向用户报告
+```
+
+---
+
+## ⛔ 禁止
+
+```python
+# ❌ orchestrator 使用 sessions_send（sub-agent 没有此工具）
+# ❌ 主 Agent exec 阻塞轮询
+# ❌ cron job 忘记自杀（必须有三层退出保障）
+# ❌ 先发 cron remove 再发 message（顺序不能反）
+```
 
 ---
 
 ## 🎯 记忆锚点
 
-> "Agent 环境才 spawn；spawn_fn 逐层注入；yield 等推送别轮询"  
-> "Worker 输出 >2KB 才真实；元数据 <500 字节是假的"  
-> "DataManager 是 Pipeline 第一个 stage，自动 spawn 不用管"  
-> "Solution Pro 用 EntryHarness → PipelineOrchestrator → Workers"
+> "orchestrator 写文件，cron 读文件通知，主 Agent 兜底清理"
+> "三层退出：正常自杀、超时自杀、主 Agent 兜底"
+> "智能通知：有新阶段才发，最多 11 条"
+> "状态靠文件，不靠内存"
+> "expected_output_path 是完成判定契约"
+> "frozen_spec.json 是 REQ-ID 权威需求源"
 
 ---
 
-**最后验证**: 本 SKILL.md 已通过 5 位专家评审（平均评分 7.0/10），符合契约笼子标准。
+
+
+---
+
+## 📖 参考文档
+
+- **API 详情**: 见 [README.md](README.md)
+- **Schema 契约**: 见 [docs/contracts/solution_pro_schema.md](../../docs/contracts/solution_pro_schema.md)
+- **文件索引**: 见 [_overview.md](_overview.md)
+
+*V4.3 | 2026-06-02 | 固定 10 阶段契约 + Schema 分层验证 + REQ-ID 需求追踪*
