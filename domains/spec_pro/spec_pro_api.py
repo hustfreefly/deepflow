@@ -48,6 +48,7 @@ def save_coord_state(coord: SpecProCoordinator) -> str:
         "mode": coord.mode,
         "current_round": coord.current_round,
         "state": coord.state.value,
+        "architecture_version": getattr(coord, 'architecture_version', 'v2_nested'),
     }
     state_path = os.path.join(coord.base_path, "coord_state.json")
     with open(state_path, "w", encoding="utf-8") as f:
@@ -94,6 +95,8 @@ def reconstruct_coord(state: dict) -> SpecProCoordinator:
     coord.session_id = state["session_id"]
     coord.base_path = state["base_path"]
     coord.current_round = state["current_round"]
+    # v3: 恢复 architecture_version
+    coord.architecture_version = state.get("architecture_version", "v2_nested")
     # 恢复 DialogState 枚举（JSON 中存的是字符串）
     state_val = state.get("state", "start")
     try:
@@ -118,6 +121,8 @@ def cmd_init(args):
         "session_id": result["session_id"],
         "base_path": result["base_path"],
         "orchestrator_task": result["orchestrator_task"],
+        "v3_parse_worker_prompt": result.get("v3_parse_worker_prompt"),
+        "v3_main_eval_prompt": result.get("v3_main_eval_prompt"),
         "message": f"Session initialized: {result['session_id']}",
     }
 
@@ -142,6 +147,8 @@ def cmd_next_round(args):
         "success": True,
         "round_num": result["round_num"],
         "orchestrator_task": result["orchestrator_task"],
+        "v3_parse_worker_prompt": result.get("v3_parse_worker_prompt"),
+        "v3_main_eval_prompt": result.get("v3_main_eval_prompt"),
     }
 
 

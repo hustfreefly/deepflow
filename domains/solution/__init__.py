@@ -67,8 +67,8 @@ def run_solution_pro(topic: str, **kwargs):
     """
     Solution Pro 唯一入口
 
-    在主 Agent 的 exec 环境中调用，生成执行计划。
-    返回路径供主 Agent 通过 sessions_spawn 工具启动子 Agent。
+    在主 Agent 的 exec 环境中调用，生成执行计划并初始化状态。
+    返回包含 spawn_params 的字典，主 Agent 只需将 spawn_params 传给 sessions_spawn 即可启动管线。
 
     Args:
         topic: 设计主题（必需，>=5字符）
@@ -80,6 +80,7 @@ def run_solution_pro(topic: str, **kwargs):
             "session_id": str,
             "base_path": str,
             "plan_path": str,
+            "spawn_params": dict,  # 直接传给 sessions_spawn 的参数
         }
     """
     orchestrator = _SolutionDispatcher(topic=topic, spawn_fn=None, **kwargs)
@@ -88,12 +89,39 @@ def run_solution_pro(topic: str, **kwargs):
     orchestrator.save_tasks()
     orchestrator.save_execution_plan()
 
-    plan_path = f"{orchestrator.base_path}/execution_plan.json"
+    base_path = orchestrator.base_path
+    plan_path = f"{base_path}/execution_plan.json"
+
+    # 自动初始化状态文件
+    import json as _json, os as _os
+    for old_file in [".completed", ".cron_run_count", ".notified_stages.json"]:
+        path = f"{base_path}/{old_file}"
+        if _os.path.exists(path):
+            _os.remove(path)
+
+    _os.makedirs(base_path, exist_ok=True)
+    with open(f"{base_path}/.notified_stages.json", "w") as f:
+        _json.dump({"notified": [], "total_messages_sent": 0}, f)
+    with open(f"{base_path}/.cron_run_count", "w") as f:
+        _json.dump({"count": 0, "max_runs": 20, "run_start_at": "PENDING"}, f)
+
+    # 读取并替换 orchestrator prompt
+    import pathlib
+    prompt_path = pathlib.Path(__file__).parent / "prompts" / "pipeline_orchestrator_v4.md"
+    prompt_template = prompt_path.read_text(encoding="utf-8")
+    orchestrator_prompt = prompt_template.replace("{base_path}", base_path).replace("{session_id}", session_id).replace("{plan_path}", plan_path)
 
     return {
         "session_id": session_id,
-        "base_path": orchestrator.base_path,
+        "base_path": base_path,
         "plan_path": plan_path,
+        "spawn_params": {
+            "runtime": "subagent",
+            "mode": "run",
+            "label": "solution_orchestrator",
+            "task": orchestrator_prompt,
+            "runTimeoutSeconds": 3600,
+        },
     }
 
 

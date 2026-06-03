@@ -52,11 +52,51 @@ FALLBACKS = {
         "final_decision": "WARN",
         "final_reasoning": "Harness Worker 超时，跳过门禁",
     },
+    # AssessGuideWorker 需要写两个文件
+    "assess_guide": {
+        "quality_report": {
+            "overall_score": 0,
+            "level": "C",
+            "dimensions": [],
+            "top_missing": ["AssessGuideWorker 超时"],
+            "recommendation": "请继续补充",
+        },
+        "questions": {
+            "questions": [
+                {"type": "clarification", "text": "请再展开说说你的需求？", "dimension": "objective"}
+            ],
+            "strategy_note": "fallback",
+        },
+    },
 }
 
 
 def cmd_fallback(worker_type: str, output_path: str) -> None:
     """Write fallback JSON for a timed-out worker."""
+    # AssessGuideWorker 特殊处理: 需要写两个文件
+    if worker_type == "assess_guide":
+        fallback = FALLBACKS.get("assess_guide")
+        if fallback is None:
+            print(f"Unknown worker type: {worker_type}", file=sys.stderr)
+            sys.exit(1)
+        
+        # 第一个输出路径是 quality_report
+        quality_report_path = output_path
+        # 第二个输出路径是 questions (通过命令行第二个路径参数)
+        questions_path = sys.argv[3] if len(sys.argv) > 3 else None
+        
+        os.makedirs(os.path.dirname(quality_report_path), exist_ok=True)
+        with open(quality_report_path, "w", encoding="utf-8") as f:
+            json.dump(fallback["quality_report"], f, ensure_ascii=False, indent=2)
+        print(f"Wrote assess fallback to {quality_report_path}")
+        
+        if questions_path:
+            os.makedirs(os.path.dirname(questions_path), exist_ok=True)
+            with open(questions_path, "w", encoding="utf-8") as f:
+                json.dump(fallback["questions"], f, ensure_ascii=False, indent=2)
+            print(f"Wrote questions fallback to {questions_path}")
+        return
+    
     fallback = FALLBACKS.get(worker_type)
     if fallback is None:
         print(f"Unknown worker type: {worker_type}", file=sys.stderr)

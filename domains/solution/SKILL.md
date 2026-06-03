@@ -1,7 +1,7 @@
 # Solution Pro - Agent 执行指南
 
-> **版本**: V4.3 | **最后更新**: 2026-06-02  
-> **架构**: 固定 10 阶段 B 方案 + LLM Orchestrator + Cron 巡检通知 + REQ-ID 追踪质量门
+> **版本**: V4.4 | **最后更新**: 2026-06-03  
+> **架构**: 固定 10 阶段 B 方案 + LLM Orchestrator + Cron 巡检通知 + REQ-ID 追踪质量门 + 状态持久化断点续接
 
 ---
 
@@ -44,20 +44,20 @@ with open(f"{base_path}/inferred_living_spec.json", "w") as f:
 - 轻量 Spec Agent 的输出质量不如完整 Spec Pro，但比纯 topic + constraints 好得多
 - 后续可以优化为：先跑轻量 Spec Agent，再让用户确认/补充
 
-### Step 1: exec 生成执行计划
+### Step 1: 生成执行计划
 
 ```bash
 cd ~/.openclaw/workspace/.deepflow && python3 -c "
 import json
 from domains.solution import run_solution_pro
-plan = run_solution_pro(
+result = run_solution_pro(
     topic='{TOPIC}',
     solution_type='{SOLUTION_TYPE}',
     constraints={CONSTRAINTS},
     stakeholders={STAKEHOLDERS},
     living_spec={LIVING_SPEC},  # 如果 Spec Pro 已产出，传入完整 living_spec
 )
-print(json.dumps(plan, ensure_ascii=False, indent=2))
+print(json.dumps(result, ensure_ascii=False, indent=2))
 "
 ```
 
@@ -66,44 +66,21 @@ print(json.dumps(plan, ensure_ascii=False, indent=2))
 - ✅ **普通对话入口** → 传入轻量 Spec Agent 生成的 living_spec（基于 topic + constraints 推断）
 - ❌ **不传 living_spec** → frozen_spec 退化为 topic + constraints，REQ-ID 严重不足
 
-`run_solution_pro()` 只生成 `tasks.json`、`execution_plan.json` 和 `data/frozen_spec.json`，不直接执行管线，也不接收 `spawn_fn`。
+`run_solution_pro()` 现在会自动完成：
+- 生成 `tasks.json`、`execution_plan.json` 和 `data/frozen_spec.json`
+- 清理旧的 `.completed`、`.cron_run_count`、`.notified_stages.json` 状态文件
+- 初始化新的 cron 状态文件
+- 读取并替换 orchestrator prompt 中的变量
+- 返回 `spawn_params`（可直接传给 `sessions_spawn`）
 
-### Step 2: 清理旧状态 + 初始化
-
-**⚠️ 必须先清理旧的 .completed 文件，否则 cron 会误判任务已完成。**
+### Step 2: 启动管线
 
 ```python
-import sqlite3, time, json, os
-
-db_path = "~/.openclaw/workspace/.deepflow/frontend/backend/data/tasks.db"
-base_path = plan["base_path"]
-session_id = plan["session_id"]
-
-# === 关键：清理旧状态文件 ===
-for old_file in [".completed", ".cron_job_id", ".cron_run_count", ".notified_stages.json", ".send_failures.json", ".run_start_at"]:
-    path = f"{base_path}/{old_file}"
-    if os.path.exists(path):
-        os.remove(path)
-        print(f"🗑️ 清理旧文件: {old_file}")
-
-# 更新 tasks 表
-conn = sqlite3.connect(db_path)
-now = time.time()
-params = {"topic": "{TOPIC}", "solution_type": "{SOLUTION_TYPE}", "constraints": {CONSTRAINTS}}
-conn.execute(
-    "INSERT OR REPLACE INTO tasks (id, session_id, domain, status, parameters, created_at, updated_at, webhook_sent, webhook_retries) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    (session_id, session_id, "solution", "running", json.dumps(params, ensure_ascii=False), now, now, 0, 0)
-)
-conn.commit()
-conn.close()
-
-# 初始化 cron 状态文件
-os.makedirs(base_path, exist_ok=True)
-with open(f"{base_path}/.notified_stages.json", "w") as f:
-    json.dump({"notified": [], "total_messages_sent": 0}, f)
-with open(f"{base_path}/.cron_run_count", "w") as f:
-    json.dump({"count": 0, "max_runs": 20, "run_start_at": "PENDING"}, f)
+# 从 Step 1 的返回值中获取 spawn_params
+sessions_spawn(**result["spawn_params"])
 ```
+
+**关键**：`spawn_params` 已经包含了完整的 orchestrator prompt（变量已替换），直接传给 `sessions_spawn` 即可启动管线。
 
 ### Step 3: 向用户发送启动通知
 
@@ -114,21 +91,7 @@ with open(f"{base_path}/.cron_run_count", "w") as f:
 💬 期间你可以继续问我其他问题，完成后我会通知你
 ```
 
-### Step 4: spawn orchestrator 子 Agent
-
-读取 `domains/solution/prompts/pipeline_orchestrator_v4.md`，替换变量后 spawn。
-
-```python
-sessions_spawn(
-    runtime="subagent",
-    mode="run",
-    label="solution_orchestrator",
-    task="<orchestrator_v4_prompt 完整内容，替换 {base_path}, {session_id}, {plan_path}>",
-    runTimeoutSeconds=3600
-)
-```
-
-### Step 5: 创建 Cron 巡检 Agent
+### Step 4: 创建 Cron 巡检 Agent
 
 ```python
 from datetime import datetime
@@ -149,7 +112,7 @@ cron_result = cron(
             "timeoutSeconds": 120,
             "lightContext": True
         },
-        "delivery": {"mode": "announce"},
+        "delivery": {"mode": "announce", "channel": "feishu", "to": "{FEISHU_TARGET}"},
         "enabled": True
     }
 )
@@ -162,7 +125,28 @@ with open(f"{base_path}/.run_start_at", "w") as f:
     f.write(run_start_at)
 ```
 
-**关键点**：`run_start_at` 是本次运行的启动时间，Cron Watcher 用它来校验 `.completed` 文件是否属于本次运行（防止旧文件残留导致误判）。
+**关键点**：
+- `run_start_at` 是本次运行的启动时间，Cron Watcher 用它来校验 `.completed` 文件是否属于本次运行（防止旧文件残留导致误判）
+- 🔴 **delivery 必须包含 channel 和 to**：多 channel 环境下（如 feishu + imessage），缺少 `to` 会导致 delivery 失败。标准模板见下方。
+
+**🔴 Cron Delivery 标准模板**：
+```json
+{
+  "delivery": {
+    "mode": "announce",
+    "channel": "feishu",
+    "to": "ou_d55068472a52a0f34ff72c3b6930044c",
+    "accountId": "default"
+  }
+}
+```
+如果当前会话是 webchat，改用：
+```json
+{
+  "delivery": {"mode": "announce"}
+}
+```
+（webchat 不需要 channel/to）
 
 ### Step 6: yield 等待 orchestrator 完成
 
@@ -199,9 +183,30 @@ orchestrator 完成后会自动 announce 回来。
 | 文件 | 创建者 | 用途 |
 |------|--------|------|
 | `.completed` | orchestrator | 完成标记 |
+| `.stage_progress.json` | orchestrator | 🔴 阶段进度追踪（断点续接） |
 | `.notified_stages.json` | cron | 已通知的阶段列表 |
 | `.cron_run_count` | cron | 运行次数计数 |
 | `.cron_job_id` | 主 Agent | cron job ID（供兜底删除用） |
+
+### 🔴 状态持久化与断点续接
+
+Orchestrator 每完成一个 phase，必须更新 `.stage_progress.json`：
+```json
+{
+  "session_id": "xxx",
+  "started_at": "ISO时间",
+  "current_phase": 5,
+  "completed_phases": [1, 2, 3, 4, 5],
+  "failed_phases": [],
+  "status": "running"
+}
+```
+
+**主 Agent 续接流程**：
+1. 收到 orchestrator announce 但 `.completed` 不存在
+2. 读取 `.stage_progress.json` 查看已完成到哪个 phase
+3. spawn continuation task，prompt 中说明从 phase N+1 继续
+4. continuation task 读取 `.stage_progress.json` 跳过已完成阶段
 
 ---
 
@@ -319,4 +324,4 @@ cron watcher (isolated, 每 3 分钟)
 - **Schema 契约**: 见 [docs/contracts/solution_pro_schema.md](../../docs/contracts/solution_pro_schema.md)
 - **文件索引**: 见 [_overview.md](_overview.md)
 
-*V4.3 | 2026-06-02 | 固定 10 阶段契约 + Schema 分层验证 + REQ-ID 需求追踪*
+*V4.4 | 2026-06-03 | 固定 10 阶段契约 + Schema 分层验证 + REQ-ID 需求追踪 + 状态持久化断点续接 + Cron delivery 模板化*

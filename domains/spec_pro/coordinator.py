@@ -49,6 +49,7 @@ class SpecProCoordinator:
         scenario: str = "genesis",
         mode: str = "standard",
         session_prefix: Optional[str] = None,
+        architecture_version: str = "v3_flat",
     ) -> None:
         """
         初始化 Coordinator.
@@ -57,6 +58,9 @@ class SpecProCoordinator:
             scenario: 场景类型 (genesis/supplement/refine/pivot)
             mode: 对话深度 (quick/standard/deep)
             session_prefix: session ID 前缀(可选)
+            architecture_version: 架构版本 ('v2_nested' 或 'v3_flat')
+                - v2_nested: Orchestrator Worker 串行调度 (旧架构)
+                - v3_flat: 主 Agent 直接评分+提问 (Phase 3 扁平架构)
         """
         # Validate mode
         if mode not in MODE_CONFIG:
@@ -75,6 +79,7 @@ class SpecProCoordinator:
         self.scenario = scenario
         self.mode = mode
         self.session_prefix = session_prefix or "spec"
+        self.architecture_version = architecture_version
         self.session_id: Optional[str] = None
         self.base_path: Optional[str] = None
         self.current_round: int = 0
@@ -140,17 +145,22 @@ class SpecProCoordinator:
         with open(conv_path, "w", encoding="utf-8") as f:
             json.dump([], f, ensure_ascii=False)
 
-        # Build first round orchestrator task
+        # Build first round task (v3 flat or v2 nested)
         self.current_round = 1
         self.state = DialogState.PARSING
-        task = self._build_orchestrator_task(
-            round_num=1, phase="init"
-        )
+        if self.architecture_version == "v3_flat":
+            task = self._build_v3_round_task(round_num=1, phase="init")
+        else:
+            task = self._build_orchestrator_task(
+                round_num=1, phase="init"
+            )
 
         return {
             "session_id": self.session_id,
             "base_path": self.base_path,
             "orchestrator_task": task,
+            "v3_parse_worker_prompt": self._build_v3_parse_worker_prompt(1) if self.architecture_version == "v3_flat" else None,
+            "v3_main_eval_prompt": self._build_v3_main_eval_prompt(1) if self.architecture_version == "v3_flat" else None,
         }
 
     def build_next_round_task(self, user_response: str) -> Dict[str, Any]:
@@ -211,19 +221,31 @@ class SpecProCoordinator:
         with open(response_path, "w", encoding="utf-8") as f:
             f.write(user_response)
 
-        # Build task
-        task = self._build_orchestrator_task(
-            round_num=self.current_round, phase="collecting"
-        )
+        # Build task (v3 flat or v2 nested)
+        if self.architecture_version == "v3_flat":
+            task = self._build_v3_round_task(
+                round_num=self.current_round, phase="collecting"
+            )
+            v3_parse = self._build_v3_parse_worker_prompt(self.current_round)
+            v3_eval = self._build_v3_main_eval_prompt(self.current_round)
+        else:
+            task = self._build_orchestrator_task(
+                round_num=self.current_round, phase="collecting"
+            )
+            v3_parse = None
+            v3_eval = None
 
         self._write_execution_log("round_start", {
             "round": self.current_round,
             "response_length": len(user_response),
+            "architecture_version": self.architecture_version,
         })
 
         return {
             "orchestrator_task": task,
             "round_num": self.current_round,
+            "v3_parse_worker_prompt": v3_parse,
+            "v3_main_eval_prompt": v3_eval,
         }
 
     def read_round_output(self) -> Dict[str, Any]:
@@ -547,6 +569,220 @@ class SpecProCoordinator:
 
         return task
 
+    def _build_v3_round_task(self, round_num: int, phase: str) -> str:
+        """
+        Phase 3 扁平架构：生成主 Agent 直接执行的流程指令。
+        
+        与 v2 的 _build_orchestrator_task() 不同，此方法不包含
+        多 Worker spawn 逻辑，只生成主 Agent 评分+提问的指导。
+        """
+        threshold = self._compute_dynamic_threshold()
+        base_threshold = self._config["threshold"]
+        max_rounds = self._config["max_rounds"]
+        
+        threshold_note = ""
+        if threshold != base_threshold:
+            threshold_note = f"\n**注意**: 质量阈值已从 {base_threshold} 动态调整为 {threshold}\n"
+
+        task = f"""# Spec Pro v3 扁平架构 — 主 Agent 执行指南
+
+你是 Spec Pro 主 Agent。本次使用 v3 扁平架构：你直接做评分和提问。
+
+## 流程概述
+
+1. ParseWorker（子 Agent）已完成 → 读取 stages/round_{round_num:02d}_parse.json
+2. 你（主 Agent）直接做 7 维度质量评估
+3. 你（主 Agent）直接生成 3-5 个引导问题
+4. 写 round_result.json
+5. 展示给用户
+
+## 关键规则
+
+### 🔴 需求 vs 设计边界
+
+**允许问（需求）**：
+- 用户期望什么结果/行为/质量？
+- 用户的场景是什么？
+
+**禁止问（设计）**：
+- ❌ 系统如何实现？（架构、算法、技术选型）
+- ❌ 系统内部如何组织？（Agent 划分、数据流）
+- ❌ 用技术术语问业务问题（服务器、域名、MVP、API 网关等）
+
+### 🔴 意图判断式评分
+
+- 用户说"参考业界最优实践" → 对应维度给 **70 分**（有效需求声明）
+- 用户说"兼职尽量少投入" → constraints 给 **60 分**
+- 用户说"合规不用管" → deliberately_omitted → **50 分**，不追问
+- 用户说"你们来决定" → 委托设计 → 不扣分
+
+---
+## 当前任务上下文
+
+- Session: {self.session_id}
+- Blackboard: {self.base_path}
+- 场景: {self.scenario}
+- 模式: {self.mode}
+- 当前轮次: {round_num}
+- 阶段: {phase}
+- 质量阈值: {threshold}
+- 最大轮数: {max_rounds}
+{threshold_note}
+"""
+        if phase == "init":
+            task += """\n## 你的任务
+
+1. 读取 living_spec.json（已由 ParseWorker 创建）
+2. 对 living_spec 进行 7 维度评分（0-100）：
+   - objective (20%): 目标清晰度、痛点、成功指标
+   - users (15%): 用户角色、场景
+   - capabilities (15%): always_do/should_do/never_do
+   - quality_attributes (15%): 量化指标
+   - constraints (15%): budget/timeline/team
+   - integration (10%): 外部系统、接口
+   - risks (10%): 风险、假设（deliberately_omitted 维度给 50 分）
+3. 生成 3-5 个引导问题，聚焦最低分维度
+   - 每个问题标注 boundary_check: demand 或 design
+   - 禁止出现技术词汇
+   - 禁止问"如何实现"
+4. 写 round_result.json（格式见下文）
+
+### round_result.json 格式
+
+```json
+{
+  "action": "questions",
+  "round": 1,
+  "questions": [...],
+  "quality": {
+    "overall_score": 数字,
+    "level": "S/A/B/C",
+    "dimension_scores": {每个维度的分数和delta},
+    "top_improvements": [],
+    "top_missing": [缺失项]
+  },
+  "inferred_items": [living_spec.json inferred 层 pending 项]
+}
+```
+"""
+        elif phase == "collecting":
+            prev = round_num - 1
+            task += f"""\n## 你的任务
+
+1. 读取 living_spec.json（已由 merge_spec.py 合并更新）
+2. 对 living_spec 进行 7 维度评分（0-100）
+3. 生成 3-5 个引导问题，聚焦最低分维度
+   - 已问过且已回答的问题不再重复
+   - deliberately_omitted 维度不提问
+   - 每个问题标注 boundary_check
+4. 写 round_result.json
+
+### round_result.json 格式
+
+```json
+{{
+  "action": "questions",
+  "round": {round_num},
+  "questions": [...],
+  "quality": {{
+    "overall_score": 数字,
+    "level": "S/A/B/C",
+    "dimension_scores": {{
+      "objective": {{"score": 分数, "delta": 与上轮差值, "change": "up/down/flat"}},
+      "users": {{"score": 分数, "delta": 差值, "change": "..."}},
+      "capabilities": {{"score": 分数, "delta": 差值, "change": "..."}},
+      "quality_attributes": {{"score": 分数, "delta": 差值, "change": "..."}},
+      "constraints": {{"score": 分数, "delta": 差值, "change": "..."}},
+      "integration": {{"score": 分数, "delta": 差值, "change": "..."}},
+      "risks": {{"score": 分数, "delta": 差值, "change": "..."}}
+    }},
+    "top_improvements": [提升最大的2-3维度],
+    "top_missing": [缺失项]
+  }},
+  "inferred_items": [living_spec.json inferred 层 pending 项]
+}}
+```
+
+**注意**: 如果 overall_score >= {threshold}，action 改为 "summary"。
+"""
+        elif phase == "confirmation":
+            task += """\n## 你的任务
+
+1. 读取 user_confirmation.json
+2. 如果 action="confirm"，写 round_result.json (action="done")
+3. 如果 action="revise"，执行 merge_spec.py --revisions，然后重新评分
+"""
+
+        return task
+
+    def _build_v3_parse_worker_prompt(self, round_num: int) -> str:
+        """Phase 3: 构建 ParseWorker 的 task prompt。"""
+        from core.prompt_registry import read_prompt
+        parse_prompt = read_prompt("spec_pro/parse")
+        if round_num == 1:
+            return f"""{parse_prompt}
+
+## 当前任务上下文
+- Session: {self.session_id}
+- Blackboard: {self.base_path}
+
+## 文件路径
+- 读取: {self.base_path}/spec/input.md
+- 写入: {self.base_path}/stages/round_{round_num:02d}_parse.json
+- 写入: {self.base_path}/spec/living_spec.json
+"""
+        else:
+            prev = round_num - 1
+            return f"""{parse_prompt}
+
+## 当前任务上下文
+- Session: {self.session_id}
+- Blackboard: {self.base_path}
+
+## 文件路径
+- 读取: {self.base_path}/spec/living_spec.json
+- 读取: {self.base_path}/spec/user_response_round_{round_num}.md
+- 读取: {self.base_path}/stages/round_{prev:02d}_questions.json
+- 写入: {self.base_path}/stages/round_{round_num:02d}_response.json
+"""
+
+    def _build_v3_main_eval_prompt(self, round_num: int) -> str:
+        """Phase 3: 构建主 Agent 评分+提问的 prompt。
+        
+        复用 assess.md 的评分哲学 + guide.md 的边界规则。
+        """
+        from core.prompt_registry import read_prompt
+        assess_prompt = read_prompt("spec_pro/assess")
+        guide_prompt = read_prompt("spec_pro/guide")
+        
+        prev = round_num - 1
+        return f"""# 主 Agent 评分 + 提问（v3 扁平架构）
+
+你是 Spec Pro 主 Agent。请对当前 Living Spec 进行质量评估并生成引导问题。
+
+{assess_prompt}
+
+---
+
+{guide_prompt}
+
+---
+
+## 你的任务
+
+1. 读取 {self.base_path}/spec/living_spec.json
+2. 按上述评分标准进行 7 维度评估
+3. 按上述边界规则生成 3-5 个引导问题
+4. 写 {self.base_path}/spec/quality_report.json
+5. 写 {self.base_path}/stages/round_{round_num:02d}_questions.json
+6. 写 {self.base_path}/spec/round_result.json
+
+## 上下文
+- 上轮问题: {self.base_path}/stages/round_{prev:02d}_questions.json
+- 对话历史: {self.base_path}/spec/conversation_log.json
+- 质量轨迹: {self.base_path}/spec/quality_trajectory.json
+"""
+
     def _init_phase_instructions(self) -> str:
         """Round 1: Parse -> Assess -> Question"""
         return """# Phase: init (Round 1)
@@ -699,6 +935,19 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py append_trajectory {Blackbo
 
         return f"""# Phase: collecting (Round {round_num})
 
+⚠️ **【格式锚点】ResponseWorker 输出格式（强制，不可修改）**
+ResponseWorker 的 `{{Blackboard}}/stages/round_{nn}_response.json` 必须严格按以下 JSON schema 输出：
+```json
+{{
+  "input_guard": {{"valid": true, "contradictions": [], "off_topic": false, "skipped_dimensions": [], "needs_followup": []}},
+  "parsed_updates": {{"objective": "...", "pain_points": [], "success_metrics": [], "users": [], "key_scenarios": [], "capabilities": {{"always_do": [], "should_do": [], "never_do": []}}, "quality_attributes": [], "constraints": {{}}, "integration": {{"existing_systems": [], "requirements": []}}, "risks_and_assumptions": {{"risks": [], "assumptions": [], "dependencies": []}}, "user_directives": []}},
+  "inference_responses": [],
+  "meta_signals": {{"user_said_enough": false, "user_wants_pivot": false, "new_topic_detected": false}},
+  "new_inferences": []
+}}
+```
+**禁止使用 "updates" 数组格式！必须使用 "parsed_updates" 对象格式！**
+
 用户回答已写入: {{Blackboard}}/spec/user_response_round_{round_num}.md
 上轮问题在: {{Blackboard}}/stages/round_{pp}_questions.json
 
@@ -723,6 +972,8 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py append_trajectory {Blackbo
   }}
   ```
 - timeoutSeconds: 180
+
+⚠️ **【格式提醒】再次确认: round_{nn}_response.json 必须使用 "parsed_updates" 格式，不要用 "updates" 格式！**
 
 ## Step 1.5: Worker 存在性检查
 如果 stages/round_{nn}_response.json 不存在:
@@ -752,27 +1003,44 @@ python3 .deepflow/domains/spec_pro/process_guard.py {{Blackboard}} {round_num}
 
 **保存 Process Guard 输出**,后续注入到 QuestionWorker.
 
-## Step 4: spawn AssessWorker
-- task: 读取 domains/spec_pro/prompts/assess.md,注入上下文:
+## Step 4: spawn AssessGuideWorker (合并评分+提问)
+- task: 读取 domains/spec_pro/prompts/assess_guide.md,注入上下文:
   - 读取: {{Blackboard}}/spec/living_spec.json
-  - 写入: {{Blackboard}}/spec/quality_report.json
+  - 读取: {{Blackboard}}/spec/quality_trajectory.json (可选,用于判断轮次策略)
+  - 读取: {{Blackboard}}/spec/conversation_log.json (历史对话记录,用于问题去重)
+  - 读取: {{Blackboard}}/stages/round_{pp}_questions.json (上轮问题)
+  - 读取: {{Blackboard}}/stages/round_{pp}_response.json (上轮回答解析)
+  - 写入: {{Blackboard}}/spec/quality_report.json (Phase 1 输出)
+  - 写入: {{Blackboard}}/stages/round_{nn}_questions.json (Phase 2 输出)
   
-  **特殊状态: deliberately_omitted (D2: 评分区分拒绝)**:
-  如果 living_spec.confirmed.user_directives 中某维度被标记为 deliberately_omitted:
-  - 该维度**不扣分**,给默认分 50 (表示"用户选择不提供,非缺失")
-  - 该维度不出现在 top_missing 中
-  - 该维度不计入维度分差检查
+  **Phase 1: 质量评估**
+  - 对 living_spec 进行 7 维度加权评分
+  - 特殊状态: deliberately_omitted (用户主动放弃的维度给 50 分,不扣分,不出现在 top_missing)
   
-  示例: 如果 user_directives 包含 {{"dimension": "users", "directive": "deliberately_omitted"}},
-  则 users 维度评分应为 50 分,而非 0 分.
+  **Phase 2: 问题生成**
+  - 基于 Phase 1 的 quality_report,生成 2-5 个高质量引导问题
+  - 已问去重规则 (必须遵守):
+    1. 读取 conversation_log.json 中所有轮的 meta_directives
+       - 如果用户明确说"不要再问 X",则该维度**禁止提问**
+    2. 读取上轮 questions.json
+       - 如果某个维度的某类问题已经问过且用户已回答,不再重复
+    3. 如果某维度被标记为 deliberately_omitted,跳过该维度
+  
+  **Process Guard 优先级规则** (D4):
+  如果 Step 3 的 Process Guard 输出了 adjustment_instruction:
+  - 将调整指令**作为最高优先级**注入到问题生成逻辑
+  - Process Guard 的 adjustments 优先级高于默认策略
+  - 如果 Process Guard 说"某维度已被充分覆盖",则该维度不再提问
+  
+  Process Guard 调整指令: [Step 3 的输出]
 - timeoutSeconds: 180
 
-等待 AssessWorker 完成.
+等待 AssessGuideWorker 完成.
 
 ## Step 4.5: Worker 存在性检查
 如果 spec/quality_report.json 不存在:
 ```
-python3 .deepflow/domains/spec_pro/worker_fallback.py assess {{Blackboard}}/spec/quality_report.json
+python3 .deepflow/domains/spec_pro/worker_fallback.py assess_guide {{Blackboard}}/spec/quality_report.json {{Blackboard}}/stages/round_{nn}_questions.json
 ```
 
 ## Step 5: 更新 quality_trajectory.json
@@ -854,36 +1122,10 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py harness {{Blackboard}}/spe
     - 写入: {{Blackboard}}/spec/round_result.json
     - action: "summary" (WARN时在round_result中添加 "harness_warning": true)
   - timeoutSeconds: 180
-- SOFT_BLOCK 或 HARD_BLOCK -> spawn QuestionWorker (进入分支 C)
+- SOFT_BLOCK 或 HARD_BLOCK -> 进入分支 C (questions 已由 AssessGuideWorker 产出)
 
 ### 分支 C: 质量未达标且未停滞 (overall_score < {threshold} 且不满足停滞条件)
-spawn QuestionWorker:
-- task: 读取 domains/spec_pro/prompts/guide.md,注入上下文:
-  - 读取: {{Blackboard}}/spec/living_spec.json
-  - 读取: {{Blackboard}}/spec/quality_report.json
-  - 读取: {{Blackboard}}/spec/conversation_log.json (历史对话记录)
-  - 读取: {{Blackboard}}/stages/round_{pp}_questions.json (上轮问题)
-  - 读取: {{Blackboard}}/stages/round_{pp}_response.json (上轮回答解析)
-  - 写入: {{Blackboard}}/stages/round_{nn}_questions.json
-  
-  **已问去重规则** (D1: 问题重复修复,必须遵守):
-  1. 读取 conversation_log.json 中所有轮的 meta_directives
-     - 如果用户明确说"不要再问 X",则该维度**禁止提问**
-  2. 读取上轮 questions.json
-     - 如果某个维度的某类问题已经问过且用户已回答,不再重复
-  3. 读取上轮 response.json 的 meta_signals
-     - 如果 directive_stop_asking = true,遵守 stop_asking_dimensions
-     - 如果 user_said_enough = true,减少问题数量到 1-2 个
-  4. 如果某维度被标记为 deliberately_omitted,跳过该维度
-  
-  **Process Guard 优先级规则** (D4: Process Guard 有力修复):
-  如果 Step 3 的 Process Guard 输出了 adjustment_instruction:
-  - 将调整指令**作为最高优先级**注入到问题生成逻辑
-  - Process Guard 的 adjustments 优先级高于默认策略
-  - 如果 Process Guard 说"某维度已被充分覆盖",则该维度不再提问
-  
-  Process Guard 调整指令: [Step 3 的输出]
-- timeoutSeconds: 180
+**Questions 已由 Step 4 的 AssessGuideWorker 产出,直接读取 round_{nn}_questions.json 即可。**
 
 使用 write 工具将以下内容写入 {{Blackboard}}/spec/round_result.json (D3: 包含 7 维分数):
 ```json
@@ -934,20 +1176,22 @@ spawn QuestionWorker:
 """
 
     def _confirmation_phase_instructions(self) -> str:
-        """Confirmation: confirm -> Structure / revise -> merge -> Assess -> Question"""
-        return """# Phase: confirmation
+        """Confirmation: confirm -> Structure / revise -> merge -> AssessGuide -> (Question | Harness -> Structure)"""
+        threshold = self._compute_dynamic_threshold()
+        nn = f"{self.current_round:02d}"
+        return f"""# Phase: confirmation
 
-用户确认/修正已写入: {Blackboard}/spec/user_confirmation.json
+用户确认/修正已写入: {{Blackboard}}/spec/user_confirmation.json
 
 读取 user_confirmation.json 中的 action:
 
 ## 如果 action = "confirm":
 spawn StructureWorker:
 - task: 读取 domains/spec_pro/prompts/structure.md,注入上下文:
-  - 读取: {Blackboard}/spec/living_spec.json
-  - 读取: {Blackboard}/spec/quality_report.json
-  - 读取: {Blackboard}/spec/harness_report.json(如果存在)
-  - 写入: {Blackboard}/spec/round_result.json
+  - 读取: {{Blackboard}}/spec/living_spec.json
+  - 读取: {{Blackboard}}/spec/quality_report.json
+  - 读取: {{Blackboard}}/spec/harness_report.json(如果存在)
+  - 写入: {{Blackboard}}/spec/round_result.json
   - action: "done"
   - 在 round_result 中包含: action="done", summary_text, quality, living_spec(完整内容), harness_report(如有), route_recommendation, solution_pro_hints, inferred_pending
 - timeoutSeconds: 180
@@ -956,25 +1200,28 @@ spawn StructureWorker:
 1. 合并修正内容到 living_spec.json:
    执行命令:
    ```
-   python3 .deepflow/domains/spec_pro/merge_spec.py --revisions {Blackboard}/spec/user_confirmation.json {Blackboard}/spec/living_spec.json
+   python3 .deepflow/domains/spec_pro/merge_spec.py --revisions {{Blackboard}}/spec/user_confirmation.json {{Blackboard}}/spec/living_spec.json
    ```
    该脚本读取 user_confirmation.json 中的 revisions 数组,逐条更新到 living_spec.json 的 confirmed 层对应字段.
 
-2. spawn AssessWorker(重新评估):
-   - task: 读取 domains/spec_pro/prompts/assess.md,注入上下文:
-     - 读取: {Blackboard}/spec/living_spec.json
-     - 写入: {Blackboard}/spec/quality_report.json
+2. spawn AssessGuideWorker (合并评分+提问):
+   - task: 读取 domains/spec_pro/prompts/assess_guide.md,注入上下文:
+     - 读取: {{Blackboard}}/spec/living_spec.json
+     - 读取: {{Blackboard}}/spec/conversation_log.json (历史对话)
+     - 读取: {{Blackboard}}/spec/quality_trajectory.json
+     - 写入: {{Blackboard}}/spec/quality_report.json (Phase 1)
+     - 写入: {{Blackboard}}/stages/round_{nn}_questions.json (Phase 2)
    - timeoutSeconds: 180
 
-3. AssessWorker 存在性检查:
+3. AssessGuideWorker 存在性检查:
    如果 spec/quality_report.json 不存在:
    ```
-   python3 .deepflow/domains/spec_pro/worker_fallback.py assess {Blackboard}/spec/quality_report.json
+   python3 .deepflow/domains/spec_pro/worker_fallback.py assess_guide {{Blackboard}}/spec/quality_report.json {{Blackboard}}/stages/round_{nn}_questions.json
    ```
 
 4. 读取 quality_report.json 的 overall_score:
-   - 达标(≥ threshold)-> spawn HarnessWorker -> 读 harness_report.json -> spawn StructureWorker(action="summary")
-   - 未达标 -> spawn QuestionWorker(action="questions")
+   - 达标(≥ {threshold})-> spawn HarnessWorker -> 读 harness_report.json -> spawn StructureWorker(action="summary")
+   - 未达标 -> 使用 write 工具写入 round_result.json (从 stages/round_{nn}_questions.json 读取 questions)
 
 更新 conversation_log.json,追加一条 confirmation 阶段记录.
 """

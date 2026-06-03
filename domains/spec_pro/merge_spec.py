@@ -15,9 +15,55 @@ import os
 import sys
 from datetime import datetime
 
+# Response Normalizer: 将任意格式的 ResponseWorker 输出转换为标准 v2 格式
+from domains.spec_pro.response_normalizer import normalize_response, log_format_migration
+
+
+def _char_bigrams(s: str) -> set:
+    """生成字符串的字符 bigram 集合。"""
+    s = s.lower().strip()
+    if len(s) < 2:
+        return {s}
+    return {s[i:i+2] for i in range(len(s) - 1)}
+
+
+def _jaccard_similarity(a: str, b: str) -> float:
+    """计算两个字符串的 Jaccard 字符 bigram 相似度。"""
+    set_a = _char_bigrams(a)
+    set_b = _char_bigrams(b)
+    if not set_a and not set_b:
+        return 1.0
+    intersection = set_a & set_b
+    union = set_a | set_b
+    return len(intersection) / len(union) if union else 0.0
+
+
+def _is_duplicate_by_similarity(item, target: list, threshold: float = 0.45) -> bool:
+    """v2.2: 检查 item 是否与 target 中某项相似度超过阈值。
+    
+    中文文本的 Jaccard bigram 相似度通常较低，阈值设为 0.45。
+    - 相同文本: 1.0
+    - 相似但扩展的文本: 0.4-0.7
+    - 不同语义的文本: < 0.3
+    """
+    if isinstance(item, str):
+        for existing in target:
+            if isinstance(existing, str):
+                if _jaccard_similarity(item, existing) >= threshold:
+                    return True
+    return False
+
 
 def append_unique(target: list, source: list, key: str = None) -> None:
-    """Append items from source to target, avoiding duplicates."""
+    """Append items from source to target, avoiding duplicates.
+    
+    v2.2: 无 key 时对字符串做 Jaccard 字符 bigram 相似度去重（阈值 0.45）。
+    零外部依赖，确定性算法。
+    中文场景说明：
+    - "聚合中国各种便宜的token" vs "聚合中国各种便宜的token（DeepSeek）" → ~0.46 → 去重
+    - "低成本运营（兼职）" vs "低成本运营（一人公司）" → ~0.21 → 不去重（语义不同）
+    - 相同文本 → 1.0 → 去重
+    """
     if key:
         existing = {item.get(key) for item in target if isinstance(item, dict)}
         for item in source:
@@ -31,8 +77,12 @@ def append_unique(target: list, source: list, key: str = None) -> None:
                     target.append(item)
     else:
         for item in source:
-            if item not in target:
-                target.append(item)
+            if isinstance(item, str):
+                if not _is_duplicate_by_similarity(item, target):
+                    target.append(item)
+            else:
+                if item not in target:
+                    target.append(item)
 
 
 def merge_confirmed(spec: dict, updates: dict) -> None:
@@ -295,6 +345,20 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
             spec = json.load(f)
     except json.JSONDecodeError as e:
         return {"status": "error", "message": f"Invalid JSON in living spec file: {e}"}
+
+    # 🔧 P0 修复: 通过 ResponseNormalizer 规范化输入
+    # 不再假设 response 有 parsed_updates 字段，normalizer 会自动适配格式版本
+    try:
+        response, migration_warnings = normalize_response(response)
+    except Exception as e:
+        return {"status": "error", "message": f"Response format error: {e}"}
+
+    # 记录格式迁移事件（如果有）
+    if migration_warnings:
+        try:
+            log_format_migration(response_path, migration_warnings, os.path.dirname(os.path.dirname(living_spec_path)))
+        except Exception:
+            pass  # audit log 失败不阻塞合并
 
     parsed_updates = response.get("parsed_updates", {})
 
