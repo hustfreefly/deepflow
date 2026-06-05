@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepFlow 架构图集</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'SF Pro Display', 'PingFang SC', sans-serif; background: #0d1117; color: #e6edf3; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 32px 40px; }
+
+  /* Nav */
+  .nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 32px; }
+  .nav a {
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    color: #8b949e; text-decoration: none; transition: all 0.15s;
+  }
+  .nav a:hover { background: rgba(255,255,255,0.08); color: #e6edf3; }
+
+  /* Section */
+  .section { margin-bottom: 48px; }
+  .section h2 {
+    font-size: 20px; font-weight: 700; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section h2 .badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600;
+  }
+  .section h2 .badge.blue { background: rgba(88,166,255,0.15); color: #58a6ff; }
+  .section h2 .badge.green { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .section h2 .badge.orange { background: rgba(210,153,34,0.15); color: #d29922; }
+  .section h2 .badge.purple { background: rgba(188,140,255,0.15); color: #bc8cff; }
+  .section .desc { font-size: 13px; color: #8b949e; margin-bottom: 20px; }
+
+  /* Simple layer */
+  .layer {
+    border: 1px solid #21262d; border-radius: 10px; padding: 20px 24px;
+    margin-bottom: 0; position: relative; background: rgba(255,255,255,0.015);
+  }
+  .layer-tag {
+    position: absolute; top: -9px; left: 18px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+    padding: 2px 10px; border-radius: 12px;
+  }
+  .lt-blue { background: rgba(88,166,255,0.15); color: #58a6ff; }
+  .lt-purple { background: rgba(188,140,255,0.15); color: #bc8cff; }
+  .lt-green { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .lt-orange { background: rgba(210,153,34,0.15); color: #d29922; }
+
+  .layer-content {
+    display: flex; gap: 16px; margin-top: 10px;
+  }
+  .layer-block {
+    flex: 1; padding: 14px 18px; border-radius: 8px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  }
+  .layer-block .lb-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .layer-block .lb-desc { font-size: 12px; color: #8b949e; }
+  .layer-block .lb-items { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .layer-block .lb-item {
+    font-size: 11px; padding: 2px 8px; border-radius: 4px;
+    background: rgba(255,255,255,0.05); color: #c9d1d9;
+  }
+
+  /* Arrow connector */
+  .arrow-down {
+    display: flex; align-items: center; justify-content: center;
+    padding: 12px 0; position: relative;
+  }
+  .arrow-down .ad-line {
+    width: 2px; height: 20px; background: #30363d; position: relative;
+  }
+  .arrow-down .ad-line::after {
+    content: '▾'; position: absolute; bottom: -14px; left: -6px;
+    color: #484f58; font-size: 14px;
+  }
+  .arrow-down .ad-label {
+    font-size: 11px; color: #6e7681; margin-left: 12px;
+  }
+  .arrow-row {
+    display: flex; align-items: center; justify-content: center;
+    gap: 24px; padding: 8px 0;
+  }
+  .arrow-item { display: flex; align-items: center; gap: 8px; }
+  .arrow-item .ai-line {
+    width: 40px; height: 2px; position: relative;
+  }
+  .arrow-item.solid .ai-line { background: #58a6ff; }
+  .arrow-item.solid .ai-line::after {
+    content: ''; position: absolute; right: -1px; top: -3px;
+    border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+    border-left: 6px solid #58a6ff;
+  }
+  .arrow-item.dashed .ai-line {
+    background: repeating-linear-gradient(90deg, #3fb950 0, #3fb950 5px, transparent 5px, transparent 8px);
+  }
+  .arrow-item.dashed .ai-line::after {
+    content: ''; position: absolute; right: -1px; top: -3px;
+    border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+    border-left: 6px solid #3fb950;
+  }
+  .arrow-item.bidir .ai-line {
+    background: repeating-linear-gradient(90deg, #d29922 0, #d29922 5px, transparent 5px, transparent 8px);
+  }
+  .arrow-item.bidir .ai-line::after {
+    content: ''; position: absolute; right: -1px; top: -3px;
+    border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+    border-left: 6px solid #d29922;
+  }
+  .arrow-item .ai-label { font-size: 11px; color: #8b949e; }
+
+  /* Pipeline steps */
+  .pipeline {
+    display: flex; gap: 4px; align-items: center; flex-wrap: wrap;
+    padding: 16px 20px; background: rgba(0,0,0,0.25); border-radius: 10px;
+  }
+  .pipeline .p-step {
+    padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+    color: #c9d1d9;
+  }
+  .pipeline .p-step.highlight {
+    background: rgba(88,166,255,0.12); border-color: rgba(88,166,255,0.25);
+    color: #58a6ff;
+  }
+  .pipeline .p-step.green {
+    background: rgba(63,185,80,0.12); border-color: rgba(63,185,80,0.25);
+    color: #3fb950;
+  }
+  .pipeline .p-step.orange {
+    background: rgba(210,153,34,0.12); border-color: rgba(210,153,34,0.25);
+    color: #d29922;
+  }
+  .pipeline .p-step.purple {
+    background: rgba(188,140,255,0.12); border-color: rgba(188,140,255,0.25);
+    color: #bc8cff;
+  }
+  .pipeline .p-arrow { color: #484f58; font-size: 14px; }
+  .pipeline .p-loop { color: #d29922; font-size: 14px; margin: 0 2px; }
+
+  /* Blackboard band */
+  .bb-band {
+    border: 1px dashed rgba(210,153,34,0.3); border-radius: 10px;
+    padding: 16px 20px; background: rgba(210,153,34,0.03);
+    position: relative; margin: 12px 0;
+  }
+  .bb-band .bb-label {
+    position: absolute; top: -9px; left: 18px;
+    font-size: 10px; font-weight: 700; color: #d29922;
+    padding: 2px 10px; border-radius: 12px; background: rgba(210,153,34,0.12);
+    letter-spacing: 0.5px;
+  }
+  .bb-files { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .bb-file {
+    font-size: 11px; padding: 3px 10px; border-radius: 6px;
+    background: rgba(210,153,34,0.06); border: 1px solid rgba(210,153,34,0.15);
+    color: #d29922; font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  /* Domain mini card */
+  .domain-mini {
+    border: 1px solid #21262d; border-radius: 10px; padding: 16px 20px;
+    margin-bottom: 12px; background: rgba(255,255,255,0.015);
+  }
+  .domain-mini .dm-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .domain-mini .dm-icon { font-size: 18px; }
+  .domain-mini .dm-name { font-size: 15px; font-weight: 700; }
+  .domain-mini .dm-io {
+    font-size: 12px; color: #8b949e; padding: 6px 10px;
+    background: rgba(0,0,0,0.2); border-radius: 6px; margin-bottom: 8px;
+  }
+  .domain-mini .dm-io span.in { color: #3fb950; }
+  .domain-mini .dm-io span.out { color: #58a6ff; }
+
+  /* Legend */
+  .legend {
+    display: flex; gap: 20px; flex-wrap: wrap; padding: 12px 0;
+    margin-top: 8px; border-top: 1px solid #21262d;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8b949e; }
+
+  /* Page divider */
+  .divider {
+    border: none; border-top: 1px dashed #21262d;
+    margin: 48px 0;
+  }
+
+  /* Header */
+  .top-header {
+    padding: 32px 40px 0; max-width: 1100px; margin: 0 auto;
+  }
+  .top-header h1 { font-size: 24px; font-weight: 700; }
+  .top-header h1 span { color: #58a6ff; }
+  .top-header .sub { font-size: 13px; color: #8b949e; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="top-header">
+  <h1><span>DeepFlow</span> · 架构图集</h1>
+  <div class="sub">v4.0 · 6 个视图 · 2026-06-04</div>
+</div>
+
+<div class="page">
+  <div class="nav">
+    <a href="#view1">① 总览架构</a>
+    <a href="#view2">② 数据流</a>
+    <a href="#view3">③ 控制流</a>
+    <a href="#view4">④ Spec Pro 管线</a>
+    <a href="#view5">⑤ Solution Pro 管线</a>
+    <a href="#view6">⑥ Blackboard 协议</a>
+  </div>
+
+  <!-- ==================== VIEW 1: 总览 ==================== -->
+  <div class="section" id="view1">
+    <h2>① 总览架构 <span class="badge blue">三层 + 通信层</span></h2>
+    <div class="desc">30 秒理解 DeepFlow 整体结构：谁在跑 → 怎么跑 → 跑什么</div>
+
+    <div class="layer" style="border-color: rgba(88,166,255,0.2);">
+      <div class="layer-tag lt-blue">L0 · OpenClaw 宿主层</div>
+      <div class="layer-content">
+        <div class="layer-block">
+          <div class="lb-title">🤖 Main Agent</div>
+          <div class="lb-desc">用户交互入口，调度所有 Domain 管线</div>
+        </div>
+        <div class="layer-block">
+          <div class="lb-title">📡 外部集成</div>
+          <div class="lb-desc">飞书 · 新浪 · Tushare · GitHub</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down">
+      <div class="ad-line"></div>
+      <div class="ad-label">sessions_spawn + exec</div>
+    </div>
+
+    <div class="layer" style="border-color: rgba(188,140,255,0.2);">
+      <div class="layer-tag lt-purple">L1 · DeepFlow 核心引擎</div>
+      <div class="layer-content">
+        <div class="layer-block">
+          <div class="lb-title">🚪 统一入口</div>
+          <div class="lb-desc">路由请求 · 构建任务 · 管理检查点</div>
+        </div>
+        <div class="layer-block">
+          <div class="lb-title">🎯 Cage + Prompt</div>
+          <div class="lb-desc">契约驱动 · Prompt 注册 · 版本管理</div>
+        </div>
+        <div class="layer-block">
+          <div class="lb-title">📊 质量 & 数据</div>
+          <div class="lb-desc">质量门禁 · 数据源抽象</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down">
+      <div class="ad-line"></div>
+      <div class="ad-label">Blackboard 双向读写</div>
+    </div>
+
+    <div class="layer" style="border-color: rgba(63,185,80,0.2);">
+      <div class="layer-tag lt-green">L2 · Domain 领域模块</div>
+      <div class="layer-content">
+        <div class="layer-block" style="border-color: rgba(88,166,255,0.2);">
+          <div class="lb-title">🔍 Spec Pro <span style="font-size:10px;color:#58a6ff;">核心</span></div>
+          <div class="lb-desc">用户需求 → Living Spec</div>
+        </div>
+        <div class="layer-block" style="border-color: rgba(188,140,255,0.2);">
+          <div class="lb-title">🏗️ Solution Pro <span style="font-size:10px;color:#58a6ff;">核心</span></div>
+          <div class="lb-desc">Living Spec → Implementation Plan</div>
+        </div>
+        <div class="layer-block">
+          <div class="lb-title">📈 Investment</div>
+          <div class="lb-desc">市场分析 → 评分报告</div>
+        </div>
+        <div class="layer-block">
+          <div class="lb-title">🔬 Research Pro</div>
+          <div class="lb-desc">深度调研 → 带引用报告</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span style="font-size:11px;font-weight:600;color:#6e7681;">图例</span>
+      <div class="legend-item"><span style="color:#58a6ff;">■</span> L0 宿主</div>
+      <div class="legend-item"><span style="color:#bc8cff;">■</span> L1 引擎</div>
+      <div class="legend-item"><span style="color:#3fb950;">■</span> L2 领域</div>
+      <div class="legend-item">▼ 控制流 (spawn)</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ==================== VIEW 2: 数据流 ==================== -->
+  <div class="section" id="view2">
+    <h2>② 数据流图 <span class="badge green">数据如何流动</span></h2>
+    <div class="desc">从用户输入到最终产出，数据在系统中的完整路径</div>
+
+    <div style="padding: 20px 0;">
+      <!-- Step 1 -->
+      <div class="layer-block" style="border-color: rgba(88,166,255,0.3); margin-bottom: 0;">
+        <div class="lb-title">👤 用户输入</div>
+        <div class="lb-desc">"我要做一个算力租赁平台..." 或 定时任务触发</div>
+      </div>
+
+      <div class="arrow-down"><div class="ad-line"></div><div class="ad-label">自然语言</div></div>
+
+      <!-- Step 2 -->
+      <div class="layer-block" style="border-color: rgba(188,140,255,0.3); margin-bottom: 0;">
+        <div class="lb-title">🦞 Main Agent 解析</div>
+        <div class="lb-desc">识别意图 → 选择 Domain → 构建 task prompt</div>
+      </div>
+
+      <div class="arrow-down"><div class="ad-line"></div><div class="ad-label">task prompt (文本)</div></div>
+
+      <!-- Step 3 -->
+      <div class="layer-block" style="border-color: rgba(210,153,34,0.3); margin-bottom: 0;">
+        <div class="lb-title">📋 Blackboard 写入</div>
+        <div class="lb-desc">spec/input.md + living_spec.json 初始结构</div>
+      </div>
+
+      <div class="arrow-down"><div class="ad-line"></div><div class="ad-label">JSON 文件协议</div></div>
+
+      <!-- Step 4 -->
+      <div style="display: flex; gap: 12px;">
+        <div class="layer-block" style="flex:1; border-color: rgba(63,185,80,0.3);">
+          <div class="lb-title">🔍 ParseWorker</div>
+          <div class="lb-desc">解析输入 → 提取需求 → 生成推断</div>
+          <div class="lb-items">
+            <div class="lb-item">→ stages/round_01_parse.json</div>
+            <div class="lb-item">→ spec/living_spec.json</div>
+          </div>
+        </div>
+        <div class="layer-block" style="flex:1; border-color: rgba(63,185,80,0.3);">
+          <div class="lb-title">🏗️ Workers 并行</div>
+          <div class="lb-desc">Data Collect → Planning → Research → Audit</div>
+          <div class="lb-items">
+            <div class="lb-item">→ stages/consolidator.json</div>
+            <div class="lb-item">→ stages/fix.json</div>
+            <div class="lb-item">→ spec/harness_report.json</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arrow-down"><div class="ad-line"></div><div class="ad-label">Blackboard 读取 → 评分 → 产出</div></div>
+
+      <!-- Step 5 -->
+      <div class="layer-block" style="border-color: rgba(88,166,255,0.3);">
+        <div class="lb-title">📤 最终产出</div>
+        <div class="lb-desc">spec/round_result.json → 飞书推送 / 邮件报告</div>
+        <div class="lb-items">
+          <div class="lb-item">📄 Living Spec</div>
+          <div class="lb-item">📊 Quality Report</div>
+          <div class="lb-item">🛡️ Harness Report</div>
+          <div class="lb-item">📈 质量轨迹</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ==================== VIEW 3: 控制流 ==================== -->
+  <div class="section" id="view3">
+    <h2>③ 控制流图 <span class="badge orange">Agent 调度关系</span></h2>
+    <div class="desc">Main Agent 如何 spawn 子 Agent，各 Agent 间的调度层级</div>
+
+    <div style="padding: 20px 0; text-align: center;">
+      <!-- Main Agent -->
+      <div class="layer-block" style="display: inline-block; border-color: rgba(88,166,255,0.4); min-width: 200px;">
+        <div class="lb-title">🦞 Main Agent (小满)</div>
+        <div class="lb-desc">用户界面 + 总调度</div>
+      </div>
+
+      <div style="display: flex; gap: 40px; justify-content: center; margin-top: 16px;">
+        <!-- Spec Pro path -->
+        <div style="flex: 1; max-width: 380px;">
+          <div style="font-size: 12px; color: #58a6ff; font-weight: 600; margin-bottom: 8px;">Spec Pro 路径</div>
+          <div class="layer-block" style="border-color: rgba(88,166,255,0.2); text-align: left;">
+            <div class="lb-title">🔍 Spec Pro Pipeline</div>
+            <div class="lb-desc">主Agent内评分+提问</div>
+          </div>
+          <div class="arrow-down"><div class="ad-line"></div><div class="ad-label">spawn (仅 1 次/轮)</div></div>
+          <div class="layer-block" style="border-color: rgba(63,185,80,0.2); text-align: left;">
+            <div class="lb-title">🧠 ParseWorker</div>
+            <div class="lb-desc">子 Agent · 结构化解析</div>
+          </div>
+          <div class="arrow-down"><div class="ad-line"></div><div class="ad-label">completion event → 主Agent处理</div></div>
+          <div class="layer-block" style="border-color: rgba(88,166,255,0.2); text-align: left;">
+            <div class="lb-title">📊 主Agent 评分+提问</div>
+            <div class="lb-desc">读取 living_spec → 评分 → 生成问题</div>
+          </div>
+        </div>
+
+        <!-- Solution Pro path -->
+        <div style="flex: 1; max-width: 380px;">
+          <div style="font-size: 12px; color: #bc8cff; font-weight: 600; margin-bottom: 8px;">Solution Pro 路径</div>
+          <div class="layer-block" style="border-color: rgba(188,140,255,0.2); text-align: left;">
+            <div class="lb-title">🏗️ Solution Pro Pipeline</div>
+            <div class="lb-desc">10 阶段串行</div>
+          </div>
+          <div class="arrow-down"><div class="ad-line"></div><div class="ad-label">spawn 多次</div></div>
+          <div style="display: flex; gap: 8px;">
+            <div class="layer-block" style="flex: 1; border-color: rgba(63,185,80,0.2); text-align: left; font-size: 11px;">
+              <div class="lb-title" style="font-size: 12px;">🔬 Workers 并行</div>
+              <div class="lb-desc">多个子 Agent 独立研究</div>
+            </div>
+            <div class="layer-block" style="flex: 1; border-color: rgba(210,153,34,0.2); text-align: left; font-size: 11px;">
+              <div class="lb-title" style="font-size: 12px;">🔗 Consolidator</div>
+              <div class="lb-desc">合并所有 Worker 输出</div>
+            </div>
+          </div>
+          <div class="arrow-down"><div class="ad-line"></div><div class="ad-label">spawn</div></div>
+          <div class="layer-block" style="border-color: rgba(188,140,255,0.2); text-align: left; font-size: 11px;">
+            <div class="lb-title" style="font-size: 12px;">🛡️ Harness + Summarizer</div>
+            <div class="lb-desc">质量门禁 → 最终摘要</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ==================== VIEW 4: Spec Pro Pipeline ==================== -->
+  <div class="section" id="view4">
+    <h2>④ Spec Pro 管线 <span class="badge blue">v3 扁平架构</span></h2>
+    <div class="desc">需求梳理的循环管线：每轮只 spawn ParseWorker，主 Agent 直接评分</div>
+
+    <div class="pipeline">
+      <span class="p-step highlight">👤 用户输入</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step purple">ParseWorker</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step">主Agent 评分</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step">生成问题</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step highlight">用户回答</span>
+      <span class="p-loop">↻ 循环</span>
+      <span class="p-step green">Living Spec ✓</span>
+    </div>
+
+    <div style="margin-top: 16px;">
+      <div class="domain-mini">
+        <div class="dm-header">
+          <span class="dm-icon">📁</span>
+          <span class="dm-name">每轮 Blackboard 读写</span>
+        </div>
+        <div class="bb-files">
+          <span class="bb-file">input.md</span>
+          <span class="bb-file">living_spec.json</span>
+          <span class="bb-file">round_NN_parse.json</span>
+          <span class="bb-file">quality_report.json</span>
+          <span class="bb-file">round_NN_questions.json</span>
+          <span class="bb-file">round_result.json</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span style="font-size:11px;font-weight:600;color:#6e7681;">关键特征</span>
+      <div class="legend-item">🔵 v3 架构：只 spawn ParseWorker</div>
+      <div class="legend-item">🟡 主 Agent 直接评分（不 spawn AssessWorker）</div>
+      <div class="legend-item">🟢 循环收集直到质量达标</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ==================== VIEW 5: Solution Pro Pipeline ==================== -->
+  <div class="section" id="view5">
+    <h2>⑤ Solution Pro 管线 <span class="badge purple">10 阶段串行</span></h2>
+    <div class="desc">从 Living Spec 到 Implementation Plan 的 10 阶段管线</div>
+
+    <div class="pipeline" style="gap: 3px;">
+      <span class="p-step green">① Data<br>Collect</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step">②<br>Planning</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step purple" style="min-width: 80px;">③ Workers<br>‖ 并行</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step">④ Consoli-<br>date</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step">⑤<br>Fix</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step">⑥<br>Audit</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step orange">⑦<br>Harness</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step">⑧ Structure</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step green">⑨<br>Summarize</span>
+      <span class="p-arrow">→</span>
+      <span class="p-step green">⑩<br>输出 ✓</span>
+    </div>
+
+    <div style="margin-top: 16px; display: flex; gap: 12px;">
+      <div class="layer-block" style="flex: 1;">
+        <div class="lb-title">输入</div>
+        <div class="lb-desc">Living Spec (来自 Spec Pro) + 用户约束</div>
+      </div>
+      <div class="layer-block" style="flex: 1;">
+        <div class="lb-title">核心阶段</div>
+        <div class="lb-desc">Workers 并行研究 → Consolidator 合并 → Fix 修复 → Harness 门禁</div>
+      </div>
+      <div class="layer-block" style="flex: 1;">
+        <div class="lb-title">输出</div>
+        <div class="lb-desc">Implementation Plan + 质量报告 + 路由建议</div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span style="font-size:11px;font-weight:600;color:#6e7681;">阶段类型</span>
+      <div class="legend-item">🟢 数据/输出</div>
+      <div class="legend-item">⚪ 处理</div>
+      <div class="legend-item">🟣 并行 Workers</div>
+      <div class="legend-item">🟠 质量门禁</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ==================== VIEW 6: Blackboard Protocol ==================== -->
+  <div class="section" id="view6">
+    <h2>⑥ Blackboard 协议 <span class="badge orange">Agent 通信机制</span></h2>
+    <div class="desc">所有 Agent 间的唯一状态共享机制 — JSON 文件读写协议</div>
+
+    <div class="bb-band" style="margin-top: 16px;">
+      <div class="bb-label">📋 blackboard/{session_id}/</div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px;">
+        <div>
+          <div style="font-size: 11px; color: #6e7681; font-weight: 600; margin-bottom: 6px;">spec/ · 规格文件</div>
+          <div class="bb-files">
+            <span class="bb-file">input.md</span>
+            <span class="bb-file">living_spec.json</span>
+            <span class="bb-file">quality_report.json</span>
+            <span class="bb-file">harness_report.json</span>
+            <span class="bb-file">round_result.json</span>
+            <span class="bb-file">coord_state.json</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 11px; color: #6e7681; font-weight: 600; margin-bottom: 6px;">spec/ · 追踪文件</div>
+          <div class="bb-files">
+            <span class="bb-file">quality_trajectory.json</span>
+            <span class="bb-file">conversation_log.json</span>
+            <span class="bb-file">execution_log.json</span>
+            <span class="bb-file">user_response_round_N.md</span>
+          </div>
+        </div>
+        <div style="grid-column: span 2;">
+          <div style="font-size: 11px; color: #6e7681; font-weight: 600; margin-bottom: 6px;">stages/ · 中间产物</div>
+          <div class="bb-files">
+            <span class="bb-file">round_NN_parse.json</span>
+            <span class="bb-file">round_NN_questions.json</span>
+            <span class="bb-file">round_NN_response.json</span>
+            <span class="bb-file">consolidator.json</span>
+            <span class="bb-file">fix.json</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 16px;">
+      <div style="font-size: 11px; color: #6e7681; font-weight: 600; margin-bottom: 8px;">读写规则</div>
+      <div style="display: flex; gap: 12px;">
+        <div class="layer-block" style="flex: 1;">
+          <div class="lb-title">📝 Writer（写者）</div>
+          <div class="lb-desc">
+            ParseWorker 首次创建 living_spec.json<br>
+            Orchestrator Worker 合并增量到 confirmed 层<br>
+            每轮追加 trajectory + conversation log
+          </div>
+        </div>
+        <div class="layer-block" style="flex: 1;">
+          <div class="lb-title">👁️ Reader（读者）</div>
+          <div class="lb-desc">
+            QuestionWorker / AssessWorker 读取 living_spec<br>
+            HarnessWorker 读取全部报告<br>
+            下游引擎（Solution Pro）读取输出
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span style="font-size:11px;font-weight:600;color:#6e7681;">核心原则</span>
+      <div class="legend-item">📄 文件是唯一的 Agent 间通信机制</div>
+      <div class="legend-item">🔒 不通过函数参数传递状态</div>
+      <div class="legend-item">✅ 写者协议：追加新项，不删除已有项</div>
+      <div class="legend-item">⚠️ 矛盾时保留两者并标注 contradiction</div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

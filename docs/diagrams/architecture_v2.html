@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepFlow 系统架构图 v2</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'SF Pro Display', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    padding: 0;
+    min-height: 100vh;
+  }
+
+  /* === Header === */
+  .header {
+    padding: 40px 48px 24px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .header-left h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: #e6edf3;
+  }
+  .header-left h1 span {
+    color: #58a6ff;
+  }
+  .header-left .subtitle {
+    font-size: 14px;
+    color: #8b949e;
+    margin-top: 4px;
+  }
+  .header-right {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+  .header-stat {
+    text-align: center;
+  }
+  .header-stat .num {
+    font-size: 20px;
+    font-weight: 700;
+    color: #58a6ff;
+  }
+  .header-stat .label {
+    font-size: 11px;
+    color: #8b949e;
+    margin-top: 2px;
+  }
+
+  /* === Main container === */
+  .main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px 48px 48px;
+  }
+
+  /* === 30-sec overview === */
+  .overview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 32px;
+    padding: 24px 0;
+  }
+  .overview-block {
+    padding: 16px 28px;
+    border-radius: 10px;
+    text-align: center;
+    min-width: 180px;
+  }
+  .overview-block.l0 {
+    background: rgba(88,166,255,0.08);
+    border: 1px solid rgba(88,166,255,0.25);
+  }
+  .overview-block.l1 {
+    background: rgba(188,140,255,0.08);
+    border: 1px solid rgba(188,140,255,0.25);
+  }
+  .overview-block.l2 {
+    background: rgba(63,185,80,0.08);
+    border: 1px solid rgba(63,185,80,0.25);
+  }
+  .overview-block .ob-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .overview-block .ob-desc {
+    font-size: 12px;
+    color: #8b949e;
+  }
+  .overview-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 8px;
+    min-width: 120px;
+  }
+  .overview-arrow .oa-line {
+    width: 100%;
+    height: 2px;
+    background: #30363d;
+    position: relative;
+  }
+  .overview-arrow .oa-line::after {
+    content: '▸';
+    position: absolute;
+    right: -4px;
+    top: -10px;
+    color: #484f58;
+    font-size: 16px;
+  }
+  .overview-arrow .oa-label {
+    font-size: 10px;
+    color: #6e7681;
+    margin-top: 4px;
+    white-space: nowrap;
+  }
+
+  /* === Architecture layers === */
+  .arch-layer {
+    border: 1px solid #21262d;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 0;
+    position: relative;
+    background: rgba(255,255,255,0.01);
+  }
+  .arch-layer + .arch-layer {
+    margin-top: 0;
+  }
+
+  .layer-tag {
+    position: absolute;
+    top: -10px;
+    left: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 3px 12px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .layer-tag .lt-icon { font-size: 13px; }
+
+  .layer-tag.l0 { background: rgba(88,166,255,0.15); color: #58a6ff; }
+  .layer-tag.l1 { background: rgba(188,140,255,0.15); color: #bc8cff; }
+  .layer-tag.l2 { background: rgba(63,185,80,0.15); color: #3fb950; }
+
+  /* === Layer grid === */
+  .layer-grid {
+    display: grid;
+    gap: 16px;
+    margin-top: 8px;
+  }
+  .layer-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .layer-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+  /* === Component card === */
+  .comp {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .comp.primary {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.1);
+  }
+  .comp-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .comp-title .ct-icon { font-size: 16px; }
+  .comp-desc {
+    font-size: 12px;
+    color: #8b949e;
+    line-height: 1.6;
+  }
+  .comp-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .comp-item {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #c9d1d9;
+  }
+
+  /* === Flow arrows between layers === */
+  .flow-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 0;
+    gap: 32px;
+    position: relative;
+  }
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .flow-arrow .fa-line {
+    width: 60px;
+    height: 2px;
+    position: relative;
+  }
+  .flow-arrow.control .fa-line {
+    background: #58a6ff;
+  }
+  .flow-arrow.control .fa-line::after {
+    content: '';
+    position: absolute;
+    right: -2px;
+    top: -4px;
+    width: 0; height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 7px solid #58a6ff;
+  }
+  .flow-arrow.data .fa-line {
+    background: repeating-linear-gradient(90deg, #3fb950 0, #3fb950 6px, transparent 6px, transparent 10px);
+  }
+  .flow-arrow.data .fa-line::after {
+    content: '';
+    position: absolute;
+    right: -2px;
+    top: -4px;
+    width: 0; height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 7px solid #3fb950;
+  }
+  .flow-arrow.bidir .fa-line {
+    background: repeating-linear-gradient(90deg, #d29922 0, #d29922 6px, transparent 6px, transparent 10px);
+  }
+  .flow-arrow.bidir .fa-line::before {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: -4px;
+    width: 0; height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-right: 7px solid #d29922;
+  }
+  .flow-arrow.bidir .fa-line::after {
+    content: '';
+    position: absolute;
+    right: -2px;
+    top: -4px;
+    width: 0; height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 7px solid #d29922;
+  }
+  .fa-label {
+    font-size: 11px;
+    color: #8b949e;
+    white-space: nowrap;
+  }
+
+  /* === Blackboard band === */
+  .bb-band {
+    border: 1px dashed rgba(210,153,34,0.4);
+    border-radius: 12px;
+    padding: 20px 28px;
+    margin: 0 0;
+    background: rgba(210,153,34,0.04);
+    position: relative;
+  }
+  .bb-band .bb-label {
+    position: absolute;
+    top: -10px;
+    left: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #d29922;
+    padding: 3px 12px;
+    border-radius: 20px;
+    background: rgba(210,153,34,0.15);
+    letter-spacing: 0.5px;
+  }
+  .bb-protocols {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .bb-protocol {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #c9d1d9;
+  }
+  .bb-protocol .bb-icon {
+    font-size: 16px;
+  }
+  .bb-protocol .bb-name {
+    font-weight: 600;
+    color: #d29922;
+  }
+
+  /* === Domain cards === */
+  .domain-section {
+    margin-top: 12px;
+  }
+  .domain-section .ds-label {
+    font-size: 11px;
+    color: #6e7681;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+  .domain-cards {
+    display: grid;
+    gap: 16px;
+  }
+  .domain-cards.core { grid-template-columns: repeat(2, 1fr); }
+  .domain-cards.extra { grid-template-columns: repeat(2, 1fr); }
+
+  .domain-card {
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .domain-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .domain-card.core-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .domain-card.core-card::before {
+    background: linear-gradient(90deg, #58a6ff, #bc8cff);
+  }
+  .domain-card.extra-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .domain-card.extra-card::before {
+    background: rgba(255,255,255,0.15);
+  }
+  .dc-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .dc-icon { font-size: 20px; }
+  .dc-name { font-size: 16px; font-weight: 700; }
+  .dc-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .dc-badge.core-badge {
+    background: rgba(88,166,255,0.15);
+    color: #58a6ff;
+  }
+  .dc-badge.extra-badge {
+    background: rgba(255,255,255,0.06);
+    color: #6e7681;
+  }
+  .dc-io {
+    font-size: 12px;
+    color: #8b949e;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+    line-height: 1.6;
+  }
+  .dc-io .io-in { color: #3fb950; }
+  .dc-io .io-out { color: #58a6ff; }
+  .dc-subsystems {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .dc-sub {
+    font-size: 11px;
+    padding: 5px 12px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #c9d1d9;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .dc-sub .sub-icon { font-size: 12px; }
+  .dc-pipeline {
+    padding: 10px 14px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  .dc-pipeline .pipe-label {
+    color: #6e7681;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .dc-pipeline .pipe-steps {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .dc-pipeline .pstep {
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+    color: #c9d1d9;
+  }
+  .dc-pipeline .pstep.parallel {
+    background: rgba(188,140,255,0.1);
+    border: 1px solid rgba(188,140,255,0.2);
+    color: #bc8cff;
+  }
+  .dc-pipeline .parr {
+    color: #484f58;
+    font-size: 10px;
+  }
+  .dc-pipeline .loop-arrow {
+    color: #d29922;
+    font-size: 12px;
+    margin: 0 4px;
+  }
+
+  /* === Legend === */
+  .legend {
+    margin-top: 32px;
+    padding: 16px 20px;
+    border: 1px solid #21262d;
+    border-radius: 10px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .legend .lg-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6e7681;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #8b949e;
+  }
+  .legend-line {
+    width: 24px;
+    height: 2px;
+  }
+  .legend-line.control { background: #58a6ff; position: relative; }
+  .legend-line.control::after {
+    content: '';
+    position: absolute;
+    right: -1px; top: -3px;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 5px solid #58a6ff;
+  }
+  .legend-line.data {
+    background: repeating-linear-gradient(90deg, #3fb950 0, #3fb950 4px, transparent 4px, transparent 7px);
+  }
+  .legend-line.data::after {
+    content: '';
+    position: absolute;
+    right: -1px; top: -3px;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 5px solid #3fb950;
+  }
+  .legend-line.bidir {
+    background: repeating-linear-gradient(90deg, #d29922 0, #d29922 4px, transparent 4px, transparent 7px);
+  }
+
+  /* === Footer === */
+  .footer {
+    margin-top: 32px;
+    padding: 16px 0;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer-left {
+    font-size: 12px;
+    color: #484f58;
+  }
+  .footer-stats {
+    display: flex;
+    gap: 16px;
+  }
+  .footer-stat {
+    font-size: 11px;
+    color: #6e7681;
+  }
+  .footer-stat .fs-val {
+    color: #8b949e;
+    font-weight: 600;
+  }
+
+  /* === Responsive === */
+  @media (max-width: 900px) {
+    .main { padding: 24px 16px; }
+    .layer-grid.cols-3, .layer-grid.cols-2,
+    .domain-cards.core, .domain-cards.extra {
+      grid-template-columns: 1fr;
+    }
+    .overview { flex-direction: column; gap: 8px; }
+    .overview-arrow { transform: rotate(90deg); }
+    .header { flex-direction: column; gap: 16px; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<div class="header">
+  <div class="header-left">
+    <h1><span>DeepFlow</span> · 系统架构全景</h1>
+    <div class="subtitle">v4.0 · 多 Agent 流水线框架 · 2026-06-04</div>
+  </div>
+  <div class="header-right">
+    <div class="header-stat">
+      <div class="num">4</div>
+      <div class="label">Domain 模块</div>
+    </div>
+    <div class="header-stat">
+      <div class="num">6</div>
+      <div class="label">活跃契约</div>
+    </div>
+    <div class="header-stat">
+      <div class="num">v3</div>
+      <div class="label">架构版本</div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ===== 30-SEC OVERVIEW ===== -->
+  <div class="overview">
+    <div class="overview-block l0">
+      <div class="ob-title">🦞 OpenClaw 宿主层</div>
+      <div class="ob-desc">Main Agent · sessions_spawn</div>
+    </div>
+    <div class="overview-arrow">
+      <div class="oa-line"></div>
+      <div class="oa-label">控制流 spawn</div>
+    </div>
+    <div class="overview-block l1">
+      <div class="ob-title">⚙️ DeepFlow 核心引擎</div>
+      <div class="ob-desc">统一入口 · Blackboard · Cage</div>
+    </div>
+    <div class="overview-arrow">
+      <div class="oa-line"></div>
+      <div class="oa-label">Blackboard 协议</div>
+    </div>
+    <div class="overview-block l2">
+      <div class="ob-title">🧩 Domain 领域模块</div>
+      <div class="ob-desc">Spec → Solution → Investment → Research</div>
+    </div>
+  </div>
+
+  <!-- ===== L0: OpenClaw ===== -->
+  <div class="arch-layer" style="border-color: rgba(88,166,255,0.2);">
+    <div class="layer-tag l0"><span class="lt-icon">⚡</span> L0 · OpenClaw 宿主层</div>
+    <div class="layer-grid cols-2" style="margin-top: 12px;">
+      <div class="comp primary">
+        <div class="comp-title"><span class="ct-icon">🤖</span> Main Agent（小满）</div>
+        <div class="comp-desc">用户交互入口，通过 sessions_spawn 调度 DeepFlow 各 Domain 的 Worker Agent</div>
+        <div class="comp-items">
+          <div class="comp-item">sessions_spawn</div>
+          <div class="comp-item">sessions_yield</div>
+          <div class="comp-item">exec 工具链</div>
+          <div class="comp-item">web_search</div>
+        </div>
+      </div>
+      <div class="comp">
+        <div class="comp-title"><span class="ct-icon">📡</span> 外部服务集成</div>
+        <div class="comp-desc">通过 OpenClaw tool 通道对接外部 API</div>
+        <div class="comp-items">
+          <div class="comp-item">飞书 Feishu</div>
+          <div class="comp-item">新浪财经</div>
+          <div class="comp-item">Tushare</div>
+          <div class="comp-item">Kie.ai</div>
+          <div class="comp-item">GitHub</div>
+          <div class="comp-item">邮件 SMTP</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Flow: L0 → L1 ===== -->
+  <div class="flow-connector">
+    <div class="flow-arrow control">
+      <div class="fa-line"></div>
+    </div>
+    <div class="fa-label">sessions_spawn + exec → 启动 DeepFlow 管线</div>
+  </div>
+
+  <!-- ===== L1: DeepFlow Core ===== -->
+  <div class="arch-layer" style="border-color: rgba(188,140,255,0.2);">
+    <div class="layer-tag l1"><span class="lt-icon">⚙️</span> L1 · DeepFlow 核心引擎</div>
+    <div class="layer-grid cols-3" style="margin-top: 12px;">
+      <div class="comp primary">
+        <div class="comp-title"><span class="ct-icon">🚪</span> 统一入口 & 编排</div>
+        <div class="comp-desc">路由用户请求到对应 Domain，构建 Worker task，管理检查点</div>
+        <div class="comp-items">
+          <div class="comp-item">unified_entry</div>
+          <div class="comp-item">task_builder</div>
+          <div class="comp-item">checkpoint_manager</div>
+          <div class="comp-item">app_config</div>
+        </div>
+      </div>
+      <div class="comp primary">
+        <div class="comp-title"><span class="ct-icon">📦</span> Cage + Prompt 注册中心</div>
+        <div class="comp-desc">契约驱动的 Prompt 加载与版本管理，确保行为一致性</div>
+        <div class="comp-items">
+          <div class="comp-item">cage_loader</div>
+          <div class="comp-item">prompt_registry</div>
+          <div class="comp-item">config_loader</div>
+          <div class="comp-item">6 active contracts</div>
+        </div>
+      </div>
+      <div class="comp">
+        <div class="comp-title"><span class="ct-icon">📊</span> 质量 & 数据层</div>
+        <div class="comp-desc">质量门禁评估 + 外部数据源抽象</div>
+        <div class="comp-items">
+          <div class="comp-item">quality/</div>
+          <div class="comp-item">data_providers/</div>
+          <div class="comp-item">TushareProvider</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Blackboard Band ===== -->
+  <div style="height: 8px;"></div>
+  <div class="bb-band">
+    <div class="bb-label">📋 Blackboard 通信协议层（Agent 间唯一状态共享机制）</div>
+    <div class="bb-protocols">
+      <div class="bb-protocol">
+        <span class="bb-icon">📄</span>
+        <span class="bb-name">JSON 文件协议</span>
+        <span style="color:#6e7681">· 所有 Agent 通过读写文件传递状态</span>
+      </div>
+      <div class="bb-protocol">
+        <span class="bb-icon">📁</span>
+        <span class="bb-name">spec/ 目录</span>
+        <span style="color:#6e7681">· living_spec, quality_report, harness_report</span>
+      </div>
+      <div class="bb-protocol">
+        <span class="bb-icon">📁</span>
+        <span class="bb-name">stages/ 目录</span>
+        <span style="color:#6e7681">· round_NN_parse, round_NN_questions, round_NN_response</span>
+      </div>
+      <div class="bb-protocol">
+        <span class="bb-icon">📁</span>
+        <span class="bb-name">辅助文件</span>
+        <span style="color:#6e7681">· quality_trajectory, conversation_log, coord_state</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Flow: L1 → L2 ===== -->
+  <div class="flow-connector">
+    <div class="flow-arrow bidir">
+      <div class="fa-line"></div>
+    </div>
+    <div class="fa-label">Blackboard 双向读写 · JSON 状态传递</div>
+    <div style="width: 32px;"></div>
+    <div class="flow-arrow data">
+      <div class="fa-line"></div>
+    </div>
+    <div class="fa-label">Worker 产出 → stages/ 增量文件</div>
+  </div>
+
+  <!-- ===== L2: Domain Modules ===== -->
+  <div class="arch-layer" style="border-color: rgba(63,185,80,0.2);">
+    <div class="layer-tag l2"><span class="lt-icon">🧩</span> L2 · Domain 领域模块</div>
+
+    <!-- Core domains -->
+    <div class="domain-section">
+      <div class="ds-label">▎核心模块</div>
+      <div class="domain-cards core">
+
+        <!-- Spec Pro -->
+        <div class="domain-card core-card">
+          <div class="dc-header">
+            <span class="dc-icon">🔍</span>
+            <span class="dc-name">Spec Pro</span>
+            <span class="dc-badge core-badge">核心</span>
+          </div>
+          <div class="dc-io">
+            <span class="io-in">输入:</span> 用户需求描述<br>
+            <span class="io-out">输出:</span> Living Spec（结构化需求规格书）
+          </div>
+          <div class="dc-subsystems">
+            <div class="dc-sub"><span class="sub-icon">🧠</span> 解析推断 (ParseWorker)</div>
+            <div class="dc-sub"><span class="sub-icon">📊</span> 质量评估 (Assess)</div>
+            <div class="dc-sub"><span class="sub-icon">💬</span> 苏格拉底提问 (Guide)</div>
+            <div class="dc-sub"><span class="sub-icon">🔒</span> Process Guard</div>
+            <div class="dc-sub"><span class="sub-icon">📐</span> 结构化输出</div>
+          </div>
+          <div class="dc-pipeline">
+            <div class="pipe-label">执行管线（v3 扁平 · 循环）</div>
+            <div class="pipe-steps">
+              <span class="pstep">ParseWorker</span>
+              <span class="parr">→</span>
+              <span class="pstep">主Agent评分</span>
+              <span class="parr">→</span>
+              <span class="pstep">生成问题</span>
+              <span class="parr">→</span>
+              <span class="pstep">用户回答</span>
+              <span class="loop-arrow">↻</span>
+              <span class="pstep">Living Spec ✓</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Solution Pro -->
+        <div class="domain-card core-card">
+          <div class="dc-header">
+            <span class="dc-icon">🏗️</span>
+            <span class="dc-name">Solution Pro</span>
+            <span class="dc-badge core-badge">核心</span>
+          </div>
+          <div class="dc-io">
+            <span class="io-in">输入:</span> Living Spec<br>
+            <span class="io-out">输出:</span> Implementation Plan（10 阶段方案）
+          </div>
+          <div class="dc-subsystems">
+            <div class="dc-sub"><span class="sub-icon">📋</span> Planner 规划</div>
+            <div class="dc-sub"><span class="sub-icon">🔬</span> Workers 并行研究</div>
+            <div class="dc-sub"><span class="sub-icon">🔗</span> Consolidator 合并</div>
+            <div class="dc-sub"><span class="sub-icon">🛡️</span> Quality Harness</div>
+            <div class="dc-sub"><span class="sub-icon">🔐</span> Security Validator</div>
+            <div class="dc-sub"><span class="sub-icon">📄</span> Summarizer</div>
+          </div>
+          <div class="dc-pipeline">
+            <div class="pipe-label">执行管线（10 阶段串行）</div>
+            <div class="pipe-steps">
+              <span class="pstep">Data Collect</span>
+              <span class="parr">→</span>
+              <span class="pstep">Planning</span>
+              <span class="parr">→</span>
+              <span class="pstep parallel">‖ Workers 并行</span>
+              <span class="parr">→</span>
+              <span class="pstep">Consolidate</span>
+              <span class="parr">→</span>
+              <span class="pstep">Fix</span>
+              <span class="parr">→</span>
+              <span class="pstep">Audit</span>
+              <span class="parr">→</span>
+              <span class="pstep">Harness</span>
+              <span class="parr">→</span>
+              <span class="pstep">Structure</span>
+              <span class="parr">→</span>
+              <span class="pstep">Summarize</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Extra domains -->
+    <div class="domain-section" style="margin-top: 20px;">
+      <div class="ds-label">▎附加模块</div>
+      <div class="domain-cards extra">
+
+        <!-- Investment -->
+        <div class="domain-card extra-card">
+          <div class="dc-header">
+            <span class="dc-icon">📈</span>
+            <span class="dc-name">Investment</span>
+            <span class="dc-badge extra-badge">附加</span>
+          </div>
+          <div class="dc-io">
+            <span class="io-in">输入:</span> 市场数据 + 股票/加密货币<br>
+            <span class="io-out">输出:</span> 8 维评分报告 + 投资建议
+          </div>
+          <div class="dc-subsystems">
+            <div class="dc-sub"><span class="sub-icon">🔥</span> 热门扫描</div>
+            <div class="dc-sub"><span class="sub-icon">📊</span> 8 维评分</div>
+            <div class="dc-sub"><span class="sub-icon">📝</span> 研报生成</div>
+            <div class="dc-sub"><span class="sub-icon">📡</span> 飞书推送</div>
+          </div>
+        </div>
+
+        <!-- Research Pro -->
+        <div class="domain-card extra-card">
+          <div class="dc-header">
+            <span class="dc-icon">🔬</span>
+            <span class="dc-name">Research Pro</span>
+            <span class="dc-badge extra-badge">附加</span>
+          </div>
+          <div class="dc-io">
+            <span class="io-in">输入:</span> 研究查询<br>
+            <span class="io-out">输出:</span> 带引用验证的深度调研报告
+          </div>
+          <div class="dc-subsystems">
+            <div class="dc-sub"><span class="sub-icon">🔑</span> 关键词生成</div>
+            <div class="dc-sub"><span class="sub-icon">🔍</span> 多层搜索</div>
+            <div class="dc-sub"><span class="sub-icon">✅</span> 引用验证</div>
+            <div class="dc-sub"><span class="sub-icon">📚</span> 来源追踪</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== LEGEND ===== -->
+  <div class="legend">
+    <div class="lg-title">图例</div>
+    <div class="legend-item">
+      <div class="legend-line control"></div>
+      <span>控制流（spawn / dispatch）</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line data"></div>
+      <span>数据流（单向 JSON 产出）</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line bidir"></div>
+      <span>双向读写（Blackboard 协议）</span>
+    </div>
+    <div class="legend-item" style="margin-left: 12px;">
+      <span style="color:#58a6ff;">■</span> L0 宿主层
+    </div>
+    <div class="legend-item">
+      <span style="color:#bc8cff;">■</span> L1 核心引擎
+    </div>
+    <div class="legend-item">
+      <span style="color:#3fb950;">■</span> L2 领域模块
+    </div>
+    <div class="legend-item">
+      <span style="color:#d29922;">■</span> Blackboard 通信层
+    </div>
+  </div>
+
+  <!-- ===== FOOTER ===== -->
+  <div class="footer">
+    <div class="footer-left">
+      DeepFlow · 多 Agent 流水线框架 · v4.0
+    </div>
+    <div class="footer-stats">
+      <div class="footer-stat"><span class="fs-val">4</span> Domain 模块</div>
+      <div class="footer-stat"><span class="fs-val">33.7K</span> Domain 代码行</div>
+      <div class="footer-stat"><span class="fs-val">6</span> 活跃契约</div>
+      <div class="footer-stat"><span class="fs-val">2026-06-04</span></div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

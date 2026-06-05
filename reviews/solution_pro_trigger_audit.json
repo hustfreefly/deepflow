@@ -1,0 +1,105 @@
+{
+  "expert": "执行触发链专家",
+  "review_date": "2026-06-03T13:52:00+08:00",
+  "review_scope": [
+    "run_solution_pro() 职责边界",
+    "Consumer 线程 vs Cron Job 双重触发机制",
+    "SKILL.md Step 4 主 Agent 直驱流程",
+    "Webhook 间接层的必要性与复杂度",
+    "SQLite 任务注册的真实用途",
+    "完整触发链路追踪"
+  ],
+  "summary": "Solution Pro 存在两条平行执行链路（主 Agent 直驱 vs FastAPI Consumer+Webhook），但两者在任务注册、spawn 方式、执行路径上存在严重不一致。Webhook 机制引入了 3 层间接层（Consumer→Webhook→Agent→WebhookProcessor），最终却 spawn 了已被标记 deprecated 的 EntryHarness 路径，与 SKILL.md 中定义的 orchestrator 直驱路径完全错位。run_solution_pro() 只生计划不执行是设计意图，但缺少强制的后续 spawn 契约保障，导致 Step 4 可能因主 Agent「忘记」而永远不触发。SQLite 注册与文件队列双写在 Consumer 线程中并行消费，但两者只有一条活跃链路真正被使用，另一条是僵尸代码。",
+  "findings": [
+    {
+      "id": "TRG-001",
+      "severity": "critical",
+      "title": "两条平行触发链路的执行路径完全错位",
+      "description": "主链路（SKILL.md 定义）：run_solution_pro() → 主 Agent Step4 sessions_spawn(orchestrator V4 prompt) → orchestrator 读取 execution_plan.json 按 phase 执行。备用链路（Consumer）：SQLite INSERT pending → Consumer 每 5s 轮询 → webhook 唤醒 Agent → process_pending_tasks() → _spawn_deepflow_task() 调用 EntryHarness.validate_and_start() → PipelineOrchestrator.run_pipeline()。这两条链路的 orchestrator 层完全不同：主链路是 LLM orchestrator（sub-agent 读 prompt 自主调度），备用链路是 Python PipelineOrchestrator 类（代码驱动调度）。更严重的是，备用链路的 _build_deepflow_task() 构建的 task 描述要求 Agent 执行 EntryHarness + PipelineOrchestrator，而 EntryHarness.run() 已在 orchestrator_agent.py 中标记 @deprecated（2026-05-31）。",
+      "root_cause": "架构演进过程中遗留了 V3 时代的 EntryHarness 路径（consumer → webhook → EntryHarness），同时新增了 V4 的 SKILL.md orchestrator 路径（主 Agent → sessions_spawn → orchestrator prompt），但从未做统一或废弃清理。两条链路共存但指向不同实现。",
+      "impact": "如果 Consumer 链路被意外触发（比如外部系统向 SQLite 插入了 pending 任务），它会 spawn 一个已废弃的 EntryHarness 子 Agent，执行路径、输出格式、完成判定都与 V4 设计不一致，可能导致任务卡死或输出无法被下游消费。用户无法感知哪条链路在被使用。",
+      "current_state": "两条链路代码均可运行，指向不同的 orchestrator 实现。EntryHarness 路径已标记 deprecated 但 consumer.py 仍在调用。",
+      "expected_state": "应只保留一条触发链路。要么统一为 SKILL.md 的主 Agent 直驱路径（推荐），要么彻底清理 Consumer+Webhook 链路及所有相关文件（consumer.py, webhook_task_processor.py, EntryHarness 路径）。"
+    },
+    {
+      "id": "TRG-002",
+      "severity": "critical",
+      "title": "Step 4（spawn orchestrator）无强制契约保障，可能被主 Agent 遗漏",
+      "description": "SKILL.md 定义了 6 步执行流程，其中 Step 4 是主 Agent 手动 sessions_spawn orchestrator 子 Agent。但 run_solution_pro() 返回后没有任何机制强制执行 Step 4。run_solution_pro() 只返回 {session_id, base_path, plan_path}，不记录「已 spawn orchestrator」标记，也不验证 spawn 是否成功。这意味着：如果主 Agent 在 Step 1（exec 生成计划）之后因为任何原因跳过 Step 4（上下文丢失、被其他任务打断、模型输出截断），整个任务就会永远停留在「已生成计划但未执行」状态——tasks.json 存在但没有任何 worker 被 spawn。Cron 巡检 Agent 也无法发现这个问题，因为 Cron 的职责只是扫描 stages/ 目录通知进度，不负责触发执行。",
+      "root_cause": "run_solution_pro() 和 Step 4 之间没有状态契约。没有「计划已生成但 orchestrator 未 spawn」的中间状态标记，没有超时告警机制，Cron watcher 只负责进度通知不负责触发验证。",
+      "impact": "用户看到「✅ 已启动 DeepFlow Solution Pro 管线」的启动通知（Step 3），但实际上管线从未启动。60 分钟后 Cron 超时自杀，用户收到「管线运行超时」的错误消息，但根本原因是 orchestrator 从未被 spawn。用户无法区分「执行中卡住」和「从未开始」。",
+      "current_state": "Step 4 完全依赖主 Agent 的「记忆」和指令遵循能力，无任何代码级保障。",
+      "expected_state": "run_solution_pro() 应返回一个可追踪的状态对象（含 'orchestrator_spawned': false 标记），或 Step 4 应在 run_solution_pro() 内部作为最后一步自动执行（需要注入 spawn_fn）。至少应有「计划生成后 X 分钟内未检测到 orchestrator 启动」的告警机制。"
+    },
+    {
+      "id": "TRG-003",
+      "severity": "high",
+      "title": "Webhook 间接层增加 3 层复杂度，收益为负",
+      "description": "Webhook 机制的完整链路是：① Consumer 线程检测到 pending 任务 → ② 发送 webhook 到 Agent（httpx POST /hooks/wake）→ ③ Agent 收到 webhook 消息后执行 process_pending_tasks() → ④ process_pending_tasks() 读取 SQLite 任务 → ⑤ 调用 _spawn_deepflow_task() → ⑥ 最终 spawn 子 Agent。这条链路增加了：一个 FastAPI 进程（需要 uvicorn 后台运行）、一个 Consumer 线程（每 5s 轮询 SQLite）、一个 webhook 端点（/hooks/wake）、一个 token 认证文件（~/.openclaw/.webhook_env）、一个 WebhookTaskProcessor 模块、一个 CLI 级 fallback spawn 函数（_cli_spawn_fn）。但主 Agent 直驱路径只需要：主 Agent exec run_solution_pro() + sessions_spawn(orchestrator)。Webhook 路径比直驱路径多 5 个故障点，且最终效果等价于直驱路径的 Step 4。Webhook 的唯一价值在于「从外部系统触发」（比如前端 UI 提交任务），但即使如此，前端完全可以直接调用主 Agent 的 session 发送消息触发 Step 1-4，不需要绕过 Agent 先写 SQLite 再通过 webhook 唤醒。",
+      "root_cause": "Webhook 机制设计于 FastAPI 作为主后端的假设下（前端 UI 提交任务 → 写 SQLite → Consumer 轮询 → webhook 唤醒 Agent）。但实际使用中主 Agent 已经是一个常驻进程，可以直接接收任务并 spawn orchestrator，不需要中间的 SQLite → Consumer → Webhook → Processor 链路。",
+      "impact": "维护成本翻倍（两套触发链路），故障排查困难（任务卡住时不确定是哪条链路在处理），Webhook 端点的 token 认证和 httpx 依赖增加了外部攻击面。",
+      "current_state": "Webhook 链路代码完整但可能极少被使用。SKILL.md 完全未提及 Webhook 路径，说明设计者预期主 Agent 直驱是主要方式。",
+      "expected_state": "如果 Webhook 路径确实被前端 UI 使用，应在 SKILL.md 中明确定义两条路径的适用场景。如果不再使用，应彻底清理所有相关文件并删除 config.json 中的 webhook 配置。"
+    },
+    {
+      "id": "TRG-004",
+      "severity": "high",
+      "title": "SQLite 任务注册与文件队列双写但单消费，存在数据不一致风险",
+      "description": "consumer.py 的 _get_pending_tasks() 同时从两个来源读取任务：① 文件队列（frontend/task_queue/*_request.json）— 标记为 v1 legacy；② SQLite 数据库 — 标记为 v2。两者都被同一个 Consumer 线程消费（每 5s 轮询）。但问题在于：SKILL.md 的 Step 2 只向 SQLite 插入了任务记录（INSERT OR REPLACE INTO tasks），没有创建文件队列；而 process_pending_tasks() 只读取 SQLite，不读取文件队列。这导致：文件队列中的任务只会被 Consumer 消费，永远不会被 process_pending_tasks() 处理；SQLite 中的任务既会被 Consumer 消费（mark waiting_agent → webhook），也可能被 process_pending_tasks() 消费（如果 Agent 手动调用）。如果两条消费路径同时运行（比如 Consumer webhook 唤醒了 Agent，Agent 又调用 process_pending_tasks()），同一个任务可能被 spawn 两次。",
+      "root_cause": "v1 文件队列和 v2 SQLite 队列共存于 _get_pending_tasks()，但 SKILL.md 流程只使用 SQLite。Consumer 和 process_pending_tasks() 都可以消费 SQLite 任务，没有互斥锁或分布式锁机制防止重复消费。",
+      "impact": "任务可能被重复执行（同一个 session_id 被 spawn 两次 orchestrator），浪费 compute 资源并可能导致输出覆盖。文件队列中的 legacy 任务永远无法被 process_pending_tasks() 处理，形成孤儿任务。",
+      "current_state": "_get_pending_tasks() 返回两个来源的所有 pending 任务；process_pending_tasks() 只读 SQLite。无互斥机制。",
+      "expected_state": "明确单一消费源：要么只用 SQLite（删除文件队列代码），要么只用文件队列（删除 SQLite 代码）。消费路径应有互斥机制（如 status 从 pending → processing 的原子更新）。"
+    },
+    {
+      "id": "TRG-005",
+      "severity": "high",
+      "title": "FastAPI 不运行时，Webhook 触发链完全失效，SQLite 注册成为死记录",
+      "description": "Consumer 线程嵌入在 FastAPI 的 uvicorn 后台进程中（通过 start_consumer() 在 FastAPI startup event 中启动）。如果 FastAPI 进程没有运行（未启动、崩溃、重启中），Consumer 线程就不存在，无法轮询 SQLite、无法发送 webhook、无法唤醒 Agent。此时 SKILL.md 中 Step 2 插入的 SQLite 记录会永远停留在 'pending' 状态。虽然主 Agent 直驱路径不依赖 FastAPI（因为它直接 spawn orchestrator），但如果有人通过前端 UI 或外部系统向 SQLite 插入了任务，这些任务将在 FastAPI 宕机期间完全丢失，没有任何告警。config.json 中的 polling.task_ms=3000 和 polling.active_task_ms=5000 表明设计者预期 Consumer 持续运行，但没有健康检查或自动重启机制。",
+      "root_cause": "Consumer 是 FastAPI 进程的内部线程，不是独立守护进程。FastAPI 的存活是 Consumer 存活的前提条件，但没有外部监控或重启机制保障 FastAPI 持续运行。",
+      "impact": "通过外部途径（非主 Agent 直驱）提交的任务在 FastAPI 宕机期间静默丢失。用户可能在 UI 上看到「任务已提交」但永远不会被执行。",
+      "current_state": "Consumer 作为 uvicorn 后台线程运行，无独立进程管理。FastAPI 崩溃 = Consumer 停止 = 任务队列停滞。",
+      "expected_state": "如果 SQLite 任务注册是正式功能，Consumer 应作为独立的 systemd/launchd 守护进程运行，而非 FastAPI 的内部线程。或者，应在 SKILL.md 中明确标注「SQLite 任务注册仅在 FastAPI 运行时有效」。"
+    },
+    {
+      "id": "TRG-006",
+      "severity": "medium",
+      "title": "Cron 巡检 Agent 与 orchestrator 完成通知的职责重叠且无优先级定义",
+      "description": "Cron 巡检 Agent（每 3 分钟 isolated session）和 orchestrator 的 announce 回主 Agent 都能检测到任务完成。但两者的行为存在矛盾：Cron 检测到 .completed 后发送完成消息给用户并自杀；orchestrator announce 后主 Agent 也会执行兜底清理并报告结果给用户。这意味着用户可能收到两条完成消息：一条来自 Cron（通过 message 工具），一条来自主 Agent（收到 announce 后主动报告）。SKILL.md 定义了三层退出机制（正常自杀、超时自杀、主 Agent 兜底），但没有明确定义当多层同时触发时的去重策略。此外，orchestrator announce 的时间与 Cron 检测到 .completed 的时间可能不一致（orchestrator 写完 .completed 后需要 announce 回主 Agent，可能有延迟），导致消息顺序不确定。",
+      "root_cause": "Cron watcher 的设计初衷是在 orchestrator 长时间运行时给用户进度反馈，但完成通知与主 Agent 的 announce 处理功能重叠。没有定义「谁负责最终完成消息」。",
+      "impact": "用户可能收到重复的完成消息或超时消息。如果 orchestrator announce 很快到达，Cron 的完成消息可能显得多余；如果 orchestrator announce 延迟，Cron 的完成消息可能先于主 Agent 的详细结果到达。",
+      "current_state": "Cron 和主 Agent 都能发送完成消息。无去重机制。",
+      "expected_state": "明确定义单一完成通知源：建议 Cron 只负责进度通知（阶段完成时），不负责最终完成消息。最终完成消息应由主 Agent 收到 orchestrator announce 后统一发送。Cron 检测到 .completed 后只需静默自杀，不发完成消息。"
+    },
+    {
+      "id": "TRG-007",
+      "severity": "medium",
+      "title": "run_solution_pro() 返回路径但无法验证后续步骤是否执行",
+      "description": "run_solution_pro() 返回 {session_id, base_path, plan_path}，但主 Agent 收到这些路径后，没有任何机制验证后续的 Step 2-6 是否按计划执行。没有「执行状态机」记录当前处于哪个步骤（是刚生成计划？已 spawn orchestrator？orchestrator 运行中？已完成？）。如果主 Agent 在 Step 2（清理旧状态）之后被中断，再次收到用户请求时，可能重新执行 Step 1 生成新的计划，但旧的 Cron 和 orchestrator 仍在运行。session_id 基于 topic 的 MD5 hash 前 8 位生成，如果 topic 相同则 session_id 相同，这会导致新的计划覆盖旧计划的文件。",
+      "root_cause": "缺乏执行状态追踪机制。run_solution_pro() 是纯函数（给定相同输入总是生成相同输出），没有幂等性保护。",
+      "impact": "重复触发相同 topic 的 Solution Pro 可能覆盖正在运行的任务的计划文件，导致 orchestrator 读取到不兼容的计划。",
+      "current_state": "相同 topic 生成相同 session_id。无幂等检查。无执行状态追踪。",
+      "expected_state": "run_solution_pro() 应检查同名 session 是否已在运行，如是则拒绝或返回现有 session 信息。或者 session_id 应包含时间戳或随机后缀保证唯一性。"
+    },
+    {
+      "id": "TRG-008",
+      "severity": "low",
+      "title": "Phase timeout 统一设为 300s 对所有阶段不现实",
+      "description": "save_execution_plan() 中所有 phase 的 timeout 都硬编码为 300 秒（5 分钟）。但对于 Solution Pro 的 10 阶段管线，不同阶段的复杂度差异巨大：Data Collection 可能只需 30 秒，Planning 可能需要 2-3 分钟，但 Research（3 个并行专家）、Consolidator、Audit、Fix 等阶段可能需要 10-15 分钟。统一 300 秒的 timeout 必然导致多个阶段被误判为超时。pipeline_orchestrator_v4.md 也提到了错误分类中 'retry' 包含 'worker 超时'，但超时后的重试逻辑明确标注 '是否重试由主 Agent/后续版本实现'，意味着当前版本超时就记录并跳过，不会重试。",
+      "root_cause": "timeout 值在 save_execution_plan() 中硬编码为统一值，没有根据阶段类型动态设置。",
+      "impact": "复杂阶段（如 research、consolidator）会被错误标记为超时，导致 status 降级为 'partial'，降低最终报告质量。",
+      "current_state": "所有 phase timeout = 300s。超时后记录 missing_output，status 降级为 partial。",
+      "expected_state": "根据阶段类型设置不同的 timeout：data_collection=60s, planning=300s, reviewers=600s, research=900s, consolidator=600s, audit=600s, fix=600s, fixer_expert=600s, harness_final=300s, summarizer=300s。"
+    }
+  ],
+  "architecture_decision_log": [
+    "【设计选择 1】run_solution_pro() 只生成文件不执行 — 合理。将计划生成与执行解耦，允许主 Agent 在生成后做额外准备（清理状态、发通知），但缺少 spawn 契约保障。",
+    "【设计选择 2】固定 10 阶段 + LLM orchestrator prompt 调度（B 方案）— 合理。相比 Python PipelineOrchestrator 的硬编码调度，LLM orchestrator 可以在运行时处理异常和动态调整，但增加了不可预测性。",
+    "【设计选择 3】Cron 巡检 Agent 负责进度通知 — 合理但完成通知职责重叠。建议 Cron 只负责进度，不负责完成。",
+    "【设计选择 4】Webhook + Consumer 作为备用触发机制 — 不合理。与主链路功能重复，指向不同的 orchestrator 实现，增加了复杂度和故障点。应统一或废弃。",
+    "【设计选择 5】SQLite + 文件队列双写 — 不合理。v1 文件队列已标记 legacy 但仍在 _get_pending_tasks() 中被消费，v2 SQLite 是主要存储。应删除 v1 代码。",
+    "【设计选择 6】三层退出机制（正常/超时/兜底）— 设计良好，但 Cron 的完成消息与主 Agent announce 重叠，需要去重。",
+    "【设计选择 7】frozen_spec.json + REQ-ID 追踪 — 设计良好。frozen_spec 作为唯一需求源，每个 worker 必须标注 covered_req_ids，Harness Final 做覆盖度验证。"
+  ],
+  "recommendation": "最高优先级修复：统一触发链路为单一路径。具体方案：① 废弃 Consumer + Webhook 链路（consumer.py, webhook_task_processor.py, EntryHarness 路径），只保留 SKILL.md 定义的主 Agent 直驱路径；② 在 run_solution_pro() 中增加一个可选的 spawn_fn 参数，当提供 spawn_fn 时自动执行 Step 4（spawn orchestrator），消除主 Agent 遗忘 Step 4 的风险；③ 为 SQLite 任务注册增加互斥消费锁（pending → processing 的原子更新），防止双重消费；④ Cron watcher 只负责进度通知，完成消息统一由主 Agent announce 后发送。这将把触发链从当前的「3 条并行链路 + 5 个间接层」简化为「1 条主链路 + 1 个进度巡检」，故障点减少 80%。"
+}

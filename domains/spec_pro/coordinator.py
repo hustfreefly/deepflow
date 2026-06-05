@@ -295,13 +295,13 @@ class SpecProCoordinator:
 
     def build_confirmation_task(self, user_confirmation: Dict[str, Any]) -> str:
         """
-        构建确认阶段的 Orchestrator Worker task.
+        构建确认阶段的 task.
 
         Args:
             user_confirmation: {action: 'confirm'|'revise', revisions: [...]}
 
         Returns:
-            Orchestrator Worker task prompt string
+            Worker task prompt string (v3_flat 返回主Agent执行指令，v2返回Orchestrator task)
 
         Raises:
             RuntimeError: session 未初始化
@@ -317,6 +317,10 @@ class SpecProCoordinator:
             json.dump(user_confirmation, f, ensure_ascii=False, indent=2)
 
         self.state = DialogState.REVISING if user_confirmation.get("action") == "revise" else DialogState.CONFIRMING
+
+        # v3 flat: 主 Agent 直接执行，不 spawn Worker
+        if self.architecture_version == "v3_flat":
+            return self._build_v3_confirmation_task(round_num=self.current_round + 1)
 
         return self._build_orchestrator_task(
             round_num=self.current_round + 1, phase="confirmation"
@@ -444,7 +448,7 @@ class SpecProCoordinator:
         检查 Spec Pro 是否已完成.
 
         Returns:
-            True if action is 'done', 'error', or 'safety_stop'
+            True if action is 'done', 'error', 'safety_stop', 'proposal', or 'summary'
         """
         if not self.base_path:
             return False
@@ -454,7 +458,7 @@ class SpecProCoordinator:
         try:
             with open(result_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return data.get("action") in ("done", "error", "safety_stop")
+            return data.get("action") in ("done", "error", "safety_stop", "proposal", "summary")
         except (json.JSONDecodeError, OSError):
             return False
 
@@ -514,6 +518,62 @@ class SpecProCoordinator:
             adjustment = 10
 
         return max(base - adjustment, 50)
+
+    def _build_v3_confirmation_task(self, round_num: int) -> str:
+        """
+        Phase 3 扁平架构：构建确认阶段主 Agent 执行指令。
+
+        v3 下不 spawn StructureWorker，主 Agent 直接读写文件。
+        """
+        threshold = self._compute_dynamic_threshold()
+
+        return f"""# Spec Pro v3 确认阶段 — 主 Agent 执行指南
+
+你是 Spec Pro 主 Agent。用户在确认阶段做出了决定。
+
+## 当前任务上下文
+
+- Session: {{self.session_id}}
+- Blackboard: {{self.base_path}}
+- 当前轮次: {{round_num}}
+- 质量阈值: {{threshold}}
+
+## 执行步骤
+
+读取 {{self.base_path}}/spec/user_confirmation.json 中的 action：
+
+### 如果 action = "confirm"：
+
+1. 读取 {{self.base_path}}/spec/living_spec.json
+2. 读取 {{self.base_path}}/spec/quality_report.json（如有）
+3. 读取 {{self.base_path}}/spec/harness_report.json（如有）
+4. 使用 write 工具写入 {{self.base_path}}/spec/round_result.json：
+```json
+{{
+  "action": "done",
+  "round": {round_num},
+  "summary_text": "需求梳理完成。核心目标：[从 living_spec 提取]",
+  "living_spec": [完整 living_spec 内容],
+  "quality": {{
+    "overall_score": [quality_report 的 overall_score],
+    "level": [quality_report 的 level]
+  }}
+}}
+```
+
+### 如果 action = "revise"：
+
+1. 合并修正内容到 living_spec.json：
+```
+python3 .deepflow/domains/spec_pro/merge_spec.py --revisions {{self.base_path}}/spec/user_confirmation.json {{self.base_path}}/spec/living_spec.json
+```
+2. 对更新后的 living_spec 进行 7 维度评分
+3. 如果 overall_score >= {threshold}：
+   - 写 round_result.json (action="done")
+4. 如果 overall_score < {threshold}：
+   - 生成 2-4 个补充问题
+   - 写 round_result.json (action="questions")
+"""
 
     def _build_orchestrator_task(self, round_num: int, phase: str) -> str:
         """
@@ -748,6 +808,10 @@ class SpecProCoordinator:
 
     def _build_v3_main_eval_prompt(self, round_num: int) -> str:
         """Phase 3: 构建主 Agent 评分+提问的 prompt。
+
+        ⚠️ DEPRECATED (2026-06-04): 此方法返回值从未被使用。
+        评分+提问逻辑已在 _build_v3_round_task() 中内嵌实现。
+        保留此方法仅为历史兼容，后续版本可安全删除。
         
         复用 assess.md 的评分哲学 + guide.md 的边界规则。
         """

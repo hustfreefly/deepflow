@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepFlow 抖音图卡</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Noto Sans SC', -apple-system, sans-serif; background: #111; display: flex; flex-wrap: wrap; gap: 24px; padding: 24px; justify-content: center; }
+  .card { width: 540px; height: 960px; position: relative; overflow: hidden; border-radius: 12px; flex-shrink: 0; }
+
+  /* ====== 卡片 1: 封面 ====== */
+  .card-1 { background: linear-gradient(165deg, #0a0a1a 0%, #0d1b2a 40%, #1b2838 100%); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 60px; }
+  .card-1 .glow { position: absolute; width: 400px; height: 400px; border-radius: 50%; background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%); top: 50%; left: 50%; transform: translate(-50%, -60%); }
+  .card-1 .tag { position: relative; font-size: 14px; font-weight: 500; color: #60a5fa; letter-spacing: 4px; margin-bottom: 40px; }
+  .card-1 .main-title { position: relative; font-size: 64px; font-weight: 900; color: #fff; text-align: center; line-height: 1.15; margin-bottom: 32px; }
+  .card-1 .main-title .accent { background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .card-1 .subtitle { position: relative; font-size: 20px; color: #94a3b8; text-align: center; line-height: 1.6; margin-bottom: 48px; }
+  .card-1 .stats-row { position: relative; display: flex; gap: 32px; }
+  .card-1 .stat { text-align: center; }
+  .card-1 .stat .num { font-size: 36px; font-weight: 900; color: #60a5fa; }
+  .card-1 .stat .label { font-size: 13px; color: #64748b; margin-top: 4px; }
+  .card-1 .watermark { position: absolute; bottom: 40px; font-size: 13px; color: #334155; letter-spacing: 2px; }
+  .card-1 .deco-line { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, #60a5fa, #a78bfa, transparent); }
+
+  /* ====== 卡片 2: 三层架构 ====== */
+  .card-2 { background: linear-gradient(180deg, #0f172a 0%, #0c0c1a 100%); padding: 48px 44px; display: flex; flex-direction: column; }
+  .card-2 .c2-header { margin-bottom: 32px; }
+  .card-2 .c2-num { font-size: 13px; color: #60a5fa; font-weight: 600; letter-spacing: 2px; margin-bottom: 12px; }
+  .card-2 .c2-title { font-size: 38px; font-weight: 900; color: #fff; margin-bottom: 8px; }
+  .card-2 .c2-subtitle { font-size: 16px; color: #64748b; }
+  .c2-layer { border-radius: 14px; padding: 20px; margin-bottom: 10px; position: relative; }
+  .c2-layer.l0 { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); }
+  .c2-layer.l1 { background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.2); }
+  .c2-layer.l2 { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); }
+  .c2-layer .cl-tag { font-size: 11px; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px; }
+  .c2-layer.l0 .cl-tag { color: #60a5fa; }
+  .c2-layer.l1 .cl-tag { color: #a78bfa; }
+  .c2-layer.l2 .cl-tag { color: #4ade80; }
+  .c2-layer .cl-title { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .c2-layer .cl-desc { font-size: 13px; color: #94a3b8; line-height: 1.4; }
+  .c2-arrow { text-align: center; font-size: 12px; color: #475569; margin: 2px 0; }
+  .c2-arrow::before { content: '▼ '; }
+  .card-2 .watermark { position: absolute; bottom: 32px; left: 44px; right: 44px; display: flex; justify-content: space-between; font-size: 13px; color: #334155; }
+  .card-2 .deco-line { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, #a78bfa, #60a5fa, transparent); }
+
+  /* ====== 卡片 3: 数据流 ====== */
+  .card-3 { background: linear-gradient(180deg, #0f172a 0%, #0c0c1a 100%); padding: 48px 44px; display: flex; flex-direction: column; }
+  .card-3 .c3-header { margin-bottom: 32px; }
+  .card-3 .c3-num { font-size: 13px; color: #4ade80; font-weight: 600; letter-spacing: 2px; margin-bottom: 12px; }
+  .card-3 .c3-title { font-size: 38px; font-weight: 900; color: #fff; margin-bottom: 8px; }
+  .card-3 .c3-subtitle { font-size: 16px; color: #64748b; }
+  .flow-steps { flex: 1; display: flex; flex-direction: column; gap: 0; }
+  .flow-step { display: flex; align-items: flex-start; gap: 14px; padding: 12px 0; position: relative; }
+  .flow-step .fs-num { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; flex-shrink: 0; }
+  .flow-step:nth-child(1) .fs-num { background: rgba(59,130,246,0.2); color: #60a5fa; }
+  .flow-step:nth-child(2) .fs-num { background: rgba(168,85,247,0.2); color: #a78bfa; }
+  .flow-step:nth-child(3) .fs-num { background: rgba(251,191,36,0.2); color: #fbbf24; }
+  .flow-step:nth-child(4) .fs-num { background: rgba(34,197,94,0.2); color: #4ade80; }
+  .flow-step:nth-child(5) .fs-num { background: rgba(59,130,246,0.2); color: #60a5fa; }
+  .flow-step .fs-content { flex: 1; }
+  .flow-step .fs-title { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+  .flow-step .fs-desc { font-size: 12px; color: #94a3b8; line-height: 1.4; }
+  .flow-step .fs-connector { position: absolute; left: 15px; bottom: -2px; width: 2px; height: 12px; background: #1e293b; }
+  .flow-step:last-child .fs-connector { display: none; }
+  .card-3 .watermark { position: absolute; bottom: 32px; left: 44px; right: 44px; display: flex; justify-content: space-between; font-size: 13px; color: #334155; }
+  .card-3 .deco-line { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, #4ade80, #60a5fa, transparent); }
+
+  /* ====== 卡片 4: Spec Pro（修复版） ====== */
+  .card-4 { background: linear-gradient(180deg, #0f172a 0%, #0c0c1a 100%); padding: 44px 40px; display: flex; flex-direction: column; }
+  .card-4 .c4-header { margin-bottom: 20px; }
+  .card-4 .c4-num { font-size: 13px; color: #a78bfa; font-weight: 600; letter-spacing: 2px; margin-bottom: 10px; }
+  .card-4 .c4-title { font-size: 34px; font-weight: 900; color: #fff; margin-bottom: 6px; }
+  .card-4 .c4-subtitle { font-size: 14px; color: #64748b; }
+
+  .pipeline-v {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 0 8px;
+    justify-content: center;
+  }
+  .p-node {
+    width: 100%;
+    padding: 14px 18px;
+    border-radius: 10px;
+    text-align: center;
+    position: relative;
+  }
+  .p-node .pn-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .p-node .pn-icon { font-size: 22px; }
+  .p-node .pn-title { font-size: 16px; font-weight: 700; color: #fff; }
+  .p-node .pn-desc { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+  .p-node.user { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); }
+  .p-node.worker { background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.2); }
+  .p-node.agent { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); }
+  .p-node.output { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.2); }
+
+  .p-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+    position: relative;
+  }
+  .p-arrow .pa-line {
+    width: 2px;
+    height: 100%;
+    background: #1e293b;
+    position: relative;
+  }
+  .p-arrow .pa-line::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: -4px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #475569;
+  }
+
+  .p-loop {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: rgba(251,191,36,0.08);
+    border: 1px solid rgba(251,191,36,0.2);
+  }
+  .p-loop .pl-icon { font-size: 16px; }
+  .p-loop .pl-text { font-size: 12px; color: #fbbf24; font-weight: 600; }
+
+  .card-4 .watermark { position: absolute; bottom: 28px; left: 40px; right: 40px; display: flex; justify-content: space-between; font-size: 12px; color: #334155; }
+  .card-4 .deco-line { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, #a78bfa, #fbbf24, transparent); }
+
+  /* ====== 卡片 5: Solution Pro ====== */
+  .card-5 { background: linear-gradient(180deg, #0f172a 0%, #0c0c1a 100%); padding: 48px 44px; display: flex; flex-direction: column; }
+  .card-5 .c5-header { margin-bottom: 24px; }
+  .card-5 .c5-num { font-size: 13px; color: #60a5fa; font-weight: 600; letter-spacing: 2px; margin-bottom: 10px; }
+  .card-5 .c5-title { font-size: 34px; font-weight: 900; color: #fff; margin-bottom: 6px; }
+  .card-5 .c5-subtitle { font-size: 14px; color: #64748b; }
+  .s-phases { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-content: start; }
+  .s-phase { padding: 14px 14px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+  .s-phase .sp-num { font-size: 10px; font-weight: 700; color: #60a5fa; margin-bottom: 4px; }
+  .s-phase .sp-title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+  .s-phase .sp-desc { font-size: 11px; color: #94a3b8; line-height: 1.3; }
+  .s-phase.highlight { background: rgba(168,85,247,0.08); border-color: rgba(168,85,247,0.2); }
+  .s-phase.highlight .sp-num { color: #a78bfa; }
+  .s-phase.green { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2); }
+  .s-phase.green .sp-num { color: #4ade80; }
+  .s-phase.orange { background: rgba(251,191,36,0.08); border-color: rgba(251,191,36,0.2); }
+  .s-phase.orange .sp-num { color: #fbbf24; }
+  .card-5 .watermark { position: absolute; bottom: 32px; left: 44px; right: 44px; display: flex; justify-content: space-between; font-size: 13px; color: #334155; }
+  .card-5 .deco-line { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, #60a5fa, #a78bfa, transparent); }
+
+  /* ====== 卡片 6: Blackboard ====== */
+  .card-6 { background: linear-gradient(180deg, #0f172a 0%, #0c0c1a 100%); padding: 48px 44px; display: flex; flex-direction: column; }
+  .card-6 .c6-header { margin-bottom: 24px; }
+  .card-6 .c6-num { font-size: 13px; color: #fbbf24; font-weight: 600; letter-spacing: 2px; margin-bottom: 10px; }
+  .card-6 .c6-title { font-size: 34px; font-weight: 900; color: #fff; margin-bottom: 6px; }
+  .card-6 .c6-subtitle { font-size: 14px; color: #64748b; }
+  .bb-center { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+  .bb-group { padding: 16px; border-radius: 10px; background: rgba(251,191,36,0.04); border: 1px dashed rgba(251,191,36,0.2); }
+  .bb-group .bg-title { font-size: 13px; font-weight: 700; color: #fbbf24; margin-bottom: 8px; }
+  .bb-files-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .bb-file-tag { font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.15); color: #fbbf24; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .bb-principles { padding: 16px; border-radius: 10px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); }
+  .bb-principles .bp-title { font-size: 13px; font-weight: 700; color: #94a3b8; margin-bottom: 6px; }
+  .bb-principles .bp-item { font-size: 12px; color: #64748b; line-height: 1.5; margin-bottom: 2px; }
+  .bb-principles .bp-item::before { content: '→ '; color: #fbbf24; }
+  .card-6 .watermark { position: absolute; bottom: 32px; left: 44px; right: 44px; display: flex; justify-content: space-between; font-size: 13px; color: #334155; }
+  .card-6 .deco-line { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, #fbbf24, #60a5fa, transparent); }
+</style>
+</head>
+<body>
+
+  <!-- ==================== CARD 1: COVER ==================== -->
+  <div class="card card-1">
+    <div class="glow"></div>
+    <div class="tag">MULTI-AGENT PIPELINE</div>
+    <div class="main-title"><span class="accent">DeepFlow</span><br>多 Agent<br>流水线框架</div>
+    <div class="subtitle">从需求梳理到方案设计<br>AI Agent 全自动协作交付</div>
+    <div class="stats-row">
+      <div class="stat"><div class="num">4</div><div class="label">领域引擎</div></div>
+      <div class="stat"><div class="num">33K+</div><div class="label">代码行</div></div>
+      <div class="stat"><div class="num">6</div><div class="label">契约门禁</div></div>
+      <div class="stat"><div class="num">v4</div><div class="label">架构版本</div></div>
+    </div>
+    <div class="watermark">DeepFlow · 2026</div>
+    <div class="deco-line"></div>
+  </div>
+
+  <!-- ==================== CARD 2: 三层架构 ==================== -->
+  <div class="card card-2">
+    <div class="c2-header">
+      <div class="c2-num">VIEW 01</div>
+      <div class="c2-title">三层架构</div>
+      <div class="c2-subtitle">谁在跑 → 怎么跑 → 跑什么</div>
+    </div>
+    <div class="c2-layer l0"><div class="cl-tag">L0 · HOST</div><div class="cl-title">🦞 OpenClaw 宿主层</div><div class="cl-desc">Main Agent 小满 · sessions_spawn 调度</div></div>
+    <div class="c2-arrow">控制流 · spawn</div>
+    <div class="c2-layer l1"><div class="cl-tag">L1 · ENGINE</div><div class="cl-title">⚙️ DeepFlow 核心引擎</div><div class="cl-desc">统一入口 · Cage 契约 · Prompt 注册</div></div>
+    <div class="c2-arrow">Blackboard 协议</div>
+    <div class="c2-layer l2"><div class="cl-tag">L2 · DOMAIN</div><div class="cl-title">🧩 领域模块</div><div class="cl-desc">Spec Pro · Solution Pro · Investment · Research</div></div>
+    <div class="watermark"><span>DeepFlow · v4.0</span><span>三层架构</span></div>
+    <div class="deco-line"></div>
+  </div>
+
+  <!-- ==================== CARD 3: 数据流 ==================== -->
+  <div class="card card-3">
+    <div class="c3-header"><div class="c3-num">VIEW 02</div><div class="c3-title">数据流</div><div class="c3-subtitle">从用户输入到最终产出的完整路径</div></div>
+    <div class="flow-steps">
+      <div class="flow-step"><div class="fs-num">1</div><div class="fs-content"><div class="fs-title">👤 用户输入</div><div class="fs-desc">"我要做一个算力租赁平台…" 或定时任务触发</div></div><div class="fs-connector"></div></div>
+      <div class="flow-step"><div class="fs-num">2</div><div class="fs-content"><div class="fs-title">🦞 Main Agent 解析</div><div class="fs-desc">识别意图 → 选择 Domain → 构建 task</div></div><div class="fs-connector"></div></div>
+      <div class="flow-step"><div class="fs-num">3</div><div class="fs-content"><div class="fs-title">📋 Blackboard 写入</div><div class="fs-desc">spec/input.md + living_spec.json 初始结构</div></div><div class="fs-connector"></div></div>
+      <div class="flow-step"><div class="fs-num">4</div><div class="fs-content"><div class="fs-title">🔍 Worker Agent 执行</div><div class="fs-desc">ParseWorker 解析 → 主Agent 评分 → 循环收集</div></div><div class="fs-connector"></div></div>
+      <div class="flow-step"><div class="fs-num">5</div><div class="fs-content"><div class="fs-title">📤 最终产出</div><div class="fs-desc">Living Spec · 质量报告 → 飞书推送</div></div></div>
+    </div>
+    <div class="watermark"><span>DeepFlow · v4.0</span><span>数据流</span></div>
+    <div class="deco-line"></div>
+  </div>
+
+  <!-- ==================== CARD 4: Spec Pro（修复版） ==================== -->
+  <div class="card card-4">
+    <div class="c4-header">
+      <div class="c4-num">VIEW 03</div>
+      <div class="c4-title">Spec Pro</div>
+      <div class="c4-subtitle">苏格拉底式需求梳理引擎</div>
+    </div>
+    <div class="pipeline-v">
+      <!-- Node 1: User Input -->
+      <div class="p-node user">
+        <div class="pn-row"><span class="pn-icon">👤</span><div><div class="pn-title">用户输入需求</div><div class="pn-desc">自然语言描述想法</div></div></div>
+      </div>
+      <div class="p-arrow"><div class="pa-line"></div></div>
+      <!-- Node 2: ParseWorker -->
+      <div class="p-node worker">
+        <div class="pn-row"><span class="pn-icon">🧠</span><div><div class="pn-title">ParseWorker 解析</div><div class="pn-desc">结构化解析 + 行业推断</div></div></div>
+      </div>
+      <div class="p-arrow"><div class="pa-line"></div></div>
+      <!-- Node 3: Main Agent Score -->
+      <div class="p-node agent">
+        <div class="pn-row"><span class="pn-icon">📊</span><div><div class="pn-title">主 Agent 评分</div><div class="pn-desc">7 维度质量评估 (0-100)</div></div></div>
+      </div>
+      <div class="p-arrow"><div class="pa-line"></div></div>
+      <!-- Node 4: Generate Questions -->
+      <div class="p-node agent">
+        <div class="pn-row"><span class="pn-icon">💬</span><div><div class="pn-title">生成引导问题</div><div class="pn-desc">3-5 个苏格拉底式问题</div></div></div>
+      </div>
+      <div class="p-arrow"><div class="pa-line"></div></div>
+      <!-- Node 5: User Answer -->
+      <div class="p-node user">
+        <div class="pn-row"><span class="pn-icon">👤</span><div><div class="pn-title">用户回答</div><div class="pn-desc">补充需求细节</div></div></div>
+      </div>
+      <div class="p-arrow"><div class="pa-line"></div></div>
+      <!-- Loop badge -->
+      <div class="p-loop">
+        <span class="pl-icon">🔄</span>
+        <span class="pl-text">循环直到质量达标 (≥75分)</span>
+      </div>
+      <div class="p-arrow"><div class="pa-line"></div></div>
+      <!-- Node 6: Output -->
+      <div class="p-node output">
+        <div class="pn-row"><span class="pn-icon">✅</span><div><div class="pn-title">Living Spec 输出</div><div class="pn-desc">结构化需求规格书</div></div></div>
+      </div>
+    </div>
+    <div class="watermark"><span>DeepFlow · v4.0</span><span>Spec Pro · v3 扁平架构</span></div>
+    <div class="deco-line"></div>
+  </div>
+
+  <!-- ==================== CARD 5: Solution Pro ==================== -->
+  <div class="card card-5">
+    <div class="c5-header">
+      <div class="c5-num">VIEW 04</div>
+      <div class="c5-title">Solution Pro</div>
+      <div class="c5-subtitle">10 阶段方案设计管线</div>
+    </div>
+    <div class="s-phases">
+      <div class="s-phase green"><div class="sp-num">PHASE 01</div><div class="sp-title">📊 数据收集</div><div class="sp-desc">市场数据 · 行业调研</div></div>
+      <div class="s-phase"><div class="sp-num">PHASE 02</div><div class="sp-title">📋 规划</div><div class="sp-desc">任务分解 · 搜索策略</div></div>
+      <div class="s-phase highlight"><div class="sp-num">PHASE 03</div><div class="sp-title">🔍 评审</div><div class="sp-desc">三视角: 技术/商业/风险</div></div>
+      <div class="s-phase highlight"><div class="sp-num">PHASE 04</div><div class="sp-title">🔬 研究</div><div class="sp-desc">3 Researcher 并行深度研究</div></div>
+      <div class="s-phase"><div class="sp-num">PHASE 05</div><div class="sp-title">🔗 合并</div><div class="sp-desc">Consolidator 整合所有产出</div></div>
+      <div class="s-phase"><div class="sp-num">PHASE 06</div><div class="sp-title">🔍 审计</div><div class="sp-desc">独立审计 Agent 交叉验证</div></div>
+      <div class="s-phase"><div class="sp-num">PHASE 07</div><div class="sp-title">🔧 修正</div><div class="sp-desc">针对审计问题逐一修复</div></div>
+      <div class="s-phase orange"><div class="sp-num">PHASE 08-09</div><div class="sp-title">🛡️ 深度修正+Harness</div><div class="sp-desc">专家级修正 + 最终质量门禁</div></div>
+      <div class="s-phase green"><div class="sp-num">PHASE 10</div><div class="sp-title">📄 总结</div><div class="sp-desc">最终实施方案文档</div></div>
+    </div>
+    <div class="watermark"><span>DeepFlow · v4.0</span><span>Solution Pro · 10 阶段</span></div>
+    <div class="deco-line"></div>
+  </div>
+
+  <!-- ==================== CARD 6: Blackboard ==================== -->
+  <div class="card card-6">
+    <div class="c6-header">
+      <div class="c6-num">VIEW 05</div>
+      <div class="c6-title">Blackboard</div>
+      <div class="c6-subtitle">Agent 间唯一通信机制</div>
+    </div>
+    <div class="bb-center">
+      <div class="bb-group"><div class="bg-title">📁 spec/ · 规格文件</div><div class="bb-files-row"><span class="bb-file-tag">input.md</span><span class="bb-file-tag">living_spec.json</span><span class="bb-file-tag">quality_report.json</span><span class="bb-file-tag">harness_report.json</span><span class="bb-file-tag">round_result.json</span></div></div>
+      <div class="bb-group"><div class="bg-title">📁 spec/ · 追踪文件</div><div class="bb-files-row"><span class="bb-file-tag">quality_trajectory.json</span><span class="bb-file-tag">conversation_log.json</span><span class="bb-file-tag">execution_log.json</span><span class="bb-file-tag">coord_state.json</span></div></div>
+      <div class="bb-group"><div class="bg-title">📁 stages/ · 中间产物</div><div class="bb-files-row"><span class="bb-file-tag">round_NN_parse.json</span><span class="bb-file-tag">round_NN_questions.json</span><span class="bb-file-tag">round_NN_response.json</span><span class="bb-file-tag">consolidator.json</span></div></div>
+      <div class="bb-principles">
+        <div class="bp-title">核心原则</div>
+        <div class="bp-item">文件是唯一的 Agent 间通信机制</div>
+        <div class="bp-item">不通过函数参数传递状态</div>
+        <div class="bp-item">追加新项，不删除已有项</div>
+        <div class="bp-item">矛盾时保留两者并标注</div>
+      </div>
+    </div>
+    <div class="watermark"><span>DeepFlow · v4.0</span><span>Blackboard 协议</span></div>
+    <div class="deco-line"></div>
+  </div>
+
+</body>
+</html>

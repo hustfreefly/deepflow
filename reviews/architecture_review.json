@@ -1,0 +1,82 @@
+{
+  "expert": "架构设计专家",
+  "review_date": "2026-06-03",
+  "scope": "DeepFlow Solution Pro 整体架构 — 触发链路、巡检机制、状态管理、Spec 桥接",
+  "summary": "Solution Pro 架构存在严重的路径冗余和职责模糊。核心问题是「两条执行路径」并存：主 Agent 直接 spawn orchestrator（SKILL.md Step 4） vs FastAPI Consumer 轮询 SQLite + Webhook 唤醒 Agent 再 spawn。Consumer 路径是「打地鼠式补丁」的产物（WH-003 修复），本应作为兜底，却变成了默认路径。加上 Cron 巡检和 Consumer 线程双重轮询、三套状态源（SQLite + Blackboard 文件 + .completed），整个系统形成了一个 5 层触发链，每一层都在等待上一层失败。建议删除 Consumer + Webhook 路径，回归主 Agent 直接 spawn 的简洁架构。",
+  "findings": [
+    {
+      "id": "ARCH-001",
+      "severity": "critical",
+      "title": "两条执行路径并存：主 Agent 直接 spawn vs Consumer+Webhook 间接唤醒",
+      "description": "SKILL.md Step 4 定义了主 Agent 直接 sessions_spawn(orchestrator) 的清晰路径，但代码中同时存在一条替代路径：run_solution_pro() → 写入 SQLite → Consumer 线程每 5s 轮询 → 发现 pending 任务 → 发 Webhook 唤醒 Agent → Agent 调用 webhook_task_processor → 再 spawn orchestrator。这条 5 层链路是 WH-003 修复的产物，本意是当 Step 4 未执行时的兜底，但实际上两条路径没有互斥机制，可能同时存在。本次 bug（任务 pending 不执行）的根因正是：run_solution_pro() 只生成了计划和 SQLite 记录，但 Step 4 的 spawn 没有执行，而 Consumer 线程又因为 uvicorn 未启动而不存在——两条路径同时断了。",
+      "root_cause": "Consumer + Webhook 路径是历史补丁，没有被正式归档为「仅兜底」或「已废弃」。代码中 _spawn_deepflow_task() 在 consumer.py 和 webhook_task_processor.py 中各有实现，逻辑重复但细节不同（consumer 发 webhook 唤醒 Agent，webhook_task_processor 直接调用 spawn_fn）。没有架构文档明确定义哪条是主路径、哪条是兜底。",
+      "impact": "用户对本次 bug 的直接体验：任务创建后完全静默，没有任何执行或错误反馈。两条路径的依赖不同（一条依赖 Agent 主动调用 Step 4，另一条依赖 FastAPI + Consumer 线程），任何一个依赖缺失都会导致任务永久 pending。",
+      "fix_suggestion": "明确单一执行路径：主 Agent 直接 spawn orchestrator。删除 Consumer 线程 + Webhook 唤醒链路（consumer.py 的 _spawn_deepflow_task 和 _send_webhook、webhook_task_processor.py 的 CLI fallback）。如果确实需要兜底，保留一个简化的文件级检测（主 Agent 每次心跳检查 pending 任务），而非完整的 FastAPI + Consumer + Webhook 三层架构。"
+    },
+    {
+      "id": "ARCH-002",
+      "severity": "critical",
+      "title": "run_solution_pro() 只管生不管养——调用方不知道需要 Step 4",
+      "description": "run_solution_pro() 的返回值只有 {session_id, base_path, plan_path}，没有任何字段暗示调用方还需要执行后续步骤。SKILL.md 把 Step 4（spawn orchestrator）、Step 5（创建 Cron）写在文档里，但这是一个 Python 函数的调用者不会自动阅读文档的。函数签名和返回契约暗示调用完成，但实际执行只完成了 20%（只生成计划，不执行管线）。_SolutionDispatcher.run_harness_v2() 方法能完整执行，但 run_solution_pro() 故意不暴露它。",
+      "root_cause": "设计决策：把「计划生成」和「执行启动」分成两个函数，理由是「契约笼子」约束 Python 代码不能直接 import openclaw SDK（spawn_fn 必须由调用方注入）。这个约束本身合理，但 run_solution_pro() 的设计没有反映出「还需要第二步」这个关键信息。返回值的结构暗示任务已完成，调用方没有理由知道还需要手动 spawn。",
+      "impact": "调用方（包括用户和其他自动化流程）可能误以为 run_solution_pro() 返回后管线已启动。本次 bug 就是这个误解的直接后果——任务入了 SQLite 但没有 orchestrator 在运行。",
+      "fix_suggestion": "方案 A：run_solution_pro() 返回一个额外的 required_next_steps 字段，明确列出未完成的步骤。方案 B（推荐）：在 SKILL.md 的 Step 1 exec 中直接输出下一步指令到 stdout，要求主 Agent 读取并自动执行 Step 4。方案 C：提供 run_and_spawn() 函数，接受 spawn_fn 参数，一步到位。"
+    },
+    {
+      "id": "ARCH-003",
+      "severity": "high",
+      "title": "Cron 巡检和 Consumer 线程双重轮询，职责重叠且没有协调",
+      "description": "Cron watcher（每 3 分钟 isolated job）轮询 stages/ 目录和 .completed 文件，负责通知进度和检测完成。Consumer 线程（每 5 秒 daemon thread）轮询 SQLite 和文件队列，负责触发执行。两者都在轮询，但 Cron 只能检测已经完成的任务，Consumer 只能触发尚未开始的任务——中间态（正在执行但没有新文件产出）两者都无法处理。更关键的是，如果 orchestrator 崩溃，Consumer 不会检测到（因为任务状态已经是 waiting_agent），Cron 最多在 60 分钟后超时退出——这期间用户完全没有反馈。",
+      "root_cause": "Cron 和 Consumer 是在不同时间点为解决不同问题而添加的：Cron 解决「用户不知道进度」的问题，Consumer 解决「任务没有被执行」的问题。但它们之间没有协调机制，也没有一个统一的「健康监控器」来覆盖整个生命周期。",
+      "impact": "中间态盲区：orchestrator 正在运行但长时间无产出的情况，Cron 不发消息（没有新阶段），Consumer 不处理（任务不是 pending），用户看到的是长达 60 分钟的静默。如果 orchestrator 在前 2 个阶段就崩溃了，Cron 要 60 分钟才能报告超时。",
+      "fix_suggestion": "合并 Cron 和 Consumer 的职责到一个统一的 ProgressMonitor：（1）检测 pending 任务 → 触发执行（原 Consumer 职责）；（2）扫描 stages/ → 通知进度（原 Cron 职责）；（3）检测 running 但长时间无产出 → 告警（新能力）。可以复用 Cron 的每 3 分钟调度，去掉 Consumer 线程。"
+    },
+    {
+      "id": "ARCH-004",
+      "severity": "high",
+      "title": "三套状态源无一致性保证：SQLite tasks 表、Blackboard 文件、.completed 标记",
+      "description": "任务状态同时存在于三个地方：（1）SQLite tasks 表的 status 字段（pending/waiting_agent/running/completed/failed）；（2）Blackboard stages/ 目录中的阶段 JSON 文件；（3）.completed 文件。三者之间没有事务性保证：run_solution_pro() 写入了 SQLite 的 running 状态，但 orchestrator 可能还没开始；orchestrator 写 .completed 时不会同步更新 SQLite；Cron 检测 .completed 后发通知但不更新 SQLite。如果 .completed 存在但 SQLite 仍显示 running（或反过来），系统处于不一致状态。",
+      "root_cause": "状态分布在完全不同的存储引擎中：SQLite 是关系数据库，Blackboard 是文件系统，.completed 是标记文件。没有统一的 StateManager 来协调三者。SKILL.md Step 2 初始化 SQLite 为 running，Step 5 创建 Cron，但 orchestrator 写 .completed 的步骤不在 SKILL.md 中（在 orchestrator prompt 里），更不在 SQLite 更新之前。",
+      "impact": "状态不一致导致：（1）重启后无法准确恢复任务状态；（2）Cron 和主 Agent 可能对任务状态有不同判断；（3）UI（如果有）读取 SQLite 看到 running，实际已经完成或失败。",
+      "fix_suggestion": "引入单一事实源（Single Source of Truth）。推荐以 Blackboard 文件系统为唯一状态源，SQLite 作为索引/缓存。或者引入一个 StateManager 类，所有状态变更都通过它，由它保证多存储的一致性。至少要做到：.completed 写入后 10 秒内必须同步更新 SQLite。"
+    },
+    {
+      "id": "ARCH-005",
+      "severity": "medium",
+      "title": "frozen_spec.json 写入时机和内容完整性的不确定性",
+      "description": "write_frozen_spec() 在 _SolutionDispatcher.init() 时调用，此时 living_spec 可能来自三个来源：（A）Spec Pro 产出的完整 living_spec；（B）轻量 Spec Agent 推断的 living_spec；（C）None（退化为 topic + constraints）。三种来源的 living_spec 结构差异很大——Spec Pro 的 living_spec 有 confirmed、inferred、guardrails、success_metrics 等完整字段，而轻量 Agent 的 living_spec 可能只有 objective。build_frozen_spec() 虽然有容错逻辑（isinstance 检查、默认值），但当 living_spec 为 None 时，frozen_spec.json 只包含一个 objective 需求，后续的 REQ-ID 追踪、Harness 质量门、可追溯性矩阵都会严重退化。",
+      "root_cause": "living_spec 的格式没有在 frozen_spec.py 中通过 schema 验证。build_frozen_spec() 对 living_spec 的处理是「尽力而为」——有就用，没有就跳过。这导致 frozen_spec.json 的质量完全取决于上游传入的 living_spec 质量，没有任何反馈机制告诉调用方「你的 living_spec 缺少关键字段」。",
+      "impact": "场景 C（不传 living_spec）下，frozen_spec.json 只有一个 objective，后续 10 个阶段的 REQ-ID 追踪形同虚设，Harness 质量门无法做需求覆盖度检查，最终方案质量显著低于有 Spec Pro 的情况。用户不知道质量差异的来源。",
+      "fix_suggestion": "在 write_frozen_spec() 中增加质量评分：计算 frozen_spec 的完整度（REQ 数量、P0 覆盖度、success_metrics 数量等），写入 metadata.completeness_score。如果低于阈值，在返回值中警告调用方。同时，SKILL.md Step 0 的轻量 Spec Agent 应该至少推断出 core constraints 和 success metrics，而不只是 objective。"
+    },
+    {
+      "id": "ARCH-006",
+      "severity": "medium",
+      "title": "Consumer 线程与 FastAPI 生命周期耦合，但启动时机不明确",
+      "description": "consumer.py 中 start_consumer() 在 main.py 的 startup_event 中自动调用，意味着 uvicorn 启动时 Consumer 线程就开始了。但这个自动启动有三个问题：（1）如果 uvicorn 没有启动（本次 bug 的直接原因），Consumer 就不存在；（2）如果 uvicorn 启动了但 Consumer 线程因异常退出，没有重启机制（daemon 线程退出后 _consumer_running 仍是 True，下次 start 会直接返回 Already running）；（3）Consumer 每 5 秒轮询一次 SQLite，即使没有 pending 任务也在运行，持续占用线程资源。",
+      "root_cause": "Consumer 被设计为 FastAPI 的内置组件，但它实际上处理的是 OpenClaw Agent 的调度问题。这种跨进程的职责划分模糊——FastAPI 不应该知道也不应该关心 Agent 的调度逻辑。",
+      "impact": "本次 bug 的根因：FastAPI 未启动 → Consumer 不存在 → pending 任务永远不被消费。更深层的风险：如果 Consumer 线程静默崩溃，下次启动 uvicorn 时会误以为 Consumer 还在运行。",
+      "fix_suggestion": "如果保留 Consumer 路径，增加健康检查端点 /api/consumer/status（已存在但不完整）和自动重启逻辑。更好的方案：如 ARCH-001 所述，删除 Consumer 路径，让 Agent 直接管理任务调度。"
+    },
+    {
+      "id": "ARCH-007",
+      "severity": "medium",
+      "title": "时间戳校验机制依赖文件系统时间，缺乏时钟同步保证",
+      "description": "cron_watcher.md 的 Step 2 要求对比 .completed 中的 completed_at 和 run_start_at。completed_at 来自 orchestrator 写入时生成的时间戳，run_start_at 来自 Cron 创建时主 Agent 写入的文件。两者都依赖同一台机器的系统时钟，所以在本场景中不是问题。但如果 orchestrator 或 Cron 运行在不同的时间上下文中（例如跨时区、容器化部署），时间戳比较可能产生误判。更关键的是，.completed 文件的时间戳格式没有统一约束——orchestrator prompt 没有明确要求 completed_at 必须是 ISO 格式还是 Unix 时间戳。",
+      "root_cause": "时间戳校验是防残留文件的巧妙设计，但没有考虑时间戳格式的一致性和时钟漂移。",
+      "impact": "如果 completed_at 和 run_start_at 格式不一致（ISO vs Unix），对比结果不可预测。当前在单机环境下可能正常工作，但缺乏防御性编程。",
+      "fix_suggestion": "统一使用 Unix 时间戳（float）存储所有时间戳，在 cron_watcher.py 中增加格式解析的 fallback 逻辑（尝试 ISO 解析，失败则尝试 float 解析）。在 .completed schema 中强制要求 completed_at 为 Unix timestamp。"
+    },
+    {
+      "id": "ARCH-008",
+      "severity": "low",
+      "title": "control_contract.py 的 rewrite_after_planning 与 execution_plan.json 存在信息冗余",
+      "description": "execution_plan.json 已经包含了 10 个阶段的完整定义（phase、stage、workers、expected_output_path），control_contract.json 又包含了 research_workers、layer2_constraints、acceptance_criteria 等信息。两者有重叠：acceptance_criteria 可以从 frozen_spec.json 提取，research_workers 可以从 execution_plan.json 的 research 阶段提取。control_contract.py 的 build_control_contract() 从 planning.json 和 frozen_spec.json 重新计算这些信息，而不是从 execution_plan.json 读取。这导致同一个信息可能在三个地方有不同版本。",
+      "root_cause": "control_contract 的引入是为了解决 Planner 动态生成的专家信息需要同步到后续阶段的问题。但它的设计是「重新计算」而非「传递」，与 execution_plan.json 的「预定义阶段」模型存在张力。",
+      "impact": "如果三个数据源不一致（例如 Planner 修改了 acceptance_criteria 但没有同步到 frozen_spec），后续阶段可能使用错误的需求列表。当前由于 control_contract 在 planning 完成后重新生成，实际运行中可能不会出现问题，但架构上没有保证一致性。",
+      "fix_suggestion": "明确 control_contract 的职责边界：它只应该包含 execution_plan.json 中不存在的动态信息（Planner 生成的专家映射、动态约束）。静态信息（acceptance_criteria）应该从 frozen_spec.json 单一来源读取，不在 control_contract 中重复。"
+    }
+  ],
+  "recommendation": "最关键的修复是删除 Consumer + Webhook 间接执行路径（ARCH-001），回归主 Agent 直接 spawn orchestrator 的简洁架构。具体步骤：\n\n1. **合并执行路径**：在 run_solution_pro() 返回后，主 Agent 必须立即执行 Step 4（spawn orchestrator）。如果 spawn_fn 可用，直接调用 run_harness_v2()；如果不可用，报错而非静默生成计划。\n\n2. **删除 Consumer 线程**：移除 consumer.py 的 _consumer_loop、_spawn_deepflow_task、_send_webhook。保留 start/stop/status 接口但内部为空操作（向后兼容）。\n\n3. **合并 Cron 和 Consumer 巡检**：将 pending 任务检测整合到 Cron watcher 中，Cron 不仅检查 stages/，也检查 SQLite 中的 pending 任务。如果发现 pending 且超过 N 分钟无进展，发告警。\n\n4. **引入 StateManager**：统一 SQLite 和文件系统的状态变更，确保 .completed 写入后同步更新 SQLite 状态。\n\n5. **增强 frozen_spec 质量反馈**：write_frozen_spec() 返回质量评分，低质量时警告调用方。",
+  "architecture_diagram_explanation": "当前架构的问题核心可以用一句话概括：'Agent 能直接 spawn orchestrator 的地方，为什么要绕 SQLite + Consumer + Webhook + Agent + spawn？'\n\n答案：不应该绕。Consumer + Webhook 是历史补丁，应该在解决原始问题后被清理，而不是成为默认路径。"
+}

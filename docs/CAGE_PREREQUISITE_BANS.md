@@ -32,7 +32,7 @@ sessions_spawn(runtime="subagent", mode="run", task=...)
 
 **记忆锚点**: 
 > "exec无openclaw，有import就失败"
-> "Investment已成功，Solution应复制"
+> "Solution已成功，应复制已有模式"
 > "不要臆想新方案，先查已有成功经验"
 
 ---
@@ -271,7 +271,7 @@ python3 .deepflow/cage/check_prerequisite.py <contract.yaml>
 | 锚点 | 含义 |
 |:---|:---|
 | "exec无openclaw，有import就失败" | BAN-001 |
-| "Investment已成功，Solution应复制" | RED-003 |
+| "Solution已成功，应复制已有模式" | RED-003 |
 | "不要臆想新方案，先查已有成功经验" | RED-003 |
 | "架构设计是宪法，绕过是政变" | BAN-002 |
 | "spawn返回的是车票，不是目的地" | BAN-002 |

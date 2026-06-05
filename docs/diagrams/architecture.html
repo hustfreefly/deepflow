@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepFlow 系统架构图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'SF Pro Display', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #0a0a0f;
+    color: #e8e8ed;
+    padding: 40px;
+    min-height: 100vh;
+  }
+  .header { text-align: center; margin-bottom: 48px; }
+  .header h1 {
+    font-size: 36px; font-weight: 700; letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .header .subtitle { color: #888; font-size: 15px; }
+  .header .stats {
+    display: flex; gap: 32px; justify-content: center; margin-top: 16px;
+  }
+  .header .stat {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; padding: 12px 24px; text-align: center;
+  }
+  .header .stat .num { font-size: 28px; font-weight: 700; color: #60a5fa; }
+  .header .stat .label { font-size: 12px; color: #888; margin-top: 2px; }
+
+  .container { max-width: 1600px; margin: 0 auto; }
+
+  /* ===== OpenClaw Layer ===== */
+  .layer {
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+    padding: 32px;
+    margin-bottom: 24px;
+    position: relative;
+    background: rgba(255,255,255,0.02);
+  }
+  .layer-label {
+    position: absolute; top: -12px; left: 24px;
+    font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+    padding: 4px 12px; border-radius: 20px;
+  }
+
+  .layer-openclaw { border-color: rgba(96,165,250,0.3); }
+  .layer-openclaw .layer-label { background: rgba(96,165,250,0.15); color: #60a5fa; }
+
+  .layer-deepflow { border-color: rgba(167,139,250,0.3); }
+  .layer-deepflow .layer-label { background: rgba(167,139,250,0.15); color: #a78bfa; }
+
+  .layer-domain { border-color: rgba(244,114,182,0.3); }
+  .layer-domain .layer-label { background: rgba(244,114,182,0.15); color: #f472b6; }
+
+  .layer-data { border-color: rgba(52,211,153,0.3); }
+  .layer-data .layer-label { background: rgba(52,211,153,0.15); color: #34d399; }
+
+  .layer-frontend { border-color: rgba(251,191,36,0.3); }
+  .layer-frontend .layer-label { background: rgba(251,191,36,0.15); color: #fbbf24; }
+
+  /* ===== Grid layouts ===== */
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+
+  /* ===== Cards ===== */
+  .card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 20px;
+    transition: all 0.2s;
+  }
+  .card:hover { background: rgba(255,255,255,0.05); transform: translateY(-2px); }
+  .card-title {
+    font-size: 16px; font-weight: 600; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title .icon { font-size: 20px; }
+  .card-items { display: flex; flex-wrap: wrap; gap: 6px; }
+  .card-item {
+    font-size: 12px; padding: 4px 10px; border-radius: 8px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06);
+    color: #ccc;
+  }
+  .card-item.py { border-color: rgba(96,165,250,0.3); color: #93c5fd; }
+  .card-item.md { border-color: rgba(167,139,250,0.3); color: #c4b5fd; }
+  .card-item.yaml { border-color: rgba(52,211,153,0.3); color: #6ee7b7; }
+  .card-item.data { border-color: rgba(251,191,36,0.3); color: #fcd34d; }
+
+  .card-lines {
+    margin-top: 8px; font-size: 11px; color: #666;
+    display: flex; justify-content: space-between;
+  }
+  .card-lines .lines-num { color: #60a5fa; font-weight: 600; }
+
+  /* ===== Connector arrows ===== */
+  .connector {
+    display: flex; justify-content: center; padding: 8px 0;
+    color: #444; font-size: 18px;
+  }
+  .connector-label {
+    font-size: 11px; color: #666; text-align: center;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .connector-label::before, .connector-label::after {
+    content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1);
+  }
+
+  /* ===== Domain cards ===== */
+  .domain-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(244,114,182,0.15);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .domain-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .domain-card.spec-pro::before { background: linear-gradient(90deg, #60a5fa, #3b82f6); }
+  .domain-card.solution::before { background: linear-gradient(90deg, #a78bfa, #7c3aed); }
+  .domain-card.investment::before { background: linear-gradient(90deg, #f472b6, #e11d48); }
+  .domain-card.research-pro::before { background: linear-gradient(90deg, #34d399, #059669); }
+
+  .domain-title {
+    font-size: 18px; font-weight: 700; margin-bottom: 4px;
+  }
+  .domain-desc { font-size: 13px; color: #888; margin-bottom: 16px; }
+
+  .domain-stats {
+    display: flex; gap: 16px; margin-bottom: 16px;
+  }
+  .domain-stat {
+    font-size: 12px; padding: 4px 10px; border-radius: 8px;
+    background: rgba(255,255,255,0.06);
+  }
+  .domain-stat .val { font-weight: 700; color: #60a5fa; }
+
+  .domain-files {
+    font-size: 12px; line-height: 1.8;
+  }
+  .domain-files .section-title {
+    font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;
+    margin: 8px 0 4px;
+  }
+  .domain-files .file {
+    padding: 2px 8px; border-radius: 6px; margin: 2px;
+    display: inline-block;
+  }
+  .domain-files .file.py { background: rgba(96,165,250,0.1); color: #93c5fd; }
+  .domain-files .file.md { background: rgba(167,139,250,0.1); color: #c4b5fd; }
+  .domain-files .file.yaml { background: rgba(52,211,153,0.1); color: #6ee7b7; }
+  .domain-files .file.json { background: rgba(251,191,36,0.1); color: #fcd34d; }
+
+  .domain-pipeline {
+    margin-top: 16px; padding: 12px; background: rgba(0,0,0,0.3);
+    border-radius: 10px; font-size: 12px;
+  }
+  .domain-pipeline .pipe-title { color: #888; margin-bottom: 8px; font-weight: 600; }
+  .domain-pipeline .pipe-steps { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .domain-pipeline .step {
+    padding: 4px 10px; border-radius: 8px; background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .domain-pipeline .arrow { color: #444; font-size: 14px; }
+
+  /* ===== Legend ===== */
+  .legend {
+    display: flex; gap: 24px; justify-content: center; margin-top: 32px;
+    padding: 16px; background: rgba(255,255,255,0.02); border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #888; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 1200px) {
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 768px) {
+    .grid-2, .grid-4 { grid-template-columns: 1fr; }
+    body { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>DeepFlow 系统架构全景图</h1>
+  <div class="subtitle">v4.0 · 2026-06-04 · 多 Agent 流水线框架</div>
+  <div class="stats">
+    <div class="stat"><div class="num">188K</div><div class="label">总行数</div></div>
+    <div class="stat"><div class="num">1,481</div><div class="label">文件数</div></div>
+    <div class="stat"><div class="num">4</div><div class="label">Domain 模块</div></div>
+    <div class="stat"><div class="num">6</div><div class="label">活跃契约 Cage</div></div>
+    <div class="stat"><div class="num">188K</div><div class="label">有效代码 85.5%</div></div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ═══ LAYER 0: OpenClaw Host ═══ -->
+  <div class="layer layer-openclaw">
+    <span class="layer-label">L0 · OpenClaw 宿主层</span>
+    <div class="grid-2" style="margin-top: 12px;">
+      <div class="card">
+        <div class="card-title"><span class="icon">🦞</span> OpenClaw Agent Runtime</div>
+        <div class="card-items">
+          <span class="card-item">Main Agent (小满)</span>
+          <span class="card-item">sessions_spawn</span>
+          <span class="card-item">sessions_yield</span>
+          <span class="card-item">Blackboard FS</span>
+          <span class="card-item">exec 工具链</span>
+          <span class="card-item">web_search / web_fetch</span>
+          <span class="card-item">cron 定时任务</span>
+        </div>
+        <div class="card-lines"><span>Agent 运行时 + 子Agent调度</span><span class="lines-num">宿主环境</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">📡</span> 外部集成</div>
+        <div class="card-items">
+          <span class="card-item py">飞书 Feishu</span>
+          <span class="card-item py">新浪财经</span>
+          <span class="card-item py">Tushare</span>
+          <span class="card-item py">Kie.ai 图像</span>
+          <span class="card-item py">邮件 SMTP</span>
+          <span class="card-item py">GitHub API</span>
+          <span class="card-item py">NotebookLM</span>
+        </div>
+        <div class="card-lines"><span>外部服务通道</span><span class="lines-num">API 集成</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">▼ <span style="color:#60a5fa">sessions_spawn + exec</span> ▼</div>
+
+  <!-- ═══ LAYER 1: DeepFlow Core ═══ -->
+  <div class="layer layer-deepflow">
+    <span class="layer-label">L1 · DeepFlow 核心引擎 (9,649 行 · 9 文件)</span>
+    <div class="grid-3" style="margin-top: 12px;">
+      <div class="card">
+        <div class="card-title"><span class="icon">🚪</span> 统一入口 & 编排</div>
+        <div class="card-items">
+          <span class="card-item py">unified_entry.py</span>
+          <span class="card-item py">app_config.py</span>
+          <span class="card-item py">task_builder.py</span>
+          <span class="card-item py">checkpoint_manager.py</span>
+        </div>
+        <div class="card-lines"><span>入口路由 + 任务构建 + 检查点</span><span class="lines-num">agents/ + orchestrator/</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">📦</span> Blackboard 共享总线</div>
+        <div class="card-items">
+          <span class="card-item py">blackboard/ 模块</span>
+          <span class="card-item">spec 目录</span>
+          <span class="card-item">stages 目录</span>
+          <span class="card-item">JSON 文件协议</span>
+        </div>
+        <div class="card-lines"><span>Agent 间唯一状态共享机制</span><span class="lines-num">文件读写协议</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">🎯</span> 契约 Cage + Prompt 注册</div>
+        <div class="card-items">
+          <span class="card-item py">cage/ 模块</span>
+          <span class="card-item py">prompt_registry.py</span>
+          <span class="card-item py">prompt_utils.py</span>
+          <span class="card-item py">config_loader.py</span>
+          <span class="card-item yaml">6 个 active contracts</span>
+        </div>
+        <div class="card-lines"><span>契约驱动的 Prompt 加载 + 版本管理</span><span class="lines-num">cage/active/</span></div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top: 20px;">
+      <div class="card">
+        <div class="card-title"><span class="icon">📊</span> 质量保障 + 数据</div>
+        <div class="card-items">
+          <span class="card-item py">quality/ 模块</span>
+          <span class="card-item py">data/ 模块</span>
+          <span class="card-item py">data_providers/</span>
+          <span class="card-item py">TushareProvider</span>
+        </div>
+        <div class="card-lines"><span>质量门禁 + 数据源抽象</span><span class="lines-num">quality/ + data/</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">⚙️</span> 脚本 & 工具</div>
+        <div class="card-items">
+          <span class="card-item py">prompt_loader.py</span>
+          <span class="card-item py">validate.py</span>
+          <span class="card-item py">ci/ checks</span>
+          <span class="card-item py">runners/</span>
+          <span class="card-item">maintenance/</span>
+        </div>
+        <div class="card-lines"><span>Prompt 加载 + CI/CD + 维护工具</span><span class="lines-num">scripts/ · 6,903 行</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">▼ <span style="color:#a78bfa">domain dispatch + spawn Workers</span> ▼</div>
+
+  <!-- ═══ LAYER 2: Domain Modules ═══ -->
+  <div class="layer layer-domain">
+    <span class="layer-label">L2 · Domain 领域模块 (33,741 行 · 4 模块)</span>
+    <div class="grid-2" style="margin-top: 12px;">
+
+      <!-- Spec Pro -->
+      <div class="domain-card spec-pro">
+        <div class="domain-title">🔍 Spec Pro · 需求梳理引擎</div>
+        <div class="domain-desc">苏格拉底式多轮对话，产出 Living Spec (v3 扁平架构)</div>
+        <div class="domain-stats">
+          <div class="domain-stat"><span class="val">9,511</span> 行</div>
+          <div class="domain-stat"><span class="val">35</span> 文件</div>
+          <div class="domain-stat"><span class="val">2.1</span> 版本</div>
+        </div>
+        <div class="domain-files">
+          <div class="section-title">核心逻辑</div>
+          <span class="file py">coordinator.py</span>
+          <span class="file py">spec_pro_api.py</span>
+          <span class="file py">models.py</span>
+          <span class="file py">merge_spec.py</span>
+          <span class="file py">process_guard.py</span>
+          <span class="file py">response_normalizer.py</span>
+          <span class="file py">worker_fallback.py</span>
+          <span class="file py">schemas.py</span>
+          <div class="section-title">Prompts (8 个)</div>
+          <span class="file md">parse.md</span>
+          <span class="file md">assess.md</span>
+          <span class="file md">assess_guide.md</span>
+          <span class="file md">guide.md</span>
+          <span class="file md">parse_response.md</span>
+          <span class="file md">structure.md</span>
+          <span class="file md">harness.md</span>
+          <span class="file md">orchestrator.md</span>
+          <div class="section-title">契约</div>
+          <span class="file yaml">cage/spec_pro_v2.0.yaml</span>
+        </div>
+        <div class="domain-pipeline">
+          <div class="pipe-title">执行管线 (v3 扁平)</div>
+          <div class="pipe-steps">
+            <span class="step">用户输入</span>
+            <span class="arrow">→</span>
+            <span class="step">ParseWorker</span>
+            <span class="arrow">→</span>
+            <span class="step">主Agent 评分</span>
+            <span class="arrow">→</span>
+            <span class="step">生成问题</span>
+            <span class="arrow">→</span>
+            <span class="step">循环收集</span>
+            <span class="arrow">→</span>
+            <span class="step">Living Spec ✓</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Solution Pro -->
+      <div class="domain-card solution">
+        <div class="domain-title">🏗️ Solution Pro · 方案设计引擎</div>
+        <div class="domain-desc">10 阶段管线，从需求到架构到实现方案</div>
+        <div class="domain-stats">
+          <div class="domain-stat"><span class="val">15,323</span> 行</div>
+          <div class="domain-stat"><span class="val">75</span> 文件</div>
+          <div class="domain-stat"><span class="val">1.0</span> 版本</div>
+        </div>
+        <div class="domain-files">
+          <div class="section-title">核心逻辑</div>
+          <span class="file py">orchestrator_agent.py</span>
+          <span class="file py">task_builder.py</span>
+          <span class="file py">planner.py</span>
+          <span class="file py">frozen_spec.py</span>
+          <span class="file py">blackboard.py</span>
+          <span class="file py">completion_handler.py</span>
+          <span class="file py">progress_tracker.py</span>
+          <div class="section-title">质量门禁</div>
+          <span class="file py">harness_scorer.py</span>
+          <span class="file py">harness_validator.py</span>
+          <span class="file py">harness_check_expert.py</span>
+          <span class="file py">harness_scoring.py</span>
+          <span class="file py">security_validator.py</span>
+          <span class="file py">check_contract.py</span>
+          <span class="file py">control_contract.py</span>
+          <div class="section-title">Prompts & 配置</div>
+          <span class="file md">prompts/</span>
+          <span class="file md">reports/</span>
+          <span class="file py">config.py</span>
+          <span class="file py">spec_context.py</span>
+          <div class="section-title">契约</div>
+          <span class="file yaml">cage/solution_v1.0.yaml</span>
+        </div>
+        <div class="domain-pipeline">
+          <div class="pipe-title">执行管线 (10 阶段)</div>
+          <div class="pipe-steps">
+            <span class="step">Living Spec</span>
+            <span class="arrow">→</span>
+            <span class="step">Planner</span>
+            <span class="arrow">→</span>
+            <span class="step">Workers 并行</span>
+            <span class="arrow">→</span>
+            <span class="step">Consolidator</span>
+            <span class="arrow">→</span>
+            <span class="step">Fix</span>
+            <span class="arrow">→</span>
+            <span class="step">Harness ✓</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Investment -->
+      <div class="domain-card investment">
+        <div class="domain-title">📈 Investment · 投资分析引擎</div>
+        <div class="domain-desc">A 股/港股/美股/加密多维投资分析</div>
+        <div class="domain-stats">
+          <div class="domain-stat"><span class="val">5,574</span> 行</div>
+          <div class="domain-stat"><span class="val">25</span> 文件</div>
+          <div class="domain-stat"><span class="val">2.0</span> 版本</div>
+        </div>
+        <div class="domain-files">
+          <div class="section-title">核心逻辑</div>
+          <span class="file py">__init__.py</span>
+          <span class="file py">cage_orchestrator.py</span>
+          <span class="file md">_overview.md</span>
+          <div class="section-title">Prompts & 配置</div>
+          <span class="file md">prompts/</span>
+          <span class="file py">config/</span>
+          <div class="section-title">契约</div>
+          <span class="file yaml">cage/investment_v2.0.yaml</span>
+          <span class="file yaml">architecture.yaml</span>
+          <span class="file yaml">code.yaml</span>
+          <span class="file yaml">general.yaml</span>
+        </div>
+        <div class="domain-pipeline">
+          <div class="pipe-title">执行管线</div>
+          <div class="pipe-steps">
+            <span class="step">热门扫描</span>
+            <span class="arrow">→</span>
+            <span class="step">8维评分</span>
+            <span class="arrow">→</span>
+            <span class="step">研报生成</span>
+            <span class="arrow">→</span>
+            <span class="step">飞书推送</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Research Pro -->
+      <div class="domain-card research-pro">
+        <div class="domain-title">🔬 Research Pro · 深度研究引擎</div>
+        <div class="domain-desc">多轮深度调研 + 引用验证 + 来源追踪</div>
+        <div class="domain-stats">
+          <div class="domain-stat"><span class="val">2,727</span> 行</div>
+          <div class="domain-stat"><span class="val">22</span> 文件</div>
+          <div class="domain-stat"><span class="val">1.0</span> 版本</div>
+        </div>
+        <div class="domain-files">
+          <div class="section-title">核心逻辑</div>
+          <span class="file py">orchestrator.py</span>
+          <span class="file py">citation_verifier.py</span>
+          <span class="file py">source_registry.py</span>
+          <span class="file py">keyword_generator.py</span>
+          <span class="file py">tier_classifier.py</span>
+          <div class="section-title">Prompts & 测试</div>
+          <span class="file md">prompts/</span>
+          <span class="file py">tests/</span>
+          <span class="file py">config/</span>
+          <div class="section-title">契约</div>
+          <span class="file yaml">cage/research_pro_v1.0.yaml</span>
+        </div>
+        <div class="domain-pipeline">
+          <div class="pipe-title">执行管线</div>
+          <div class="pipe-steps">
+            <span class="step">查询</span>
+            <span class="arrow">→</span>
+            <span class="step">关键词生成</span>
+            <span class="arrow">→</span>
+            <span class="step">搜索+验证</span>
+            <span class="arrow">→</span>
+            <span class="step">研报输出</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">▼ <span style="color:#f472b6">Blackboard 文件读写 + JSON 状态传递</span> ▼</div>
+
+  <!-- ═══ LAYER 3: Data & Frontend ═══ -->
+  <div class="grid-2">
+    <div class="layer layer-data">
+      <span class="layer-label">L3 · 数据层 (61,532 行)</span>
+      <div style="margin-top: 12px;">
+        <div class="card" style="margin-bottom: 12px;">
+          <div class="card-title"><span class="icon">📋</span> Blackboard 运行时数据</div>
+          <div class="card-items">
+            <span class="card-item data">living_spec.json</span>
+            <span class="card-item data">quality_report.json</span>
+            <span class="card-item data">harness_report.json</span>
+            <span class="card-item data">quality_trajectory.json</span>
+            <span class="card-item data">conversation_log.json</span>
+            <span class="card-item data">round_result.json</span>
+            <span class="card-item data">coord_state.json</span>
+            <span class="card-item data">stages/round_*.json</span>
+          </div>
+          <div class="card-lines"><span>Agent 间状态传递 · JSON 文件协议</span><span class="lines-num">blackboard/{session_id}/</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">📚</span> 文档 & 归档 (34,615 行)</div>
+          <div class="card-items">
+            <span class="card-item md">docs/ 目录</span>
+            <span class="card-item md">ARCHIVED/</span>
+            <span class="card-item md">reviews/</span>
+            <span class="card-item md">projects/</span>
+          </div>
+          <div class="card-lines"><span>架构文档 + 审计报告 + 项目归档</span><span class="lines-num">docs/ · 34.6K 行</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="layer layer-frontend">
+      <span class="layer-label">L4 · 前端层 (5,875 行)</span>
+      <div style="margin-top: 12px;">
+        <div class="card">
+          <div class="card-title"><span class="icon">🌐</span> Web Dashboard</div>
+          <div class="card-items">
+            <span class="card-item py">backend/</span>
+            <span class="card-item">web/ 前端</span>
+            <span class="card-item data">tasks.db (SQLite)</span>
+          </div>
+          <div class="card-lines"><span>任务队列管理 · 前后端分离</span><span class="lines-num">frontend/ · 5.9K 行</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div>Python 源码</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div>Markdown 文档</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#34d399"></div>YAML 契约</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div>JSON 数据</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f472b6"></div>Domain 模块</div>
+  </div>
+
+</div>
+
+</body>
+</html>
