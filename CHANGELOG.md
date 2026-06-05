@@ -7,12 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-05
+
+### Changed
+- **Investment 模块移除** — 简化框架，移除所有外部 Python 依赖
+  - 移除 `domains/investment/`（28 个文件）
+  - 移除 `core/data/`（SearchEngine, DataManagerWorker）
+  - 移除 `core/data_providers/`（TushareProvider）
+  - 移除 `core/task_builder.py`（Investment 专用 task builder）
+  - 移除 `core/orchestrator/master_agent.py` + `orchestrator_agent.py`（Investment 专用 orchestrator）
+  - 移除 `requirements.txt`（tushare/pandas/duckduckgo_search/google-genai 全部不再需要）
+  - 移除 Investment 专属配置：`config/data/`、`config/industries/`、`config/pipelines/`、`cage/active/investment_v2.0.yaml`、`domains/investment.yaml`
+  - 更新 `core/unified_entry.py` — 移除 investment 域注册
+  - 更新 `core/quality/entry_harness.py` — investment 域返回已移除错误
+- **零外部 Python 依赖** — OpenClaw 用户 clone 即跑
+  - OpenClaw 自带：pyyaml/pandas/requests/sessions_spawn/web_search/message
+  - DeepFlow 不再需要：tushare/duckduckgo_search/google-genai
+
+### Component Versions
+- **Spec Pro: 2.4.0**
+- **Solution Pro: V4.4**
+- Research Pro: 1.0.0
+- ~~Investment~~: **REMOVED**
+
+---
+
 ## [0.3.0] - 2026-06-03
 
 ### Component Versions
 - **Spec Pro: 2.4.0** (from 2.3.0)
 - **Solution Pro: V4.4** (from 4.3.0)
-- Investment: 2.0.0
+- ~~Investment~~: 2.0.0 (later removed in 0.4.0)
 - Research Pro: 1.0.0
 
 ### Added

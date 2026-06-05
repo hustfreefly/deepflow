@@ -1,9 +1,9 @@
 # DeepFlow
 
 > ⚠️ **Platform Dependency**: DeepFlow currently **only supports the OpenClaw platform**. Core scheduling depends on OpenClaw native APIs such as `sessions_spawn` / `sessions_yield`. Standalone execution or integration with other agent frameworks (e.g., AutoGen, LangChain, CrewAI) is not yet supported.
-> **Date**: 2026-06-03
-> **Status**: ✅ Four-domain architecture complete: Spec Pro v2.4 + Solution Pro V4.4 + Investment + Research Pro
-> **Version**: 0.3.0
+> **Date**: 2026-06-05
+> **Status**: ✅ Three-domain architecture complete: Spec Pro v2.4 + Solution Pro V4.4 + Research Pro
+> **Version**: 0.4.0
 > **Positioning**: DeepFlow is an **extensible multi-agent pipeline framework** that provides a general-purpose orchestration engine and quality gates. Domain-specific applications are built on top of this framework.
 
 ---
@@ -14,14 +14,15 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
 
 > **Architecture**: See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture design.
 
-### Four-Domain Architecture
+### Three-Domain Architecture
 
 | Domain | Version | Positioning | Description |
 |--------|---------|-------------|-------------|
 | **Spec Pro** | v2.4 | 需求梳理引擎 | 苏格拉底式对话收集需求，输出 Living Spec（三层版本号体系） |
 | **Solution Pro** | V4.4 | 方案设计引擎 | 固定 10 阶段 B 方案 + 契约笼子 + REQ-ID 追踪 + 状态持久化断点续接 |
-| **Investment** | - | 投资分析引擎 | 投资研究管线：数据收集 → 多维分析 → 审计 → 投资简报 |
 | **Research Pro** | - | 深度研究引擎 | 多源搜索 → 分层研究 → 引用验证 → 研究报告 |
+
+> **Note**: Investment domain was removed in v0.4.0 to reduce external dependencies (tushare/duckduckgo/google-genai). DeepFlow is now a cleaner, more focused framework for OpenClaw users.
 
 ### Domain Collaboration Flow
 
@@ -39,17 +40,17 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
 └─────────────────┘
 
 或独立使用:
-┌─────────────────┐     ┌─────────────────┐
-│   Investment    │     │   Research Pro  │
-│  (投资分析)      │     │  (深度研究)      │
-└─────────────────┘     └─────────────────┘
+┌─────────────────┐
+│   Research Pro  │
+│  (深度研究)      │
+└─────────────────┘
 ```
 
 ### Core Capabilities
 
 | Capability | Description |
 |------------|-------------|
-| **Four-Domain Architecture** | Spec Pro → Solution Pro → Investment → Research Pro |
+| **Three-Domain Architecture** | Spec Pro → Solution Pro → Research Pro |
 | **Multi-Agent Pipeline** | 10-Stage full pipeline with parallel workers and quality gates |
 | **Quality Gates** | Harness V4: Completeness / Necessity / Target Consistency / Global Impact + REQ-ID 追踪 |
 | **Living Spec Handoff** | Spec Pro → Solution Pro 无缝交接，需求自动传递 |
@@ -84,7 +85,6 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
 │      Domain Application Layer            │
 │  • Spec Pro (需求梳理)                    │
 │  • Solution Pro (方案设计)                │
-│  • Investment (投资分析)                  │
 │  • Research Pro (深度研究)                │
 └──────────────────────────────────────────┘
 ```
@@ -164,19 +164,9 @@ result = entry.run({
 
 详见 [domains/solution/SKILL.md](domains/solution/SKILL.md)
 
-### Investment (投资分析)
+### Research Pro (深度研究)
 
-```bash
-# CLI 入口
-python3 tools/deepflow_cli.py --code 688981.SH --name SMIC --industry "Semiconductor Manufacturing"
-
-# 或通过 UnifiedEntry
-from core.unified_entry import UnifiedEntry
-entry = UnifiedEntry()
-entry.run({"domain": "investment", "code": "688981.SH", "name": "中芯国际"})
-```
-
-详见 [domains/investment/](domains/investment/)
+详见 [domains/research_pro/](domains/research_pro/)
 
 ### Research Pro (深度研究)
 
@@ -198,7 +188,7 @@ entry.run({"domain": "investment", "code": "688981.SH", "name": "中芯国际"})
 │   ├── orchestrator/          # Pipeline orchestrator
 │   ├── quality/               # Quality gate
 │   └── search/                # Unified search interface
-├── domains/                   # Four domain applications
+├── domains/                   # Three domain applications
 │   ├── spec_pro/              # Spec Pro (需求梳理引擎)
 │   │   ├── prompts/           # Worker prompts (guide/assess/parse/structure)
 │   │   ├── coordinator.py     # Spec Pro Coordinator
@@ -208,7 +198,6 @@ entry.run({"domain": "investment", "code": "688981.SH", "name": "中芯国际"})
 │   │   ├── orchestrator_agent.py
 │   │   ├── task_builder.py
 │   │   └── SKILL.md           # Agent execution guide
-│   ├── investment/            # Investment (投资分析引擎)
 │   └── research_pro/          # Research Pro (深度研究引擎)
 ├── config/                    # Configuration files
 ├── cage/                      # Contract Cage (契约笼子)

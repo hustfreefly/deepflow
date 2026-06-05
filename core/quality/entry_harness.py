@@ -56,7 +56,7 @@ class EntryHarness:
         6. 返回 orchestrator
 
         Args:
-            domain: 领域标识（如 'solution', 'investment'）
+            domain: 领域标识（如 'solution', 'code', 'general'）
             context: 领域特定上下文（topic, constraints, code, name 等）
             spawn_fn: 注入的 spawn 函数（主Agent提供）
 
@@ -117,7 +117,7 @@ class EntryHarness:
         Raises:
             ValueError: domain 不支持
         """
-        supported_domains = ["solution", "investment", "code", "general"]
+        supported_domains = ["solution", "code", "general"]
         if domain not in supported_domains:
             raise ValueError(
                 f"Unsupported domain: '{domain}'. "
@@ -181,40 +181,10 @@ class EntryHarness:
             session_id = orch.init()
 
         elif domain == "investment":
-            from domains.investment import InvestmentOrchestrator
-
-            code = context.get("code", "")
-            name = context.get("name", "")
-
-            if not code or not name:
-                raise ValueError("Domain 'investment' requires 'code' and 'name' in context")
-
-            orch = InvestmentOrchestrator()
-            # InvestmentOrchestrator 的 run() 生成 session_id，这里手动生成
-            import re
-            import uuid
-
-            if not re.match(r"^\d{6}\.(SH|SZ|BJ)$", code):
-                raise ValueError(f"Invalid code format: {code}")
-            if not (2 <= len(name) <= 20):
-                raise ValueError(f"Name length must be 2-20: {len(name)}")
-
-            code_clean = code.replace(".", "_").lower()
-            name_clean = name.lower().replace(" ", "_")[:10]
-            hash_part = uuid.uuid4().hex[:8]
-            session_id = f"inv_{name_clean}_{code_clean}_{hash_part}"
-
-            # 创建 Blackboard
-            bb = BlackboardManager(session_id=session_id)
-            bb.init_session()
-
-            # 保存基础上下文
-            bb.write("context.json", {
-                "domain": "investment",
-                "code": code,
-                "name": name,
-                "session_id": session_id,
-            })
+            raise ValueError(
+                "Domain 'investment' has been removed from DeepFlow.\n"
+                "See CHANGELOG.md [0.4.0] for details."
+            )
 
         else:
             # 通用 domain
@@ -299,82 +269,10 @@ class EntryHarness:
             return str(plan_path)
 
         elif domain == "investment":
-            # Investment 领域：构建简化版 execution_plan
-            # 投资分析采用单轮执行，阶段固定
-            phases = [
-                {
-                    "phase": 1,
-                    "stage": "data_collection",
-                    "worker": "data_manager",
-                    "parallel": False,
-                    "timeout": 300,
-                },
-                {
-                    "phase": 2,
-                    "stage": "search",
-                    "worker": "search_engine",
-                    "parallel": False,
-                    "timeout": 300,
-                },
-                {
-                    "phase": 3,
-                    "stage": "research",
-                    "workers": [
-                        "researcher_finance",
-                        "researcher_tech",
-                        "researcher_market",
-                    ],
-                    "parallel": True,
-                    "timeout": 300,
-                },
-                {
-                    "phase": 4,
-                    "stage": "audit",
-                    "workers": [
-                        "auditor_factual",
-                        "auditor_upside",
-                        "auditor_downside",
-                    ],
-                    "parallel": True,
-                    "timeout": 300,
-                },
-                {
-                    "phase": 5,
-                    "stage": "summarize",
-                    "worker": "summarizer",
-                    "parallel": False,
-                    "timeout": 300,
-                },
-            ]
-
-            plan = {
-                "session_id": session_id,
-                "domain": "investment",
-                "context": context,
-                "phases": phases,
-            }
-
-            tasks = {
-                "data_manager": f"投资数据采集：{context.get('name')} ({context.get('code')})",
-                "search_engine": f"投资补充搜索：{context.get('name')}",
-                "researcher_finance": f"财务研究：{context.get('name')}",
-                "researcher_tech": f"技术研究：{context.get('name')}",
-                "researcher_market": f"市场研究：{context.get('name')}",
-                "auditor_factual": f"事实审计：{context.get('name')}",
-                "auditor_upside": f"上行风险审计：{context.get('name')}",
-                "auditor_downside": f"下行风险审计：{context.get('name')}",
-                "summarizer": f"投资汇总：{context.get('name')}",
-            }
-
-            plan_path = session_dir / "execution_plan.json"
-            with open(plan_path, "w", encoding="utf-8") as f:
-                json.dump(plan, f, ensure_ascii=False, indent=2)
-
-            tasks_path = session_dir / "tasks.json"
-            with open(tasks_path, "w", encoding="utf-8") as f:
-                json.dump(tasks, f, ensure_ascii=False, indent=2)
-
-            return str(plan_path)
+            raise ValueError(
+                "Domain 'investment' has been removed from DeepFlow.\n"
+                "See CHANGELOG.md [0.4.0] for details."
+            )
 
         else:
             # 通用领域：最小执行计划

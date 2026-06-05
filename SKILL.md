@@ -1,8 +1,10 @@
 # DeepFlow Skill — 多 Agent 协作自动化管线
 
-> DeepFlow 0.3.0 (Spec Pro v2.4 + Solution Pro V4.4 + Investment + Research Pro)
+> DeepFlow 0.4.0 (Spec Pro v2.4 + Solution Pro V4.4 + Research Pro)
 
-**定位**: 支持 Spec Pro（需求梳理）、Solution Pro（方案设计）、Investment（投资分析）、Research Pro（深度研究）四领域的多 Agent 协作自动化管线。
+> **0.4.0 变更**: Investment 模块已移除（依赖 tushare/duckduckgo/google-genai），框架更轻量，OpenClaw 用户 clone 即跑
+
+**定位**: 支持 Spec Pro（需求梳理）、Solution Pro（方案设计）、Research Pro（深度研究）的多 Agent 协作自动化管线。
 
 **完整架构说明**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
@@ -10,13 +12,11 @@
 
 | 命令 | 示例 | 领域 |
 |:---|:---|:---|
-| `/deep` | `/deep 分析 688347.SH 华虹公司 2026年业绩` | investment |
-| `深度分析` | `深度分析：中芯国际投资研报` | investment |
 | `/solution` | `/solution 设计一个智能物流仓储系统升级方案` | solution |
 | `方案设计` | `方案设计：设计企业级微服务架构` | solution |
 | `/spec-pro` | `/spec-pro 我要做一个 AI 算力调度平台` | spec_pro |
 
-## 执行流程
+## 执行流程（Solution Pro）
 
 ### 方式一：统一入口（推荐）
 
@@ -90,7 +90,6 @@ sessions_yield()
 |:---|:---|:---|:---|
 | `spec_pro` | 苏格拉底对话 | 需求梳理，输出 Living Spec + 三层版本号 | 对话式 |
 | `solution` | 固定 10 阶段闭环 | Harness V4 + REQ-ID 追踪 + 状态持久化 | 固定管线 |
-| `investment` | 并行研究+审计 | 投资研报，三维度审计+三情景目标价 | 单模式 |
 | `research_pro` | 分层搜索+引用验证 | 多源搜索 → 分层研究 → 引用验证 | 单模式 |
 
 ## Solution Pro 固定 10 阶段管线
@@ -139,11 +138,9 @@ sessions_yield()
 
 - Python 3.10+
 - OpenClaw Agent Run 环境
-- 数据源：Tushare, 新浪财经（投资模块）
-- 搜索：Gemini API, DuckDuckGo（方案设计模块）
 
 ## 版本
 
-- **Version**: 0.3.0
-- **Status**: Spec Pro v2.4 + Solution Pro V4.4 + 契约笼子 + REQ-ID 质量追踪 + 状态持久化
-- **Date**: 2026-06-03
+- **Version**: 0.4.0
+- **Status**: Investment 模块移除，框架精简；Spec Pro v2.4 + Solution Pro V4.4 + 契约笼子 + REQ-ID 质量追踪 + 状态持久化
+- **Date**: 2026-06-05
