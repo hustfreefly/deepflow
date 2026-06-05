@@ -7,20 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-03
+
+### Component Versions
+- **Spec Pro: 2.4.0** (from 2.3.0)
+- **Solution Pro: V4.4** (from 4.3.0)
+- Investment: 2.0.0
+- Research Pro: 1.0.0
+
+### Added
+- **Spec Pro → Solution Pro 链路升级（三阶段完成）**
+  - frozen_spec V2.0 全量提取：constraints 3 key → 全量遍历所有 key
+  - 有效需求声明识别（user_directives）
+  - 三层版本号体系（Component / Prompt / Cage 独立演进）
+- **状态持久化断点续接** — Solution Pro V4.4
+  - Cron 巡检机制（Orchestrator + Cron Watcher 双层架构）
+  - 运行状态持久化，支持断点续接
+
 ### Changed
-- **frozen_spec.py V2.0 — 全量提取修复**（`domains/solution/frozen_spec.py`，16 行新增代码）
-  - constraints 从硬编码 3 个 key（budget/timeline/tech_stack）→ 遍历所有 key（11 条）
-  - guardrails.resolved 新增提取（7 条 design_decision）
-  - inferred 新增提取（10 条 inferred category）
-  - 总 REQ 数：74 → 98，信息保留率：~95% → ~100%
-  - 下游零影响：所有消费方均为泛型遍历
-- **文档全面更新**（6 份文档）
-  - `docs/spec_pro_review.md`：更新 extraction 规则 + solution_pro_hints 消费状态
-  - `ARCHITECTURE_REVIEW/frozen_spec_v2_review.md`：更新提取表 + 新增变更记录
-  - `domains/spec_pro/IMPROVEMENTS.md`：标注 8 个问题的实施状态（7✅ 已完成 + 1⚠️ 待验证）
-  - `reviews/spec-to-solution-ux-review.md`：标注 5 项 P0 问题已修复
-  - `docs/design/spec_solution_link_v2.md`：标注三层缺陷已修复
-  - `docs/design/spec_pro_to_solution_pro_link_upgrade.md`：标注架构缺陷已修复
+- **Solution Pro 固定 10 阶段 B 方案** — 废弃 Quick/Standard/Pro 三种模式
+  - 统一为固定管线，降低入口复杂度
+- **文档版本全面对齐** — README / SKILL.md 更新为 0.3.0
+
+### Fixed
+- **Solution Pro V4.4 契约笼子修复** — `domains/solution/`
+- **Spec Pro V2.4 修复** — `domains/spec_pro/`
+
+---
 
 ## [0.1.4] - 2026-06-02
 

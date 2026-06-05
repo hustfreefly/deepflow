@@ -1,9 +1,9 @@
 # DeepFlow Architecture Design
 
-> **Document Version**: 1.2
-> **Date**: 2026-05-06
+> **Document Version**: 1.3
+> **Date**: 2026-06-03
 > **Author**: Zhongli Ji (姬忠礼)
-> **Status**: Architecture adapted from the V3.0 blueprint for the Investment Analysis scenario
+> **Status**: Four-domain architecture — Spec Pro v2.4 + Solution Pro V4.4 + Investment + Research Pro
 
 ---
 
@@ -11,8 +11,8 @@
 
 This document describes the architectural evolution of DeepFlow:
 1. **Original Blueprint (V3.0)**: Configuration-driven declarative multi-agent collaboration platform
-2. **Current Implementation (V4.0 / 0.1.1)**: Adaptation for dual scenarios: Investment Analysis and Solution Design
-3. **Gap Analysis**: Objective comparison between the V3.0 blueprint and the V4.0 implementation
+2. **Current Implementation (V0.3.0 / 2026-06-03)**: Four-domain architecture with Spec Pro v2.4 + Solution Pro V4.4 + Investment + Research Pro
+3. **Gap Analysis**: Objective comparison between the V3.0 blueprint and the current implementation
 
 **Reference Documents**:
 - `docs/deepdive_ARCHITECTURE_DESIGN_FINAL_COMPLETE.md` - V3.0 full architecture design (37KB)
@@ -141,12 +141,12 @@ T+30min → 🔬 Deep Research (Full coverage + complete evidence chain + risk s
 
 ---
 
-## Part 2: Current Implementation (DeepFlow V4.0 / 0.1.1)
+## Part 2: Current Implementation (DeepFlow V0.3.0 / 2026-06-03)
 
 ### 2.1 Implementation Background
 
 **Date**: 2026-04-24
-**Version**: 0.1.1 (internal codename V4.0)
+**Version**: 0.3.0 (internal codename V4.0 → evolved to 0.3.0)
 **Goal**: Adapt the V3.0 blueprint to "Investment Analysis" and "Solution Design" vertical scenarios to quickly validate end-to-end feasibility.
 
 ### 2.2 Current Architecture (Solution Pro as Core Framework)
@@ -209,13 +209,13 @@ Main Agent (depth-0)
 
 ---
 
-### 2.5 Solution Pro Architecture (V3.1, 2026-05-05)
+### 2.5 Solution Pro Architecture (V4.4, 2026-06-03)
 
 **Positioning**: The core framework layer of DeepFlow, providing general-purpose orchestration and quality gates for all domain-specific applications.
 
 **Architecture Features**:
 - **Three-Layer Separation**: EntryHarness → PipelineOrchestrator → Workers
-- **Harness V2 Quality Gates**: Mid-term review (Reviewers) + Final gate (Harness Final)
+- **Harness V4 Quality Gates**: Completeness / Necessity / Target Consistency / Global Impact + REQ-ID 追踪 + Schema 分层验证
 - **Layer 2 Constraint Validation**: Planning dynamically generates constraints, Researchers explicitly validate them
 - **10-Stage Complete Pipeline**: Data Collection → Planning → Reviewers → Research → Consolidator → Audit → Fix → Harness Final → Summarizer
 - **Centralized Writes**: All Worker outputs are written through a unified BlackboardManager
@@ -238,7 +238,7 @@ Main Agent (depth-0)
 **Verified Capabilities**:
 | Capability | Verification Status | Notes |
 |:---|:---:|:---|
-| Quality Gate | ✅ | Harness V2 three-dimensional scoring (Completeness / Necessity / Target Consistency) |
+| Quality Gate | ✅ | ✅ Harness V4: 4D scoring + REQ-ID 追踪 + Schema 分层验证 |
 | Convergence Detection | ✅ | Planning Harness scoring + iterative fixes |
 | Progressive Delivery | ✅ | 30s quick preview → 2min first draft → 8min full report |
 | Configuration-Driven | ✅ | Domain YAML + Prompt Registry |
@@ -250,10 +250,10 @@ Main Agent (depth-0)
 
 ### 3.1 Architecture Level Differences
 
-| Dimension | Deep Dive V3.0 (Blueprint) | DeepFlow V4.0 (Investment Analysis) | Solution Pro V3.1 (Solution Design) | Deviation Notes |
+| Dimension | Deep Dive V3.0 (Blueprint) | Investment Analysis | Solution Pro V4.4 (Solution Design) | Deviation Notes |
 |:---|:---|:---|:---|:---|
 | **Orchestrator Implementation** | `PipelineEngine` Python class (~300 lines) | Agent guide text (`orchestrator_agent.py`) | `orchestrator_agent.py` pure scheduling | 🔴 Investment module still uses LLM autonomy, Solution has moved to code control |
-| **Quality Gate** | `QualityAssessor` multi-dimensional scoring (mandatory) | **None** | ✅ Harness V2 three-dimensional scoring | 🟢 Solution has implemented |
+| **Quality Gate** | `QualityAssessor` multi-dimensional scoring (mandatory) | **None** | ✅ Harness V4: 4D scoring + REQ-ID 追踪 | 🟢 Solution has implemented |
 | **Convergence Detection** | `ConvergenceChecker` marginal benefit detection | **None** | ✅ Planning Harness + iterative fixes | 🟢 Solution has implemented |
 | **Progressive Delivery** | 30s/2min/8min/30min layered delivery | Single final report | ✅ 30s preview → 2min first draft → 8min report | 🟢 Solution has implemented |
 | **Checkpoint Recovery** | `CheckpointManager` save per stage | **None** | **None** | 🟡 Still not implemented |
@@ -319,7 +319,7 @@ class PipelineEngine:
 - [x] **Force Rebuild Mechanism**: `force_rebuild` parameter
 - [x] **Path Decoupling**: PathConfig cross-platform path management
 - [x] **Prompt Registry**: Centralized registry
-- [x] **Solution Pro V3.1**: Solution Design domain + Harness V2 quality gates
+- [x] **Solution Pro V4.4**: Fixed 10-stage pipeline + Harness V4 + REQ-ID tracking + State persistence + Contract Cage
 
 ### 4.2 Medium-term (0.3.0)
 
@@ -350,7 +350,7 @@ class PipelineEngine:
 | **V4 Architecture Plan (Historical)** | `docs/archive/V4_ARCHITECTURE_PLAN.md` | V4 refactoring plan (archived) |
 | Solution Pro Design | `docs/SOLUTION_PRO_MODE_DESIGN.md` | Solution Pro detailed design |
 | Solution Module Design | `docs/SOLUTION_MODULE_DESIGN.md` | Solution module architecture |
-| Harness V2 Design | `docs/harness_architecture_v2_final.md` | Harness quality gate design |
+| Harness V4 Design | `docs/harness_architecture_v4.md` | Harness quality gate with REQ-ID tracking |
 | Path Specification Design | `docs/PATH_DESIGN_SPEC.md` | PathConfig path management |
 | Standard Execution Manual | `docs/STANDARD_EXECUTION.md` | Investment Analysis standard execution |
 | Configuration Guide | `docs/configuration.md` | User configuration documentation |
@@ -371,8 +371,8 @@ class PipelineEngine:
 | V1 Blueprint | 2026-04-18 | Investment Scenario | Python class (design) | ✅ (design) | ⚠️ (design) | ❌ | ⚠️ (design) |
 | V3 Protocol | 2026-04-15 | Investment Scenario | Coordinator class | ✅ (design) | ⚠️ (design) | ⚠️ (design) | ⚠️ (design) |
 | DeepFlow V4.0 | 2026-04-24 | Investment Scenario | Agent guide | ❌ | ❌ | ❌ | ❌ |
-| **Solution Pro V3.1** | **2026-05-05** | **Core Framework** | **Python Pure Scheduling** | **✅ Harness V2** | **✅ Planning Harness** | **✅ Layered** | **❌** |
+| **Solution Pro V4.4** | **2026-06-03** | **Fixed 10-Stage Pipeline** | **Python Pure Scheduling** | **✅ Harness V4** | **✅ REQ-ID Tracking** | **✅ State Persistence** | **✅ Contract Cage** |
 
 ---
 
-*This document objectively records the architectural evolution of DeepFlow: using Deep Dive V3.0 as the blueprint baseline, showing the differences between the V4.0 Investment Analysis module and the Solution Pro V3.1 Solution Design module, and providing a roadmap for future alignment.*
+*This document objectively records the architectural evolution of DeepFlow: using Deep Dive V3.0 as the blueprint baseline, showing the differences between the Investment Analysis module and the Solution Pro V4.4 Solution Design module, and providing a roadmap for future alignment.*

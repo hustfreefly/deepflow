@@ -1,9 +1,9 @@
 # DeepFlow
 
 > ⚠️ **Platform Dependency**: DeepFlow currently **only supports the OpenClaw platform**. Core scheduling depends on OpenClaw native APIs such as `sessions_spawn` / `sessions_yield`. Standalone execution or integration with other agent frameworks (e.g., AutoGen, LangChain, CrewAI) is not yet supported.
-> **Date**: 2026-05-31
-> **Status**: ✅ Four-domain architecture complete: Spec Pro v2.3 + Solution Pro v3.2 + Investment + Research Pro
-> **Version**: 0.2.0
+> **Date**: 2026-06-03
+> **Status**: ✅ Four-domain architecture complete: Spec Pro v2.4 + Solution Pro V4.4 + Investment + Research Pro
+> **Version**: 0.3.0
 > **Positioning**: DeepFlow is an **extensible multi-agent pipeline framework** that provides a general-purpose orchestration engine and quality gates. Domain-specific applications are built on top of this framework.
 
 ---
@@ -18,8 +18,8 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
 
 | Domain | Version | Positioning | Description |
 |--------|---------|-------------|-------------|
-| **Spec Pro** | v2.3 | 需求梳理引擎 | 苏格拉底式对话收集需求，输出 Living Spec |
-| **Solution Pro** | v3.2 | 方案设计引擎 | 10 阶段管线：理解需求 → 并行研究/评审 → 整合审计 → 质量门禁输出方案 |
+| **Spec Pro** | v2.4 | 需求梳理引擎 | 苏格拉底式对话收集需求，输出 Living Spec（三层版本号体系） |
+| **Solution Pro** | V4.4 | 方案设计引擎 | 固定 10 阶段 B 方案 + 契约笼子 + REQ-ID 追踪 + 状态持久化断点续接 |
 | **Investment** | - | 投资分析引擎 | 投资研究管线：数据收集 → 多维分析 → 审计 → 投资简报 |
 | **Research Pro** | - | 深度研究引擎 | 多源搜索 → 分层研究 → 引用验证 → 研究报告 |
 
@@ -51,7 +51,7 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
 |------------|-------------|
 | **Four-Domain Architecture** | Spec Pro → Solution Pro → Investment → Research Pro |
 | **Multi-Agent Pipeline** | 10-Stage full pipeline with parallel workers and quality gates |
-| **Quality Gates** | Harness V3: Completeness / Necessity / Target Consistency / Global Impact |
+| **Quality Gates** | Harness V4: Completeness / Necessity / Target Consistency / Global Impact + REQ-ID 追踪 |
 | **Living Spec Handoff** | Spec Pro → Solution Pro 无缝交接，需求自动传递 |
 | **Contract Cage** | 契约笼子验证框架，确保输出质量 |
 | **Fault Tolerance** | Worker failures do not block the pipeline |
@@ -128,48 +128,38 @@ DeepFlow's Orchestrator uses `sessions_spawn` to create child agents, which is a
 "帮我梳理需求：我要做一个 AI 算力调度平台"
 ```
 
-详见 [domains/spec_pro/SKILL.md](domains/spec_pro/_overview.md)
+详见 [domains/spec_pro/_overview.md](domains/spec_pro/_overview.md)
 
 ### Solution Pro (方案设计)
 
 ```python
-# 正确方式：通过 sessions_spawn 执行
-sessions_spawn(
-    runtime="subagent",
-    mode="run",
-    label="solution_pro",
-    task="""
-你是 DeepFlow Solution Pro Orchestrator Agent。
+from core.unified_entry import UnifiedEntry
 
-任务: 设计一个智能物流仓储系统升级方案
-类型: architecture
-约束: 预算500万，周期6个月
-利益相关者: 技术团队，财务总监
-session_prefix: 智能仓储
-""",
-    timeout_seconds=1800
-)
-sessions_yield()  # 等待完成推送
+entry = UnifiedEntry()
+result = entry.run({
+    "domain": "solution",
+    "topic": "设计一个智能物流仓储系统升级方案",
+    "solution_type": "architecture",
+    "constraints": ["预算500万", "周期6个月"],
+    "session_prefix": "智能仓储"
+})
 ```
 
 **带 Living Spec（从 Spec Pro 传递）**:
 ```python
 import json
+from core.unified_entry import UnifiedEntry
+
 with open("blackboard/spec_xxx/spec/living_spec.json") as f:
     living_spec = json.load(f)
 
-sessions_spawn(
-    runtime="subagent",
-    mode="run",
-    label="solution_pro",
-    task=f"""
-你是 DeepFlow Solution Pro Orchestrator Agent。
-任务: {living_spec['confirmed']['objective']}
-living_spec: {json.dumps(living_spec, ensure_ascii=False)}
-...""",
-    timeout_seconds=1800
-)
-sessions_yield()
+entry = UnifiedEntry()
+result = entry.run({
+    "domain": "solution",
+    "topic": living_spec["confirmed"]["objective"],
+    "living_spec": living_spec,
+    "session_prefix": "solution"
+})
 ```
 
 详见 [domains/solution/SKILL.md](domains/solution/SKILL.md)
@@ -179,6 +169,11 @@ sessions_yield()
 ```bash
 # CLI 入口
 python3 tools/deepflow_cli.py --code 688981.SH --name SMIC --industry "Semiconductor Manufacturing"
+
+# 或通过 UnifiedEntry
+from core.unified_entry import UnifiedEntry
+entry = UnifiedEntry()
+entry.run({"domain": "investment", "code": "688981.SH", "name": "中芯国际"})
 ```
 
 详见 [domains/investment/](domains/investment/)
