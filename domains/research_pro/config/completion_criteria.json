@@ -20,6 +20,8 @@
     "max_citation_suspect_rate": 0.10
   },
   "quality_scoring": {
+    "min_trust_score": 0.7,
+    "tier_1_ratio_min": 0.3,
     "weights": {
       "citation_verification_rate": 0.30,
       "tier_1_source_ratio": 0.20,

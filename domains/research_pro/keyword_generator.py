@@ -11,7 +11,7 @@ KeywordGenerator — ResearchPro 6维关键词扩展引擎
 6. 来源定向 (site: 操作符)
 """
 
-from typing import Optional
+from datetime import datetime
 
 
 class KeywordGenerator:
@@ -42,9 +42,29 @@ class KeywordGenerator:
         Args:
             plan: analysis_plan.json 内容 (dict)
         """
-        self.plan = plan
-        self.dimensions = plan.get("research_dimensions", [])
-        self.subtopics = plan.get("subtopics", [])
+        self.plan = self._validate_plan(plan)
+        self.dimensions = self.plan["research_dimensions"]
+        self.subtopics = self.plan["subtopics"]
+        self.current_year = datetime.now().year
+
+    @staticmethod
+    def _validate_plan(plan: dict) -> dict:
+        """校验 analysis_plan 基本结构，避免无效输入静默生成垃圾关键词。"""
+        if not isinstance(plan, dict):
+            raise ValueError("plan 必须是 dict")
+
+        validated = {}
+        for field in ("research_dimensions", "subtopics"):
+            value = plan.get(field, [])
+            if value is None:
+                value = []
+            if not isinstance(value, list):
+                raise ValueError(f"plan.{field} 必须是 list[str]")
+            if not all(isinstance(item, str) for item in value):
+                raise ValueError(f"plan.{field} 中的元素必须全部是 str")
+            validated[field] = [item.strip() for item in value if item.strip()]
+
+        return validated
 
     def generate(self, max_groups: int = 15) -> list[dict]:
         """
@@ -56,6 +76,9 @@ class KeywordGenerator:
         Returns:
             list[dict]: 关键词组列表, 每组含 base + variants + priority
         """
+        if not isinstance(max_groups, int) or max_groups < 1:
+            raise ValueError("max_groups 必须是正整数")
+
         groups = []
 
         # 从 dimensions 和 subtopics 提取基础关键词
@@ -79,8 +102,12 @@ class KeywordGenerator:
                     break
                 # 时间维度
                 groups.append({
-                    "base": f"{base} 2025",
-                    "variants": [f"{base} 2025", f"{base} latest", f"{base} 最新"],
+                    "base": f"{base} {self.current_year}",
+                    "variants": [
+                        f"{base} {self.current_year}",
+                        f"{base} latest",
+                        f"{base} 最新",
+                    ],
                     "priority": 3,
                 })
 
@@ -96,6 +123,12 @@ class KeywordGenerator:
         Returns:
             list[str]: 3-5 个变体
         """
+        if not isinstance(base_keyword, str):
+            raise ValueError("base_keyword 必须是 str")
+        base_keyword = base_keyword.strip()
+        if not base_keyword:
+            raise ValueError("base_keyword 不能为空")
+
         variants = [base_keyword]
 
         # 维度 1: 同义词扩展
@@ -113,7 +146,8 @@ class KeywordGenerator:
                     variants.extend(en_variants[:1])
 
         # 维度 3: 时间维度
-        variants.append(f"{base_keyword} 2025")
+        variants.append(f"{base_keyword} {self.current_year}")
+        variants.append(f"{base_keyword} {self.current_year - 1}")
 
         # 维度 4: 来源定向
         if any(c in base_keyword for c in ["财报", "financial", "年报"]):

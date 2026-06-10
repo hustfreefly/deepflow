@@ -4,7 +4,7 @@
 多源搜索 → 分层研究 → 引用验证 → 生成研究报告。
 
 ## 入口
-- Orchestrator: `orchestrator.py` → `ResearchOrchestrator`
+- Orchestrator: `orchestrator.py` → `ResearchProOrchestrator`
 
 ## 代码索引
 | 文件 | 职责 |
@@ -12,6 +12,7 @@
 | orchestrator.py | 主编排器 |
 | citation_verifier.py | 引用验证（来源可信度） |
 | keyword_generator.py | 搜索关键词生成 |
+| safe_fetcher.py | 安全 HTTP fetcher（SSRF 防护、响应体限制、重定向重新校验） |
 | source_registry.py | 数据源注册 |
 | tier_classifier.py | 分层分类 |
 

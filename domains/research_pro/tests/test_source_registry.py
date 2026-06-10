@@ -7,9 +7,10 @@ import os
 import tempfile
 import unittest
 import sys
+import glob
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'skills', 'deep-research'))
-from lib.source_registry import SourceRegistry
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+from domains.research_pro.source_registry import SourceRegistry, SUMMARY_MAX_LENGTH
 
 
 class TestSourceRegistry(unittest.TestCase):
@@ -66,11 +67,11 @@ class TestSourceRegistry(unittest.TestCase):
         self.assertEqual(source['domain'], 'finance.sina.com.cn')
 
     def test_register_summary_truncated_200(self):
-        """summary 截断到 200 字。"""
+        """summary 截断到 SUMMARY_MAX_LENGTH。"""
         long_summary = 'A' * 300
         self.sr.register('https://a.com', 'T', 'c', 'tier_1', long_summary)
         source = self.sr.get(1)
-        self.assertEqual(len(source['summary']), 200)
+        self.assertEqual(len(source['summary']), SUMMARY_MAX_LENGTH)
 
     # --- get() ---
 
@@ -84,6 +85,13 @@ class TestSourceRegistry(unittest.TestCase):
         """get() 不存在时返回 None。"""
         result = self.sr.get(999)
         self.assertIsNone(result)
+
+    def test_get_returns_deep_copy(self):
+        """get() 返回深拷贝，调用方不能修改 Registry 内部状态。"""
+        self.sr.register('https://a.com', 'Title', 'content', 'tier_1')
+        source = self.sr.get(1)
+        source['title'] = 'mutated'
+        self.assertEqual(self.sr.get(1)['title'], 'Title')
 
     # --- verify_all() ---
 
@@ -119,6 +127,13 @@ class TestSourceRegistry(unittest.TestCase):
         self.assertIsInstance(data, list)
         self.assertEqual(len(data), 1)
 
+    def test_sources_returns_deep_copy(self):
+        """sources 属性返回深拷贝列表。"""
+        self.sr.register('https://a.com', 'T', 'c', 'tier_1')
+        sources = self.sr.sources
+        sources[0]['title'] = 'mutated'
+        self.assertEqual(self.sr.get(1)['title'], 'T')
+
     # --- persistence ---
 
     def test_persistence_save_and_load(self):
@@ -131,6 +146,19 @@ class TestSourceRegistry(unittest.TestCase):
         self.assertEqual(len(sr2.sources), 2)
         self.assertEqual(sr2.get(1)['url'], 'https://a.com')
         self.assertEqual(sr2.get(2)['url'], 'https://b.com')
+
+    def test_corrupt_registry_is_backed_up_and_reset(self):
+        """损坏 JSON 会备份为 .corrupt.{timestamp} 并空初始化。"""
+        registry_path = os.path.join(self.tmpdir, 'source_registry.json')
+        with open(registry_path, 'w', encoding='utf-8') as f:
+            f.write('{invalid json')
+
+        sr2 = SourceRegistry(registry_path)
+
+        self.assertEqual(sr2.sources, [])
+        backups = glob.glob(registry_path + '.corrupt.*')
+        self.assertEqual(len(backups), 1)
+        self.assertFalse(os.path.exists(registry_path))
 
     def test_atomic_write_no_tmp_remains(self):
         """原子写入后 .tmp 文件不存在。"""

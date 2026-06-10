@@ -1,6 +1,7 @@
 {
   "version": "1.0",
   "description": "DeepClaw Tier 域名分类白名单/黑名单",
+  "match_policy": "exact hostname wins first; otherwise the most specific parent domain wins, so community subdomains can override a higher-tier parent domain",
   "tier_1": {
     "weight": 1.0,
     "label": "官方/学术",
@@ -24,7 +25,7 @@
       "pbc.gov.cn",
       "stats.gov.cn",
       "cs.com.cn",
-      "eastmoney.com/data",
+      "eastmoney.com",
       "wind.com.cn"
     ]
   },
@@ -46,7 +47,7 @@
       "36kr.com",
       "techcrunch.com",
       "arstechnica.com",
-      "nature.com/news",
+      "nature.com",
       "sciencealert.com",
       "wallstreetcn.com",
       "cls.cn",
@@ -59,7 +60,7 @@
     "confidence": "low",
     "domains": [
       "xueqiu.com",
-      "eastmoney.com/guba",
+      "guba.eastmoney.com",
       "reddit.com",
       "weibo.com",
       "zhihu.com",
@@ -77,6 +78,6 @@
       "clickbait.example.com"
     ]
   },
-  "default_tier": "tier_2",
+  "default_tier": "tier_3",
   "default_tier_status": "unverified"
 }

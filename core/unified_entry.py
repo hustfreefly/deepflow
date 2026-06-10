@@ -58,6 +58,11 @@ class UnifiedEntry:
                 module="domains.general",
                 class_name="GeneralOrchestrator",
                 required_context=["topic"]
+            ),
+            "research_pro": DomainRegistry(
+                module="domains.research_pro.orchestrator",
+                class_name="ResearchProOrchestrator",
+                required_context=["query"]
             )
         }
     

@@ -7,7 +7,8 @@ Tier 1 (官方/学术) 来源必须优先于 Tier 3 (社区/论坛) (RED-DC-006)
 
 import json
 import os
-from typing import Optional
+from pathlib import Path
+from urllib.parse import urlparse
 
 
 # RED-DC-006: Tier 1 weight 1.0, Tier 3 weight 0.4
@@ -26,7 +27,7 @@ class TierClassifier:
     契约约束:
     - Tier 1 (官方/学术) 权重 1.0 (RED-DC-006)
     - Tier 3 (社区/论坛) 权重 0.4 (RED-DC-006)
-    - 未知域名默认 tier_2, 标记 unverified
+    - 未知域名默认使用配置 default_tier
     """
 
     def __init__(self, config_path: str = "") -> None:
@@ -37,35 +38,88 @@ class TierClassifier:
             config_path: tier_domains.json 路径 (可选, 默认内置)
         """
         self._domains: dict[str, str] = {}
+        self._blacklist: set[str] = set()
+        self._default_tier = "tier_3"
+        self._weights = dict(TIER_WEIGHTS)
         self._load_config(config_path)
+
+    @staticmethod
+    def _normalize_domain(domain: str) -> str:
+        """只保留 hostname，丢弃 scheme/path/query。"""
+        candidate = (domain or "").strip().lower()
+        if not candidate:
+            return ""
+        if "://" in candidate:
+            parsed = urlparse(candidate)
+            return (parsed.hostname or "").lower()
+        candidate = candidate.split("/", 1)[0]
+        candidate = candidate.split("?", 1)[0]
+        candidate = candidate.split("#", 1)[0]
+        return candidate.strip(".")
 
     def _load_config(self, config_path: str) -> None:
         """加载域名分类配置。"""
-        if config_path and os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
-                cfg = json.load(f)
-            for tier_key in ["tier_1", "tier_2", "tier_3"]:
-                for domain in cfg.get(tier_key, {}).get("domains", []):
-                    self._domains[domain] = tier_key
+        resolved_config_path = config_path or str(Path(__file__).resolve().parent / "config" / "tier_domains.json")
+        cfg = None
+        if os.path.exists(resolved_config_path):
+            try:
+                with open(resolved_config_path, 'r', encoding='utf-8') as f:
+                    cfg = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                cfg = self._bundled_config()
         else:
-            # 内置默认分类
-            self._domains = {
-                # Tier 1: 官方/学术
-                "sec.gov": "tier_1", "cninfo.com.cn": "tier_1",
-                "sse.com.cn": "tier_1", "szse.cn": "tier_1",
-                "gov.cn": "tier_1", "arxiv.org": "tier_1",
-                "nature.com": "tier_1", "pbc.gov.cn": "tier_1",
-                "stats.gov.cn": "tier_1", "who.int": "tier_1",
-                # Tier 2: 权威媒体
-                "reuters.com": "tier_2", "bloomberg.com": "tier_2",
-                "ft.com": "tier_2", "finance.sina.com.cn": "tier_2",
-                "caixin.com": "tier_2", "36kr.com": "tier_2",
-                "bbc.com": "tier_2", "cnbc.com": "tier_2",
-                "wallstreetcn.com": "tier_2", "cls.cn": "tier_2",
-                # Tier 3: 社区/论坛
-                "xueqiu.com": "tier_3", "reddit.com": "tier_3",
-                "weibo.com": "tier_3", "zhihu.com": "tier_3",
-                "eastmoney.com": "tier_3", "seekingalpha.com": "tier_3",
+            cfg = self._bundled_config()
+
+        self._default_tier = cfg.get("default_tier", self._default_tier)
+        blacklist = cfg.get("blacklist", {})
+        for domain in blacklist.get("domains", []) if isinstance(blacklist, dict) else []:
+            normalized = self._normalize_domain(domain)
+            if normalized:
+                self._blacklist.add(normalized)
+
+        for tier_key in ["tier_1", "tier_2", "tier_3"]:
+            tier_cfg = cfg.get(tier_key, {})
+            if "weight" in tier_cfg:
+                self._weights[tier_key] = float(tier_cfg["weight"])
+            for domain in tier_cfg.get("domains", []):
+                normalized = self._normalize_domain(domain)
+                if normalized and normalized not in self._domains:
+                    self._domains[normalized] = tier_key
+
+    @staticmethod
+    def _bundled_config() -> dict:
+        """内置默认分类，用于配置文件缺失或损坏时回退。"""
+        bundled_path = Path(__file__).resolve().parent / "config" / "tier_domains.json"
+        try:
+            with open(bundled_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {
+                "tier_1": {
+                    "weight": 1.0,
+                    "domains": [
+                        "sec.gov", "cninfo.com.cn", "sse.com.cn", "szse.cn",
+                        "gov.cn", "arxiv.org", "nature.com", "pbc.gov.cn",
+                        "stats.gov.cn", "who.int",
+                    ],
+                },
+                "tier_2": {
+                    "weight": 0.7,
+                    "domains": [
+                        "reuters.com", "bloomberg.com", "ft.com",
+                        "finance.sina.com.cn", "caixin.com", "36kr.com",
+                        "bbc.com", "cnbc.com", "wallstreetcn.com", "cls.cn",
+                    ],
+                },
+                "tier_3": {
+                    "weight": 0.4,
+                    "domains": [
+                        "xueqiu.com", "reddit.com", "weibo.com", "zhihu.com",
+                        "eastmoney.com", "seekingalpha.com",
+                    ],
+                },
+                "blacklist": {"domains": []},
+                "default_tier": "tier_3",
             }
 
     def classify(self, domain: str) -> str:
@@ -78,21 +132,32 @@ class TierClassifier:
         Returns:
             str: tier_1 | tier_2 | tier_3 | unverified
         """
+        domain = self._normalize_domain(domain)
+        if not domain:
+            return "unverified"
+
+        for blocked_domain in sorted(
+            self._blacklist,
+            key=lambda item: item.count("."),
+            reverse=True,
+        ):
+            if domain == blocked_domain or domain.endswith(f".{blocked_domain}"):
+                return "unverified"
+
         # 精确匹配
         if domain in self._domains:
             return self._domains[domain]
 
-        # 子域名匹配 (只匹配真正的子域名, 防止 CWE-697 子串攻击)
-        # 例: finance.eastmoney.com → eastmoney.com ✓
-        #     evil-eastmoney.com → 不匹配 ✗ (不同域名)
-        parts = domain.split(".")
-        if len(parts) >= 3:
-            # 只检查直接父域名 (去掉第一个子域名部分)
-            parent = ".".join(parts[1:])
-            if parent in self._domains:
-                return self._domains[parent]
+        # 子域名匹配。更具体的域名优先，避免 eastmoney.com 覆盖 guba.eastmoney.com。
+        for registered_domain, tier in sorted(
+            self._domains.items(),
+            key=lambda item: item[0].count("."),
+            reverse=True,
+        ):
+            if domain.endswith(f".{registered_domain}"):
+                return tier
 
-        return "unverified"
+        return self._default_tier
 
     def get_weight(self, tier: str) -> float:
         """
@@ -104,5 +169,5 @@ class TierClassifier:
         Returns:
             float: 1.0 | 0.7 | 0.4
         """
-        # RED-DC-006: tier_1 weight 1.0, tier_3 weight 0.4
-        return TIER_WEIGHTS.get(tier, 0.5)
+        # RED-DC-006: tier_1 weight 1.0, tier_3 weight 0.4 by default.
+        return self._weights.get(tier, 0.5)

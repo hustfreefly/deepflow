@@ -132,7 +132,7 @@ updated: "2026-06-01"
 
 ## 输出格式
 
-输出 `report/final_report.md` 和 `report/citations.json`
+输出 `report/final.md` 和 `report/citations.json`
 
 ## 注意事项
 

@@ -6,10 +6,8 @@ import os
 import json
 import tempfile
 import unittest
-import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'skills', 'deep-research'))
-from lib.tier_classifier import TierClassifier
+from domains.research_pro.tier_classifier import TierClassifier
 
 
 class TestTierClassifier(unittest.TestCase):
@@ -55,9 +53,20 @@ class TestTierClassifier(unittest.TestCase):
             self.assertEqual(result, 'tier_3', f"{domain} should be tier_3, got {result}")
 
     def test_classify_unverified_unknown(self):
-        """未知域名返回 unverified。"""
+        """未知域名使用配置 default_tier。"""
         result = self.tc.classify('random-unknown-domain-12345.com')
-        self.assertEqual(result, 'unverified')
+        self.assertEqual(result, 'tier_3')
+
+    def test_blacklist_returns_unverified(self):
+        """blacklist 域名及其子域名返回 unverified。"""
+        self.assertEqual(self.tc.classify('contentfarm.example.com'), 'unverified')
+        self.assertEqual(self.tc.classify('sub.contentfarm.example.com'), 'unverified')
+
+    def test_classify_uses_bundled_config_by_default(self):
+        """默认加载 bundled config，并按 hostname 匹配。"""
+        self.assertEqual(self.tc.classify('eastmoney.com'), 'tier_1')
+        self.assertEqual(self.tc.classify('guba.eastmoney.com/thread'), 'tier_3')
+        self.assertEqual(self.tc.classify('post.guba.eastmoney.com/thread'), 'tier_3')
 
     # --- get_weight() ---
 
@@ -108,9 +117,11 @@ class TestTierClassifier(unittest.TestCase):
         """自定义配置文件加载。"""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump({
-                'tier_1': {'weight': 1.0, 'domains': ['custom-official.com']},
+                'tier_1': {'weight': 0.95, 'domains': ['custom-official.com']},
                 'tier_2': {'weight': 0.7, 'domains': ['custom-media.com']},
                 'tier_3': {'weight': 0.4, 'domains': ['custom-forum.com']},
+                'blacklist': {'domains': ['blocked.example.com']},
+                'default_tier': 'tier_2',
             }, f)
             config_path = f.name
 
@@ -119,6 +130,21 @@ class TestTierClassifier(unittest.TestCase):
             self.assertEqual(tc2.classify('custom-official.com'), 'tier_1')
             self.assertEqual(tc2.classify('custom-media.com'), 'tier_2')
             self.assertEqual(tc2.classify('custom-forum.com'), 'tier_3')
+            self.assertEqual(tc2.classify('blocked.example.com'), 'unverified')
+            self.assertEqual(tc2.classify('unknown.example.com'), 'tier_2')
+            self.assertEqual(tc2.get_weight('tier_1'), 0.95)
+        finally:
+            os.unlink(config_path)
+
+    def test_corrupt_custom_config_falls_back_to_bundled_config(self):
+        """损坏配置不崩溃，并回退 bundled config。"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            f.write('{invalid json')
+            config_path = f.name
+
+        try:
+            tc2 = TierClassifier(config_path=config_path)
+            self.assertEqual(tc2.classify('sec.gov'), 'tier_1')
         finally:
             os.unlink(config_path)
 

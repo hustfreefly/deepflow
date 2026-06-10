@@ -1,10 +1,31 @@
 # DeepFlow
 
 > ⚠️ **Platform Dependency**: DeepFlow currently **only supports the OpenClaw platform**. Core scheduling depends on OpenClaw native APIs such as `sessions_spawn` / `sessions_yield`. Standalone execution or integration with other agent frameworks (e.g., AutoGen, LangChain, CrewAI) is not yet supported.
-> **Date**: 2026-06-05
+> **Date**: 2026-06-11
 > **Status**: ✅ Three-domain architecture complete: Spec Pro v2.4 + Solution Pro V4.4 + Research Pro
 > **Version**: 0.4.0
 > **Positioning**: DeepFlow is an **extensible multi-agent pipeline framework** that provides a general-purpose orchestration engine and quality gates. Domain-specific applications are built on top of this framework.
+
+> 🚀 **新用户？** 请看 [QUICKSTART.md](QUICKSTART.md) — 5 分钟上手指南
+
+---
+
+## 快速开始
+
+```bash
+# 1. 安装 OpenClaw
+npm install -g openclaw
+
+# 2. 克隆 DeepFlow
+cd ~/.openclaw/workspace && git clone https://github.com/deepflow/deepflow .deepflow
+
+# 3. 使用（在 OpenClaw 对话中）
+/spec-pro          # 梳理需求
+/solution-pro      # 设计方案
+/research-pro      # 深度研究
+```
+
+详见 [QUICKSTART.md](QUICKSTART.md)
 
 ---
 
@@ -212,8 +233,14 @@ result = entry.run({
 ├── tests/                     # Tests (unit/integration)
 ├── tools/                     # CLI tools
 ├── frontend/                  # Frontend (independent project)
+├── skills/                    # OpenClaw Skill 入口（用户触发）
+│   ├── spec-pro/              # /spec-pro 触发入口
+│   ├── solution-pro/          # /solution-pro 触发入口
+│   ├── research-pro/          # /research-pro 触发入口
+│   └── ...                    # 80+ 扩展 skills
 ├── blackboard/                # Runtime data (not versioned)
 ├── README.md                  # This file
+├── QUICKSTART.md              # 5 分钟上手指南
 ├── CHANGELOG.md               # Change log
 ├── SKILL.md                   # DeepFlow skill definition
 └── .gitignore                 # Git ignore rules
@@ -221,14 +248,37 @@ result = entry.run({
 
 ---
 
+## `domains/` vs `skills/` — 两个目录的关系
+
+DeepFlow 有两个容易混淆的目录，职责完全不同：
+
+| 目录 | 面向 | 内容 | 类比 |
+|------|------|------|------|
+| `domains/` | AI Agent 内部 | Python 代码 + 执行指南 + 配置 | **引擎** |
+| `skills/` | OpenClaw 用户 | 触发入口 (`/命令`) + 使用说明 | **方向盘** |
+
+**用户在 `skills/` 里触发 → AI 读取 `domains/` 里的代码来执行。**
+
+例如：
+- 用户输入 `/research-pro` → 触发 `skills/research-pro/SKILL.md`
+- AI 读取 `domains/research_pro/SKILL.md`（执行指南）
+- AI 调用 `domains/research_pro/orchestrator.py`（代码）
+
+> ⚠️ `domains/` 和 `skills/` 下都有 `SKILL.md`，但内容完全不同：
+> - `skills/xxx/SKILL.md` = 用户触发入口（含 `triggers:` 字段）
+> - `domains/xxx/SKILL.md` = AI 内部执行指南（Step 1-2-3 流程）
+
+---
+
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
+| [QUICKSTART.md](QUICKSTART.md) | 🚀 **5 分钟上手指南（新用户必看）** |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Complete architecture design |
-| [QUICKSTART.md](docs/QUICKSTART.md) | Quick start guide |
-| [Spec Pro SKILL](domains/spec_pro/_overview.md) | Spec Pro execution guide |
-| [Solution Pro SKILL](domains/solution/SKILL.md) | Solution Pro execution guide |
+| [Spec Pro](domains/spec_pro/_overview.md) | Spec Pro execution guide |
+| [Solution Pro](domains/solution/SKILL.md) | Solution Pro execution guide |
+| [Research Pro](domains/research_pro/README.md) | Research Pro module overview |
 | [Spec → Solution Contract](contracts/integration/spec_to_solution.md) | Living Spec handoff contract |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 

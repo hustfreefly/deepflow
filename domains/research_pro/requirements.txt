@@ -1,0 +1,5 @@
+# Core dependencies
+duckduckgo-search>=6.0.0
+
+# Optional: for enhanced search when running outside OpenClaw
+# OpenClaw's built-in web_search is the primary search engine

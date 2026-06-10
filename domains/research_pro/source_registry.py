@@ -8,9 +8,15 @@ SourceRegistry — ResearchPro 防幻觉核心
 import json
 import os
 import hashlib
+import threading
+import copy
 from datetime import datetime
 from typing import Optional
-from urllib.parse import urlparse
+
+# URL 安全验证从 url_utils 导入（解决 safe_fetcher ↔ source_registry 循环导入）
+from domains.research_pro.url_utils import validate_safe_url as _validate_safe_url
+
+SUMMARY_MAX_LENGTH = 200
 
 
 class SourceRegistry:
@@ -30,14 +36,24 @@ class SourceRegistry:
             registry_path: source_registry.json 文件路径
         """
         self.registry_path = registry_path
-        self.sources: list[dict] = []
+        self._sources: list[dict] = []
+        self._lock = threading.RLock()
         
         if os.path.exists(registry_path):
             try:
                 with open(registry_path, 'r', encoding='utf-8') as f:
-                    self.sources = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                self.sources = []
+                    self._sources = json.load(f)
+            except json.JSONDecodeError:
+                self._backup_corrupt_registry()
+                self._sources = []
+            except OSError:
+                self._sources = []
+
+    @property
+    def sources(self) -> list[dict]:
+        """返回所有来源的深拷贝，避免调用方修改内部状态。"""
+        with self._lock:
+            return copy.deepcopy(self._sources)
     
     def register(
         self,
@@ -63,39 +79,38 @@ class SourceRegistry:
         Raises:
             ValueError: URL 格式非法或协议不是 http/https
         """
-        # P1-5: URL scheme 校验 (CWE-918: 防止 SSRF)
-        parsed = urlparse(url)
-        if parsed.scheme not in ('http', 'https'):
-            raise ValueError(f"非法 URL 协议: {parsed.scheme}, 仅支持 http/https")
-        if not parsed.netloc:
-            raise ValueError(f"非法 URL: 缺少域名")
+        parsed, canonical_url = _validate_safe_url(url)
         
         # 计算 content_hash (sha256 前 16 位)
         content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()[:16]
-        
-        # 提取 domain
-        domain = parsed.netloc
-        
-        # 分配 ID
-        source_id = len(self.sources) + 1
-        
-        entry = {
-            "id": source_id,
-            "url": url,
-            "fetched_at": datetime.now().isoformat(),
-            "content_hash": content_hash,
-            "title": title,
-            "domain": domain,
-            "quality_tier": quality_tier,
-            "summary": summary[:200] if summary else "",
-            "verification_status": "pending",
-            "verification_detail": None
-        }
-        
-        self.sources.append(entry)
-        self._save()
-        
-        return source_id
+
+        with self._lock:
+            for source in self._sources:
+                try:
+                    _, existing_canonical_url = _validate_safe_url(source.get("url", ""))
+                except ValueError:
+                    continue
+                if existing_canonical_url == canonical_url and source.get("content_hash") == content_hash:
+                    return source["id"]
+
+            source_id = (max((source["id"] for source in self._sources), default=0) + 1)
+            entry = {
+                "id": source_id,
+                "url": url,
+                "fetched_at": datetime.now().isoformat(),
+                "content_hash": content_hash,
+                "title": title,
+                "domain": parsed.hostname or "",
+                "quality_tier": quality_tier,
+                "summary": summary[:SUMMARY_MAX_LENGTH] if summary else "",
+                "verification_status": "pending",
+                "verification_detail": None,
+            }
+
+            self._sources.append(entry)
+            self._save()
+
+            return source_id
     
     def get(self, source_id: int) -> Optional[dict]:
         """
@@ -107,9 +122,10 @@ class SourceRegistry:
         Returns:
             来源条目 dict, 或 None (不存在时)
         """
-        for source in self.sources:
-            if source["id"] == source_id:
-                return source
+        with self._lock:
+            for source in self._sources:
+                if source["id"] == source_id:
+                    return copy.deepcopy(source)
         return None
     
     def verify_all(self) -> dict:
@@ -121,10 +137,11 @@ class SourceRegistry:
         """
         counts = {"verified": 0, "failed": 0, "suspect": 0}
         
-        for source in self.sources:
-            status = source.get("verification_status", "pending")
-            if status in counts:
-                counts[status] += 1
+        with self._lock:
+            for source in self._sources:
+                status = source.get("verification_status", "pending")
+                if status in counts:
+                    counts[status] += 1
         
         return counts
     
@@ -135,11 +152,22 @@ class SourceRegistry:
         Returns:
             JSON 字符串
         """
-        return json.dumps(self.sources, ensure_ascii=False, indent=2)
+        with self._lock:
+            return json.dumps(copy.deepcopy(self._sources), ensure_ascii=False, indent=2)
     
     def _save(self) -> None:
         """保存 Registry 到文件 (原子写入)。"""
-        tmp_path = self.registry_path + ".tmp"
-        with open(tmp_path, 'w', encoding='utf-8') as f:
-            json.dump(self.sources, f, ensure_ascii=False, indent=2)
-        os.replace(tmp_path, self.registry_path)
+        with self._lock:
+            tmp_path = self.registry_path + ".tmp"
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(self._sources, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, self.registry_path)
+
+    def _backup_corrupt_registry(self) -> None:
+        """损坏 JSON 备份为 source_registry.json.corrupt.{timestamp}。"""
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        backup_path = f"{self.registry_path}.corrupt.{timestamp}"
+        try:
+            os.replace(self.registry_path, backup_path)
+        except OSError:
+            pass

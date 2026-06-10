@@ -4,10 +4,9 @@ ResearchPro 单元测试 — KeywordGenerator
 """
 import os
 import unittest
-import sys
+from datetime import datetime
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'skills', 'deep-research'))
-from lib.keyword_generator import KeywordGenerator
+from domains.research_pro.keyword_generator import KeywordGenerator
 
 
 class TestKeywordGenerator(unittest.TestCase):
@@ -87,9 +86,9 @@ class TestKeywordGenerator(unittest.TestCase):
         self.assertIn("贵州茅台", result)
 
     def test_expand_adds_time_dimension(self):
-        """expand() 添加时间维度 (2025)。"""
+        """expand() 添加当前年份时间维度。"""
         result = self.kg.expand("财报")
-        has_time = any("2025" in v for v in result)
+        has_time = any(str(datetime.now().year) in v for v in result)
         self.assertTrue(has_time, f"Expected time dimension in {result}")
 
     def test_expand_deduplication(self):

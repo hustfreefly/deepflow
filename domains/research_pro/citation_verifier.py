@@ -14,15 +14,14 @@ CitationVerifier — ResearchPro 引用验证器
 """
 
 import re
-import json
 import hashlib
-import hashlib
-from typing import Optional
-from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
 
 # RED-DC-001: 引用必须来自 source_registry
-from domains.research_pro.source_registry import SourceRegistry
+from domains.research_pro.source_registry import SourceRegistry, _validate_safe_url
+from domains.research_pro.safe_fetcher import _SafeFetcher, SafeFetchError
+
+
+CITATION_FETCH_TIMEOUT = 10
 
 
 class CitationVerifier:
@@ -42,6 +41,7 @@ class CitationVerifier:
             source_registry: SourceRegistry 实例
         """
         self.source_registry = source_registry
+        self._fetcher = _SafeFetcher(timeout=CITATION_FETCH_TIMEOUT)
     
     def extract_citations(self, report_md: str) -> list[int]:
         """
@@ -71,34 +71,64 @@ class CitationVerifier:
             source_id: 引用编号 (对应 source_registry 中的 id)
         
         Returns:
-            dict: {status: 'verified'|'failed'|'suspect', detail: str}
+            dict: 单条引用验证结果
         """
         # 步骤 2: 映射引用编号到 source_registry
         source = self.source_registry.get(source_id)
         if source is None:
-            return {"status": "failed", "detail": f"Source ID {source_id} not found in registry"}
-        
+            return {
+                "source_id": source_id,
+                "url": "",
+                "status": "not_found",
+                "http_status": None,
+                "content_hash_match": False,
+                "quality_tier": "unverified",
+                "verification_detail": f"Source ID {source_id} not found in registry",
+            }
+
         url = source["url"]
         stored_hash = source.get("content_hash", "")
-        
-        # URL 协议验证 (防 SSRF)
-        if not url.startswith(("http://", "https://")):
-            return {"status": "failed", "detail": f"Invalid URL protocol: {url}"}
-        
+        quality_tier = source.get("quality_tier", "unverified")
+
+        # URL 安全验证 (防 SSRF)
+        try:
+            _validate_safe_url(url)
+        except ValueError as e:
+            return {
+                "source_id": source_id,
+                "url": url,
+                "status": "unreachable",
+                "http_status": None,
+                "content_hash_match": False,
+                "quality_tier": quality_tier,
+                "verification_detail": f"Invalid URL: {url} ({str(e)})",
+            }
+
+        http_status = None
+
         # 步骤 3: HTTP HEAD 验证 URL 可达性
         try:
-            req = Request(url, method='HEAD')
-            req.add_header('User-Agent', 'ResearchPro/1.0')
-            with urlopen(req, timeout=10) as response:
-                if response.status >= 400:
-                    return {
-                        "status": "failed",
-                        "detail": f"HTTP {response.status} for {url}"
-                    }
-        except (URLError, HTTPError, OSError, ValueError, TimeoutError) as e:
+            head_response = self._fetcher.head(url)
+            http_status = head_response.status
+            if head_response.status >= 400:
+                return {
+                    "source_id": source_id,
+                    "url": url,
+                    "status": "unreachable",
+                    "http_status": head_response.status,
+                    "content_hash_match": False,
+                    "quality_tier": quality_tier,
+                    "verification_detail": f"HTTP {head_response.status} for {url}",
+                }
+        except (SafeFetchError, OSError, ValueError, TimeoutError) as e:
             return {
-                "status": "failed",
-                "detail": f"URL unreachable: {url} ({str(e)})"
+                "source_id": source_id,
+                "url": url,
+                "status": "unreachable",
+                "http_status": http_status,
+                "content_hash_match": False,
+                "quality_tier": quality_tier,
+                "verification_detail": f"URL unreachable: {url} ({str(e)})",
             }
         
         # 步骤 4: 内容一致性验证 (content_hash)
@@ -106,33 +136,57 @@ class CitationVerifier:
         # P2-11 修复: 无 hash 时返回 failed 而非 suspect，防止绕过
         if not stored_hash:
             return {
-                "status": "failed",
-                "detail": f"No content_hash stored for {url}, content integrity cannot be verified"
+                "source_id": source_id,
+                "url": url,
+                "status": "content_mismatch",
+                "http_status": http_status,
+                "content_hash_match": False,
+                "quality_tier": quality_tier,
+                "verification_detail": f"No content_hash stored for {url}, content integrity cannot be verified",
             }
         
         try:
-            req = Request(url, method='GET')
-            req.add_header('User-Agent', 'ResearchPro/1.0')
-            with urlopen(req, timeout=15) as response:
-                fetched_content = response.read().decode('utf-8', errors='replace')
+            get_response = self._fetcher.get(url)
+            if get_response.status >= 400:
+                raise SafeFetchError(f"HTTP {get_response.status} for {url}")
+            fetched_content = get_response.text
             
             fetched_hash = hashlib.sha256(fetched_content.encode('utf-8')).hexdigest()[:16]
+            truncation_note = " (response truncated at 512 KiB)" if get_response.truncated else ""
             
             if fetched_hash == stored_hash:
                 return {
                     "status": "verified",
-                    "detail": f"URL reachable and content_hash matches for {url}"
+                    "source_id": source_id,
+                    "url": url,
+                    "http_status": http_status,
+                    "content_hash_match": True,
+                    "quality_tier": quality_tier,
+                    "verification_detail": f"URL reachable and content_hash matches for {url}{truncation_note}",
                 }
             else:
                 return {
-                    "status": "suspect",
-                    "detail": f"Content hash mismatch for {url}: stored={stored_hash}, fetched={fetched_hash}"
+                    "status": "content_mismatch",
+                    "source_id": source_id,
+                    "url": url,
+                    "http_status": http_status,
+                    "content_hash_match": False,
+                    "quality_tier": quality_tier,
+                    "verification_detail": (
+                        f"Content hash mismatch for {url}: stored={stored_hash}, fetched={fetched_hash}"
+                        f"{truncation_note}"
+                    ),
                 }
-        except (URLError, HTTPError, OSError, ValueError, TimeoutError) as e:
-            # GET 失败但 HEAD 成功，降级为 suspect
+        except (SafeFetchError, OSError, ValueError, TimeoutError) as e:
+            # GET 失败但 HEAD 成功，归类为内容不一致/待复核
             return {
-                "status": "suspect",
-                "detail": f"URL reachable (HEAD OK) but GET failed for content verification: {url} ({str(e)})"
+                "status": "content_mismatch",
+                "source_id": source_id,
+                "url": url,
+                "http_status": http_status,
+                "content_hash_match": False,
+                "quality_tier": quality_tier,
+                "verification_detail": f"URL reachable (HEAD OK) but GET failed for content verification: {url} ({str(e)})",
             }
     
     def verify_all(self, report_md: str) -> dict:
@@ -143,35 +197,46 @@ class CitationVerifier:
             report_md: 报告 Markdown 内容
         
         Returns:
-            dict: {
-                verified: int,
-                failed: int,
-                suspect: int,
-                details: list[dict {citation_id, source_id, status, detail}]
-            }
+            dict: prompt/schema 对齐后的验证摘要
         """
         # 步骤 1: 提取引用
         citation_ids = self.extract_citations(report_md)
-        
+        total_citations = len(re.findall(r'\[(\d+)\]', report_md))
+
         # 验证每个引用
         details = []
-        counts = {"verified": 0, "failed": 0, "suspect": 0}
-        
+        counts = {"verified": 0, "unreachable": 0, "not_found": 0, "content_mismatch": 0}
+
         for cid in citation_ids:
             result = self.verify_citation(cid)
             status = result["status"]
-            counts[status] += 1
-            
+            if status in counts:
+                counts[status] += 1
+
             details.append({
                 "citation_id": cid,
-                "source_id": cid,
+                "source_id": result["source_id"],
+                "url": result["url"],
                 "status": status,
-                "detail": result["detail"]
+                "http_status": result["http_status"],
+                "content_hash_match": result["content_hash_match"],
+                "quality_tier": result["quality_tier"],
+                "verification_detail": result["verification_detail"],
             })
-        
+
+        trust_score = counts["verified"] / total_citations if total_citations else 0.0
+        if trust_score >= 0.9:
+            recommendation = "accept"
+        elif trust_score >= 0.7:
+            recommendation = "review"
+        else:
+            recommendation = "reject"
+
         return {
-            "verified": counts["verified"],
-            "failed": counts["failed"],
-            "suspect": counts["suspect"],
-            "details": details
+            "total_citations": total_citations,
+            "unique_citations": len(citation_ids),
+            "verification_summary": counts,
+            "citations": details,
+            "trust_score": round(trust_score, 2),
+            "recommendation": recommendation,
         }
