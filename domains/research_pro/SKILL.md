@@ -4,8 +4,8 @@
 
 # Research Pro - Agent 执行指南
 
-> **版本**: V1.1 | **最后更新**: 2026-06-11  
-> **架构**: 四阶段状态机 (planning → confirming → executing → reporting) + 多源搜索 + 引用验证
+> **版本**: V2.1 | **最后更新**: 2026-06-11  
+> **架构**: Python 管线 + 子 Agent 原生搜索 + Python 辅助验证
 
 ---
 
@@ -30,11 +30,6 @@
 }
 ```
 
-**模式选择逻辑**:
-- **Mode A (快速模式)**: `mode == "quick"` → 单Agent串行执行，≤10分钟
-- **Mode B (标准模式, ≤2子任务)**: `mode == "standard"` 且子任务数 ≤ 2 → 单Agent串行
-- **Mode C (标准模式, ≥3子任务)**: `mode == "standard"` 且子任务数 ≥ 3 → 并行子Agent
-
 ---
 
 ### Step 1: 生成研究计划 + spawn_params
@@ -51,39 +46,74 @@ print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
 "
 ```
 
-`run_research_pro()` 会完成：
-- 初始化 ResearchProOrchestrator
-- 执行 Planning 阶段，生成分析计划
-- 清理旧状态文件（`.completed` 等）
-- 初始化通知状态文件
-- 返回 `spawn_params`（可直接传给 `sessions_spawn`）
+`run_research_pro()` 返回 `spawn_params`（可直接传给 `sessions_spawn`）。
 
 ---
 
-### Step 2: 启动管线
+### Step 2: 即时反馈 + 启动管线
+
+**🔴 必须先给用户确认消息（在 spawn 之前）：**
+
+```
+🔬 收到！正在启动深度研究引擎…
+━━━━━━━━━━━━━━━━━━━━
+📋 生成研究计划…     ⏳ ~1分钟
+🔍 多源搜索…          ⏳ ~5-15分钟
+📊 综合分析…          ⏳ ~2-5分钟
+📝 生成报告…          ⏳ ~1-3分钟
+━━━━━━━━━━━━━━━━━━━━
+预计 10 分钟 (快速) / 30 分钟 (标准) 内完成
+```
+
+**然后 spawn + yield：**
 
 ```python
-# 从 Step 1 的返回值中获取 spawn_params
 sessions_spawn(**result["spawn_params"])
+sessions_yield()
 ```
-
-子 Agent 会自动完成：
-1. ✅ 加载已有计划
-2. ✅ 自动确认计划（auto-approve）
-3. ✅ 执行搜索与研究（Mode A/B/C 自动选择）
-4. ✅ 生成研究报告
-5. ✅ 写入 `.completed` 标记
 
 ---
 
-### Step 3: 等待完成 + 通知用户
+### Step 3: 子 Agent 完成 → 推送结果（🔴 不可跳过）
 
-子 Agent 完成后，读取报告：
-```bash
-cat {base_path}/report/final.md | head -100
+子 Agent 完成后，**必须在同一个 turn 内完成：**
+
+1. 读取报告：`cat {base_path}/report/final.md`
+2. **🔴 推送结果**：用 `message(action=send)` 把核心发现摘要推送给用户
+
+**交付铁律**：推送是 turn 的最后一个动作，禁止 yield / 等待 / 什么都不做。
+
+---
+
+## 子 Agent 执行流程（V2.1 路径 B）
+
+子 Agent 直接用 OpenClaw 原生工具搜索，Python 只在验证环节辅助。
+
+```
+子 Agent
+  1. 加载分析计划（读 state.json）
+  2. web_search(关键词) → 收集 URL
+  3. web_fetch(URL) → 获取内容
+  4. LLM 分析 → 写 blackboard/research/
+  5. exec → SourceRegistry.register()（Python 防幻觉）
+  6. exec → CitationVerifier.verify_all()（Python 引用验证）
+  7. 写报告 → .completed
 ```
 
-将报告摘要通过 `message` 工具推送给用户。
+### 数据流
+
+```
+子 Agent (web_search + web_fetch + LLM)
+  │
+  ├── 搜索：web_search → 真实结果
+  ├── 抓取：web_fetch → 完整内容
+  ├── 分析：LLM 能力 → 结构化洞察
+  │
+  └── 验证（Python 辅助）：
+      ├── SourceRegistry — 登记所有来源（防幻觉）
+      ├── CitationVerifier — 五步引用验证
+      └── TierClassifier — 来源质量分级
+```
 
 ---
 
