@@ -1,0 +1,152 @@
+---
+# Prompt 去版本号重命名 — 契约笼子声明
+# 创建: 2026-06-20
+# 状态: DECLARED (待执行)
+
+objective: "将 Solution Pro 所有带版本号的 prompt 文件名去掉版本号，消除级联更新风险"
+
+# === C1: 文件重命名（10个） ===
+file_renames:
+  - from: pipeline_orchestrator_v6.md
+    to: pipeline_orchestrator.md
+  - from: planner_v2_harness.md
+    to: planner.md
+  - from: researcher_v2_harness.md
+    to: researcher.md
+  - from: reviewer_v2_harness.md
+    to: reviewer.md
+  - from: consolidator_v2_harness.md
+    to: consolidator.md
+  - from: auditor_v2_harness.md
+    to: auditor.md
+  - from: fixer_v2_harness.md
+    to: fixer.md
+  - from: fixer_expert_v2_harness.md
+    to: fixer_expert.md
+  - from: summarizer_v2_harness.md
+    to: summarizer.md
+  - from: harness_v3.md
+    to: harness_final.md
+
+# === C2: 代码引用更新（4个文件） ===
+code_updates:
+  - file: domains/solution/__init__.py
+    changes:
+      - from: pipeline_orchestrator_v6.md
+        to: pipeline_orchestrator.md
+  - file: domains/solution/task_builder.py
+    changes:
+      - from: solution/planner_v2_harness
+        to: solution/planner
+      - from: solution/researcher_v2_harness
+        to: solution/researcher
+      - from: solution/reviewer_v2_harness
+        to: solution/reviewer
+      - from: solution/consolidator_v2_harness
+        to: solution/consolidator
+      - from: solution/auditor_v2_harness
+        to: solution/auditor
+      - from: solution/fixer_v2_harness
+        to: solution/fixer
+      - from: solution/fixer_expert_v2_harness
+        to: solution/fixer_expert
+      - from: solution/summarizer_v2_harness
+        to: solution/summarizer
+      - from: solution/harness_v3
+        to: solution/harness_final
+  - file: domains/solution/check_contract.py
+    changes:
+      - from: planner_v2_harness.md
+        to: planner.md
+      - from: researcher_v2_harness.md
+        to: researcher.md
+      - from: reviewer_v2_harness.md
+        to: reviewer.md
+      - from: consolidator_v2_harness.md
+        to: consolidator.md
+      - from: auditor_v2_harness.md
+        to: auditor.md
+      - from: fixer_v2_harness.md
+        to: fixer.md
+      - from: fixer_expert_v2_harness.md
+        to: fixer_expert.md
+      - from: harness_v3.md
+        to: harness_final.md
+      - from: summarizer_v2_harness.md
+        to: summarizer.md
+
+# === C3: registry.yaml 更新 ===
+registry_updates:
+  # 删除僵尸条目（旧无版本号ID，文件已不存在）
+  delete_stale_ids:
+    - solution/planner      # filename: planner.md, 文件不存在
+    - solution/researcher_template  # 保留（有文件）
+    - solution/designer     # 保留（有文件）
+    - solution/consolidator # filename: consolidator.md, 文件不存在
+    - solution/fixer_expert # filename: fixer_expert.md, 文件不存在
+    - solution/summarizer   # filename: summarizer.md, 文件不存在
+    - solution/auditor      # filename: auditor.md, 文件不存在
+    - solution/fixer        # filename: fixer.md, 文件不存在
+    - solution/harness_final_v2  # filename: reviewer_v2_harness.md, 已被新ID替代
+    - solution/pipeline_orchestrator  # filename: pipeline_orchestrator.md, 文件不存在
+  # 重命名 prompt_id key + 更新 filename 字段
+  rename_ids:
+    - old_id: solution/planner_v2_harness
+      new_id: solution/planner
+      new_filename: planner.md
+    - old_id: solution/researcher_v2_harness
+      new_id: solution/researcher
+      new_filename: researcher.md
+    - old_id: solution/reviewer_v2_harness
+      new_id: solution/reviewer
+      new_filename: reviewer.md
+    - old_id: solution/consolidator_v2_harness
+      new_id: solution/consolidator
+      new_filename: consolidator.md
+    - old_id: solution/auditor_v2_harness
+      new_id: solution/auditor
+      new_filename: auditor.md
+    - old_id: solution/fixer_v2_harness
+      new_id: solution/fixer
+      new_filename: fixer.md
+    - old_id: solution/fixer_expert_v2_harness
+      new_id: solution/fixer_expert
+      new_filename: fixer_expert.md
+    - old_id: solution/summarizer_v2_harness
+      new_id: solution/summarizer
+      new_filename: summarizer.md
+    - old_id: solution/harness_v3
+      new_id: solution/harness_final
+      new_filename: harness_final.md
+    - old_id: solution/pipeline_orchestrator_v6
+      new_id: solution/pipeline_orchestrator
+      new_filename: pipeline_orchestrator.md
+
+# === C4: 文档更新 ===
+doc_updates:
+  - file: domains/solution/QUALITY_GUIDE.md
+    changes:
+      - from: prompts/pipeline_orchestrator_v6.md
+        to: prompts/pipeline_orchestrator.md
+      - from: prompts/consolidator_v2_harness.md
+        to: prompts/consolidator.md
+      - from: prompts/summarizer_v2_harness.md
+        to: prompts/summarizer.md
+      - from: prompts/planner_v2_harness.md
+        to: prompts/planner.md
+  - file: MEMORY.md
+    changes:
+      - from: prompts/consolidator_v2_harness.md
+        to: prompts/consolidator.md
+      - from: prompts/summarizer_v2_harness.md
+        to: prompts/summarizer.md
+
+# === V: 验证条件（执行后用这些验证） ===
+verification:
+  V1_files_renamed: "所有 10 个旧文件名不存在，10 个新文件名存在"
+  V2_no_version_in_filenames: "prompts/ 目录下无任何 _v[0-9] 或 _v2_harness 后缀的文件"
+  V3_no_version_in_code: "grep 搜索所有 .py 文件，不含 _v2_harness 或 _v6 或 _v3（注释除外）"
+  V4_registry_consistent: "registry.yaml 中所有 solution prompt_id 无版本号后缀"
+  V5_registry_filenames_exist: "registry.yaml 中每个 filename 对应的文件都存在"
+  V6_check_contract_passes: "python3 domains/solution/check_contract.py 不报 prompt 缺失"
+  V7_no_stale_references: "docs 中无残留版本号引用（QUALITY_GUIDE/MEMORY）"

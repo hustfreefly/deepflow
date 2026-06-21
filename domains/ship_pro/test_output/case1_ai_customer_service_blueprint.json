@@ -1,0 +1,302 @@
+{
+  "_meta": {
+    "agent": "architect",
+    "input_format": "B",
+    "overall_confidence": "high",
+    "data_sufficiency": {
+      "modules": "sufficient",
+      "dependencies": "partial",
+      "requirements": "sufficient",
+      "risks": "sufficient"
+    },
+    "prompt_sha": "",
+    "model_id": "",
+    "run_id": "",
+    "round": 0,
+    "timestamp": ""
+  },
+  "project": {
+    "name": "企业级AI智能客服系统",
+    "objective": "设计一个企业级AI智能客服系统，支持多轮对话、意图识别、知识库检索和人工坐席无缝转接，日均处理10万+对话请求，系统可用性≥99.9%",
+    "problem_statement": "企业需要处理大量客户服务请求，需要自动化处理常见问题，同时保证复杂问题能无缝转接人工坐席，满足GDPR/PIPL合规要求"
+  },
+  "modules": [
+    {
+      "id": "COMP-001",
+      "name": "API Gateway",
+      "summary": "协议适配、流量治理、分层超时、降级路由",
+      "responsibilities": ["协议适配", "流量治理", "分层超时控制", "降级路由"],
+      "technology_stack": ["Kong", "Higress"],
+      "is_infrastructure": false
+    },
+    {
+      "id": "COMP-002",
+      "name": "Multi-Channel Adapter",
+      "summary": "多渠道消息统一格式转换",
+      "responsibilities": ["Web渠道适配", "APP渠道适配", "微信小程序适配", "WhatsApp适配", "语音渠道适配"],
+      "technology_stack": ["CloudEvents Schema"],
+      "is_infrastructure": false
+    },
+    {
+      "id": "COMP-003",
+      "name": "Conversation Service",
+      "summary": "多轮对话状态管理，≥20轮上下文，KV Cache引用传递",
+      "responsibilities": ["对话状态追踪", "多轮上下文管理", "KV Cache跨轮复用", "状态摘要压缩"],
+      "technology_stack": ["DST", "gRPC Streaming"],
+      "is_infrastructure": false
+    },
+    {
+      "id": "COMP-004",
+      "name": "Intent Service",
+      "summary": "毫秒级意图分类（<50ms），50+业务意图，中文优化",
+      "responsibilities": ["意图识别", "意图分类", "置信度评分"],
+      "technology_stack": ["轻量CPU模型"],
+      "is_infrastructure": false
+    },
+    {
+      "id": "COMP-005",
+      "name": "RAG Service",
+      "summary": "混合语义检索，三层知识库（FAQ/产品/政策）独立索引",
+      "responsibilities": ["BM25中文分词检索", "BGE-m3向量语义检索", "RRF融合排序", "Cross-encoder重排序"],
+      "technology_stack": ["BM25", "BGE-m3", "RRF", "Cross-encoder"],
+      "is_infrastructure": false
+    },
+    {
+      "id": "COMP-006",
+      "name": "LLM Inference Service",
+      "summary": "GPU推理池（A10G/L4），三级模型路由，KV Cache跨轮复用",
+      "responsibilities": ["GPU推理", "模型路由", "KV Cache管理", "投机解码"],
+      "technology_stack": ["vLLM", "PagedAttention", "投机解码", "A10G", "L4"],
+      "is_infrastructure": false
+    },
+    {
+      "id": "COMP-007",
+      "name": "Semantic Cache",
+      "summary": "cosine 0.92阈值，分层TTL（FAQ 7天/产品24h/政策1h），命中率60-80%",
+      "responsibilities": ["向量相似度缓存", "分层TTL管理", "缓存命中检查"],
+      "technology_stack": ["Redis", "向量相似度"],
+      "is_infrastructure": true
+    },
+    {
+      "id": "COMP-008",
+      "name": "Human Agent Service",
+      "summary": "坐席工作台，Warm Transfer完整上下文包，AI建议面板，降级链",
+      "responsibilities": ["坐席工作台", "Warm Transfer", "AI建议面板", "排队状态监控"],
+      "technology_stack": ["WebSocket"],
+      "is_infrastructure": false
+    },
+    {
+      "id": "COMP-009",
+      "name": "Compliance Infrastructure",
+      "summary": "PII并行脱敏（L1正则+L2 NER并行，<20ms）、同意管理、DSAR、不可变审计日志",
+      "responsibilities": ["PII脱敏", "同意管理", "DSAR数据主体请求", "审计日志"],
+      "technology_stack": ["独立微服务"],
+      "is_infrastructure": true
+    },
+    {
+      "id": "COMP-010",
+      "name": "CRM Adapter",
+      "summary": "事件溯源+幂等性保证+增量对账，Salesforce/HubSpot/Zoho统一抽象",
+      "responsibilities": ["CRM事件溯源", "幂等性保证", "增量对账", "多CRM统一抽象"],
+      "technology_stack": ["Event Sourcing", "CQRS"],
+      "is_infrastructure": false
+    },
+    {
+      "id": "COMP-011",
+      "name": "Observability",
+      "summary": "8类关键指标监控（缓存命中率/hallucination rate/GPU预热/KV Cache命中率等）",
+      "responsibilities": ["指标采集", "链路追踪", "日志聚合", "告警"],
+      "technology_stack": ["Prometheus", "Grafana", "OTel", "Loki"],
+      "is_infrastructure": true
+    },
+    {
+      "id": "COMP-012",
+      "name": "Data Layer",
+      "summary": "向量检索+关系存储+事件流+会话缓存，跨AZ同步（RPO<3秒/0）",
+      "responsibilities": ["向量数据存储", "关系数据存储", "事件流处理", "会话缓存", "跨AZ同步"],
+      "technology_stack": ["Milvus", "PostgreSQL", "Kafka", "Redis"],
+      "is_infrastructure": true
+    }
+  ],
+  "dependencies": [
+    {
+      "from": "COMP-002",
+      "to": "COMP-001",
+      "reason": "多渠道适配器通过API Gateway进行流量接入"
+    },
+    {
+      "from": "COMP-001",
+      "to": "COMP-004",
+      "reason": "API Gateway将请求路由到意图识别服务"
+    },
+    {
+      "from": "COMP-001",
+      "to": "COMP-007",
+      "reason": "API Gateway检查语义缓存"
+    },
+    {
+      "from": "COMP-001",
+      "to": "COMP-005",
+      "reason": "缓存未命中时路由到RAG检索"
+    },
+    {
+      "from": "COMP-005",
+      "to": "COMP-006",
+      "reason": "RAG检索结果传递给LLM推理"
+    },
+    {
+      "from": "COMP-006",
+      "to": "COMP-003",
+      "reason": "LLM推理结果返回对话管理服务"
+    },
+    {
+      "from": "COMP-003",
+      "to": "COMP-008",
+      "reason": "转接触发时传递给坐席工作台"
+    },
+    {
+      "from": "COMP-009",
+      "to": "COMP-003",
+      "reason": "PII脱敏后数据进入对话管理"
+    },
+    {
+      "from": "COMP-010",
+      "to": "COMP-003",
+      "reason": "CRM事件同步到对话状态"
+    }
+  ],
+  "domain_details": {
+    "model_routing": {
+      "strategy": "三级分层模型路由 + 投机解码增强",
+      "levels": [
+        {"level": "L0", "name": "规则引擎", "tech": "FAQ规则+关键词匹配", "traffic": "~5%", "latency": "<10ms", "cost": "~$0"},
+        {"level": "L1", "name": "意图分类器", "tech": "轻量CPU分类模型", "traffic": "100%（必经）", "latency": "<50ms", "cost": "~$0"},
+        {"level": "L2", "name": "轻量LLM", "tech": "Qwen2.5-7B（自托管）", "traffic": "~60%（标准FAQ）", "latency": "<500ms", "cost": "$0.005/对话"},
+        {"level": "L3", "name": "大模型", "tech": "Qwen3.6-Plus + Qwen2.5-1.5B草稿（投机解码）", "traffic": "~20-30%（复杂多轮）", "latency": "<700ms（KV Cache复用后）", "cost": "$0.01/对话"},
+        {"level": "L4", "name": "兜底模型", "tech": "GPT-4o（API）", "traffic": "~5-10%（兜底）", "latency": "<1.5s", "cost": "$0.05/对话"}
+      ],
+      "optimizations": [
+        "语义缓存60-80%命中率（FAQ场景），响应<50ms，端到端成本降低40-73%",
+        "KV Cache跨轮复用：多轮对话LLM推理延迟从1.2s降至0.4-0.7s（复用率随轮次增加）",
+        "投机解码（Qwen2.5-1.5B草稿）：FAQ场景1.9x加速，复杂场景1.5x加速",
+        "PII脱敏并行化：L1正则+L2 NER并行执行<20ms，L3 DLP仅灰度区间触发（减少70-80%调用）"
+      ]
+    },
+    "rag_architecture": {
+      "retrieval": "混合检索（BM25中文分词 + BGE-m3向量语义 + RRF融合 + bge-reranker重排序）",
+      "knowledge_layers": [
+        {"layer": "FAQ层", "strategy": "精确匹配优先", "ttl": "7天"},
+        {"layer": "产品文档层", "strategy": "混合检索+RRF", "ttl": "24小时"},
+        {"layer": "政策层", "strategy": "严格权限过滤", "ttl": "1小时+变更触发失效"}
+      ],
+      "quality_guarantee": {
+        "hallucination_rate_target": "<5%",
+        "fact_checking": "三级：L1引用检查 + L2语义一致性>0.7 + L3关键事实交叉验证",
+        "confidence_formula": "0.4×intent_match + 0.3×rag_relevance + 0.2×grounding_score + 0.1×sentiment_alignment",
+        "escalation_threshold": "置信度<0.7自动转人工"
+      }
+    },
+    "compliance": {
+      "frameworks": ["GDPR（欧盟）", "PIPL（中国）", "EU AI Act（2026年8月截止）"],
+      "data_sovereignty": "EU用户数据在EU区域处理 + 中国用户数据在中国区域处理，跨区仅同步脱敏聚合数据",
+      "pii_protection": {
+        "pre_prompt_redaction": "L1正则（身份证/手机号/邮箱/银行卡）+ L2 NER（人名/地址/组织）并行<20ms + L3 DLP条件触发",
+        "vector_db": "入库前完成PII脱敏，向量嵌入仅含脱敏后语义信息",
+        "deletion": "向量DB逻辑删除+定期物理重建 + DSAR统一编排 + 审计日志证明完成"
+      },
+      "encryption": "TLS 1.3传输加密 + AES-256静态加密 + 分层KMS（每租户独立密钥，轮换≤12个月）",
+      "audit_log": "append-only不可变存储 + Merkle Tree密码学校验，分层保留（原始PII 30天/脱敏日志1年/聚合指标5年/系统元日志10年）",
+      "transparency": "AI交互显式标注（Phase 1 MVP）+ EU AI Act Art.50透明度报告（Phase 2）",
+      "launch_strategy": "非EU优先上线（2026年8月前在中国/东南亚上线），EU区域Phase 2完成后（约2026年10月）上线"
+    },
+    "high_availability": {
+      "sla_target": "99.9%（年停机≤8.76小时）",
+      "deployment": "3个AZ多可用区部署",
+      "mechanisms": [
+        "Pod拓扑传播约束 + 反亲和性（spread across zones）",
+        "PDB（minAvailable 50%）确保滚动升级最低可用副本",
+        "主动式AZ故障转移（DNS级RTO<30秒）",
+        "跨AZ状态同步：Redis异步RPO<3秒，PostgreSQL同步RPO=0",
+        "Warm Pool 3副本×3AZ（任意AZ故障仍有2副本可用）",
+        "KEDA自动扩容至1.5x容量（剩余2个AZ承载100%流量）",
+        "优雅降级链路：LLM不可用→规则引擎→FAQ缓存→兜底话术",
+        "分层超时隔离（降级成功率>85%）",
+        "多模型供应商路由（Qwen主+GPT兜底）"
+      ]
+    },
+    "observability": {
+      "stack": {"metrics": "Prometheus + Grafana", "tracing": "OpenTelemetry + Jaeger", "logging": "Loki（结构化JSON日志）", "llm": "LangSmith/自建LLM可观测性"},
+      "key_metrics": [
+        "P99首次响应延迟（目标<2s）",
+        "语义缓存命中率（目标>60%，<40%触发P1告警）",
+        "GPU利用率 + KV Cache使用率",
+        "Hallucination rate（目标<5%，>10%触发P0告警）",
+        "队列深度 + 等待请求数",
+        "KV Cache跨轮复用率",
+        "PII管道并行度",
+        "CRM事件积压量",
+        "AZ健康状态",
+        "分层超时触发率"
+      ],
+      "alerting": "P0电话 + P1飞书 + P2邮件，基于SLO的告警规则"
+    },
+    "cost_analysis": {
+      "capex": "$34,400-$58,000（一次性初始开发）",
+      "opex_infrastructure": {
+        "phase1": "$8,000-$12,000/月",
+        "phase2": "$10,000-$15,000/月",
+        "phase3_4": "$12,000-$15,000/月（自托管优化后）"
+      },
+      "opex_personnel": "$36,000-$54,000/月（1架构师+2后端+1 ML工程师+1 DevOps+0.5 DPO兼职）",
+      "total_opex": "$48,000-$72,000/月（基础设施+人力）",
+      "cost_per_conversation": "<$0.03/对话",
+      "roi": "18个月回本，ROI约350%",
+      "cost_optimization": "语义缓存60-80%命中率降低40-73%成本 + 三级模型路由降低75%+API成本 + 自托管替代60%流量"
+    },
+    "human_handoff": {
+      "trigger_conditions": ["意图置信度<0.7", "负面情绪分数>0.8", "连续3轮未解决", "用户主动请求'转人工'"],
+      "context_package": ["完整对话transcript", "意图识别结果", "情绪分析标签", "对话摘要", "收集的数据（已脱敏PII）", "AI建议话术"],
+      "agent_desk": "Web应用 + WebSocket长连接 + 侧边栏AI建议面板 + 排队状态实时监控",
+      "fallback_chain": "坐席全忙→排队+预计等待时间→超时→AI继续服务+留言",
+      "feedback_loop": "人工解决结果回传AI用于持续优化（MLOps标注管道）"
+    }
+  },
+  "sla_constraints": [
+    {"metric": "系统可用性", "target": "≥99.9%", "scope": "年度"},
+    {"metric": "首次响应延迟", "target": "<2秒", "scope": "P99"},
+    {"metric": "语义缓存命中率", "target": ">60%", "scope": "FAQ场景"},
+    {"metric": "意图识别延迟", "target": "<50ms", "scope": "L1意图分类器"},
+    {"metric": "RAG检索延迟", "target": "<500ms", "scope": "缓存未命中场景"},
+    {"metric": "LLM推理延迟", "target": "<700ms", "scope": "KV Cache复用后"},
+    {"metric": "PII脱敏延迟", "target": "<20ms", "scope": "L1+L2并行处理"},
+    {"metric": "Hallucination rate", "target": "<5%", "scope": "全量对话"},
+    {"metric": "CRM事件积压", "target": "0", "scope": "增量对账后"},
+    {"metric": "跨AZ数据同步", "target": "RPO<3秒/0", "scope": "Redis/PostgreSQL"}
+  ],
+  "requirements": [
+    {"req_id": "REQ-001", "description": "设计一个企业级AI智能客服系统，支持多轮对话、意图识别、知识库检索和人工坐席无缝转接", "priority": "P0", "coverage": "covered"},
+    {"req_id": "REQ-002", "description": "日均处理10万+对话请求", "priority": "P1", "coverage": "covered"},
+    {"req_id": "REQ-003", "description": "系统可用性≥99.9%", "priority": "P1", "coverage": "covered"},
+    {"req_id": "REQ-004", "description": "首次响应延迟<2秒", "priority": "P1", "coverage": "covered"},
+    {"req_id": "REQ-005", "description": "支持中文和英文双语", "priority": "P1", "coverage": "covered"},
+    {"req_id": "REQ-006", "description": "必须与现有CRM系统集成", "priority": "P1", "coverage": "covered"},
+    {"req_id": "REQ-007", "description": "数据存储符合GDPR合规要求", "priority": "P1", "coverage": "covered"}
+  ],
+  "risks": [
+    {"id": "RISK-001", "description": "EU AI Act合规截止日（2026年8月）逼近", "severity": "high"},
+    {"id": "RISK-002", "description": "LLM供应商锁定（过度依赖外部API）", "severity": "high"},
+    {"id": "RISK-003", "description": "缓存未命中场景P99延迟超标", "severity": "high"},
+    {"id": "RISK-004", "description": "GPU冷启动5-20分钟", "severity": "medium"},
+    {"id": "RISK-005", "description": "向量DB中被遗忘权实现", "severity": "medium"},
+    {"id": "RISK-006", "description": "AI幻觉导致错误回答", "severity": "medium"},
+    {"id": "RISK-007", "description": "CRM数据一致性", "severity": "medium"},
+    {"id": "RISK-008", "description": "月度成本超支", "severity": "medium"}
+  ],
+  "implementation_hints": [
+    {"phase": "Phase 0", "description": "基础建设，第1个月（4周）", "modules": ["COMP-001", "COMP-007", "COMP-009", "COMP-011", "COMP-012"]},
+    {"phase": "Phase 1", "description": "MVP核心功能，第2-3个月（8周）", "modules": ["COMP-002", "COMP-003", "COMP-004", "COMP-005", "COMP-006"]},
+    {"phase": "Phase 2", "description": "转接与合规，第4-5个月（8周）", "modules": ["COMP-008", "COMP-009", "COMP-010"]},
+    {"phase": "Phase 3", "description": "生产化与优化，第6-7个月（8周）", "modules": ["COMP-001", "COMP-003", "COMP-005", "COMP-007"]},
+    {"phase": "Phase 4", "description": "规模化与优化，第8-9个月（8周）", "modules": ["COMP-006", "COMP-009", "COMP-011"]}
+  ]
+}

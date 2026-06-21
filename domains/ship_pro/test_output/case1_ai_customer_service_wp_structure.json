@@ -1,0 +1,205 @@
+{
+  "_meta": {
+    "agent": "decomposer",
+    "prompt_sha": "",
+    "model_id": "",
+    "run_id": "",
+    "round": 0,
+    "input_files": ["blueprint.json"],
+    "timestamp": ""
+  },
+  "work_packages": [
+    {
+      "id": "WP-001",
+      "title": "数据层基础设施（向量DB+关系DB+缓存+事件流）",
+      "source_modules": ["COMP-007", "COMP-012"],
+      "dependencies": [],
+      "priority": "high",
+      "rationale": "所有业务服务依赖数据层，必须优先搭建；包含向量检索、关系存储、会话缓存、事件流四大能力"
+    },
+    {
+      "id": "WP-002",
+      "title": "API网关与可观测性基础设施",
+      "source_modules": ["COMP-001", "COMP-011"],
+      "dependencies": [
+        {"wp": "WP-001", "type": "基础设施依赖", "reason": "API网关需要连接数据层；可观测性需要监控数据层"}
+      ],
+      "priority": "high",
+      "rationale": "流量入口和监控基础设施，被所有上游服务依赖；提供协议适配、流量治理、全链路追踪"
+    },
+    {
+      "id": "WP-003",
+      "title": "合规基础设施（PII脱敏+同意管理+审计）",
+      "source_modules": ["COMP-009"],
+      "dependencies": [
+        {"wp": "WP-001", "type": "基础设施依赖", "reason": "合规服务需要访问数据层进行审计日志存储"}
+      ],
+      "priority": "high",
+      "rationale": "GDPR/PIPL/EU AI Act合规是硬性要求，PII脱敏管道必须在业务服务之前就绪"
+    },
+    {
+      "id": "WP-004",
+      "title": "多渠道适配层",
+      "source_modules": ["COMP-002"],
+      "dependencies": [
+        {"wp": "WP-002", "type": "接口依赖", "reason": "多渠道适配器通过API网关接入流量"}
+      ],
+      "priority": "medium",
+      "rationale": "渠道层独立于核心AI逻辑，可并行开发；负责Web/APP/微信/WhatsApp/语音消息格式统一"
+    },
+    {
+      "id": "WP-005",
+      "title": "对话管理与意图识别服务",
+      "source_modules": ["COMP-003", "COMP-004"],
+      "dependencies": [
+        {"wp": "WP-002", "type": "接口依赖", "reason": "通过API网关接收请求"},
+        {"wp": "WP-001", "type": "数据依赖", "reason": "对话状态存储在Redis/PostgreSQL"},
+        {"wp": "WP-003", "type": "接口依赖", "reason": "对话内容需经PII脱敏处理"}
+      ],
+      "priority": "medium",
+      "rationale": "核心对话引擎，负责多轮状态追踪和意图分类；依赖基础设施就绪后才能开发"
+    },
+    {
+      "id": "WP-006",
+      "title": "RAG检索与LLM推理服务",
+      "source_modules": ["COMP-005", "COMP-006"],
+      "dependencies": [
+        {"wp": "WP-001", "type": "数据依赖", "reason": "RAG需要访问Milvus向量库；LLM需要GPU资源"},
+        {"wp": "WP-005", "type": "接口依赖", "reason": "接收对话管理服务传递的查询"},
+        {"wp": "WP-003", "type": "接口依赖", "reason": "检索结果需经PII脱敏"}
+      ],
+      "priority": "medium",
+      "rationale": "AI核心引擎，包含混合检索和GPU推理；技术复杂度最高，需要GPU资源就绪"
+    },
+    {
+      "id": "WP-007",
+      "title": "人工坐席工作台与转接服务",
+      "source_modules": ["COMP-008"],
+      "dependencies": [
+        {"wp": "WP-005", "type": "接口依赖", "reason": "接收对话管理服务转接触发"},
+        {"wp": "WP-001", "type": "数据依赖", "reason": "坐席工作台需要访问对话历史"}
+      ],
+      "priority": "low",
+      "rationale": "转接功能依赖核心对话引擎就绪；包含坐席工作台、Warm Transfer、AI建议面板"
+    },
+    {
+      "id": "WP-008",
+      "title": "CRM集成适配器",
+      "source_modules": ["COMP-010"],
+      "dependencies": [
+        {"wp": "WP-001", "type": "数据依赖", "reason": "CRM事件存储在Kafka事件流"},
+        {"wp": "WP-005", "type": "接口依赖", "reason": "CRM事件同步到对话状态"}
+      ],
+      "priority": "low",
+      "rationale": "CRM集成是增强功能，依赖核心对话引擎；实现事件溯源+CQRS+幂等性保证"
+    }
+  ],
+  "dependency_edges": [
+    {
+      "from": "WP-001",
+      "to": "WP-002",
+      "reason": "数据层是API网关和可观测性的基础设施依赖"
+    },
+    {
+      "from": "WP-001",
+      "to": "WP-003",
+      "reason": "数据层是合规基础设施的存储依赖"
+    },
+    {
+      "from": "WP-002",
+      "to": "WP-004",
+      "reason": "API网关是多渠道适配的接口依赖"
+    },
+    {
+      "from": "WP-002",
+      "to": "WP-005",
+      "reason": "API网关是对话管理的接口依赖"
+    },
+    {
+      "from": "WP-001",
+      "to": "WP-005",
+      "reason": "数据层是对话管理的数据依赖"
+    },
+    {
+      "from": "WP-003",
+      "to": "WP-005",
+      "reason": "合规服务是对话管理的接口依赖（PII脱敏）"
+    },
+    {
+      "from": "WP-001",
+      "to": "WP-006",
+      "reason": "数据层是RAG/LLM的数据依赖（向量库+GPU）"
+    },
+    {
+      "from": "WP-005",
+      "to": "WP-006",
+      "reason": "对话管理是RAG/LLM的接口依赖（传递查询）"
+    },
+    {
+      "from": "WP-003",
+      "to": "WP-006",
+      "reason": "合规服务是RAG/LLM的接口依赖（PII脱敏）"
+    },
+    {
+      "from": "WP-005",
+      "to": "WP-007",
+      "reason": "对话管理是坐席工作台的接口依赖（转接触发）"
+    },
+    {
+      "from": "WP-001",
+      "to": "WP-007",
+      "reason": "数据层是坐席工作台的数据依赖（对话历史）"
+    },
+    {
+      "from": "WP-001",
+      "to": "WP-008",
+      "reason": "数据层是CRM适配器的数据依赖（事件流）"
+    },
+    {
+      "from": "WP-005",
+      "to": "WP-008",
+      "reason": "对话管理是CRM适配器的接口依赖（状态同步）"
+    }
+  ],
+  "integration_checkpoints": [
+    {
+      "check": "数据层端到端验证：向量检索+关系查询+缓存命中+事件流消费",
+      "involves_wps": ["WP-001"],
+      "trigger": "WP-001完成后"
+    },
+    {
+      "check": "API网关到数据层链路：请求接入→路由→数据读写→响应返回",
+      "involves_wps": ["WP-001", "WP-002"],
+      "trigger": "WP-002完成后"
+    },
+    {
+      "check": "PII脱敏管道：用户输入→脱敏处理→业务服务→审计日志",
+      "involves_wps": ["WP-003", "WP-005"],
+      "trigger": "WP-003和WP-005完成后"
+    },
+    {
+      "check": "核心对话链路：用户请求→意图识别→RAG检索→LLM推理→响应返回",
+      "involves_wps": ["WP-005", "WP-006"],
+      "trigger": "WP-005和WP-006完成后"
+    },
+    {
+      "check": "人工转接端到端：转接触发→上下文传递→坐席工作台→用户通知",
+      "involves_wps": ["WP-005", "WP-007"],
+      "trigger": "WP-007完成后"
+    },
+    {
+      "check": "CRM事件同步：CRM事件→Kafka→对话状态更新→一致性验证",
+      "involves_wps": ["WP-005", "WP-008"],
+      "trigger": "WP-008完成后"
+    },
+    {
+      "check": "全链路端到端：多渠道接入→AI对话→人工转接→CRM同步→合规审计",
+      "involves_wps": ["WP-002", "WP-004", "WP-005", "WP-006", "WP-007", "WP-008"],
+      "trigger": "所有WP完成后"
+    }
+  ],
+  "self_check": {
+    "passed": true,
+    "issues": []
+  }
+}

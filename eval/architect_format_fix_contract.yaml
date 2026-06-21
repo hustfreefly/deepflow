@@ -1,0 +1,33 @@
+---
+# Architect Format 接口修复 — 契约笼子声明
+# 创建: 2026-06-20
+# 状态: DECLARED (待执行)
+
+objective: "让 Ship Pro Architect 能正确识别 Solution Pro 实际输出的 final_result.json 结构"
+
+# === C1: architect.md 修改 ===
+architect_md_changes:
+  - location: "Format A 描述区块"
+    action: "扩展 Format A 描述，增加对扁平结构的识别"
+    details: |
+      在 Format A 描述中增加一段说明：
+      - Format A 有两种变体：嵌套型（detailed_solution.architecture.components）
+        和扁平型（final_solution.components[]）
+      - 扁平型特征：final_solution 直接包含 components[]、key_decisions[]、
+        risks_and_mitigations、implementation_roadmap，无 detailed_solution 嵌套
+      - 提取路径：直接从 final_solution.components[] 提取模块
+
+# === C2: 模块提取优先级链 ===
+extraction_priority_chain:
+  - "final_solution.detailed_solution.architecture.components[] → Format A 嵌套型"
+  - "final_solution.components[] → Format A 扁平型（NEW）"
+  - "architecture.core_components[] → Format B"
+  - "architecture.components[] → Format B"
+  - "architecture.layers[] → Format B（层式）"
+  - "architecture（as key-value map）→ Format B-tech"
+
+# === V: 验证条件 ===
+verification:
+  V1_format_a_flat_described: "architect.md 中包含 Format A 扁平型的描述"
+  V2_extraction_chain_updated: "模块提取优先级链中包含 final_solution.components[]"
+  V3_no_other_files_changed: "只改 architect.md，不改 run_pipeline.py 或 summarizer.md"

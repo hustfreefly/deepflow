@@ -1,0 +1,491 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://deepflow.local/schemas/ship_package_v3.schema.json",
+  "title": "Ship Pro V3 Output Package Schema",
+  "description": "AI Coding era work package structure for Ship Pro V3. Generated from Solution Pro final_result input.",
+  "type": "object",
+  "required": ["schema_version", "meta", "project_context", "work_packages", "dependency_graph", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "3.0.0",
+      "description": "Schema version identifier"
+    },
+    "meta": {
+      "type": "object",
+      "description": "Project metadata and generation info",
+      "required": ["package_id", "generated_at", "generator", "source_session_id"],
+      "additionalProperties": false,
+      "properties": {
+        "package_id": {
+          "type": "string",
+          "description": "Unique package identifier (e.g. SP-001)",
+          "pattern": "^SP-[0-9]+$"
+        },
+        "project_name": {
+          "type": "string",
+          "description": "Human-readable project name"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 generation timestamp"
+        },
+        "generator": {
+          "type": "object",
+          "description": "Generator agent info",
+          "required": ["agent", "model", "version"],
+          "properties": {
+            "agent": { "type": "string", "const": "ship-pro" },
+            "model": { "type": "string" },
+            "version": { "type": "string" }
+          }
+        },
+        "source_session_id": {
+          "type": "string",
+          "description": "Source Solution Pro session ID"
+        },
+        "input_format": {
+          "type": "string",
+          "enum": ["A_final_solution", "B_flat_domain", "C_pipeline_summary", "D_minimal"],
+          "description": "Detected input format variant"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional project tags"
+        }
+      }
+    },
+    "project_context": {
+      "type": "object",
+      "description": "Extracted project context from the solution",
+      "required": ["problem_statement", "solution_overview"],
+      "additionalProperties": false,
+      "properties": {
+        "problem_statement": {
+          "type": "string",
+          "description": "Core problem being solved"
+        },
+        "solution_overview": {
+          "type": "string",
+          "description": "High-level solution description"
+        },
+        "core_value": {
+          "type": "string",
+          "description": "Core value proposition"
+        },
+        "architecture": {
+          "type": "object",
+          "description": "Architecture decisions extracted from solution",
+          "properties": {
+            "style": {
+              "type": "string",
+              "description": "Architecture style (e.g. microservices, monolith, serverless)"
+            },
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "type": { "type": "string" },
+                  "technology": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              }
+            },
+            "layers": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "requirements_coverage": {
+          "type": "object",
+          "description": "Requirements coverage summary",
+          "properties": {
+            "total": { "type": "integer" },
+            "covered": { "type": "integer" },
+            "coverage_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "title": { "type": "string" },
+                  "status": { "type": "string", "enum": ["covered", "partial", "gap"] }
+                }
+              }
+            }
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Project constraints extracted from solution"
+        },
+        "known_gaps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Known gaps or limitations"
+        }
+      }
+    },
+    "work_packages": {
+      "type": "array",
+      "description": "AI Coding era work packages",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "objective", "budget", "complexity", "priority", "outputs", "acceptance_criteria"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Work package identifier (e.g. WP-001)",
+            "pattern": "^WP-[0-9]+$"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short descriptive title",
+            "maxLength": 120
+          },
+          "objective": {
+            "type": "string",
+            "description": "Clear objective statement for the coding agent"
+          },
+          "budget": {
+            "type": "object",
+            "description": "Resource budget for execution",
+            "required": ["tokens", "time_minutes", "max_retries"],
+            "additionalProperties": false,
+            "properties": {
+              "tokens": {
+                "type": "integer",
+                "description": "Token budget for this WP",
+                "minimum": 1000
+              },
+              "time_minutes": {
+                "type": "integer",
+                "description": "Time budget in minutes",
+                "minimum": 1
+              },
+              "max_retries": {
+                "type": "integer",
+                "description": "Maximum retry attempts on failure",
+                "minimum": 0,
+                "maximum": 10
+              }
+            }
+          },
+          "complexity": {
+            "type": "string",
+            "enum": ["trivial", "low", "medium", "high", "critical"],
+            "description": "Estimated complexity level"
+          },
+          "model_tier": {
+            "type": "string",
+            "description": "Recommended model tier for execution",
+            "enum": ["claude-opus", "claude-sonnet", "claude-haiku", "gpt-4o", "gpt-4o-mini", "qwen-max", "qwen-plus", "auto"]
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^WP-[0-9]+$"
+            },
+            "description": "IDs of WPs that must complete before this one",
+            "uniqueItems": true
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"],
+            "description": "Execution priority"
+          },
+          "context_files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "File paths or globs the coding agent needs as context"
+          },
+          "outputs": {
+            "type": "array",
+            "description": "Expected output artifacts",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["type", "path"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["file", "directory", "api_endpoint", "database_migration", "config", "test", "documentation"]
+                },
+                "path": {
+                  "type": "string",
+                  "description": "Expected output path or identifier"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "acceptance_criteria": {
+            "type": "array",
+            "description": "Human-readable acceptance criteria",
+            "minItems": 1,
+            "items": { "type": "string" }
+          },
+          "acceptance_tests": {
+            "type": "array",
+            "description": "Automated test commands or scripts to verify acceptance",
+            "items": {
+              "type": "object",
+              "required": ["command"],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "Shell command to run the test"
+                },
+                "expected_exit_code": {
+                  "type": "integer",
+                  "default": 0
+                },
+                "expected_output_contains": {
+                  "type": "string",
+                  "description": "String that must appear in stdout"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "retry_policy": {
+            "type": "object",
+            "description": "Retry behavior on failure",
+            "properties": {
+              "on_failure": {
+                "type": "string",
+                "enum": ["abort", "retry", "skip", "fallback"],
+                "default": "abort"
+              },
+              "fallback_wp": {
+                "type": "string",
+                "pattern": "^WP-[0-9]+$",
+                "description": "Fallback WP ID if on_failure=fallback"
+              }
+            }
+          },
+          "requires_human_approval": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether this WP requires human approval before execution"
+          },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Categorization tags"
+          }
+        }
+      }
+    },
+    "dependency_graph": {
+      "type": "object",
+      "description": "Topological execution order and dependency visualization",
+      "required": ["execution_order", "parallel_groups"],
+      "additionalProperties": false,
+      "properties": {
+        "execution_order": {
+          "type": "array",
+          "description": "Topologically sorted WP IDs",
+          "items": {
+            "type": "string",
+            "pattern": "^WP-[0-9]+$"
+          },
+          "uniqueItems": true
+        },
+        "parallel_groups": {
+          "type": "array",
+          "description": "Groups of WPs that can execute in parallel (each group is a phase)",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^WP-[0-9]+$"
+            },
+            "uniqueItems": true
+          }
+        },
+        "critical_path": {
+          "type": "array",
+          "description": "WP IDs on the critical path (longest chain)",
+          "items": {
+            "type": "string",
+            "pattern": "^WP-[0-9]+$"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "description": "Dependency edges for visualization",
+          "items": {
+            "type": "object",
+            "required": ["from", "to"],
+            "properties": {
+              "from": { "type": "string", "pattern": "^WP-[0-9]+$" },
+              "to": { "type": "string", "pattern": "^WP-[0-9]+$" },
+              "type": { "type": "string", "enum": ["hard", "soft"] }
+            }
+          }
+        }
+      }
+    },
+    "risk_register": {
+      "type": "array",
+      "description": "Extracted risks with mitigation strategies",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "severity", "likelihood"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^RISK-[0-9]+$"
+          },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"]
+          },
+          "likelihood": {
+            "type": "string",
+            "enum": ["certain", "likely", "possible", "unlikely", "rare"]
+          },
+          "mitigation": {
+            "type": "string",
+            "description": "Mitigation strategy"
+          },
+          "affected_wps": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^WP-[0-9]+$" },
+            "description": "WPs affected by this risk"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "description": "Human-readable summary of the ship package",
+      "required": ["total_wps", "estimated_effort"],
+      "additionalProperties": false,
+      "properties": {
+        "total_wps": {
+          "type": "integer",
+          "description": "Total number of work packages"
+        },
+        "estimated_effort": {
+          "type": "string",
+          "description": "Human-readable effort estimate (e.g. '2-3 days', '1 week')"
+        },
+        "total_token_budget": {
+          "type": "integer",
+          "description": "Sum of all WP token budgets"
+        },
+        "total_time_minutes": {
+          "type": "integer",
+          "description": "Sum of all WP time budgets (sequential estimate)"
+        },
+        "parallel_time_minutes": {
+          "type": "integer",
+          "description": "Estimated time with maximum parallelism"
+        },
+        "complexity_distribution": {
+          "type": "object",
+          "properties": {
+            "trivial": { "type": "integer" },
+            "low": { "type": "integer" },
+            "medium": { "type": "integer" },
+            "high": { "type": "integer" },
+            "critical": { "type": "integer" }
+          }
+        },
+        "narrative": {
+          "type": "string",
+          "description": "Multi-paragraph human-readable narrative summary"
+        },
+        "immediate_next_steps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Recommended immediate next steps"
+        }
+      }
+    },
+    "quality_report": {
+      "type": "object",
+      "description": "Three-layer quality assessment results",
+      "additionalProperties": false,
+      "properties": {
+        "layer1_structural": {
+          "type": "object",
+          "description": "Structural completeness checks",
+          "properties": {
+            "score": { "type": "number", "minimum": 0, "maximum": 1 },
+            "checks_passed": { "type": "integer" },
+            "checks_total": { "type": "integer" },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "check": { "type": "string" },
+                  "status": { "type": "string", "enum": ["pass", "warn", "fail"] },
+                  "message": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "layer2_semantic": {
+          "type": "object",
+          "description": "Semantic quality assessment",
+          "properties": {
+            "score": { "type": "number", "minimum": 0, "maximum": 1 },
+            "coverage_assessment": { "type": "string" },
+            "coherence_assessment": { "type": "string" },
+            "feasibility_assessment": { "type": "string" }
+          }
+        },
+        "layer3_actionable": {
+          "type": "object",
+          "description": "Actionability assessment - can coding agents execute this?",
+          "properties": {
+            "score": { "type": "number", "minimum": 0, "maximum": 1 },
+            "clarity_score": { "type": "number", "minimum": 0, "maximum": 1 },
+            "testability_score": { "type": "number", "minimum": 0, "maximum": 1 },
+            "dependency_completeness": { "type": "number", "minimum": 0, "maximum": 1 },
+            "blockers": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Items that block execution"
+            }
+          }
+        },
+        "overall_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Weighted overall quality score"
+        },
+        "recommendations": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Quality improvement recommendations"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,179 @@
+{
+  "schema_version": "3.0.0",
+  "meta": {
+    "package_id": "SP-001",
+    "project_name": "电商订单管理系统",
+    "generated_at": "2026-06-19T00:12:00+08:00",
+    "generator": {
+      "agent": "ship-pro",
+      "model": "bailian/qwen3.7-plus",
+      "version": "3.0.0"
+    },
+    "source_session_id": "test-session-packager-001",
+    "input_format": "A_final_solution"
+  },
+  "project_context": {
+    "problem_statement": "构建一个支持高并发的电商订单管理系统，需要处理订单创建、支付、发货等全流程",
+    "solution_overview": "采用微服务架构，分为 API 网关层、用户认证服务、订单服务三个核心模块",
+    "architecture": {
+      "style": "microservices",
+      "components": [
+        {"name": "API Gateway", "type": "gateway", "technology": "FastAPI + Redis", "description": "统一入口，负责路由、限流、认证"},
+        {"name": "Auth Service", "type": "service", "technology": "FastAPI + JWT", "description": "用户认证和权限管理"},
+        {"name": "Order Service", "type": "service", "technology": "FastAPI + PostgreSQL", "description": "订单 CRUD 和状态机管理"}
+      ],
+      "layers": ["gateway", "service", "data"]
+    },
+    "requirements_coverage": {
+      "total": 5,
+      "covered": 5,
+      "coverage_rate": 1.0,
+      "items": [
+        {"id": "REQ-001", "title": "API 网关统一入口", "status": "covered"},
+        {"id": "REQ-002", "title": "限流和认证", "status": "covered"},
+        {"id": "REQ-003", "title": "JWT 认证和 RBAC", "status": "covered"},
+        {"id": "REQ-004", "title": "订单状态机", "status": "covered"},
+        {"id": "REQ-005", "title": "订单事务 ACID", "status": "covered"}
+      ]
+    },
+    "constraints": [
+      "API 响应时间 < 200ms (P99)",
+      "支持 100 QPS 并发",
+      "数据库事务必须 ACID"
+    ],
+    "known_gaps": []
+  },
+  "work_packages": [
+    {
+      "id": "WP-001",
+      "title": "API Gateway 层",
+      "objective": "实现统一入口，路由、限流、认证",
+      "budget": {"tokens": 50000, "time_minutes": 30, "max_retries": 3},
+      "complexity": "medium",
+      "dependencies": [],
+      "priority": "high",
+      "outputs": [
+        {"type": "file", "path": "src/gateway/main.py", "description": "API 网关主入口"},
+        {"type": "test", "path": "tests/test_gateway.py", "description": "网关测试用例"}
+      ],
+      "acceptance_criteria": [
+        "运行 pytest tests/test_gateway.py，所有 12 个测试通过",
+        "POST /api/v1/orders 在 100 QPS 下 P99 延迟 < 200ms",
+        "无效 API Key 返回 401，过期返回 403"
+      ]
+    },
+    {
+      "id": "WP-002",
+      "title": "用户认证服务",
+      "objective": "JWT 认证 + RBAC 权限管理",
+      "budget": {"tokens": 40000, "time_minutes": 25, "max_retries": 3},
+      "complexity": "medium",
+      "dependencies": ["WP-001"],
+      "priority": "high",
+      "outputs": [
+        {"type": "file", "path": "src/auth/service.py", "description": "认证服务实现"},
+        {"type": "test", "path": "tests/test_auth.py", "description": "认证测试用例"}
+      ],
+      "acceptance_criteria": [
+        "pytest tests/test_auth.py 覆盖率 > 80%",
+        "JWT token 过期时间 = 3600 秒，refresh token = 86400 秒",
+        "RBAC: admin 可访问所有 API，user 只能访问自己的资源"
+      ]
+    },
+    {
+      "id": "WP-003",
+      "title": "订单服务",
+      "objective": "订单 CRUD + 状态机",
+      "budget": {"tokens": 60000, "time_minutes": 40, "max_retries": 3},
+      "complexity": "high",
+      "dependencies": ["WP-001", "WP-002"],
+      "priority": "high",
+      "outputs": [
+        {"type": "file", "path": "src/order/service.py", "description": "订单服务实现"},
+        {"type": "file", "path": "src/order/state_machine.py", "description": "订单状态机"},
+        {"type": "test", "path": "tests/test_order.py", "description": "订单测试用例"}
+      ],
+      "acceptance_criteria": [
+        "订单状态机：created→paid→shipped→delivered，每个转换有审计日志",
+        "创建订单事务 ACID：库存扣减 + 订单创建 要么全成功要么全回滚",
+        "GET /api/v1/orders?page=1&size=20 返回分页数据，响应 < 100ms"
+      ]
+    }
+  ],
+  "dependency_graph": {
+    "execution_order": ["WP-001", "WP-002", "WP-003"],
+    "parallel_groups": [["WP-001"], ["WP-002"], ["WP-003"]],
+    "critical_path": ["WP-001", "WP-002", "WP-003"],
+    "edges": [
+      {"from": "WP-001", "to": "WP-002", "type": "hard"},
+      {"from": "WP-001", "to": "WP-003", "type": "hard"},
+      {"from": "WP-002", "to": "WP-003", "type": "hard"}
+    ]
+  },
+  "risk_register": [
+    {
+      "id": "RISK-001",
+      "title": "订单事务一致性风险",
+      "description": "订单创建涉及库存扣减和订单写入两个操作，在分布式场景下可能出现部分失败",
+      "severity": "high",
+      "likelihood": "possible",
+      "mitigation": "使用数据库事务保证 ACID，WP-003 AC 中已明确要求事务回滚机制",
+      "affected_wps": ["WP-003"]
+    },
+    {
+      "id": "RISK-002",
+      "title": "P99 延迟达标风险",
+      "description": "100 QPS 下 P99 < 200ms 的性能要求可能在数据量增长后难以满足",
+      "severity": "medium",
+      "likelihood": "possible",
+      "mitigation": "WP-001 使用 Redis 缓存热数据，WP-003 使用分页查询减少单次查询数据量",
+      "affected_wps": ["WP-001", "WP-003"]
+    }
+  ],
+  "summary": {
+    "total_wps": 3,
+    "estimated_effort": "1.5-2 小时（顺序执行），约 1 小时（最大并行）",
+    "total_token_budget": 150000,
+    "total_time_minutes": 95,
+    "parallel_time_minutes": 40,
+    "complexity_distribution": {
+      "trivial": 0,
+      "low": 0,
+      "medium": 2,
+      "high": 1,
+      "critical": 0
+    },
+    "narrative": "本项目采用微服务架构，分为 3 个工作包按依赖顺序执行。\n\n首先实现 API Gateway 层（WP-001），作为系统统一入口，负责路由、限流和认证，预估 30 分钟。\n\n然后实现用户认证服务（WP-002），依赖 WP-001 提供的网关接口，实现 JWT 认证和 RBAC 权限管理，预估 25 分钟。\n\n最后实现订单服务（WP-003），依赖 WP-001 和 WP-002，实现订单 CRUD 和状态机管理，预估 40 分钟。这是复杂度最高的 WP，涉及事务一致性和状态机设计。\n\n总 Token 预算 150,000，顺序执行约 95 分钟，最大并行下约 40 分钟（因为三个 WP 串行依赖，实际无法并行）。",
+    "immediate_next_steps": [
+      "从 WP-001 开始执行，实现 API Gateway 层",
+      "WP-001 完成后运行 pytest tests/test_gateway.py 验证",
+      "验证通过后启动 WP-002 用户认证服务"
+    ]
+  },
+  "quality_report": {
+    "layer1_structural": {
+      "score": 1.0,
+      "checks_passed": 5,
+      "checks_total": 5,
+      "issues": []
+    },
+    "layer2_semantic": {
+      "score": 0.87,
+      "coverage_assessment": "模块覆盖率 100%，需求覆盖率 100%",
+      "coherence_assessment": "WP 之间职责清晰，无重叠",
+      "feasibility_assessment": "预算充足，复杂度评估合理"
+    },
+    "layer3_actionable": {
+      "score": 0.87,
+      "clarity_score": 0.9,
+      "testability_score": 0.9,
+      "dependency_completeness": 1.0,
+      "blockers": []
+    },
+    "overall_score": 0.91,
+    "recommendations": [
+      "WP-003 可考虑添加 acceptance_tests 字段，声明自动化验证命令",
+      "建议为 WP-001 添加 context_files 声明需要的配置文件路径"
+    ]
+  }
+}
