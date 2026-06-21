@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepFlow 全局架构图</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', -apple-system, sans-serif;
+    background: #0d1117; color: #e6edf3; padding: 48px;
+  }
+  .container { max-width: 1600px; margin: 0 auto; }
+
+  /* Header */
+  .header { text-align: center; margin-bottom: 48px; }
+  .header h1 { font-size: 36px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 8px; }
+  .header h1 span { background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .header .sub { font-size: 15px; color: #8b949e; }
+
+  /* Layer */
+  .layer {
+    border: 1px solid #21262d; border-radius: 14px; padding: 28px;
+    margin-bottom: 0; position: relative; background: rgba(255,255,255,0.01);
+  }
+  .layer-tag {
+    position: absolute; top: -10px; left: 24px;
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    padding: 3px 14px; border-radius: 20px;
+  }
+  .lt-blue { background: rgba(59,130,246,0.15); color: #60a5fa; }
+  .lt-purple { background: rgba(168,85,247,0.15); color: #a78bfa; }
+  .lt-green { background: rgba(34,197,94,0.15); color: #4ade80; }
+  .lt-orange { background: rgba(251,191,36,0.15); color: #fbbf24; }
+
+  /* Grid */
+  .grid { display: grid; gap: 16px; margin-top: 12px; }
+  .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+  /* Component */
+  .comp {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px; padding: 18px;
+  }
+  .comp.primary { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+  .comp .c-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .comp .c-desc { font-size: 12px; color: #8b949e; line-height: 1.5; }
+  .comp .c-items { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+  .comp .c-item {
+    font-size: 11px; padding: 3px 8px; border-radius: 6px;
+    background: rgba(255,255,255,0.05); color: #c9d1d9;
+  }
+
+  /* Blackboard band */
+  .bb-band {
+    border: 1px dashed rgba(251,191,36,0.3); border-radius: 14px;
+    padding: 22px 28px; background: rgba(251,191,36,0.03);
+    position: relative; margin: 14px 0;
+  }
+  .bb-band .bb-label {
+    position: absolute; top: -10px; left: 24px;
+    font-size: 11px; font-weight: 700; color: #fbbf24;
+    padding: 3px 14px; border-radius: 20px; background: rgba(251,191,36,0.12);
+    letter-spacing: 0.5px;
+  }
+  .bb-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .bb-file {
+    font-size: 11px; padding: 4px 12px; border-radius: 8px;
+    background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.12);
+    color: #fbbf24; font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  /* Connector */
+  .connector {
+    display: flex; align-items: center; justify-content: center;
+    gap: 32px; padding: 14px 0;
+  }
+  .conn-arrow { display: flex; align-items: center; gap: 8px; }
+  .conn-arrow .ca-line { width: 48px; height: 2px; position: relative; }
+  .conn-arrow.solid .ca-line { background: #60a5fa; }
+  .conn-arrow.solid .ca-line::after {
+    content: ''; position: absolute; right: -1px; top: -3px;
+    border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+    border-left: 6px solid #60a5fa;
+  }
+  .conn-arrow.dashed .ca-line {
+    background: repeating-linear-gradient(90deg, #4ade80 0, #4ade80 5px, transparent 5px, transparent 8px);
+  }
+  .conn-arrow.dashed .ca-line::after {
+    content: ''; position: absolute; right: -1px; top: -3px;
+    border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+    border-left: 6px solid #4ade80;
+  }
+  .conn-arrow.bidir .ca-line {
+    background: repeating-linear-gradient(90deg, #fbbf24 0, #fbbf24 5px, transparent 5px, transparent 8px);
+  }
+  .conn-arrow.bidir .ca-line::after {
+    content: ''; position: absolute; right: -1px; top: -3px;
+    border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+    border-left: 6px solid #fbbf24;
+  }
+  .conn-arrow.bidir .ca-line::before {
+    content: ''; position: absolute; left: -1px; top: -3px;
+    border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+    border-right: 6px solid #fbbf24;
+  }
+  .ca-label { font-size: 11px; color: #8b949e; }
+
+  /* Domain card */
+  .domain-section { margin-top: 12px; }
+  .domain-section .ds-label {
+    font-size: 11px; color: #6e7681; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; font-weight: 600;
+  }
+  .domain-grid { display: grid; gap: 16px; }
+  .domain-grid.core { grid-template-columns: repeat(2, 1fr); }
+  .domain-grid.extra { grid-template-columns: repeat(2, 1fr); }
+
+  .domain-card {
+    border-radius: 12px; padding: 22px; position: relative; overflow: hidden;
+  }
+  .domain-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .domain-card.core-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); }
+  .domain-card.core-card::before { background: linear-gradient(90deg, #60a5fa, #a78bfa); }
+  .domain-card.extra-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); }
+  .domain-card.extra-card::before { background: rgba(255,255,255,0.12); }
+
+  .dc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .dc-icon { font-size: 20px; }
+  .dc-name { font-size: 16px; font-weight: 700; }
+  .dc-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .dc-badge.core { background: rgba(96,165,250,0.15); color: #60a5fa; }
+  .dc-badge.extra { background: rgba(255,255,255,0.06); color: #6e7681; }
+
+  .dc-io {
+    font-size: 12px; color: #8b949e; padding: 8px 12px; background: rgba(0,0,0,0.2);
+    border-radius: 8px; margin-bottom: 12px; line-height: 1.6;
+  }
+  .dc-io .in { color: #4ade80; }
+  .dc-io .out { color: #60a5fa; }
+
+  .dc-subs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .dc-sub {
+    font-size: 11px; padding: 4px 10px; border-radius: 8px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: #c9d1d9;
+  }
+
+  .dc-pipeline { padding: 12px 14px; background: rgba(0,0,0,0.25); border-radius: 8px; }
+  .dc-pipeline .pipe-label { color: #6e7681; font-size: 11px; font-weight: 600; margin-bottom: 8px; }
+  .dc-pipeline .pipe-steps { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .dc-pipeline .pstep { padding: 3px 8px; border-radius: 6px; font-size: 11px; background: rgba(255,255,255,0.06); color: #c9d1d9; }
+  .dc-pipeline .pstep.par { background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.2); color: #a78bfa; }
+  .dc-pipeline .pstep.green { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); color: #4ade80; }
+  .dc-pipeline .pstep.orange { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.2); color: #fbbf24; }
+  .dc-pipeline .parr { color: #484f58; font-size: 11px; }
+  .dc-pipeline .loop { color: #fbbf24; font-size: 14px; margin: 0 2px; }
+
+  /* Legend */
+  .legend { margin-top: 32px; padding: 14px 20px; border: 1px solid #21262d; border-radius: 10px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .legend .lg-title { font-size: 11px; font-weight: 600; color: #6e7681; text-transform: uppercase; letter-spacing: 0.5px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8b949e; }
+  .legend-line { width: 20px; height: 2px; position: relative; }
+  .legend-line.solid { background: #60a5fa; }
+  .legend-line.solid::after { content: ''; position: absolute; right: -1px; top: -3px; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 5px solid #60a5fa; }
+  .legend-line.dashed { background: repeating-linear-gradient(90deg, #4ade80 0, #4ade80 4px, transparent 4px, transparent 7px); }
+  .legend-line.bidir { background: repeating-linear-gradient(90deg, #fbbf24 0, #fbbf24 4px, transparent 4px, transparent 7px); }
+
+  /* Footer */
+  .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #21262d; display: flex; justify-content: space-between; font-size: 12px; color: #484f58; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1><span>DeepFlow</span> · 全局架构详图</h1>
+    <div class="sub">v4.0 · 多 Agent 流水线框架 · 2026-06-04</div>
+  </div>
+
+  <!-- L0 -->
+  <div class="layer" style="border-color: rgba(59,130,246,0.2);">
+    <div class="layer-tag lt-blue">L0 · OpenClaw 宿主层</div>
+    <div class="grid cols-2">
+      <div class="comp primary">
+        <div class="c-title">🤖 Main Agent（小满）</div>
+        <div class="c-desc">用户交互入口，通过 sessions_spawn 调度 DeepFlow 所有 Domain 管线</div>
+        <div class="c-items">
+          <div class="c-item">sessions_spawn</div>
+          <div class="c-item">sessions_yield</div>
+          <div class="c-item">exec 工具链</div>
+          <div class="c-item">web_search</div>
+          <div class="c-item">web_fetch</div>
+          <div class="c-item">cron 定时任务</div>
+          <div class="c-item">message 推送</div>
+        </div>
+      </div>
+      <div class="comp">
+        <div class="c-title">📡 外部服务集成</div>
+        <div class="c-desc">通过 OpenClaw tool 通道对接外部 API 服务</div>
+        <div class="c-items">
+          <div class="c-item">飞书 Feishu</div>
+          <div class="c-item">新浪财经</div>
+          <div class="c-item">Tushare</div>
+          <div class="c-item">Kie.ai 图像</div>
+          <div class="c-item">GitHub API</div>
+          <div class="c-item">邮件 SMTP</div>
+          <div class="c-item">NotebookLM</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">
+    <div class="conn-arrow solid"><div class="ca-line"></div><div class="ca-label">sessions_spawn + exec → 启动 DeepFlow 管线</div></div>
+  </div>
+
+  <!-- L1 -->
+  <div class="layer" style="border-color: rgba(168,85,247,0.2);">
+    <div class="layer-tag lt-purple">L1 · DeepFlow 核心引擎 · 9,649 行</div>
+    <div class="grid cols-3">
+      <div class="comp primary">
+        <div class="c-title">🚪 统一入口 & 编排</div>
+        <div class="c-desc">路由用户请求到对应 Domain，构建 Worker task，管理检查点</div>
+        <div class="c-items">
+          <div class="c-item">unified_entry.py</div>
+          <div class="c-item">task_builder.py</div>
+          <div class="c-item">checkpoint_manager.py</div>
+          <div class="c-item">app_config.py</div>
+          <div class="c-item">agents/</div>
+          <div class="c-item">orchestrator/</div>
+        </div>
+      </div>
+      <div class="comp primary">
+        <div class="c-title">🎯 Cage + Prompt 注册中心</div>
+        <div class="c-desc">契约驱动的 Prompt 加载与版本管理，确保行为一致性</div>
+        <div class="c-items">
+          <div class="c-item">cage_loader.py</div>
+          <div class="c-item">prompt_registry.py</div>
+          <div class="c-item">config_loader.py</div>
+          <div class="c-item">prompt_utils.py</div>
+          <div class="c-item">6 active contracts</div>
+          <div class="c-item">version management</div>
+        </div>
+      </div>
+      <div class="comp">
+        <div class="c-title">📊 质量 & 数据层</div>
+        <div class="c-desc">质量门禁评估 + 外部数据源抽象</div>
+        <div class="c-items">
+          <div class="c-item">quality/ 模块</div>
+          <div class="c-item">data/ 模块</div>
+          <div class="c-item">data_providers/</div>
+          <div class="c-item">TushareProvider</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Blackboard -->
+  <div class="bb-band">
+    <div class="bb-label">📋 Blackboard 通信协议层 — Agent 间唯一状态共享机制（JSON 文件读写）</div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 12px;">
+      <div>
+        <div style="font-size: 11px; color: #6e7681; font-weight: 600; margin-bottom: 6px;">spec/ · 规格文件</div>
+        <div class="bb-files">
+          <span class="bb-file">input.md</span>
+          <span class="bb-file">living_spec.json</span>
+          <span class="bb-file">quality_report.json</span>
+          <span class="bb-file">harness_report.json</span>
+          <span class="bb-file">round_result.json</span>
+          <span class="bb-file">coord_state.json</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-size: 11px; color: #6e7681; font-weight: 600; margin-bottom: 6px;">spec/ · 追踪文件</div>
+        <div class="bb-files">
+          <span class="bb-file">quality_trajectory.json</span>
+          <span class="bb-file">conversation_log.json</span>
+          <span class="bb-file">execution_log.json</span>
+          <span class="bb-file">user_response_round_N.md</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-size: 11px; color: #6e7681; font-weight: 600; margin-bottom: 6px;">stages/ · 中间产物</div>
+        <div class="bb-files">
+          <span class="bb-file">round_NN_parse.json</span>
+          <span class="bb-file">round_NN_questions.json</span>
+          <span class="bb-file">round_NN_response.json</span>
+          <span class="bb-file">consolidator.json</span>
+          <span class="bb-file">fix.json</span>
+          <span class="bb-file">summarizer.json</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">
+    <div class="conn-arrow bidir"><div class="ca-line"></div><div class="ca-label">Blackboard 双向读写 · JSON 状态传递</div></div>
+    <div class="conn-arrow dashed"><div class="ca-line"></div><div class="ca-label">Worker 产出 → stages/ 增量文件</div></div>
+  </div>
+
+  <!-- L2 -->
+  <div class="layer" style="border-color: rgba(34,197,94,0.2);">
+    <div class="layer-tag lt-green">L2 · Domain 领域模块 · 33,741 行</div>
+
+    <div class="domain-section">
+      <div class="ds-label">▎核心模块</div>
+      <div class="domain-grid core">
+
+        <!-- Spec Pro -->
+        <div class="domain-card core-card">
+          <div class="dc-header">
+            <span class="dc-icon">🔍</span>
+            <span class="dc-name">Spec Pro · 需求梳理引擎</span>
+            <span class="dc-badge core">核心</span>
+          </div>
+          <div class="dc-io"><span class="in">输入:</span> 用户需求描述 · <span class="out">输出:</span> Living Spec（结构化需求规格书）</div>
+          <div class="dc-subs">
+            <span class="dc-sub">🧠 解析推断</span>
+            <span class="dc-sub">📊 质量评估</span>
+            <span class="dc-sub">💬 苏格拉底提问</span>
+            <span class="dc-sub">🔒 Process Guard</span>
+            <span class="dc-sub">📐 结构化输出</span>
+            <span class="dc-sub">🔀 merge_spec</span>
+          </div>
+          <div class="dc-pipeline">
+            <div class="pipe-label">执行管线（v3 扁平 · 循环）</div>
+            <div class="pipe-steps">
+              <span class="pstep">ParseWorker</span><span class="parr">→</span>
+              <span class="pstep">主Agent评分</span><span class="parr">→</span>
+              <span class="pstep">生成问题</span><span class="parr">→</span>
+              <span class="pstep">用户回答</span><span class="loop">↻</span>
+              <span class="pstep green">Living Spec ✓</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Solution Pro -->
+        <div class="domain-card core-card">
+          <div class="dc-header">
+            <span class="dc-icon">🏗️</span>
+            <span class="dc-name">Solution Pro · 方案设计引擎</span>
+            <span class="dc-badge core">核心</span>
+          </div>
+          <div class="dc-io"><span class="in">输入:</span> Living Spec · <span class="out">输出:</span> Implementation Plan（10 阶段方案）</div>
+          <div class="dc-subs">
+            <span class="dc-sub">📋 Planner</span>
+            <span class="dc-sub">🔬 Workers 并行</span>
+            <span class="dc-sub">🔗 Consolidator</span>
+            <span class="dc-sub">🛡️ Quality Harness</span>
+            <span class="dc-sub">🔐 Security Validator</span>
+            <span class="dc-sub">📄 Summarizer</span>
+            <span class="dc-sub">❄️ frozen_spec</span>
+          </div>
+          <div class="dc-pipeline">
+            <div class="pipe-label">执行管线（10 阶段串行）</div>
+            <div class="pipe-steps">
+              <span class="pstep green">Data Collect</span><span class="parr">→</span>
+              <span class="pstep">Planning</span><span class="parr">→</span>
+              <span class="pstep par">‖ Workers</span><span class="parr">→</span>
+              <span class="pstep">Consolidate</span><span class="parr">→</span>
+              <span class="pstep">Fix</span><span class="parr">→</span>
+              <span class="pstep">Audit</span><span class="parr">→</span>
+              <span class="pstep orange">Harness</span><span class="parr">→</span>
+              <span class="pstep">Structure</span><span class="parr">→</span>
+              <span class="pstep green">Summarize</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="domain-section" style="margin-top: 20px;">
+      <div class="ds-label">▎附加模块</div>
+      <div class="domain-grid extra">
+
+        <div class="domain-card extra-card">
+          <div class="dc-header">
+            <span class="dc-icon">📈</span>
+            <span class="dc-name">Investment · 投资分析引擎</span>
+            <span class="dc-badge extra">附加</span>
+          </div>
+          <div class="dc-io"><span class="in">输入:</span> 市场数据 + 股票/加密货币 · <span class="out">输出:</span> 8 维评分报告</div>
+          <div class="dc-subs">
+            <span class="dc-sub">🔥 热门扫描</span>
+            <span class="dc-sub">📊 8 维评分</span>
+            <span class="dc-sub">📝 研报生成</span>
+            <span class="dc-sub">📡 飞书推送</span>
+          </div>
+        </div>
+
+        <div class="domain-card extra-card">
+          <div class="dc-header">
+            <span class="dc-icon">🔬</span>
+            <span class="dc-name">Research Pro · 深度研究引擎</span>
+            <span class="dc-badge extra">附加</span>
+          </div>
+          <div class="dc-io"><span class="in">输入:</span> 研究查询 · <span class="out">输出:</span> 带引用验证的深度报告</div>
+          <div class="dc-subs">
+            <span class="dc-sub">🔑 关键词生成</span>
+            <span class="dc-sub">🔍 多层搜索</span>
+            <span class="dc-sub">✅ 引用验证</span>
+            <span class="dc-sub">📚 来源追踪</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="lg-title">图例</div>
+    <div class="legend-item"><div class="legend-line solid"></div><span>控制流（spawn / dispatch）</span></div>
+    <div class="legend-item"><div class="legend-line dashed"></div><span>数据流（单向 JSON 产出）</span></div>
+    <div class="legend-item"><div class="legend-line bidir"></div><span>双向读写（Blackboard 协议）</span></div>
+    <div class="legend-item"><span style="color:#60a5fa;">■</span> L0 宿主层</div>
+    <div class="legend-item"><span style="color:#a78bfa;">■</span> L1 核心引擎</div>
+    <div class="legend-item"><span style="color:#4ade80;">■</span> L2 领域模块</div>
+    <div class="legend-item"><span style="color:#fbbf24;">■</span> Blackboard 通信层</div>
+  </div>
+
+  <div class="footer">
+    <div>DeepFlow · 多 Agent 流水线框架 · v4.0</div>
+    <div>4 Domain · 33.7K 行代码 · 6 契约 · 2026-06-04</div>
+  </div>
+
+</div>
+</body>
+</html>

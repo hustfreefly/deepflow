@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepFlow 多维架构卡片</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Noto Sans SC', -apple-system, sans-serif; background: #111; display: flex; flex-wrap: wrap; gap: 20px; padding: 20px; justify-content: center; }
+
+  .card {
+    width: 1080px; height: 1400px;
+    position: relative; overflow: hidden;
+    border-radius: 0; flex-shrink: 0;
+    padding: 60px 64px;
+  }
+
+  /* Card backgrounds */
+  .card-dark { background: linear-gradient(180deg, #0f172a 0%, #0c0c1a 100%); }
+  .card-blue { background: linear-gradient(180deg, #0c1929 0%, #0c0c1a 100%); }
+  .card-green { background: linear-gradient(180deg, #0c1a14 0%, #0c0c1a 100%); }
+  .card-purple { background: linear-gradient(180deg, #150c29 0%, #0c0c1a 100%); }
+  .card-orange { background: linear-gradient(180deg, #1a140c 0%, #0c0c1a 100%); }
+  .card-cyan { background: linear-gradient(180deg, #0c1a1a 0%, #0c0c1a 100%); }
+
+  /* Header per card */
+  .card .dim-tag {
+    display: inline-block;
+    font-size: 13px; font-weight: 700; letter-spacing: 2px;
+    padding: 4px 14px; border-radius: 20px;
+    margin-bottom: 16px;
+  }
+  .dim-tag.blue { background: rgba(59,130,246,0.15); color: #60a5fa; }
+  .dim-tag.green { background: rgba(34,197,94,0.15); color: #4ade80; }
+  .dim-tag.purple { background: rgba(168,85,247,0.15); color: #a78bfa; }
+  .dim-tag.orange { background: rgba(251,191,36,0.15); color: #fbbf24; }
+  .dim-tag.cyan { background: rgba(56,189,248,0.15); color: #38bdf8; }
+
+  .card .title {
+    font-size: 44px; font-weight: 900; color: #fff;
+    margin-bottom: 8px;
+  }
+  .card .subtitle {
+    font-size: 18px; color: #64748b;
+    margin-bottom: 36px;
+  }
+
+  /* Layer blocks */
+  .layer {
+    border-radius: 12px; padding: 20px 24px;
+    margin-bottom: 12px; position: relative;
+  }
+  .layer.l0 { background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.15); }
+  .layer.l1 { background: rgba(168,85,247,0.06); border: 1px solid rgba(168,85,247,0.15); }
+  .layer.l2 { background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.15); }
+  .layer.l-tag {
+    position: absolute; top: -9px; left: 18px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    padding: 2px 10px; border-radius: 12px;
+  }
+  .layer.l0 .l-tag { background: rgba(59,130,246,0.12); color: #60a5fa; }
+  .layer.l1 .l-tag { background: rgba(168,85,247,0.12); color: #a78bfa; }
+  .layer.l2 .l-tag { background: rgba(34,197,94,0.12); color: #4ade80; }
+  .layer .l-title { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .layer .l-desc { font-size: 14px; color: #94a3b8; }
+  .layer .l-items { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .layer .l-item {
+    font-size: 12px; padding: 3px 10px; border-radius: 6px;
+    background: rgba(255,255,255,0.04); color: #c9d1d9;
+  }
+
+  /* Connector */
+  .arrow { text-align: center; font-size: 12px; color: #475569; margin: 4px 0; }
+  .arrow::before { content: '▼ '; }
+
+  /* Grid for domain cards */
+  .domain-grid { display: grid; gap: 12px; margin-top: 12px; }
+  .domain-grid.two { grid-template-columns: repeat(2, 1fr); }
+  .domain-grid.four { grid-template-columns: repeat(4, 1fr); }
+  .domain-grid.two-tall { grid-template-columns: repeat(2, 1fr); }
+
+  .dc {
+    border-radius: 10px; padding: 16px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .dc .dc-icon { font-size: 18px; margin-bottom: 6px; }
+  .dc .dc-name { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .dc .dc-desc { font-size: 12px; color: #94a3b8; line-height: 1.4; }
+  .dc .dc-io { font-size: 11px; color: #64748b; margin-top: 6px; }
+  .dc .dc-io .in { color: #4ade80; }
+  .dc .dc-io .out { color: #60a5fa; }
+  .dc .dc-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .dc .dc-tag {
+    font-size: 10px; padding: 2px 8px; border-radius: 4px;
+    background: rgba(255,255,255,0.04); color: #94a3b8;
+  }
+
+  /* Flow steps */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .flow-step {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 14px 0; position: relative;
+  }
+  .flow-step .fs-num {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; flex-shrink: 0;
+  }
+  .flow-step .fs-content { flex: 1; }
+  .flow-step .fs-title { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+  .flow-step .fs-desc { font-size: 13px; color: #94a3b8; line-height: 1.4; }
+  .flow-step .fs-conn {
+    position: absolute; left: 17px; bottom: -2px;
+    width: 2px; height: 14px; background: #1e293b;
+  }
+  .flow-step:last-child .fs-conn { display: none; }
+
+  /* Pipeline horizontal */
+  .pipeline {
+    display: flex; gap: 4px; align-items: center;
+    flex-wrap: wrap; padding: 16px 20px;
+    background: rgba(0,0,0,0.3); border-radius: 10px;
+  }
+  .pipeline .pstep {
+    padding: 6px 12px; border-radius: 8px;
+    font-size: 12px; font-weight: 600;
+    background: rgba(255,255,255,0.06); color: #c9d1d9;
+  }
+  .pipeline .pstep.hl { background: rgba(96,165,250,0.12); color: #60a5fa; border: 1px solid rgba(96,165,250,0.2); }
+  .pipeline .pstep.gr { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
+  .pipeline .pstep.or { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.2); }
+  .pipeline .pstep.pr { background: rgba(168,85,247,0.12); color: #a78bfa; border: 1px solid rgba(168,85,247,0.2); }
+  .pipeline .parr { color: #484f58; font-size: 14px; }
+  .pipeline .loop { color: #fbbf24; font-size: 16px; margin: 0 2px; }
+
+  /* Quality gates */
+  .gates { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
+  .gate {
+    border-radius: 10px; padding: 18px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .gate .g-num { font-size: 11px; font-weight: 700; color: #60a5fa; margin-bottom: 6px; }
+  .gate .g-name { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .gate .g-desc { font-size: 12px; color: #94a3b8; line-height: 1.4; }
+  .gate .g-time { font-size: 11px; color: #64748b; margin-top: 6px; }
+  .gate.highlight { background: rgba(168,85,247,0.06); border-color: rgba(168,85,247,0.15); }
+  .gate.highlight .g-num { color: #a78bfa; }
+
+  /* Watermark */
+  .watermark {
+    position: absolute; bottom: 32px; left: 64px; right: 64px;
+    display: flex; justify-content: space-between;
+    font-size: 14px; color: #334155;
+  }
+  .deco-line {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  }
+  .dl-blue { background: linear-gradient(90deg, transparent, #60a5fa, transparent); }
+  .dl-green { background: linear-gradient(90deg, transparent, #4ade80, transparent); }
+  .dl-purple { background: linear-gradient(90deg, transparent, #a78bfa, transparent); }
+  .dl-orange { background: linear-gradient(90deg, transparent, #fbbf24, transparent); }
+  .dl-cyan { background: linear-gradient(90deg, transparent, #38bdf8, transparent); }
+</style>
+</head>
+<body>
+
+  <!-- ========== ① 模块维度 ========== -->
+  <div class="card card-dark">
+    <div class="dim-tag blue">VIEW 01 · 模块维度</div>
+    <div class="title">系统由哪些模块组成</div>
+    <div class="subtitle">三层架构 + 四大领域引擎</div>
+
+    <div class="layer l0">
+      <div class="l-tag">L0 · 宿主层</div>
+      <div class="l-title">🦞 OpenClaw</div>
+      <div class="l-desc">Main Agent 小满 + sessions_spawn 调度 + 外部服务集成</div>
+    </div>
+    <div class="arrow">sessions_spawn + exec</div>
+    <div class="layer l1">
+      <div class="l-tag">L1 · 核心引擎</div>
+      <div class="l-title">⚙️ DeepFlow Core</div>
+      <div class="l-desc">统一入口 + Cage 契约 + Prompt 注册 + 质量门禁</div>
+      <div class="l-items">
+        <div class="l-item">unified_entry</div>
+        <div class="l-item">cage_loader</div>
+        <div class="l-item">prompt_registry</div>
+        <div class="l-item">quality</div>
+        <div class="l-item">data_providers</div>
+      </div>
+    </div>
+    <div class="arrow">Blackboard 双向读写</div>
+    <div class="layer l2">
+      <div class="l-tag">L2 · 领域模块</div>
+      <div class="l-title">🧩 四大 Domain</div>
+    </div>
+    <div class="domain-grid four">
+      <div class="dc"><div class="dc-icon">🔍</div><div class="dc-name">Spec Pro</div><div class="dc-desc">需求梳理</div><div class="dc-io"><span class="in">输入:</span> 用户需求 → <span class="out">输出:</span> Living Spec</div></div>
+      <div class="dc"><div class="dc-icon">🏗️</div><div class="dc-name">Solution Pro</div><div class="dc-desc">方案设计</div><div class="dc-io"><span class="in">输入:</span> Living Spec → <span class="out">输出:</span> 实施方案</div></div>
+      <div class="dc"><div class="dc-icon">📈</div><div class="dc-name">Investment</div><div class="dc-desc">投资分析</div><div class="dc-io"><span class="in">输入:</span> 市场数据 → <span class="out">输出:</span> 评分报告</div></div>
+      <div class="dc"><div class="dc-icon">🔬</div><div class="dc-name">Research Pro</div><div class="dc-desc">深度研究</div><div class="dc-io"><span class="in">输入:</span> 研究查询 → <span class="out">输出:</span> 调研报告</div></div>
+    </div>
+
+    <div class="watermark"><span>DeepFlow · v4.0</span><span>模块维度</span></div>
+    <div class="deco-line dl-blue"></div>
+  </div>
+
+  <!-- ========== ② 数据流维度 ========== -->
+  <div class="card card-green">
+    <div class="dim-tag green">VIEW 02 · 数据流维度</div>
+    <div class="title">数据如何流动</div>
+    <div class="subtitle">从用户输入到最终交付的完整路径</div>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="fs-num" style="background:rgba(59,130,246,0.2);color:#60a5fa;">1</div>
+        <div class="fs-content"><div class="fs-title">👤 用户输入</div><div class="fs-desc">自然语言描述需求 / 定时任务触发 / API 调用</div></div>
+        <div class="fs-conn"></div>
+      </div>
+      <div class="flow-step">
+        <div class="fs-num" style="background:rgba(168,85,247,0.2);color:#a78bfa;">2</div>
+        <div class="fs-content"><div class="fs-title">🦞 Main Agent 路由</div><div class="fs-desc">识别意图 → 选择 Domain → 构建 task prompt</div></div>
+        <div class="fs-conn"></div>
+      </div>
+      <div class="flow-step">
+        <div class="fs-num" style="background:rgba(251,191,36,0.2);color:#fbbf24;">3</div>
+        <div class="fs-content"><div class="fs-title">📋 Blackboard 初始化</div><div class="fs-desc">创建 session 目录 → 写入 input.md → 初始化 living_spec.json</div></div>
+        <div class="fs-conn"></div>
+      </div>
+      <div class="flow-step">
+        <div class="fs-num" style="background:rgba(34,197,94,0.2);color:#4ade80;">4</div>
+        <div class="fs-content"><div class="fs-title">🔍 Worker Agent 执行</div><div class="fs-desc">ParseWorker 解析 → 主 Agent 评分 → 生成问题 → 循环收集需求</div></div>
+        <div class="fs-conn"></div>
+      </div>
+      <div class="flow-step">
+        <div class="fs-num" style="background:rgba(96,165,250,0.2);color:#60a5fa;">5</div>
+        <div class="fs-content"><div class="fs-title">🛠️ Solution Pro 管线</div><div class="fs-desc">10 阶段串行：数据收集 → 规划 → Reviewers 三视角评审 → Researcher 深度研究 → 合并 → 审计 → 修正 → Harness 门禁 → 总结</div></div>
+        <div class="fs-conn"></div>
+      </div>
+      <div class="flow-step">
+        <div class="fs-num" style="background:rgba(34,197,94,0.2);color:#4ade80;">6</div>
+        <div class="fs-content"><div class="fs-title">📤 最终产出交付</div><div class="fs-desc">Living Spec + 实施方案 + 质量报告 → 飞书推送 / 邮件报告</div></div>
+      </div>
+    </div>
+
+    <div style="margin-top: 24px;">
+      <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 10px;">数据协议</div>
+      <div class="pipeline">
+        <span class="pstep hl">input.md</span><span class="parr">→</span>
+        <span class="pstep">living_spec.json</span><span class="parr">→</span>
+        <span class="pstep gr">quality_report.json</span><span class="parr">→</span>
+        <span class="pstep or">harness_report.json</span><span class="parr">→</span>
+        <span class="pstep hl">round_result.json</span>
+      </div>
+    </div>
+
+    <div class="watermark"><span>DeepFlow · v4.0</span><span>数据流维度</span></div>
+    <div class="deco-line dl-green"></div>
+  </div>
+
+  <!-- ========== ③ 控制流维度 ========== -->
+  <div class="card card-purple">
+    <div class="dim-tag purple">VIEW 03 · 控制流维度</div>
+    <div class="title">Agent 如何调度</div>
+    <div class="subtitle">谁 spawn 谁、谁等谁完成</div>
+
+    <div style="margin-top: 12px;">
+      <div class="layer l0" style="margin-bottom: 0;">
+        <div class="l-tag">总调度</div>
+        <div class="l-title">🦞 Main Agent (小满)</div>
+        <div class="l-desc">用户界面 · 识别意图 · 选择 Domain · 构建 task · 推送结果</div>
+      </div>
+    </div>
+
+    <div class="arrow">spawn + exec</div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 4px;">
+      <!-- Spec Pro path -->
+      <div style="background: rgba(168,85,247,0.04); border: 1px solid rgba(168,85,247,0.15); border-radius: 10px; padding: 16px;">
+        <div style="font-size: 12px; font-weight: 700; color: #a78bfa; margin-bottom: 10px;">Spec Pro 控制流</div>
+        <div style="font-size: 13px; color: #c9d1d9; margin-bottom: 12px; line-height: 1.6;">
+          Main Agent<br>
+          <span style="color: #6e7681;">↓ spawn (仅1次/轮)</span><br>
+          ParseWorker (子Agent)<br>
+          <span style="color: #6e7681;">↓ completion event</span><br>
+          Main Agent 评分+提问<br>
+          <span style="color: #fbbf24;">↻ 循环</span>
+        </div>
+        <div style="font-size: 11px; color: #64748b;">v3 扁平架构：只 spawn ParseWorker</div>
+      </div>
+
+      <!-- Solution Pro path -->
+      <div style="background: rgba(96,165,250,0.04); border: 1px solid rgba(96,165,250,0.15); border-radius: 10px; padding: 16px;">
+        <div style="font-size: 12px; font-weight: 700; color: #60a5fa; margin-bottom: 10px;">Solution Pro 控制流</div>
+        <div style="font-size: 13px; color: #c9d1d9; margin-bottom: 12px; line-height: 1.6;">
+          Main Agent<br>
+          <span style="color: #6e7681;">↓ spawn 多次</span><br>
+          Reviewers(3视角并行)<br>
+          <span style="color: #6e7681;">↓ 全部完成</span><br>
+          Researcher(3专家并行)<br>
+          <span style="color: #6e7681;">↓ 全部完成</span><br>
+          Consolidator → Fix<br>
+          <span style="color: #6e7681;">↓</span><br>
+          Audit → Fixer Expert → Harness
+        </div>
+        <div style="font-size: 11px; color: #64748b;">10 阶段串行管线</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 16px; background: rgba(0,0,0,0.25); border-radius: 10px;">
+      <div style="font-size: 13px; font-weight: 700; color: #94a3b8; margin-bottom: 10px;">调度规则</div>
+      <div style="font-size: 12px; color: #64748b; line-height: 1.8;">
+        → Main Agent 通过 <span style="color: #a78bfa;">sessions_spawn</span> 创建子 Agent<br>
+        → 子 Agent 通过 <span style="color: #4ade80;">Blackboard 文件</span> 传递状态<br>
+        → 主 Agent 用 <span style="color: #fbbf24;">sessions_yield</span> 等待完成事件<br>
+        → 完成事件到达后，主 Agent 读取文件并推送结果
+      </div>
+    </div>
+
+    <div class="watermark"><span>DeepFlow · v4.0</span><span>控制流维度</span></div>
+    <div class="deco-line dl-purple"></div>
+  </div>
+
+  <!-- ========== ④ 质量保障维度 ========== -->
+  <div class="card card-orange">
+    <div class="dim-tag orange">VIEW 04 · 质量保障维度</div>
+    <div class="title">四层质量门禁</div>
+    <div class="subtitle">每个环节都有质量检查，不靠自觉靠机制</div>
+
+    <div class="gates">
+      <div class="gate">
+        <div class="g-num">LAYER 1 · 输入门禁</div>
+        <div class="g-name">🛡️ Input Guard</div>
+        <div class="g-desc">检查回答是否为空、有意义、不矛盾、跟问题相关</div>
+        <div class="g-time">触发时机：每轮收到用户回答时</div>
+      </div>
+      <div class="gate">
+        <div class="g-num">LAYER 2 · 过程门禁</div>
+        <div class="g-name">⚙️ Process Guard</div>
+        <div class="g-desc">监控进度速率、推断完整性、对话均衡性，发现异常自动调整</div>
+        <div class="g-time">触发时机：每轮评分后</div>
+      </div>
+      <div class="gate highlight">
+        <div class="g-num">LAYER 3 · 输出门禁</div>
+        <div class="g-name">🔒 Harness</div>
+        <div class="g-desc">5 维加权评分：清晰度/完整度/可执行度/一致度/适配度</div>
+        <div class="g-time">触发时机：质量达标后 · 最终产出前</div>
+      </div>
+      <div class="gate highlight">
+        <div class="g-num">LAYER 4 · 安全阀</div>
+        <div class="g-name">🚨 Safety Valve</div>
+        <div class="g-desc">max_rounds 限制 · 质量回退检测 · 无效输入连击 · Worker 连续超时</div>
+        <div class="g-time">触发时机：全程监控</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 20px;">
+      <div style="font-size: 13px; font-weight: 700; color: #94a3b8; margin-bottom: 10px;">Harness 决策</div>
+      <div class="pipeline">
+        <span class="pstep gr">PASS → 通过</span><span class="parr">|</span>
+        <span class="pstep or">WARN → 标注风险</span><span class="parr">|</span>
+        <span class="pstep">SOFT_BLOCK → 用户可 override</span><span class="parr">|</span>
+        <span class="pstep">HARD_BLOCK → 继续收集</span>
+      </div>
+    </div>
+
+    <div style="margin-top: 20px;">
+      <div style="font-size: 13px; font-weight: 700; color: #94a3b8; margin-bottom: 10px;">契约 Cage</div>
+      <div style="font-size: 12px; color: #64748b; line-height: 1.8;">
+        6 个活跃契约：spec_pro_v2.0 · solution_v1.0 · investment_v2.0<br>
+        research_pro_v1.0 · root_cleanup · version_mgmt<br>
+        契约 = 行为"宪法"，每次修改前必须读
+      </div>
+    </div>
+
+    <div class="watermark"><span>DeepFlow · v4.0</span><span>质量保障维度</span></div>
+    <div class="deco-line dl-orange"></div>
+  </div>
+
+  <!-- ========== ⑤ 通信协议维度 ========== -->
+  <div class="card card-cyan">
+    <div class="dim-tag cyan">VIEW 05 · 通信协议维度</div>
+    <div class="title">Blackboard 通信协议</div>
+    <div class="subtitle">Agent 间唯一的状态共享机制 — JSON 文件读写</div>
+
+    <div style="margin-top: 12px;">
+      <div style="padding: 18px; border-radius: 10px; background: rgba(56,189,248,0.04); border: 1px dashed rgba(56,189,248,0.2); margin-bottom: 16px;">
+        <div style="font-size: 14px; font-weight: 700; color: #38bdf8; margin-bottom: 4px;">核心规则</div>
+        <div style="font-size: 13px; color: #94a3b8; line-height: 1.7;">
+          → 文件是唯一的 Agent 间通信机制<br>
+          → 不通过函数参数传递状态<br>
+          → 追加新项，不删除已有项<br>
+          → 矛盾时保留两者并标注 contradiction
+        </div>
+      </div>
+
+      <div style="font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 8px;">spec/ · 规格文件</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;">
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">input.md</span>
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">living_spec.json</span>
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">quality_report.json</span>
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">harness_report.json</span>
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">round_result.json</span>
+      </div>
+
+      <div style="font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 8px;">spec/ · 追踪文件</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;">
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">quality_trajectory.json</span>
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">conversation_log.json</span>
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">coord_state.json</span>
+      </div>
+
+      <div style="font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 8px;">stages/ · 中间产物</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px;">
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">round_NN_parse.json</span>
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">round_NN_questions.json</span>
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">round_NN_response.json</span>
+        <span class="bb-file-tag" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); color: #38bdf8; font-family: monospace;">consolidator.json</span>
+      </div>
+    </div>
+
+    <div style="margin-top: auto;">
+      <div style="font-size: 13px; font-weight: 700; color: #94a3b8; margin-bottom: 8px;">读写规则</div>
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+        <div style="padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+          <div style="font-size: 13px; font-weight: 700; color: #4ade80; margin-bottom: 4px;">📝 Writers</div>
+          <div style="font-size: 11px; color: #64748b; line-height: 1.5;">ParseWorker 创建 · Orchestrator 合并 · 每轮追加</div>
+        </div>
+        <div style="padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+          <div style="font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 4px;">👁️ Readers</div>
+          <div style="font-size: 11px; color: #64748b; line-height: 1.5;">Question/Assess/Harness Worker 读取</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="watermark"><span>DeepFlow · v4.0</span><span>通信协议维度</span></div>
+    <div class="deco-line dl-cyan"></div>
+  </div>
+
+  <!-- ========== ⑥ 用户旅程维度 ========== -->
+  <div class="card card-blue">
+    <div class="dim-tag blue">VIEW 06 · 用户旅程维度</div>
+    <div class="title">用户经历了什么</div>
+    <div class="subtitle">从说出想法到拿到方案的完整旅程</div>
+
+    <div style="margin-top: 16px;">
+      <!-- Step 1 -->
+      <div style="display: flex; gap: 16px; align-items: flex-start; margin-bottom: 0;">
+        <div style="width: 48px; text-align: center; flex-shrink: 0;">
+          <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(59,130,246,0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 16px;">👤</div>
+        </div>
+        <div style="flex: 1;">
+          <div style="font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px;">说出想法</div>
+          <div style="font-size: 13px; color: #94a3b8;">"我要做一个算力租赁平台，背景是中国 AI token 很便宜…"</div>
+        </div>
+      </div>
+      <div style="width: 2px; height: 20px; background: #1e293b; margin-left: 23px;"></div>
+
+      <!-- Step 2 -->
+      <div style="display: flex; gap: 16px; align-items: flex-start; margin-bottom: 0;">
+        <div style="width: 48px; text-align: center; flex-shrink: 0;">
+          <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(168,85,247,0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 16px;">🤖</div>
+        </div>
+        <div style="flex: 1;">
+          <div style="font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px;">需求梳理（多轮对话）</div>
+          <div style="font-size: 13px; color: #94a3b8;">AI 通过苏格拉底式提问，帮你把模糊想法变成结构化需求</div>
+          <div style="margin-top: 8px;">
+            <div style="font-size: 11px; color: #64748b; margin-bottom: 4px;">典型对话：</div>
+            <div style="font-size: 12px; color: #8b949e; background: rgba(0,0,0,0.2); padding: 8px 12px; border-radius: 8px; line-height: 1.5;">
+              "你说的'高性能'具体指什么指标？"<br>
+              "你的目标用户是谁？有多少人？"<br>
+              "预算大概多少？时间线呢？"
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="width: 2px; height: 20px; background: #1e293b; margin-left: 23px;"></div>
+
+      <!-- Step 3 -->
+      <div style="display: flex; gap: 16px; align-items: flex-start; margin-bottom: 0;">
+        <div style="width: 48px; text-align: center; flex-shrink: 0;">
+          <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(251,191,36,0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 16px;">📋</div>
+        </div>
+        <div style="flex: 1;">
+          <div style="font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px;">确认 Living Spec</div>
+          <div style="font-size: 13px; color: #94a3b8;">AI 展示整理好的需求规格书，你确认或修改</div>
+        </div>
+      </div>
+      <div style="width: 2px; height: 20px; background: #1e293b; margin-left: 23px;"></div>
+
+      <!-- Step 4 -->
+      <div style="display: flex; gap: 16px; align-items: flex-start; margin-bottom: 0;">
+        <div style="width: 48px; text-align: center; flex-shrink: 0;">
+          <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(34,197,94,0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 16px;">🏗️</div>
+        </div>
+        <div style="flex: 1;">
+          <div style="font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px;">方案设计（全自动）</div>
+          <div style="font-size: 13px; color: #94a3b8;">3-5 个 Agent 并行研究 → 合并 → 修复 → 质量门禁</div>
+          <div style="margin-top: 8px;">
+            <div class="pipeline" style="padding: 10px 14px;">
+              <span class="pstep hl">数据收集</span><span class="parr">→</span>
+              <span class="pstep">规划</span><span class="parr">→</span>
+              <span class="pstep pr">Reviewers</span><span class="parr">→</span>
+              <span class="pstep pr">Research</span><span class="parr">→</span>
+              <span class="pstep">合并</span><span class="parr">→</span>
+              <span class="pstep">审计</span><span class="parr">→</span>
+              <span class="pstep">修正</span><span class="parr">→</span>
+              <span class="pstep pr">Fixer</span><span class="parr">→</span>
+              <span class="pstep or">Harness</span><span class="parr">→</span>
+              <span class="pstep gr">总结</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="width: 2px; height: 20px; background: #1e293b; margin-left: 23px;"></div>
+
+      <!-- Step 5 -->
+      <div style="display: flex; gap: 16px; align-items: flex-start;">
+        <div style="width: 48px; text-align: center; flex-shrink: 0;">
+          <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(34,197,94,0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 16px;">📤</div>
+        </div>
+        <div style="flex: 1;">
+          <div style="font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px;">收到方案</div>
+          <div style="font-size: 13px; color: #94a3b8;">实施方案报告通过飞书/邮件推送给你，附带质量评分</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="watermark"><span>DeepFlow · v4.0</span><span>用户旅程维度</span></div>
+    <div class="deco-line dl-blue"></div>
+  </div>
+
+</body>
+</html>
