@@ -1,6 +1,7 @@
 #!/bin/bash
-# Git 自动备份脚本
-# 每天自动 add + commit + push 到 GitHub
+# Git 本地备份脚本
+# 每天自动 add + commit（本地），不自动 push 到 GitHub
+# 手动 push 命令: cd .deepflow && git push origin main
 # 安全等级: Production
 
 set -euo pipefail
@@ -123,24 +124,6 @@ backup() {
         }
     fi
     
-    # 先 fetch 远程更新
-    log "📡 Fetching remote updates..."
-    git fetch origin "$BRANCH" 2>&1 | tee -a "$LOG_FILE" || {
-        log "❌ Git fetch 失败"
-        exit 1
-    }
-    
-    # 检查是否需要 rebase
-    local local_commit=$(git rev-parse HEAD)
-    local remote_commit=$(git rev-parse origin/$BRANCH)
-    if [ "$local_commit" != "$remote_commit" ]; then
-        log "🔄 需要 rebase..."
-        git rebase origin/$BRANCH 2>&1 | tee -a "$LOG_FILE" || {
-            log "❌ Git rebase 失败，请手动解决冲突"
-            exit 1
-        }
-    fi
-    
     # 检查 git 状态
     if [ -z "$(git status --porcelain)" ]; then
         log "✅ 没有需要提交的更改"
@@ -167,14 +150,11 @@ backup() {
     git commit -m "$commit_msg"
     log "✅ Git commit: $commit_msg"
     
-    # Git push
-    git push origin "$BRANCH" 2>&1 | tee -a "$LOG_FILE" || {
-        log "❌ Git push 失败"
-        exit 1
-    }
-    log "✅ Git push 完成"
+    # 提示手动 push
+    log "💡 本地提交完成，如需推送到 GitHub，请执行:"
+    log "   cd $DEEPFLOW_DIR && git push origin $BRANCH"
     
-    log "========== Git 自动备份完成 =========="
+    log "========== Git 本地备份完成 =========="
 }
 
 # 错误处理
