@@ -7,9 +7,9 @@ import requests
 from typing import List, Dict, Any, Optional
 
 # Feishu app credentials (from env or config)
-FEISHU_APP_ID = os.environ.get("FEISHU_APP_ID", "cli_a917c939e1f91ceb")
-FEISHU_APP_SECRET = os.environ.get("FEISHU_APP_SECRET", "TIox2Tmsv1RSNNrL2vi9Kg8jvP2bXX5g")
-FEISHU_USER_OPEN_ID = os.environ.get("FEISHU_USER_OPEN_ID", "ou_d55068472a52a0f34ff72c3b6930044c")
+FEISHU_APP_ID = os.environ.get("FEISHU_APP_ID", "")
+FEISHU_APP_SECRET = os.environ.get("FEISHU_APP_SECRET", "")
+FEISHU_USER_OPEN_ID = os.environ.get("FEISHU_USER_OPEN_ID", "")
 
 
 def get_tenant_token() -> str:

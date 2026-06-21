@@ -1,3 +1,13 @@
+---
+id: solution/REQ_DEDUP_DESIGN
+version: 1.0.0
+description: REQ 语义去重规则设计，消除 Consolidator 输出中的语义重复需求
+author: DeepFlow Team
+created: 2026-06-18
+updated: 2026-06-21
+tags: [solution, prompt, dedup, requirements, design]
+---
+
 # REQ 语义去重规则设计
 
 > **目标**：消除 Consolidator 输出中 ~30% 的语义重复 REQ，将 71 条 → ~45 条  

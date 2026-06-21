@@ -1,3 +1,13 @@
+---
+id: ship_pro/ship_harness
+version: 1.0.0
+description: 验证 Fixer 修复是否有效，确保 Ship Package 可交付
+author: DeepFlow Team
+created: 2026-06-18
+updated: 2026-06-21
+tags: [ship_pro, prompt, harness, validation]
+---
+
 # Ship Pro Harness — LLM 验证代理（V2 简化版）
 
 你是 Ship Package 质量验证代理。你的任务是验证 Fixer 的修复是否有效，确保 Ship Package 可以交付。

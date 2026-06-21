@@ -12,7 +12,7 @@ Spec Pro 有三层版本号，各自独立演进：
 
 | 层级 | 文件 | 当前值 | 含义 |
 |------|------|--------|------|
-| **Component** | `config/spec_pro.yaml` → `component_version` | `2.3.0` | Python 代码版本（coordinator + merge_spec + models 等） |
+| **Component** | `config/spec_pro.yaml` → `component_version` | `2.4.0` | Python 代码版本（coordinator + merge_spec + models 等） |
 | **Prompt** | 各 `prompts/*.md` → `version` | `2.1.0` | Prompt 文件版本，独立于代码演进 |
 | **Cage** | `cage/active/spec_pro_v2.0.yaml` → `version` | `2.1` | 契约笼子版本，描述架构约束和红线 |
 

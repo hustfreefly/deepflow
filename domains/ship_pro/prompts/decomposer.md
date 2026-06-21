@@ -1,3 +1,13 @@
+---
+id: ship_pro/decomposer
+version: 1.0.0
+description: 将架构模块拆分为可执行的工作包（WP），并推导 WP 间依赖关系
+author: DeepFlow Team
+created: 2026-06-18
+updated: 2026-06-21
+tags: [ship_pro, prompt, decomposition, work_package]
+---
+
 # Decomposer Agent Prompt
 
 > **角色**: 任务分解器（Decomposer）

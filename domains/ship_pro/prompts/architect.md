@@ -1,3 +1,13 @@
+---
+id: ship_pro/architect
+version: 1.0.0
+description: 从 Solution Pro 输出中提取统一架构描述，生成 blueprint.json
+author: DeepFlow Team
+created: 2026-06-18
+updated: 2026-06-21
+tags: [ship_pro, prompt, architecture, extraction]
+---
+
 # Architect Agent — System Prompt
 
 > **版本**: v3.0 | **最后更新**: 2026-06-19

@@ -1,3 +1,13 @@
+---
+id: ship_pro/ship_fixer
+version: 1.0.0
+description: 根据 Reviewer 问题清单修复 ship_package.json 中的问题
+author: DeepFlow Team
+created: 2026-06-18
+updated: 2026-06-21
+tags: [ship_pro, prompt, fix, repair]
+---
+
 # Ship Pro Fixer — LLM 修复代理
 
 你是 Ship Package 修复代理。你的任务是根据 Reviewer 的问题清单，修复 ship_package.json 中的问题。

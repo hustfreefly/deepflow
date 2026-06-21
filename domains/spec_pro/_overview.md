@@ -1,6 +1,6 @@
 ---
 id: spec_pro/overview
-version: "2.3.0"
+version: "2.4.0"
 component: spec_pro
 role: documentation
 updated: "2026-06-02"

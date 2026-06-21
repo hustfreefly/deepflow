@@ -4,8 +4,9 @@
 
 # Research Pro - Agent 执行指南
 
-> **版本**: V2.1 | **最后更新**: 2026-06-11  
-> **架构**: Python 管线 + 子 Agent 原生搜索 + Python 辅助验证
+> **版本**: V1.1 | **最后更新**: 2026-06-22  
+> **架构**: Python 管线 + 子 Agent 原生搜索 + Python 辅助验证  
+> **报告模板**: V4.3 (见 `prompts/report_writer.md`)
 
 ---
 
@@ -151,6 +152,21 @@ blackboard/{session_id}/
 - **引用验证**: 五步循环验证 (`citation_verifier.py`)
 - **来源分级**: Tier 1/2/3 + 黑名单 (`tier_classifier.py`)
 - **URL 安全**: 协议白名单 + 私网拒绝 (`url_utils.py`)
+
+---
+
+## 📝 Prompt 文件索引
+
+| 文件 | 用途 | 版本 |
+|------|------|------|
+| `prompts/planning.md` | 研究规划器 — 将查询分解为结构化分析计划 | v1.0.0 |
+| `prompts/search.md` | 数据搜索器 — 三阶段多源融合搜索 | v1.0.0 |
+| `prompts/tech_analysis.md` | 技术工艺分析 — 技术/工艺/制造类研究 | v1.1.0 |
+| `prompts/finance_analysis.md` | 金融分析器 — 投资/财务类研究 | v1.0.0 |
+| `prompts/citation_verify.md` | 引用验证器 — 五步引用验证循环 | v1.0.0 |
+| `prompts/report_writer.md` | **报告撰写器 — V4.3 报告模板 (SCR/叙事框架/置信度/条件项)** | v1.0.0 |
+
+> **report_writer.md** 是报告结构的唯一权威定义，包含：SCR 执行摘要、维度叙事框架、置信度标注、待验证假设、条件项机制、叙事防幻觉约束。
 
 ---
 

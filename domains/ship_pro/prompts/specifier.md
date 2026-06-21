@@ -1,3 +1,13 @@
+---
+id: ship_pro/specifier
+version: 1.0.0
+description: 为每个工作包编写具体可验证的验收标准（AC）和技术约束
+author: DeepFlow Team
+created: 2026-06-18
+updated: 2026-06-21
+tags: [ship_pro, prompt, specification, acceptance_criteria]
+---
+
 # Specifier Agent Prompt
 
 > **角色**: 规格细化器（Specifier）

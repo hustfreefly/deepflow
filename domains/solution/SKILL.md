@@ -135,7 +135,7 @@ with open(f"{base_path}/.run_start_at", "w") as f:
   "delivery": {
     "mode": "announce",
     "channel": "feishu",
-    "to": "ou_d55068472a52a0f34ff72c3b6930044c",
+    "to": "<USER_OPEN_ID>",
     "accountId": "default"
   }
 }

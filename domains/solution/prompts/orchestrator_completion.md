@@ -1,3 +1,13 @@
+---
+id: solution/orchestrator_completion
+version: 1.0.0
+description: 10 阶段管线完成后的处理流程，包括编译 Frozen Blueprint 和 Ship Package
+author: DeepFlow Team
+created: 2026-06-18
+updated: 2026-06-21
+tags: [solution, prompt, orchestrator, completion]
+---
+
 # 完成后处理（10 阶段全部完成后执行）
 
 ## Step 6: 执行完成后处理脚本

@@ -212,7 +212,7 @@ def get_feishu_credentials() -> Dict[str, str]:
     """获取飞书凭证"""
     config = get_config()
     return {
-        "app_id": config.get_credential("feishu", "app_id", "cli_a917c939e1f91ceb"),
-        "app_secret": config.get_credential("feishu", "app_secret", "TIox2Tmsv1RSNNrL2vi9Kg8jvP2bXX5g"),
+        "app_id": config.get_credential("feishu", "app_id", ""),
+        "app_secret": config.get_credential("feishu", "app_secret", ""),
         "target_open_id": config.get_feishu_target(),
     }
