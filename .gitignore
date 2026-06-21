@@ -112,3 +112,9 @@ frontend/task_queue/*.json
 
 # frontend/frontend 嵌套目录
 frontend/frontend/
+
+# 敏感凭证
+.credentials/
+
+# CodeGraph 完整目录
+.codegraph/
