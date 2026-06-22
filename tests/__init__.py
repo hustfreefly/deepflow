@@ -1,1 +1,5 @@
-"""DeepFlow 测试模块."""
+"""
+DeepFlow 项目单元测试。
+
+Run: pytest tests/ -v
+"""

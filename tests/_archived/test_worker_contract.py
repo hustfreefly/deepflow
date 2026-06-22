@@ -5,13 +5,10 @@ from core.config.path_config import PathConfig
 测试 Worker 契约验证器
 """
 
-import sys
 import os
 import unittest
 
-sys.path.insert(0, str(PathConfig.resolve().base_dir))
 from core.cage.cage_validator import CageValidator, ValidationResult
-
 
 class TestWorkerContract(unittest.TestCase):
     """Worker 契约测试"""
@@ -143,6 +140,7 @@ class TestWorkerContract(unittest.TestCase):
         """测试无效的 checks 格式"""
         import tempfile
         import yaml
+import core.bootstrap
         
         invalid_contract = {
             "worker": "test_worker",
@@ -168,7 +166,6 @@ class TestWorkerContract(unittest.TestCase):
             self.assertTrue(any("pre_spawn" in e.lower() for e in result.errors))
         finally:
             os.unlink(temp_path)
-
 
 if __name__ == "__main__":
     unittest.main()

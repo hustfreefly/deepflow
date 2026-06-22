@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # ---
 # id: ship_pro/run_pipeline
-# version: "1.0.0"
+# version: "2.0.0"
 # component: ship_pro
-# updated: "2026-06-19"
+# updated: "2026-06-22"
 # status: active
 # ---
 """
@@ -36,6 +36,10 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Optional
+
+# Import STAGE_PATH_REGISTRY for path resolution
+import core.bootstrap
+from domains.ship_pro.blackboard import STAGE_PATH_REGISTRY, BlackboardManager
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -133,9 +137,10 @@ def _save_status(output_dir: Path, status: dict) -> None:
         json.dump(status, f, indent=2, ensure_ascii=False)
 
 
-def _load_blackboard_file(blackboard_dir: str, filename: str) -> Optional[dict]:
-    """Load a JSON file from blackboard, return None if not found."""
-    path = Path(blackboard_dir) / filename
+def _load_blackboard_file(blackboard_dir: str, stage_name: str) -> Optional[dict]:
+    """Load a JSON file from blackboard using STAGE_PATH_REGISTRY, return None if not found."""
+    rel_path = STAGE_PATH_REGISTRY.get(stage_name, stage_name)
+    path = Path(blackboard_dir) / rel_path
     if path.exists():
         with open(path) as f:
             return json.load(f)
@@ -150,7 +155,7 @@ def _get_upstream_outputs(agent_name: str, blackboard_dir: str) -> dict:
     deps = AGENT_DEPENDENCIES.get(agent_name, [])
     upstream = {}
     for dep in deps:
-        data = _load_blackboard_file(blackboard_dir, f"{dep}_output.json")
+        data = _load_blackboard_file(blackboard_dir, dep)
         if data is not None:
             upstream[dep] = data
     return upstream
@@ -191,8 +196,8 @@ def prepare_pipeline(input_path: str, output_dir: str) -> dict:
     # Generate run_id
     run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{fmt.lower()}"
 
-    # Copy input to blackboard
-    with open(bb_dir / "final_result.json", "w") as f:
+    # Copy input to blackboard using registry path
+    with open(bb_dir / STAGE_PATH_REGISTRY["input"], "w") as f:
         json.dump(input_data, f, indent=2, ensure_ascii=False)
 
     # Build pipeline config
@@ -257,7 +262,7 @@ def get_agent_task(agent_name: str, output_dir: str) -> dict:
     fmt = config["input_format"]
 
     # Load original input
-    input_data = _load_blackboard_file(bb_dir, "final_result.json")
+    input_data = _load_blackboard_file(bb_dir, "input")
     if input_data is None:
         raise FileNotFoundError(f"Input data missing from blackboard: {bb_dir}")
 
@@ -274,7 +279,7 @@ def get_agent_task(agent_name: str, output_dir: str) -> dict:
     upstream_info_parts = []
     deps = AGENT_DEPENDENCIES.get(agent_name, [])
     for dep in deps:
-        dep_file = f"{bb_dir}/{dep}_output.json"
+        dep_file = f"{bb_dir}/{STAGE_PATH_REGISTRY[dep]}"
         upstream_info_parts.append(f"- {dep} 输出: `{dep_file}`")
 
     upstream_section = ""
@@ -302,10 +307,10 @@ def get_agent_task(agent_name: str, output_dir: str) -> dict:
 
 ## ⚠️ 输出文件路径（必须严格遵守）
 
-**输出文件路径**: `{bb_dir}/{agent_name}_output.json`
+**输出文件路径**: `{bb_dir}/{STAGE_PATH_REGISTRY[agent_name]}`
 
-- 文件名必须是 `{agent_name}_output.json`（下划线，不是连字符）
-- 禁止使用其他文件名（如 `{agent_name}-output.json`）
+- 文件名必须是 `{STAGE_PATH_REGISTRY[agent_name]}`（根据 STAGE_PATH_REGISTRY）
+- 禁止使用其他文件名
 - 如果文件名不正确，下游 Agent 将无法读取你的输出
 
 ## 输出要求
@@ -328,7 +333,7 @@ def get_agent_task(agent_name: str, output_dir: str) -> dict:
         "timeout_seconds": AGENT_TIMEOUTS.get(agent_name, 300),
         "model": AGENT_MODELS.get(agent_name, "strong"),
         "depends_on": deps,
-        "output_file": f"{bb_dir}/{agent_name}_output.json",
+        "output_file": f"{bb_dir}/{STAGE_PATH_REGISTRY[agent_name]}",
         "prompt_sha": prompt_sha,
     }
 
@@ -352,7 +357,7 @@ def check_gate(agent_name: str, output_dir: str) -> dict:
     gate_fn_name = GATE_CONFIG.get(agent_name, {}).get("gate_fn")
 
     # Load agent output
-    output_file = Path(bb_dir) / f"{agent_name}_output.json"
+    output_file = Path(bb_dir) / STAGE_PATH_REGISTRY[agent_name]
     if not output_file.exists():
         return {
             "agent": agent_name,
@@ -381,8 +386,7 @@ def check_gate(agent_name: str, output_dir: str) -> dict:
         }
 
     # Import and run gate function
-    sys.path.insert(0, str(Path(__file__).parent.parent / "eval"))
-    from gates import gate_architect, gate_decomposer, gate_specifier, gate_packager
+    from domains.ship_pro.eval.gates import gate_architect, gate_decomposer, gate_specifier, gate_packager
 
     gate_fns = {
         "gate_architect": gate_architect,
@@ -408,7 +412,7 @@ def check_gate(agent_name: str, output_dir: str) -> dict:
         result = gate_fn(agent_output)
     elif gate_fn_name == "gate_decomposer":
         # Decomposer needs blueprint (architect output)
-        blueprint = _load_blackboard_file(bb_dir, "architect_output.json")
+        blueprint = _load_blackboard_file(bb_dir, "architect")
         if blueprint is None:
             return {
                 "agent": agent_name,
@@ -481,7 +485,7 @@ def get_feedback_task(agent_name: str, output_dir: str) -> dict:
     gate_decision = agent_status.get("gate_decision", "FAIL")
 
     bb_dir = config["blackboard_dir"]
-    output_file = f"{bb_dir}/{agent_name}_output.json"
+    output_file = f"{bb_dir}/{STAGE_PATH_REGISTRY[agent_name]}"
 
     # Build feedback task
     feedback_task = f"""## Gate 检查未通过 — 需要修正
@@ -536,14 +540,14 @@ def validate_pipeline(output_dir: str) -> dict:
     bb_dir = Path(config["blackboard_dir"])
     status = _load_status(output_p)
 
-    # Check file existence
+    # Check file existence using STAGE_PATH_REGISTRY
     expected_files = {
-        "input": bb_dir / "final_result.json",
-        "architect": bb_dir / "architect_output.json",
-        "decomposer": bb_dir / "decomposer_output.json",
-        "specifier": bb_dir / "specifier_output.json",
-        "reviewer": bb_dir / "reviewer_output.json",
-        "packager": bb_dir / "packager_output.json",
+        "input": bb_dir / STAGE_PATH_REGISTRY["input"],
+        "architect": bb_dir / STAGE_PATH_REGISTRY["architect"],
+        "decomposer": bb_dir / STAGE_PATH_REGISTRY["decomposer"],
+        "specifier": bb_dir / STAGE_PATH_REGISTRY["specifier"],
+        "reviewer": bb_dir / STAGE_PATH_REGISTRY["reviewer"],
+        "packager": bb_dir / STAGE_PATH_REGISTRY["packager"],
     }
 
     file_check = {}
@@ -556,11 +560,10 @@ def validate_pipeline(output_dir: str) -> dict:
 
     # Run eval_code_checks on packager output if it exists
     packager_eval = None
-    packager_path = bb_dir / "packager_output.json"
+    packager_path = bb_dir / STAGE_PATH_REGISTRY["packager"]
     if packager_path.exists():
         try:
-            sys.path.insert(0, str(Path(__file__).parent.parent / "eval"))
-            from eval_code_checks import check_schema_compliance, check_dependency_graph
+            from domains.ship_pro.eval.eval_code_checks import check_schema_compliance, check_dependency_graph
 
             with open(packager_path) as f:
                 package_data = json.load(f)

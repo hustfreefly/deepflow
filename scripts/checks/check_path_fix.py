@@ -3,12 +3,10 @@
 契约: cage/path_fix_contract.yaml
 """
 
-import sys
 import os
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
-
 from core.task_builder import (
+import core.bootstrap
     build_planner_task,
     build_researcher_task,
     build_auditor_task,

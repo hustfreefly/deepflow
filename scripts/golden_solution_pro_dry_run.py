@@ -4,20 +4,18 @@
 from __future__ import annotations
 
 import json
-import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
-from domains.solution.orchestrator_agent import _SolutionDispatcher
-from domains.solution.control_contract import rewrite_after_planning
-from domains.solution.completion_handler import _check_expected_outputs, _expected_outputs_from_plan
-from domains.solution.frozen_spec import write_frozen_spec
-
+from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
+from domains.solution_pro.control_contract import rewrite_after_planning
+from domains.solution_pro.completion_handler import _check_expected_outputs, _expected_outputs_from_plan
+from domains.solution_pro.frozen_spec import write_frozen_spec
+import core.bootstrap
 
 class FakeBlackboard:
     def __init__(self, base_path: Path) -> None:
@@ -31,12 +29,10 @@ class FakeBlackboard:
         }
         return self.base_path / mapping.get(stage, f"stages/{stage}.json")
 
-
 def write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
 
 def stage_output(stage: str) -> dict:
     output = {
@@ -61,7 +57,6 @@ def stage_output(stage: str) -> dict:
             {"req_id": "REQ-001", "status": "covered", "evidence": f"mock {stage}"}
         ]
     return output
-
 
 def main() -> int:
     temp_root = Path(tempfile.mkdtemp(prefix="solution_golden_"))
@@ -120,7 +115,7 @@ def main() -> int:
                 "status": "covered",
                 "evidence": [
                     {"stage": "planning", "path": "stages/planning.json"},
-                    {"stage": "summarizer", "path": "stages/summarizer.json"},
+                    {"stage": "summarizer", "path": "final_result.json"},
                 ],
             }
         },
@@ -148,7 +143,6 @@ def main() -> int:
     }
     print(json.dumps(output, ensure_ascii=False, indent=2))
     return 0 if output["status"] == "ok" else 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

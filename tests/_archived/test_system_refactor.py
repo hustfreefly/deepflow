@@ -8,12 +8,9 @@ from core.config.path_config import PathConfig
 """
 
 import os
-import sys
 import subprocess
 from pathlib import Path
-
-sys.path.insert(0, str(PathConfig.resolve().base_dir))
-
+import core.bootstrap
 
 def test_no_mock_code():
     """测试1: 无mock代码"""
@@ -42,7 +39,6 @@ def test_no_mock_code():
     
     print("  ✅ 通过: 无mock代码")
     return True
-
 
 def test_all_prompts_exist():
     """测试2: 12个prompt文件存在"""
@@ -78,7 +74,6 @@ def test_all_prompts_exist():
     print(f"  ✅ 通过: 所有 {len(required_files)} 个prompt文件存在")
     return True
 
-
 def test_pipeline_engine_uses_sessions_spawn():
     """测试3: PipelineEngine使用sessions_spawn"""
     print("\n🔍 测试3: 检查PipelineEngine使用sessions_spawn...")
@@ -94,7 +89,6 @@ def test_pipeline_engine_uses_sessions_spawn():
     
     print(f"  ✅ 通过: sessions_spawn 调用 {count} 次")
     return True
-
 
 def test_convergence_check_exists():
     """测试4: 收敛检测≥2轮"""
@@ -117,7 +111,6 @@ def test_convergence_check_exists():
     print("  ✅ 通过: 收敛检测要求至少2轮")
     return True
 
-
 def test_unified_entry_calls_pipeline_engine():
     """测试5: unified_entry调用PipelineEngine"""
     print("\n🔍 测试5: 检查unified_entry调用PipelineEngine...")
@@ -136,7 +129,6 @@ def test_unified_entry_calls_pipeline_engine():
     
     print("  ✅ 通过: unified_entry 配置指向 PipelineEngine")
     return True
-
 
 def test_prompt_structure():
     """测试6: prompt文件结构符合契约"""
@@ -181,7 +173,6 @@ def test_prompt_structure():
     print("  ✅ 通过: prompt文件结构符合要求")
     return True
 
-
 def main():
     """运行所有测试"""
     print("=" * 60)
@@ -216,7 +207,6 @@ def main():
     else:
         print("\n❌ 部分测试失败，请检查上述错误。")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -101,7 +101,7 @@ web_fetch(url="<url>")
 **2d. 注册来源** — 每个搜索结果都注册到 Source Registry（防幻觉核心）：
 ```bash
 cd __BASE_PATH__/../../.. && python3 -c "
-import sys, json; sys.path.insert(0, '.')
+import core.bootstrap; import json
 from domains.research_pro.source_registry import SourceRegistry
 reg = SourceRegistry('__BASE_PATH__/source_registry.json')
 sources = json.loads('''__SOURCES_JSON__''')
@@ -135,7 +135,7 @@ print(f'Registered: {len(reg.sources)} sources')
 
 ```bash
 cd __BASE_PATH__/../../.. && python3 -c "
-import sys, json; sys.path.insert(0, '.')
+import core.bootstrap; import json
 from domains.research_pro.citation_verifier import CitationVerifier
 verifier = CitationVerifier(
     registry_path='__BASE_PATH__/source_registry.json',

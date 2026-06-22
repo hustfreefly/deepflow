@@ -13,17 +13,15 @@ Solution Pro E2E Golden Case 验证脚本
 """
 
 import json
-import sys
 import os
 from pathlib import Path
 from datetime import datetime
 
 # 确保 deepflow 在 path 中
 DEEPFLOW_ROOT = Path(__file__).resolve().parent.parent.parent  # .deepflow/
-sys.path.insert(0, str(DEEPFLOW_ROOT))
 
-from domains.solution.blackboard import STAGE_PATH_REGISTRY
-
+from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY
+import core.bootstrap
 
 class GoldenCaseVerifier:
     """Golden Case E2E 验证器"""
@@ -516,7 +514,6 @@ class GoldenCaseVerifier:
 
         return exit_code
 
-
 def main():
     if len(sys.argv) < 2:
         print(f"用法: {sys.argv[0]} <session_id> [golden_case_path]")
@@ -529,7 +526,6 @@ def main():
     verifier = GoldenCaseVerifier(session_id, golden_path)
     exit_code = verifier.run_all()
     sys.exit(exit_code)
-
 
 if __name__ == "__main__":
     main()

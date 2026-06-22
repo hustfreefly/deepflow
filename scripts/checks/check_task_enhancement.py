@@ -2,9 +2,7 @@
 """
 验证 Task 增强和模板变量替换
 """
-import sys
 import os
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
 
 def test_replace_template_vars():
     """测试模板变量替换"""
@@ -102,6 +100,7 @@ def test_build_worker_task():
     
     # 清理测试目录
     import shutil
+import core.bootstrap
     shutil.rmtree('/Users/allen/.openclaw/workspace/.deepflow/blackboard/test_build_task', ignore_errors=True)
     
     return all_pass

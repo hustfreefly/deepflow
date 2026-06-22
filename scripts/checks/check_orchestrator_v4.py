@@ -5,10 +5,6 @@ Orchestrator V4.0 契约验证脚本
 
 import os
 import json
-import sys
-
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
-
 
 def check_python_syntax():
     """检查 Python 语法"""
@@ -22,7 +18,6 @@ def check_python_syntax():
         print(f"  ❌ 语法错误: {e}")
         return False
 
-
 def check_imports():
     """检查模块导入"""
     print("\n[Check 2] 模块导入检查")
@@ -33,7 +28,6 @@ def check_imports():
     except Exception as e:
         print(f"  ❌ 导入失败: {e}")
         return False
-
 
 def check_task_generation():
     """检查 Task 生成"""
@@ -74,12 +68,12 @@ def check_task_generation():
         print(f"  ❌ Task 生成失败: {e}")
         return False
 
-
 def check_task_save():
     """检查 Task 保存"""
     print("\n[Check 4] Task 保存检查")
     try:
         from orchestrator_agent import run_initialization
+import core.bootstrap
         
         result = run_initialization(
             company_code="688652.SH",
@@ -116,7 +110,6 @@ def check_task_save():
         print(f"  ❌ 保存失败: {e}")
         return False
 
-
 def check_tool_call_instructions():
     """检查是否包含工具调用说明"""
     print("\n[Check 5] 工具调用说明检查")
@@ -143,7 +136,6 @@ def check_tool_call_instructions():
     except Exception as e:
         print(f"  ❌ 检查失败: {e}")
         return False
-
 
 def main():
     """运行所有检查"""
@@ -187,7 +179,6 @@ def main():
     else:
         print("\n⚠️ 部分检查未通过")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

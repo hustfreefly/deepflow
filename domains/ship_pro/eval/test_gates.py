@@ -12,10 +12,8 @@ import os
 import sys
 import pytest
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from gates import (
+import core.bootstrap
+from domains.ship_pro.eval.gates import (
     gate_architect,
     gate_decomposer,
     gate_specifier,
@@ -34,9 +32,14 @@ TEST_DATA_DIR = os.path.join(
     "test_output", "real_case_crossborder", "blackboard"
 )
 
+# Import STAGE_PATH_REGISTRY for path resolution
+import core.bootstrap
+from domains.ship_pro.blackboard import STAGE_PATH_REGISTRY
 
-def _load_json(filename: str) -> dict:
-    """Load a JSON file from the test data directory."""
+
+def _load_json(stage_name: str) -> dict:
+    """Load a JSON file from the test data directory using STAGE_PATH_REGISTRY."""
+    filename = STAGE_PATH_REGISTRY.get(stage_name, stage_name)
     path = os.path.join(TEST_DATA_DIR, filename)
     if not os.path.exists(path):
         pytest.skip(f"Test data not found: {path}")
@@ -300,7 +303,7 @@ class TestGateArchitect:
 
     def test_real_pipeline_data(self):
         """Test against real architect output."""
-        data = _load_json("architect-output.json")
+        data = _load_json("architect")
         result = gate_architect(data)
         # Real data has modules, deps, requirements but no project_type/wp_file_mapping
         assert result["critical_results"]["modules_non_empty"] is True
@@ -381,8 +384,8 @@ class TestGateDecomposer:
 
     def test_real_pipeline_data(self):
         """Test against real decomposer + architect output."""
-        decomp = _load_json("decomposer_output.json")
-        arch = _load_json("architect-output.json")
+        decomp = _load_json("decomposer")
+        arch = _load_json("architect")
         result = gate_decomposer(decomp, arch)
         assert result["decision"] == "PASS", \
             f"Expected PASS for real decomposer, got {result['decision']}: {result['feedback']}"
@@ -481,7 +484,7 @@ class TestGateSpecifier:
 
     def test_real_pipeline_data_should_fail(self):
         """★ Real specifier output has budget/complexity/outputs all null → MUST FAIL."""
-        data = _load_json("specifier_output.json")
+        data = _load_json("specifier")
         result = gate_specifier(data)
         assert result["decision"] == "FAIL", \
             f"Real specifier output should FAIL but got {result['decision']}: {result['feedback']}"
@@ -614,7 +617,7 @@ class TestGatePackager:
 
     def test_real_pipeline_data(self):
         """Test against real packager output."""
-        data = _load_json("packager_output.json")
+        data = _load_json("packager")
         result = gate_packager(data)
         # Real data has budget=null, complexity=null, AC as objects → should FAIL
         assert result["decision"] == "FAIL", \
@@ -726,10 +729,10 @@ class TestFullPipeline:
         - Specifier: FAIL (budget/complexity/outputs all null)
         - Packager: FAIL (schema violations from null fields)
         """
-        arch = _load_json("architect-output.json")
-        decomp = _load_json("decomposer_output.json")
-        spec = _load_json("specifier_output.json")
-        pack = _load_json("packager_output.json")
+        arch = _load_json("architect")
+        decomp = _load_json("decomposer")
+        spec = _load_json("specifier")
+        pack = _load_json("packager")
 
         r1 = gate_architect(arch)
         r2 = gate_decomposer(decomp, arch)

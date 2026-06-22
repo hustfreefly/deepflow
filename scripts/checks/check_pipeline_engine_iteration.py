@@ -2,9 +2,7 @@
 """
 验证 PipelineEngine 迭代循环修复
 """
-import sys
 import os
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
 
 from unittest.mock import Mock, patch, MagicMock
 from pipeline_engine import PipelineEngine, PipelineStage, PipelineState, PipelineResult, StageResult
@@ -18,6 +16,7 @@ def test_iteration_structure():
     
     # 检查 _run_pipeline 和 _run_iteration_stages 方法源码
     import inspect
+import core.bootstrap
     pipeline_source = inspect.getsource(PipelineEngine._run_pipeline)
     iteration_source = inspect.getsource(PipelineEngine._run_iteration_stages)
     combined_source = pipeline_source + iteration_source

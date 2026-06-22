@@ -2,9 +2,7 @@
 """
 验证 Orchestrator V2.0 新架构
 """
-import sys
 import json
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
 
 def test_file_structure():
     """测试文件结构"""
@@ -76,6 +74,7 @@ def test_blackboard_paths():
     
     # 先创建目录
     from pathlib import Path
+import core.bootstrap
     for p in [paths["base"], paths["data"], paths["stages"]]:
         Path(p).mkdir(parents=True, exist_ok=True)
     

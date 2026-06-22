@@ -2,11 +2,10 @@
 """
 验证 PipelineEngine 单轮模式修复
 """
-import sys
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
 
 from unittest.mock import Mock, patch
 from pipeline_engine import PipelineEngine, PipelineState, PipelineResult
+import core.bootstrap
 
 def test_single_pass_mode():
     """测试：max_iterations=1 时返回 DONE 状态"""

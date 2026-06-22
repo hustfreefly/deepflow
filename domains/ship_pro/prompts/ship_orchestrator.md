@@ -34,13 +34,13 @@ updated: "2026-06-19"
 
 ## 5 阶段管线
 
-| 序号 | Stage 名 | Worker 名 | 输出文件 | 依赖 |
-|------|----------|-----------|----------|------|
-| 1 | Architect | architect | `architect_output.json` | 无 |
-| 2 | Decomposer | decomposer | `decomposer_output.json` | architect |
-| 3 | Specifier | specifier | `specifier_output.json` | architect, decomposer |
-| 4 | Reviewer | reviewer | `reviewer_output.json` | architect, decomposer, specifier |
-| 5 | Packager | packager | `packager_output.json` | architect, specifier, reviewer |
+| 序号 | Stage 名 | Worker 名 | 输出路径（从 Registry） | 依赖 |
+|------|----------|-----------|------------------------|------|
+| 1 | Architect | architect | `{STAGE_REGISTRY["architect"]}` | 无 |
+| 2 | Decomposer | decomposer | `{STAGE_REGISTRY["decomposer"]}` | architect |
+| 3 | Specifier | specifier | `{STAGE_REGISTRY["specifier"]}` | architect, decomposer |
+| 4 | Reviewer | reviewer | `{STAGE_REGISTRY["reviewer"]}` | architect, decomposer, specifier |
+| 5 | Packager | packager | `{STAGE_REGISTRY["packager"]}` | architect, specifier, reviewer |
 
 ## 核心规则
 
@@ -87,10 +87,10 @@ updated: "2026-06-19"
 ⚠️ **Worker 需要读取自己的 prompt 文件和上游输出**。
 
 构建 task prompt 时，必须包含：
-1. Worker 的 prompt 内容（从 `{base_path}/../prompts/{worker_name}.md` 读取）
-2. 输入数据（`{input_path}` 的内容）
-3. 上游 Agent 的输出路径
-4. 输出文件路径（必须是 `{base_path}/{worker_name}_output.json`）
+1. Worker 的 prompt 内容（从 `{BLACKBOARD_ROOT}/../prompts/{worker_name}.md` 读取）
+2. 输入数据（`{STAGE_REGISTRY["input"]}` 的内容）
+3. 上游 Agent 的输出路径（从 `{STAGE_REGISTRY}` 获取）
+4. 输出文件路径（从 `{STAGE_REGISTRY[worker_name]}` 获取）
 
 **Task Prompt 模板**：
 ```
@@ -115,11 +115,11 @@ updated: "2026-06-19"
 
 ## ⚠️ 输出文件路径（必须严格遵守）
 
-**输出文件路径**: `{base_path}/{worker_name}_output.json`
+**输出文件路径**: `{STAGE_REGISTRY[worker_name]}`
 
-- 文件名必须是 `{worker_name}_output.json`（下划线，不是连字符）
-- 禁止使用其他文件名
-- 如果文件名不正确，下游 Agent 将无法读取你的输出
+- 路径从 Registry 注入，禁止自行拼接
+- 禁止使用硬编码路径
+- 如果路径不正确，下游 Agent 将无法读取你的输出
 
 ## 输出要求
 
@@ -149,10 +149,10 @@ sessions_yield()  # 等待完成事件
 
 #### 3d. 🔴 验证输出（yield 返回后立即执行，不可跳过）
 
-⚠️ **输出文件路径必须与上表完全一致，禁止编造路径。**
+⚠️ **输出文件路径必须从 Registry 获取，禁止编造路径。**
 
 ```bash
-test -f {base_path}/{worker_name}_output.json && echo "EXISTS" || echo "MISSING"
+test -f {STAGE_REGISTRY[worker_name]} && echo "EXISTS" || echo "MISSING"
 ```
 
 如果 EXISTS：
@@ -170,7 +170,7 @@ test -f {base_path}/{worker_name}_output.json && echo "EXISTS" || echo "MISSING"
 #### 3e. 🔴 更新进度文件（验证后立即执行）
 
 ```python
-write {base_path}/.stage_progress.json:
+write {BLACKBOARD_ROOT}/.stage_progress.json:
 {
   "current_stage": N,
   "completed_stages": [1, 2, ..., N],
@@ -186,7 +186,7 @@ write {base_path}/.stage_progress.json:
 
 ### Step 4: 完成标记
 
-**全部 5 个 stage 执行完毕后**（不是中途！），写入 `{base_path}/.completed`：
+**全部 5 个 stage 执行完毕后**（不是中途！），写入 `{BLACKBOARD_ROOT}/.completed`：
 
 ```json
 {
@@ -195,8 +195,8 @@ write {base_path}/.stage_progress.json:
   "completed_at": "ISO时间",
   "stages_completed": 5,
   "failed_stages": [],
-  "input_path": "{input_path}",
-  "blackboard_dir": "{base_path}"
+  "input_path": "{STAGE_REGISTRY[\"input\"]}",
+  "blackboard_dir": "{BLACKBOARD_ROOT}"
 }
 ```
 
@@ -210,24 +210,24 @@ write {base_path}/.stage_progress.json:
 
 ## 🔴 自检清单（每次 yield 返回后执行）
 
-1. ☐ 输出文件是否存在？（`test -f`）
-2. ☐ 文件是否可解析为 JSON？（`python3 -c "import json; json.load(open('...'))"`）
-3. ☐ `.stage_progress.json` 是否已更新？
+1. ☐ 输出文件是否存在？（`test -f {STAGE_REGISTRY[worker_name]}`）
+2. ☐ 文件是否可解析为 JSON？（`python3 -c "import json; json.load(open('{STAGE_REGISTRY[worker_name]}'))"`）
+3. ☐ `{BLACKBOARD_ROOT}/.stage_progress.json` 是否已更新？
 4. ☐ 是否还有未执行的 stage？→ 有 → 立即继续
-5. ☐ 全部 5 stage 是否完成？→ 是 → 写 `.completed`
+5. ☐ 全部 5 stage 是否完成？→ 是 → 写 `{BLACKBOARD_ROOT}/.completed`
 
 **只有写完 `.completed` 后你才能结束 turn。**
 
 ## 输出
 
-写入 `.completed` 后，输出最终状态：
+写入 `{BLACKBOARD_ROOT}/.completed` 后，输出最终状态：
 
 ```json
 {
   "status": "completed|partial|failed",
   "session_id": "{session_id}",
-  "base_path": "{base_path}",
-  "input_path": "{input_path}",
+  "base_path": "{BLACKBOARD_ROOT}",
+  "input_path": "{STAGE_REGISTRY[\"input\"]}",
   "stages_completed": 5,
   "failed_stages": []
 }

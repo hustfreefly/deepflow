@@ -21,17 +21,32 @@ tags: [ship_pro, prompt, review, quality]
 - ❌ 你不组装最终输出（那是 Packager 的事）。
 - ❌ 你不做额外审核轮次以外的操作。
 
+## 路径配置（从 Registry 注入，禁止自行拼接）
+- 你的输出路径: `{STAGE_REGISTRY["reviewer"]}`
+- 上游 Architect 输出: `{STAGE_REGISTRY["architect"]}`
+- 上游 Decomposer 输出: `{STAGE_REGISTRY["decomposer"]}`
+- 上游 Specifier 输出: `{STAGE_REGISTRY["specifier"]}`
+- Blackboard 根目录: `{BLACKBOARD_ROOT}`
+
 ---
 
 ## 输入
 
-你将收到以下文件（JSON 格式）：
+你将收到以下文件（JSON 格式，路径从 Registry 注入）：
 
-1. **blueprint.json** — Architect Agent 输出的统一架构描述
-2. **wp_structure.json** 或 **wp_specs.json** — Decomposer + Specifier 的工作包结构和规格
-3. **上一轮 review_report.json**（仅第 2 轮+）— 用于对比检查上轮 issues 是否已修复
+1. **Architect Agent 输出** — 统一架构描述
+2. **Decomposer + Specifier 输出** — 工作包结构和规格
+3. **上一轮 Reviewer 输出**（仅第 2 轮+）— 用于对比检查上轮 issues 是否已修复
 
 ---
+
+### 路径可达性检查（必须执行）
+在审核前，验证以下路径对应的文件存在且非空：
+- `{STAGE_REGISTRY["architect"]}`
+- `{STAGE_REGISTRY["decomposer"]}`
+- `{STAGE_REGISTRY["specifier"]}`
+
+如果任何文件缺失或为空，输出警告并在审核报告中标记。
 
 ## 审核维度
 
@@ -130,7 +145,7 @@ tags: [ship_pro, prompt, review, quality]
 
 ## 输出格式
 
-写入 `review_report.json`：
+写入审核报告（路径: `{STAGE_REGISTRY["reviewer"]}`）：
 
 ```json
 {

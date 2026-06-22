@@ -288,5 +288,49 @@ class PathConfig:
                 except (OSError, FileNotFoundError):
                     pass
     
+    # ============================================================
+    # Blackboard V2 方法（projects/runs/ 三层结构）
+    # ============================================================
+    
+    @staticmethod
+    def generate_slug(topic: str) -> str:
+        """V2: 从 topic 生成人类可读 slug
+        
+        规则：
+        - 中文 topic → pinyin 或保留中文
+        - 去除特殊字符，空格替换为 hyphen
+        - 截断到 50 字符
+        - 冲突时加 4位 hash 后缀
+        """
+        import hashlib
+        # 去除特殊字符，保留字母、数字、中文、hyphen
+        slug = re.sub(r'[^\w\u4e00-\u9fff-]', '-', topic.lower().strip())
+        slug = re.sub(r'-+', '-', slug).strip('-')
+        slug = slug[:50]
+        if not slug:
+            slug = "untitled"
+        # 加 hash 后缀防冲突
+        hash_suffix = hashlib.md5(topic.encode()).hexdigest()[:4]
+        return f"{slug}-{hash_suffix}"
+    
+    def get_project_path(self, slug: str) -> Path:
+        """V2: 获取项目目录路径
+        
+        返回: {blackboard_dir}/projects/{slug}
+        """
+        return self.blackboard_dir / "projects" / slug
+    
+    def get_run_path(self, slug: str, run_id: str) -> Path:
+        """V2: 获取运行目录路径
+        
+        返回: {blackboard_dir}/projects/{slug}/runs/{run_id}
+        """
+        return self.get_project_path(slug) / "runs" / run_id
+    
+    @staticmethod
+    def is_v2_session_id(session_id: str) -> bool:
+        """V2: 判断 session_id 是否为新格式（包含 /runs/）"""
+        return "/runs/" in session_id
+    
     def __repr__(self) -> str:
         return f"PathConfig(base_dir={self.base_dir}, blackboard={self.blackboard_dir})"

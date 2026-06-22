@@ -2,13 +2,11 @@
 """
 Solution Orchestration - 执行所有7个任务
 """
-import sys
 import json
 import os
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
-
-from domains.solution.orchestrator_agent import SolutionOrchestratorV21
+from domains.solution_pro.orchestrator_agent import SolutionOrchestratorV21
+import core.bootstrap
 
 # 定义7个任务
 tasks_config = [

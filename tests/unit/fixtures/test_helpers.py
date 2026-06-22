@@ -12,13 +12,9 @@ from pathlib import Path
 from typing import Any, Optional
 from unittest.mock import Mock
 
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 # ⚠️ Coordinator 已删除，AgentResult/SessionStatus 不再可用
 # from coordinator import AgentResult, SessionStatus
 from core.quality.quality_gate import QualityReport, GateDecision
-
 
 # =============================================================================
 # 模拟数据生成器
@@ -54,7 +50,6 @@ def create_mock_agent_result(
         error=error,
     )
 
-
 def create_mock_session_status(
     session_id: str = "test-session-001",
     state: str = "RUNNING",
@@ -86,7 +81,6 @@ def create_mock_session_status(
     mock.final_result = final_result
     mock.error = None
     return mock
-
 
 def create_mock_quality_report(
     overall_score: float = 0.85,
@@ -120,7 +114,6 @@ def create_mock_quality_report(
         reasoning=reasoning,
     )
 
-
 def create_mock_pipeline_state(
     session_id: str = "test-session-001",
     state: str = "RUNNING",
@@ -152,7 +145,6 @@ def create_mock_pipeline_state(
         "scores": scores or [],
     }
 
-
 # =============================================================================
 # 断言辅助函数
 # =============================================================================
@@ -171,7 +163,6 @@ def assert_valid_session_id(session_id: Any) -> None:
     assert len(session_id) > 0, "session_id 不能为空"
     assert re.match(r'^[\w\-]+$', session_id), f"session_id 包含非法字符: {session_id}"
 
-
 def assert_valid_score(score: float, min_val: float = 0.0, max_val: float = 1.0) -> None:
     """
     断言分数在有效范围内.
@@ -186,7 +177,6 @@ def assert_valid_score(score: float, min_val: float = 0.0, max_val: float = 1.0)
     """
     assert isinstance(score, (int, float)), f"分数必须是数字，实际为 {type(score)}"
     assert min_val <= score <= max_val, f"分数 {score} 不在范围 [{min_val}, {max_val}] 内"
-
 
 def assert_valid_state_transition(
     old_state: str,
@@ -210,7 +200,6 @@ def assert_valid_state_transition(
         f"允许的转换: {valid_next}"
     )
 
-
 # =============================================================================
 # 异步辅助函数
 # =============================================================================
@@ -230,7 +219,6 @@ def wait_for_async(coro, timeout: float = 5.0):
         TimeoutError: 如果超时
     """
     return asyncio.run(asyncio.wait_for(coro, timeout=timeout))
-
 
 async def async_assert_raises(func, exception_type, *args, **kwargs):
     """
@@ -253,7 +241,6 @@ async def async_assert_raises(func, exception_type, *args, **kwargs):
         raise AssertionError(f"期望抛出 {exception_type.__name__}，但未抛出")
     except exception_type as e:
         return e
-
 
 # =============================================================================
 # 环境管理
@@ -278,6 +265,7 @@ class MockFileSystem:
     def teardown(self):
         """清理临时目录."""
         import shutil
+import core.bootstrap
         if self.temp_dir:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
     

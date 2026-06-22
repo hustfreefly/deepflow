@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Solution Pro 端到端集成冒烟测试"""
 
-import sys
 import os
 import tempfile
 import shutil
@@ -10,7 +9,6 @@ from pathlib import Path
 
 # Point PYTHONPATH to the deepflow project
 DEEPFLOW_BASE = os.path.expanduser("~/.openclaw/workspace/.deepflow")
-sys.path.insert(0, DEEPFLOW_BASE)
 
 results = []
 test_dir = None
@@ -21,11 +19,11 @@ test_dir = None
 def test_1_module_import():
     """测试所有关键模块导入"""
     try:
-        from domains.solution import run_solution_pro
-        from domains.solution.orchestrator_agent import _SolutionDispatcher
-        from domains.solution.frozen_spec import build_frozen_spec, write_frozen_spec
-        from domains.solution.control_contract import build_control_contract
-        from domains.solution.task_builder import (
+        from domains.solution_pro import run_solution_pro
+        from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
+        from domains.solution_pro.frozen_spec import build_frozen_spec, write_frozen_spec
+        from domains.solution_pro.control_contract import build_control_contract
+        from domains.solution_pro.task_builder import (
             build_data_collection_task, build_planner_task, build_researcher_task,
             build_reviewer_task, build_consolidator_task, build_auditor_task,
             build_fixer_task, build_fixer_task_with_audit, build_fixer_expert_task,
@@ -44,7 +42,7 @@ def test_2_frozen_spec():
 
     # Scenario A: with living_spec
     try:
-        from domains.solution.frozen_spec import build_frozen_spec
+        from domains.solution_pro.frozen_spec import build_frozen_spec
 
         living_spec = {
             "confirmed": {
@@ -125,7 +123,7 @@ def test_2_frozen_spec():
 
     # Scenario B: living_spec=None
     try:
-        from domains.solution.frozen_spec import build_frozen_spec
+        from domains.solution_pro.frozen_spec import build_frozen_spec
         spec_b = build_frozen_spec(
             topic="测试主题-B场景",
             constraints=None,
@@ -156,8 +154,8 @@ def test_3_dispatcher_init():
         # Create a temp dir for the test
         test_dir = tempfile.mkdtemp(prefix="solution_pro_smoke_")
 
-        from domains.solution.orchestrator_agent import _SolutionDispatcher
-        from domains.solution.frozen_spec import build_frozen_spec
+        from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
+        from domains.solution_pro.frozen_spec import build_frozen_spec
 
         living_spec = {
             "confirmed": {
@@ -225,7 +223,7 @@ def test_4_get_all_tasks():
     global test_dir
 
     try:
-        from domains.solution.orchestrator_agent import _SolutionDispatcher
+        from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
 
         living_spec = {
             "confirmed": {
@@ -318,9 +316,10 @@ def test_5_control_contract():
     global test_dir
 
     try:
-        from domains.solution.orchestrator_agent import _SolutionDispatcher
-        from domains.solution.control_contract import build_control_contract
+        from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
+        from domains.solution_pro.control_contract import build_control_contract
         import json
+import core.bootstrap
 
         living_spec = {
             "confirmed": {

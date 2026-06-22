@@ -279,14 +279,49 @@ def check_contradictions(spec: dict) -> list:
             "resolution": "always_do 与 never_do 存在冲突，需要澄清",
         })
     
-    # Check 3: constraints.conflicts (e.g., budget vs scope)
+    # Check 3: constraints.conflicts (e.g., platform vs tech_stack)
     constraints = spec.get("confirmed", {}).get("constraints", {})
-    budget = constraints.get("budget")
-    timeline = constraints.get("timeline")
-    # Simple heuristic: if budget is very low but timeline is very short, flag it
+    platform = constraints.get("platform")
+    tech_stack = constraints.get("tech_stack", [])
+    # Simple heuristic: if platform constraints conflict with tech_stack choices, flag it
     # (This is a placeholder for more sophisticated checks)
     
     return contradictions
+
+
+def merge_conversation_digest(spec: dict, response: dict) -> None:
+    """V2: Merge conversation_digest from ResponseWorker output.
+
+    - summary: overwritten each round by StructureWorker (not here)
+    - key_excerpts: incrementally appended from ResponseWorker, with dedup
+    """
+    new_digest = response.get("conversation_digest")
+    if not new_digest or not isinstance(new_digest, dict):
+        return
+
+    existing = spec.get("conversation_digest") or {}
+
+    # summary: StructureWorker 产出时覆盖更新
+    if new_digest.get("summary"):
+        existing["summary"] = new_digest["summary"]
+
+    # key_excerpts: ResponseWorker 增量追加，代码负责去重
+    new_excerpts = new_digest.get("key_excerpts", [])
+    existing_excerpts = existing.setdefault("key_excerpts", [])
+    existing_texts = {e.get("excerpt", "").lower() for e in existing_excerpts if isinstance(e, dict)}
+    for e in new_excerpts:
+        if isinstance(e, dict) and e.get("excerpt"):
+            if e["excerpt"].lower() not in existing_texts:
+                existing_excerpts.append(e)
+                existing_texts.add(e["excerpt"].lower())
+
+    # 上限 20 条，超出按 source_round 保留最新
+    if len(existing_excerpts) > 20:
+        existing_excerpts.sort(key=lambda x: x.get("source_round", 0), reverse=True)
+        existing["key_excerpts"] = existing_excerpts[:20]
+
+    existing["full_conversation_path"] = "spec/conversation_log.json"
+    spec["conversation_digest"] = existing
 
 
 def merge_user_directives(spec: dict, response: dict) -> None:
@@ -387,6 +422,9 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
     
     # Step 5: Merge user_directives (parse_response.md 输出)
     merge_user_directives(spec, response)
+
+    # Step 6: Merge conversation_digest (V2 对话摘要累积)
+    merge_conversation_digest(spec, response)
 
     # Update meta
     meta = spec.setdefault("meta", {})

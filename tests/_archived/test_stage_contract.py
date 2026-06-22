@@ -5,13 +5,10 @@ from core.config.path_config import PathConfig
 测试阶段契约验证器
 """
 
-import sys
 import os
 import unittest
 
-sys.path.insert(0, str(PathConfig.resolve().base_dir))
 from core.cage.cage_validator import CageValidator, ValidationResult
-
 
 class TestStageContract(unittest.TestCase):
     """阶段契约测试"""
@@ -116,6 +113,7 @@ class TestStageContract(unittest.TestCase):
         """测试空的 stage 名称"""
         import tempfile
         import yaml
+import core.bootstrap
         
         invalid_contract = {
             "stage": "",  # 空字符串
@@ -136,7 +134,6 @@ class TestStageContract(unittest.TestCase):
             self.assertTrue(any("stage name" in e.lower() for e in result.errors))
         finally:
             os.unlink(temp_path)
-
 
 if __name__ == "__main__":
     unittest.main()

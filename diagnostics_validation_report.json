@@ -1,0 +1,89 @@
+{
+  "validation_report": {
+    "generated_at": "2026-06-22T20:30:00Z",
+    "deepflow_session": "DeepFlow_开发者可观测性系统_architecture_c92c1412",
+    "validation_checks": [
+      {
+        "id": "V-001",
+        "name": "API可用性",
+        "status": "pass",
+        "field_name": "diagnostics JSON",
+        "fallback_available": true,
+        "details": "Successfully parsed audit.json",
+        "source_paths": [
+          "/Users/allen/.openclaw/workspace/.deepflow/blackboard/DeepFlow_开发者可观测性系统_architecture_c92c1412/stages"
+        ]
+      },
+      {
+        "id": "V-002",
+        "name": "tokens字段",
+        "status": "fail",
+        "field_name": "N/A",
+        "fallback_available": false,
+        "details": "No tokens field found in diagnostics data",
+        "source_paths": []
+      },
+      {
+        "id": "V-003",
+        "name": "cost字段",
+        "status": "pass",
+        "field_name": "data.fixes_applied[2].fix_detail.adapter_architecture.layers[1].default_mapping.fields.cost_usd",
+        "fallback_available": true,
+        "details": "Found cost field 'data.fixes_applied[2].fix_detail.adapter_architecture.layers[1].default_mapping.fields.cost_usd'",
+        "source_paths": [
+          "data.fixes_applied[2].fix_detail.adapter_architecture.layers[1].default_mapping.fields.cost_usd"
+        ]
+      },
+      {
+        "id": "V-004",
+        "name": "tool execution数据",
+        "status": "pass",
+        "field_name": "estimated from stages",
+        "fallback_available": true,
+        "details": "Tool execution data not directly found, can be estimated from stage duration differences",
+        "source_paths": [
+          "inferred: stage_end - stage_start"
+        ]
+      },
+      {
+        "id": "V-005",
+        "name": "Worker/Phase关联",
+        "status": "pass",
+        "field_name": "data.fixes_applied[2].fix_detail.adapter_architecture.layers[1].default_mapping.fields.worker_name, data.fixes_applied[2].fix_detail.adapter_architecture.layers[1].default_mapping.fields.phase_name",
+        "fallback_available": true,
+        "details": "Found correlation fields: worker='data.fixes_applied[2].fix_detail.adapter_architecture.layers[1].default_mapping.fields.worker_name', phase='data.fixes_applied[2].fix_detail.adapter_architecture.layers[1].default_mapping.fields.phase_name'",
+        "source_paths": [
+          "data.fixes_applied[2].fix_detail.adapter_architecture.layers[1].default_mapping.fields.worker_name",
+          "data.fixes_applied[2].fix_detail.adapter_architecture.layers[1].default_mapping.fields.phase_name"
+        ]
+      },
+      {
+        "id": "V-006",
+        "name": "run_id关联",
+        "status": "pass",
+        "field_name": "session_id",
+        "fallback_available": true,
+        "details": "Found run_id field 'session_id'",
+        "source_paths": [
+          "session_id"
+        ]
+      },
+      {
+        "id": "V-007",
+        "name": "历史一致性",
+        "status": "pass",
+        "field_name": "7 fields",
+        "fallback_available": true,
+        "details": "Schema consistent across 3 runs with 7 fields",
+        "source_paths": [
+          "schema_keys: covered_req_ids, data, harness_check, requirement_evidence, stage, status, timestamp"
+        ]
+      }
+    ],
+    "summary": {
+      "total_checks": 7,
+      "passed": 6,
+      "failed": 1
+    }
+  }
+}

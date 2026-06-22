@@ -62,9 +62,9 @@ updated: "2026-06-03"
 - 有 priority 标注: +30
 
 **constraints (15%)**:
-- budget 非空: +30
-- timeline 非空: +30
-- tech_stack 有 1+ 项: +20
+- platform 非空: +30
+- tech_stack 有 1+ 项: +30
+- data_source 有 1+ 项: +20
 - 其他约束有 1+ 项: +20
 
 **integration (10%)**:

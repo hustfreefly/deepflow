@@ -6,10 +6,9 @@ import json
 import os
 import tempfile
 import unittest
-import sys
 import glob
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+import core.bootstrap
 from domains.research_pro.source_registry import SourceRegistry, SUMMARY_MAX_LENGTH
 
 

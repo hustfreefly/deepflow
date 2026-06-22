@@ -20,9 +20,6 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 # 添加项目根目录到路径
-import sys
-sys.path.insert(0, str(Path(__file__).parent))
-
 
 class TestRegressionSuite:
     """回归测试套件"""
@@ -179,7 +176,6 @@ class TestRegressionSuite:
         
         print(f"✅ QualityGate convergence check passed")
 
-
 class TestPipelineEngineCore:
     """PipelineEngine 核心功能测试"""
     
@@ -216,7 +212,6 @@ class TestPipelineEngineCore:
         
         print(f"✅ Threshold normalization test passed")
 
-
 class TestConfigDrivenBehavior:
     """配置驱动行为测试"""
     
@@ -246,7 +241,6 @@ class TestConfigDrivenBehavior:
         
         print(f"✅ ResilienceManager from config test passed")
 
-
 # ── 快速冒烟测试 ──
 
 def test_smoke_import():
@@ -260,13 +254,11 @@ def test_smoke_import():
     
     print("✅ All modules import successfully")
 
-
 def test_smoke_coordinator_init():
     """快速冒烟测试：Coordinator 可初始化"""
     coord = Coordinator()
     assert coord is not None
     print("✅ Coordinator initialization smoke test passed")
-
 
 def test_smoke_pipeline_engine_init():
     """快速冒烟测试：PipelineEngine 可初始化"""
@@ -275,13 +267,13 @@ def test_smoke_pipeline_engine_init():
     assert engine.state.name == "INIT"
     print("✅ PipelineEngine initialization smoke test passed")
 
-
 if __name__ == "__main__":
     # 直接运行测试
     print("Running DeepFlow regression tests...\n")
     
     # 运行 pytest
     import subprocess
+import core.bootstrap
     result = subprocess.run(
         ["pytest", __file__, "-v", "--tb=short"],
         capture_output=False,

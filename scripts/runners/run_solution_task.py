@@ -2,15 +2,14 @@
 """
 Solution Pro 任务执行脚本
 """
-import sys
 import json
 import os
 
 # 添加 deepflow 到路径
 DEEPFLOW_BASE = "/Users/allen/.openclaw/workspace/.deepflow"
-sys.path.insert(0, DEEPFLOW_BASE)
 
-from domains.solution.orchestrator_agent import SolutionOrchestratorV21
+from domains.solution_pro.orchestrator_agent import SolutionOrchestratorV21
+import core.bootstrap
 
 # 从命令行读取参数
 if len(sys.argv) < 2:

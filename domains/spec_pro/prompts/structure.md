@@ -40,8 +40,9 @@ updated: "2026-05-23"
   🚫 禁止: [never_do 前2个]
 
 ⚡ 质量要求: [quality_attributes 摘要]
-💰 约束: budget=[budget], timeline=[timeline]
+💰 约束: platform=[platform]
 🔧 技术栈: [tech_stack]
+📊 数据源: [data_source]
 🔌 已有系统: [existing_systems]
 
 📌 用户指令:
@@ -65,7 +66,7 @@ updated: "2026-05-23"
 | capabilities 有 5+ 项 | +15 |
 | quality_attributes 有 3+ 项 | +10 |
 | integration 有 2+ 系统 | +10 |
-| constraints 有 budget + timeline | +10 |
+| constraints 有 platform + tech_stack | +10 |
 | risks 有 2+ 项 | +10 |
 | inferred 有 5+ 项 | +10 |
 | guardrails 三层都有 | +10 |

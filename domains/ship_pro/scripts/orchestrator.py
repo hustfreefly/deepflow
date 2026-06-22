@@ -3,23 +3,25 @@
 Ship Pro V3 Orchestrator — 准备 Agent 执行环境
 
 用法:
-    python3 orchestrator.py <path/to/final_result.json> <output_dir>
+    python3 orchestrator.py <path/to/input.json> <output_dir>
 
 输出:
     <output_dir>/run_config.json — 所有 Agent 的 task prompt + 配置
-    <output_dir>/blackboard/ — Agent 间数据传递目录
+    <output_dir>/ — Agent 间数据传递目录（不再嵌套 blackboard 子目录）
 
 注意：此脚本不直接调用 sessions_spawn（那是主 Agent 的工作），
 而是准备所有 Agent 的 prompt 和输入数据，供主 Agent 读取 run_config.json 后调用。
 """
 
 import json
-import sys
 import os
 import hashlib
 from pathlib import Path
 from datetime import datetime
 
+# Add project root to path for imports
+from domains.ship_pro.blackboard import STAGE_PATH_REGISTRY, AGENT_DEPENDENCIES, BlackboardManager
+import core.bootstrap
 
 def detect_format(data: dict) -> str:
     """
@@ -39,7 +41,6 @@ def detect_format(data: dict) -> str:
     else:
         return "D"
 
-
 def load_prompt(agent_name: str) -> str:
     """加载 Agent prompt 模板"""
     prompt_dir = Path(__file__).parent.parent / "prompts"
@@ -48,23 +49,9 @@ def load_prompt(agent_name: str) -> str:
         raise FileNotFoundError(f"Prompt not found: {prompt_file}")
     return prompt_file.read_text()
 
-
 def compute_prompt_sha(prompt_path: Path) -> str:
     """计算 prompt 文件的 SHA256"""
     return hashlib.sha256(prompt_path.read_bytes()).hexdigest()
-
-
-def get_dependencies(agent_name: str) -> list:
-    """获取 Agent 的依赖（执行顺序）"""
-    deps = {
-        "architect": [],
-        "decomposer": ["architect"],
-        "specifier": ["architect", "decomposer"],
-        "reviewer": ["architect", "decomposer", "specifier"],
-        "packager": ["architect", "specifier", "reviewer"]
-    }
-    return deps.get(agent_name, [])
-
 
 def get_agent_model(agent_name: str) -> str:
     """获取 Agent 推荐模型层级"""
@@ -78,7 +65,6 @@ def get_agent_model(agent_name: str) -> str:
     }
     return models.get(agent_name, "strong")
 
-
 def get_agent_timeout(agent_name: str) -> int:
     """获取 Agent 超时时间（秒）"""
     timeouts = {
@@ -89,7 +75,6 @@ def get_agent_timeout(agent_name: str) -> int:
         "packager": 180
     }
     return timeouts.get(agent_name, 300)
-
 
 def prepare_agent_task(agent_name: str, input_format: str, run_id: str,
                        input_data: dict, blackboard_dir: str) -> dict:
@@ -113,6 +98,9 @@ def prepare_agent_task(agent_name: str, input_format: str, run_id: str,
     if agent_name == "architect":
         format_hint = f"\n\n**输入格式已预检测为 Format {input_format}**。请按照 Format {input_format} 的提取规则处理。"
     
+    # 从注册表获取输出路径
+    output_file = f"{blackboard_dir}/{STAGE_PATH_REGISTRY[agent_name]}"
+    
     # 构建完整 task prompt
     task = f"""## Agent: {agent_name.title()}
 
@@ -129,7 +117,7 @@ def prepare_agent_task(agent_name: str, input_format: str, run_id: str,
 
 - run_id: {run_id}
 - blackboard_dir: {blackboard_dir}
-- 请将输出写入: {blackboard_dir}/{agent_name}_output.json
+- 请将输出写入: {output_file}
 - prompt_sha: {prompt_sha}
 
 ## 输出要求
@@ -144,17 +132,16 @@ def prepare_agent_task(agent_name: str, input_format: str, run_id: str,
         "task": task,
         "timeout_seconds": get_agent_timeout(agent_name),
         "model": get_agent_model(agent_name),
-        "depends_on": get_dependencies(agent_name),
-        "output_file": f"{blackboard_dir}/{agent_name}_output.json",
+        "depends_on": AGENT_DEPENDENCIES.get(agent_name, []),
+        "output_file": output_file,
         "prompt_sha": prompt_sha
     }
 
-
 def main():
     if len(sys.argv) < 3:
-        print("用法: python3 orchestrator.py <final_result.json> <output_dir>")
+        print("用法: python3 orchestrator.py <input.json> <output_dir>")
         print("\n示例:")
-        print("  python3 orchestrator.py /path/to/final_result.json /tmp/ship_pro_run")
+        print("  python3 orchestrator.py /path/to/input.json /tmp/ship_pro_run")
         sys.exit(1)
     
     input_path = Path(sys.argv[1])
@@ -179,12 +166,15 @@ def main():
     run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{fmt.lower()}"
     print(f"✅ Run ID: {run_id}")
     
-    # 创建 blackboard
-    bb_dir = output_dir / "blackboard"
-    bb_dir.mkdir(exist_ok=True)
+    # Blackboard 目录现在是 output_dir 本身（不再嵌套 blackboard 子目录）
+    bb_dir = output_dir
     
-    # 复制输入到 blackboard
-    with open(bb_dir / "final_result.json", "w") as f:
+    # 创建 stages 子目录
+    (bb_dir / "stages").mkdir(exist_ok=True)
+    
+    # 复制输入到 blackboard（使用注册表路径）
+    input_target = bb_dir / STAGE_PATH_REGISTRY["input"]
+    with open(input_target, "w") as f:
         json.dump(input_data, f, indent=2, ensure_ascii=False)
     
     # 准备所有 Agent 的 task
@@ -215,7 +205,6 @@ def main():
     print(f"📋 Agent 执行顺序: {' → '.join(agents)}")
     print(f"📁 Blackboard 目录: {bb_dir}")
     print(f"\n下一步: 主 Agent 读取 run_config.json，按 execution_order 依次调用 sessions_spawn")
-
 
 if __name__ == "__main__":
     main()

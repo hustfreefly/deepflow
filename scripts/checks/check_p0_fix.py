@@ -5,10 +5,6 @@ P0 修复验证脚本
 """
 
 import os
-import sys
-
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
-
 
 def check_file_exists(filepath, description):
     """检查文件是否存在"""
@@ -19,7 +15,6 @@ def check_file_exists(filepath, description):
     else:
         print(f"  ❌ 不存在: {filepath}")
         return False
-
 
 def check_orchestrator_guide():
     """检查 Orchestrator 是否为文本指南"""
@@ -52,13 +47,13 @@ def check_orchestrator_guide():
     print("  ✅ 格式正确（文本指南）")
     return True
 
-
 def check_master_agent():
     """检查 Master Agent"""
     print("\n[Check] Master Agent 功能")
     
     try:
         from core.orchestrator.master_agent import init_session, generate_tasks, save_tasks
+import core.bootstrap
         
         # 测试初始化
         session_id = init_session("688981.SH", "中芯国际", "半导体制造")
@@ -84,7 +79,6 @@ def check_master_agent():
         print(f"  ❌ 功能测试失败: {e}")
         return False
 
-
 def check_data_manager():
     """检查 DataManager Worker"""
     print("\n[Check] DataManager Worker 功能")
@@ -108,7 +102,6 @@ def check_data_manager():
     
     print("  ✅ 功能完整")
     return True
-
 
 def main():
     """运行所有检查"""
@@ -151,7 +144,6 @@ def main():
     else:
         print(f"\n⚠️ {total - passed} 项未通过")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

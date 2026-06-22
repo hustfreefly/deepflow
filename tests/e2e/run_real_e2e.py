@@ -19,7 +19,6 @@ P2 修复覆盖:
   - P2-Mode C: spawn_fn 注入
 """
 
-import sys
 import os
 import json
 import hashlib
@@ -32,14 +31,12 @@ from typing import Optional
 DEEPFLOW_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 SKILL_LIB = os.path.join(DEEPFLOW_ROOT, 'skills', 'deep-research', 'lib')
 SKILL_ROOT = os.path.join(DEEPFLOW_ROOT, 'skills', 'deep-research')
-sys.path.insert(0, SKILL_ROOT)  # for lib.xxx imports
-sys.path.insert(0, SKILL_LIB)   # for direct module imports
 
 from orchestrator import ResearchProOrchestrator
 from source_registry import SourceRegistry
 from tier_classifier import TierClassifier
 from citation_verifier import CitationVerifier
-
+import core.bootstrap
 
 class ResearchProE2ETest:
     """真实 E2E 测试管线。"""

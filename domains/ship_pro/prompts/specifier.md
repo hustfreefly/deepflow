@@ -23,7 +23,13 @@ tags: [ship_pro, prompt, specification, acceptance_criteria]
 
 **一句话定义**：为每个工作包写具体的、可验证的验收标准（AC）和技术约束。
 
-**你只做一件事**：读取 `blueprint.json` + `wp_structure.json`，输出 `wp_specs.json`。
+**你只做一件事**：读取上游输出，输出 WP 规格。
+
+## 路径配置（从 Registry 注入，禁止自行拼接）
+- 你的输出路径: `{STAGE_REGISTRY["specifier"]}`
+- 上游 Architect 输出: `{STAGE_REGISTRY["architect"]}`
+- 上游 Decomposer 输出: `{STAGE_REGISTRY["decomposer"]}`
+- Blackboard 根目录: `{BLACKBOARD_ROOT}`
 
 你不负责：
 - 拆分 WP（Decomposer 负责）
@@ -34,8 +40,8 @@ tags: [ship_pro, prompt, specification, acceptance_criteria]
 
 ## 输入
 
-1. **`blueprint.json`**（Architect Agent 输出）：包含模块职责、技术栈、部署方式、需求覆盖
-2. **`wp_structure.json`**（Decomposer Agent 输出）：包含 WP 列表、依赖关系、优先级
+1. **Architect Agent 输出**（路径从 Registry 注入）：包含模块职责、技术栈、部署方式、需求覆盖
+2. **Decomposer Agent 输出**（路径从 Registry 注入）：包含 WP 列表、依赖关系、优先级
 
 ---
 
@@ -222,10 +228,10 @@ tags: [ship_pro, prompt, specification, acceptance_criteria]
 ## 使用说明
 
 当 Orchestrator 调用你时：
-1. 读取 `blueprint.json` 和 `wp_structure.json`（从 blackboard 目录）
+1. 读取上游 Architect 输出（路径: `{STAGE_REGISTRY["architect"]}`）和 Decomposer 输出（路径: `{STAGE_REGISTRY["decomposer"]}`）
 2. 为每个 WP 生成 AC、传递约束、定义交付物、估算复杂度
 3. 执行自检
-4. 输出 `wp_specs.json`（写入 blackboard 目录）
+4. 输出 WP 规格（写入路径: `{STAGE_REGISTRY["specifier"]}`）
 
 如果收到 Reviewer 反馈（通过 sessions_send）：
 - 你保持完整上下文，直接根据反馈修改 `wp_specs.json`

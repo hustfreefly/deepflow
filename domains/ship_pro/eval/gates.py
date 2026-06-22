@@ -27,12 +27,14 @@ Usage:
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Any, Optional
 
-# Add parent dir for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Import STAGE_PATH_REGISTRY for path resolution
+import core.bootstrap
+from domains.ship_pro.blackboard import STAGE_PATH_REGISTRY
 
-from eval_code_checks import (
+from domains.ship_pro.eval.eval_code_checks import (
     check_schema_compliance,
     check_dependency_graph,
     score_all_acs,
@@ -612,11 +614,13 @@ def main() -> None:
 
     base = args.test_data_dir
 
+    # Use STAGE_PATH_REGISTRY for path resolution
+    base_path = Path(base)
     files = {
-        "architect": os.path.join(base, "architect-output.json"),
-        "decomposer": os.path.join(base, "decomposer_output.json"),
-        "specifier": os.path.join(base, "specifier_output.json"),
-        "packager": os.path.join(base, "packager_output.json"),
+        "architect": base_path / STAGE_PATH_REGISTRY["architect"],
+        "decomposer": base_path / STAGE_PATH_REGISTRY["decomposer"],
+        "specifier": base_path / STAGE_PATH_REGISTRY["specifier"],
+        "packager": base_path / STAGE_PATH_REGISTRY["packager"],
     }
 
     data = {}

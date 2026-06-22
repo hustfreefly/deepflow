@@ -14,7 +14,6 @@ run_spec_pro.py — Spec Pro 独立运行脚本
     blackboard/{session_id}/spec/living_spec.json
 """
 
-import sys
 import os
 import json
 import argparse
@@ -23,14 +22,12 @@ from pathlib import Path
 # DeepFlow 基础路径
 DEEPFLOW_BASE = str(Path(__file__).resolve().parents[2])
 if DEEPFLOW_BASE not in sys.path:
-    sys.path.insert(0, DEEPFLOW_BASE)
 from core.config.path_config import PathConfig
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 if DEEPFLOW_BASE not in sys.path:
-    sys.path.insert(0, DEEPFLOW_BASE)
 
 from domains.spec_pro import SpecProCoordinator, LivingSpec
-
+import core.bootstrap
 
 def run_spec_pro(user_input: str, mode: str = "standard", scenario: str = "genesis") -> dict:
     """
@@ -99,7 +96,6 @@ def run_spec_pro(user_input: str, mode: str = "standard", scenario: str = "genes
         "status": status,
     }
 
-
 def main():
     parser = argparse.ArgumentParser(description="Spec Pro 运行脚本")
     parser.add_argument("--mode", choices=["quick", "standard", "deep"], default="standard")
@@ -155,7 +151,6 @@ def main():
 
         run_spec_pro(args.user_input, mode=args.mode, scenario=args.scenario)
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())  # F3: 确保错误时 exit code 非零

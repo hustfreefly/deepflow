@@ -44,7 +44,7 @@ class UnifiedEntry:
         """注册所有支持领域"""
         return {
             "solution": DomainRegistry(
-                module="domains.solution.orchestrator_agent",
+                module="domains.solution_pro.orchestrator_agent",
                 class_name="_SolutionDispatcher",
                 required_context=["topic"]
             ),

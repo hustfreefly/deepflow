@@ -13,12 +13,10 @@
 8. 无 openclaw import
 """
 
-import sys
 import os
 import ast
 
 DEEPFLOW_BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, DEEPFLOW_BASE)
 
 print("=" * 60)
 print("Solution Pro 唯一入口验证 (V3.3)")
@@ -27,7 +25,7 @@ print("=" * 60)
 # ========== 测试 1: 导入验证 ==========
 print("\n[测试 1] 导入验证")
 try:
-    from domains.solution import run_solution_pro
+    from domains.solution_pro import run_solution_pro
     print("✅ run_solution_pro 可导入")
 except ImportError as e:
     print(f"❌ 导入失败: {e}")
@@ -63,14 +61,14 @@ except Exception as e:
 # ========== 测试 4: 旧类名不再暴露 ==========
 print("\n[测试 4] 旧类名不再暴露")
 try:
-    from domains.solution import SolutionOrchestratorV21
+    from domains.solution_pro import SolutionOrchestratorV21
     print("❌ SolutionOrchestratorV21 仍然暴露")
     sys.exit(1)
 except ImportError:
     print("✅ SolutionOrchestratorV21 已移除")
 
 try:
-    from domains.solution import SolutionDispatcher
+    from domains.solution_pro import SolutionDispatcher
     print("❌ SolutionDispatcher 仍然暴露")
     sys.exit(1)
 except ImportError:
@@ -79,7 +77,8 @@ except ImportError:
 # ========== 测试 5: 内部类命名约定 ==========
 print("\n[测试 5] 内部类命名约定")
 try:
-    from domains.solution.orchestrator_agent import _SolutionDispatcher
+    from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
+import core.bootstrap
     print(f"✅ _SolutionDispatcher 存在（内部类）")
 except ImportError as e:
     print(f"❌ 内部类导入失败: {e}")

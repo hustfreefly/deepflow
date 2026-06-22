@@ -1,7 +1,5 @@
 """URL 安全验证工具测试。"""
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+import core.bootstrap
 import unittest
 from domains.research_pro.url_utils import validate_safe_url, _is_private_or_disallowed_host
 

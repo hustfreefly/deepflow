@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+import core.bootstrap
+
 # Blackboard directory
 BLACKBOARD_DIR = Path.home() / ".openclaw" / "workspace" / ".deepflow" / "blackboard"
 

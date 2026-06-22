@@ -698,7 +698,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions {{self.base_path}}/
    - users (15%): 用户角色、场景
    - capabilities (15%): always_do/should_do/never_do
    - quality_attributes (15%): 量化指标
-   - constraints (15%): budget/timeline/team
+   - constraints (15%): platform/tech_stack/data_source
    - integration (10%): 外部系统、接口
    - risks (10%): 风险、假设（deliberately_omitted 维度给 50 分）
 3. 生成 3-5 个引导问题，聚焦最低分维度

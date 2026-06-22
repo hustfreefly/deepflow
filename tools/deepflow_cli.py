@@ -13,24 +13,22 @@ DeepFlow 统一入口脚本
     JSON 格式的执行摘要，包含 session_id 和调用指令
 """
 
-import sys
 import os
 import json
 import argparse
 
 # DeepFlow 基础路径
 DEEPFLOW_BASE = "/Users/allen/.openclaw/workspace/.deepflow"
-sys.path.insert(0, DEEPFLOW_BASE)
 
 # 复用 master_agent 的函数
 from core.orchestrator.master_agent import (
+import core.bootstrap
     init_session,
     generate_tasks,
     save_tasks,
     save_execution_plan,
     generate_orchestrator_task
 )
-
 
 def run_analysis(code: str, name: str, industry: str = "半导体制造", force_rebuild: bool = False) -> dict:
     """
@@ -114,7 +112,6 @@ def run_analysis(code: str, name: str, industry: str = "半导体制造", force_
     
     return result
 
-
 def main():
     parser = argparse.ArgumentParser(
         description="DeepFlow 0.1.0 - 投资分析统一入口",
@@ -143,7 +140,6 @@ def main():
     print(json.dumps(result, ensure_ascii=False, indent=2))
     
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

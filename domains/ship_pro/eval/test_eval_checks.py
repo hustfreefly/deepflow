@@ -9,11 +9,9 @@ Run with:
 
 import json
 import os
-import sys
 import pytest
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from eval_code_checks import (
     check_schema_compliance,
@@ -26,7 +24,6 @@ from eval_code_checks import (
     format_report,
 )
 
-
 # ===========================================================================
 # Test Fixtures — Sample Data
 # ===========================================================================
@@ -34,7 +31,6 @@ from eval_code_checks import (
 def _make_budget(tokens=5000, time_minutes=120):
     """Helper to create a budget object matching the schema."""
     return {"tokens": tokens, "time_minutes": time_minutes}
-
 
 @pytest.fixture
 def good_ship_package():
@@ -97,7 +93,6 @@ def good_ship_package():
         ]
     }
 
-
 @pytest.fixture
 def bad_ship_package():
     """A ship_package with multiple issues that should fail checks."""
@@ -155,7 +150,6 @@ def bad_ship_package():
         ]
     }
 
-
 @pytest.fixture
 def single_wp_package():
     """Edge case: single work package with no dependencies."""
@@ -178,7 +172,6 @@ def single_wp_package():
         ]
     }
 
-
 @pytest.fixture
 def large_wp_package():
     """Edge case: 10+ work packages with complex dependency chain."""
@@ -200,7 +193,6 @@ def large_wp_package():
         }
         wps.append(wp)
     return {"work_packages": wps}
-
 
 @pytest.fixture
 def orphan_wp_package():
@@ -256,7 +248,6 @@ def orphan_wp_package():
         ]
     }
 
-
 @pytest.fixture
 def duplicate_ac_package():
     """Package with highly similar/duplicate ACs."""
@@ -293,7 +284,6 @@ def duplicate_ac_package():
             }
         ]
     }
-
 
 # ===========================================================================
 # 1. Schema Compliance Tests
@@ -405,7 +395,6 @@ class TestSchemaCompliance:
         result = check_schema_compliance(pkg)
         assert result["field_completeness"] < 1.0
         assert result["field_completeness"] > 0.0
-
 
 # ===========================================================================
 # 2. AC Verifiability Tests
@@ -553,7 +542,6 @@ class TestACVerifiability:
             assert "wp_id" in weak
             assert "ac_idx" in weak
 
-
 # ===========================================================================
 # 3. Dependency Graph Tests
 # ===========================================================================
@@ -629,7 +617,6 @@ class TestDependencyGraph:
         assert result["topological_order"][0] == "WP-001"
         assert result["topological_order"][-1] == "WP-004"
 
-
 # ===========================================================================
 # 4. AC Deduplication Tests
 # ===========================================================================
@@ -680,7 +667,6 @@ class TestACDedup:
         # Only exact or near-exact matches should pass this threshold
         for pair in result["duplicate_pairs"]:
             assert pair["similarity"] > 0.95
-
 
 # ===========================================================================
 # 5. Field Completeness Tests
@@ -774,7 +760,6 @@ class TestFieldCompleteness:
         result = check_field_completeness(pkg["work_packages"])
         assert result["passed"] is True
 
-
 # ===========================================================================
 # 6. Comprehensive Check (run_all_checks) Tests
 # ===========================================================================
@@ -822,7 +807,6 @@ class TestRunAllChecks:
         result = run_all_checks(duplicate_ac_package)
         assert result["checks"]["ac_dedup"]["passed"] is False
 
-
 # ===========================================================================
 # 7. Format Report Tests
 # ===========================================================================
@@ -847,7 +831,6 @@ class TestFormatReport:
         result = run_all_checks(bad_ship_package)
         report = format_report(result)
         assert "FAIL" in report
-
 
 # ===========================================================================
 # 8. Edge Cases & Boundary Tests
@@ -928,7 +911,6 @@ class TestEdgeCases:
         from eval_code_checks import _jaccard_similarity
         assert _jaccard_similarity(set(), set()) == 1.0
 
-
 # ===========================================================================
 # 9. Integration / CLI Tests
 # ===========================================================================
@@ -977,6 +959,7 @@ class TestCLI:
     def test_cli_invalid_json(self, tmp_path):
         """CLI should handle invalid JSON gracefully."""
         import subprocess
+import core.bootstrap
         pkg_file = tmp_path / "invalid.json"
         pkg_file.write_text("{invalid json content")
 
@@ -986,7 +969,6 @@ class TestCLI:
             capture_output=True, text=True
         )
         assert result.returncode != 0
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

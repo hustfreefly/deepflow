@@ -4,14 +4,11 @@ Prompt分层重构验证脚本
 验证契约文件、分层Prompt、加载器是否完整
 """
 
-import sys
 import os
 from pathlib import Path
 
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
-
 from cage.prompt_loader import CagePromptLoader
-
+import core.bootstrap
 
 def validate_contract():
     """验证契约文件"""
@@ -64,7 +61,6 @@ def validate_contract():
     
     print("\n✅ 契约文件验证通过\n")
     return True
-
 
 def validate_prompts():
     """验证分层Prompt文件"""
@@ -119,7 +115,6 @@ def validate_prompts():
     
     print("\n✅ 分层Prompt文件验证通过\n")
     return True
-
 
 def validate_loader():
     """验证Prompt加载器"""
@@ -192,7 +187,6 @@ def validate_loader():
     print("\n✅ Prompt加载器验证通过\n")
     return True
 
-
 def validate_orchestrator_entry():
     """验证Orchestrator Agent入口脚本"""
     print("=" * 60)
@@ -231,7 +225,6 @@ def validate_orchestrator_entry():
     
     print("\n✅ Orchestrator Agent入口脚本验证通过\n")
     return True
-
 
 def main():
     """主验证流程"""
@@ -280,7 +273,6 @@ def main():
     else:
         print("\n❌ 部分验证失败，请检查上述错误。")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

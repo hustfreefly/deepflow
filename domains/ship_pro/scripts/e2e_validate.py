@@ -21,6 +21,10 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any, Optional
 
+# Import STAGE_PATH_REGISTRY for path resolution
+import core.bootstrap
+from domains.ship_pro.blackboard import STAGE_PATH_REGISTRY
+
 from e2e_common import (
     AGENTS, DOMAIN_DIR, THRESHOLDS,
     detect_format, count_modules,
@@ -148,9 +152,8 @@ def validate_wp_specs(specs: dict, blueprint: dict, wp_structure: dict) -> dict:
     results["checks"].append({"name": "wp_count_matches", "passed": len(work_packages) == expected,
                                "detail": f"Expected {expected} WPs, found {len(work_packages)}"})
 
-    sys.path.insert(0, str(DOMAIN_DIR / "eval"))
     try:
-        from eval_code_checks import score_all_acs, check_field_completeness
+        from domains.ship_pro.eval.eval_code_checks import score_all_acs, check_field_completeness
         ac_result = score_all_acs(work_packages)
         results["checks"].append({
             "name": "ac_verifiability",
@@ -207,9 +210,8 @@ def validate_ship_package(sp: dict, specs: dict, review_report: dict) -> dict:
     """Validate Packager output (ship_package.json)."""
     results: dict[str, Any] = {"agent": "packager", "checks": [], "passed": True}
 
-    sys.path.insert(0, str(DOMAIN_DIR / "eval"))
     try:
-        from eval_code_checks import run_all_checks
+        from domains.ship_pro.eval.eval_code_checks import run_all_checks
         ev = run_all_checks(sp)
         sc = ev["checks"]["schema_compliance"]
         results["checks"].append({"name": "schema_compliance", "passed": sc["passed"],
@@ -240,15 +242,18 @@ def validate_ship_package(sp: dict, specs: dict, review_report: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def _load_outputs(bb_dir: Path) -> dict:
-    """Load all agent outputs from blackboard directory."""
+    """Load all agent outputs from blackboard directory using STAGE_PATH_REGISTRY."""
     outputs: dict[str, Any] = {}
+    # Map agent names to STAGE_PATH_REGISTRY keys
     agent_files = {
-        "architect": "blueprint.json", "decomposer": "wp_structure.json",
-        "specifier": "wp_specs.json", "reviewer": "review_report.json",
-        "packager": "ship_package.json",
+        "architect": STAGE_PATH_REGISTRY["architect"],
+        "decomposer": STAGE_PATH_REGISTRY["decomposer"],
+        "specifier": STAGE_PATH_REGISTRY["specifier"],
+        "reviewer": STAGE_PATH_REGISTRY["reviewer"],
+        "packager": STAGE_PATH_REGISTRY["ship_package"],
     }
-    for agent, filename in agent_files.items():
-        filepath = bb_dir / filename
+    for agent, rel_path in agent_files.items():
+        filepath = bb_dir / rel_path
         if filepath.exists():
             try:
                 with open(filepath) as f:
@@ -267,7 +272,8 @@ def _err_result(agent: str, name: str, detail: str) -> dict:
 
 def validate(output_dir: Path) -> dict:
     """Validate all Agent outputs in a test case directory."""
-    bb_dir = output_dir / "blackboard"
+    # output_dir is now the blackboard directory itself (not parent/blackboard)
+    bb_dir = output_dir
     if not bb_dir.exists():
         print(f"❌ Blackboard directory not found: {bb_dir}")
         return {"passed": False, "error": "No blackboard directory"}
@@ -278,7 +284,7 @@ def validate(output_dir: Path) -> dict:
         with open(plan_path) as f:
             run_plan = json.load(f)
 
-    input_path = bb_dir / "final_result.json"
+    input_path = bb_dir / STAGE_PATH_REGISTRY["input"]
     if input_path.exists():
         with open(input_path) as f:
             input_data = json.load(f)

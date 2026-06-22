@@ -246,10 +246,9 @@ Living Spec (JSON)
 #### constraints（约束）
 ```json
 {
-  "budget": "50万人民币",
-  "timeline": "6个月",
+  "platform": "阿里云",
   "tech_stack": ["Python", "PostgreSQL", "Redis"],
-  "platform": "AWS"
+  "data_source": ["用户行为日志", "业务数据库"]
 }
 ```
 

@@ -23,13 +23,14 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import core.bootstrap
 from core.config.path_config import PathConfig
-from core.blackboard.blackboard_manager import BlackboardManager
+from core.blackboard import BlackboardManager
 
 # P0-1 契约修复: 导入 STAGE_PATH_REGISTRY 作为唯一事实源
 # 禁止在此文件维护独立的路径映射（消除双事实源分裂）
 try:
-    from domains.solution.blackboard import STAGE_PATH_REGISTRY
+    from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY
 except ImportError:
     STAGE_PATH_REGISTRY = {}
 
@@ -49,7 +50,7 @@ WORKER_OUTPUT_PATH_MAP = {
     "fix": "stages/fix.json",
     "fixer_expert": "stages/fixer_expert.json",
     "harness_final": "stages/harness_final.json",
-    "summarizer": "stages/summarizer.json",
+    "summarizer": "final_result.json",
     # === 并行子 Worker 别名（映射到 STAGE_PATH_REGISTRY 路径）===
     "technical": "stages/reviewer_technical.json",
     "business": "stages/reviewer_business.json",
@@ -689,7 +690,7 @@ class PipelineOrchestrator:
         if not planning_path.exists():
             raise RuntimeError(f"planning output missing, cannot refresh control contract: {planning_path}")
 
-        from domains.solution.control_contract import rewrite_after_planning
+        from domains.solution_pro.control_contract import rewrite_after_planning
 
         refresh = rewrite_after_planning(base_path)
         print(

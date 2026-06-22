@@ -19,8 +19,9 @@ import json
 import os
 from typing import Any, Dict
 
+import core.bootstrap
 from core.config.path_config import PathConfig
-from core.blackboard.blackboard_manager import BlackboardManager
+from core.blackboard import BlackboardManager
 from core.orchestrator.pipeline_orchestrator import PipelineOrchestrator
 
 _DEEPFLOW_BASE = PathConfig.resolve().base_dir
@@ -161,7 +162,7 @@ class EntryHarness:
             return existing_session_id
 
         if domain == "solution":
-            from domains.solution.orchestrator_agent import _SolutionDispatcher
+            from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
 
             topic = context.get("topic", "")
             solution_type = context.get("solution_type", "architecture")
@@ -221,7 +222,7 @@ class EntryHarness:
 
         if domain == "solution":
             # 使用 _SolutionDispatcher 生成任务和计划
-            from domains.solution.orchestrator_agent import _SolutionDispatcher
+            from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
 
             topic = context.get("topic", "")
             solution_type = context.get("solution_type", "architecture")

@@ -28,7 +28,6 @@ Solution Pro 启动脚本
 import argparse
 import json
 import os
-import sys
 
 # 动态获取 DeepFlow 根目录（跨平台兼容）
 # 使用 os.path.expanduser('~') 动态获取 home 目录，避免硬编码 /Users/allen
@@ -42,10 +41,8 @@ if not os.path.exists(DEEPFLOW_HOME):
 
 # 确保在正确的工作目录
 os.chdir(DEEPFLOW_HOME)
-sys.path.insert(0, DEEPFLOW_HOME)
 
-from domains.solution import run_solution_pro
-
+from domains.solution_pro import run_solution_pro
 
 def main():
     parser = argparse.ArgumentParser(description='启动 Solution Pro 管线')
@@ -129,9 +126,9 @@ def main():
     except Exception as e:
         print(f"❌ 启动 Solution Pro 失败: {e}", file=sys.stderr)
         import traceback
+import core.bootstrap
         traceback.print_exc()
         sys.exit(1)
-
 
 if __name__ == '__main__':
     main()

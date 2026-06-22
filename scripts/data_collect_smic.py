@@ -9,7 +9,6 @@
 import sys, os, json, subprocess
 
 # 添加项目根目录到路径
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow/')
 
 def step1_bootstrap():
     """Step 1: 执行 bootstrap 数据采集"""
@@ -56,7 +55,6 @@ def step1_bootstrap():
         traceback.print_exc()
         return False
 
-
 def search_with_fallback(query, timeout=30):
     """搜索 with fallback：Gemini → DuckDuckGo → 跳过"""
     # 1. 尝试 Gemini
@@ -76,6 +74,7 @@ def search_with_fallback(query, timeout=30):
     # 2. Fallback 到 DuckDuckGo
     try:
         from duckduckgo_search import DDGS
+import core.bootstrap
         results = DDGS().text(query, max_results=5)
         if results:
             return {"source": "duckduckgo", "result": str(results)}
@@ -85,7 +84,6 @@ def search_with_fallback(query, timeout=30):
     
     # 3. 全部失败
     return {"source": "failed", "result": None}
-
 
 def step2_supplement_search():
     """Step 2: 执行补充搜索"""
@@ -118,7 +116,6 @@ def step2_supplement_search():
     
     print(f"\n补充搜索完成: {success_count}/{len(search_tasks)} 成功")
     return success_count
-
 
 def step3_ensure_key_metrics():
     """Step 3: 确保 key_metrics.json 完整"""
@@ -184,7 +181,6 @@ def step3_ensure_key_metrics():
             json.dump(key_metrics, f, ensure_ascii=False, indent=2)
         print("✅ key_metrics.json 已生成（最小化版本）")
 
-
 def main():
     """主执行流程"""
     print("🚀 开始中芯国际 (688981.SH) 数据采集")
@@ -218,7 +214,6 @@ def main():
             print(f"   - {f} ({size:,} bytes)")
     
     print("\n✅ 数据采集任务完成")
-
 
 if __name__ == "__main__":
     main()

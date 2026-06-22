@@ -5,13 +5,10 @@ from core.config.path_config import PathConfig
 测试领域契约验证器
 """
 
-import sys
 import os
 import unittest
 
-sys.path.insert(0, str(PathConfig.resolve().base_dir))
 from core.cage.cage_validator import CageValidator, ValidationResult
-
 
 class TestDomainContract(unittest.TestCase):
     """领域契约测试"""
@@ -88,6 +85,7 @@ class TestDomainContract(unittest.TestCase):
         """测试空的 required_order 产生警告"""
         import tempfile
         import yaml
+import core.bootstrap
         
         contract = {
             "cage_version": "2.0",
@@ -116,7 +114,6 @@ class TestDomainContract(unittest.TestCase):
         result = self.validator.validate_domain_contract("/nonexistent/path.yaml")
         self.assertFalse(result.valid)
         self.assertTrue(any("Failed to load" in e for e in result.errors))
-
 
 if __name__ == "__main__":
     unittest.main()

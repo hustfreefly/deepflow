@@ -2,8 +2,6 @@
 """
 验证 Worker 完成等待机制修复
 """
-import sys
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
 
 import json
 import os
@@ -11,6 +9,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 from pipeline_engine import PipelineEngine, PipelineStage, PipelineState
+import core.bootstrap
 
 def test_spawn_metadata_detection():
     """测试：能正确识别 spawn 元数据并继续等待"""

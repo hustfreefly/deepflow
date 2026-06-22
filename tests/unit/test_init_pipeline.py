@@ -12,11 +12,7 @@ pytest.skip("Coordinator 已移除，待重写测试以匹配 PipelineOrchestrat
 
 import asyncio
 import json
-import sys
 import os
-
-sys.path.insert(0, os.path.dirname(__file__))
-
 
 async def main():
     user_input = "研究小米 SU7 市场反响"
@@ -85,6 +81,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ Pipeline 启动失败: {e}")
         import traceback
+import core.bootstrap
         traceback.print_exc()
 
         # 输出失败状态
@@ -95,7 +92,6 @@ async def main():
             "error": str(e),
         }
         print(json.dumps(result, ensure_ascii=False, indent=2))
-
 
 if __name__ == "__main__":
     asyncio.run(main())

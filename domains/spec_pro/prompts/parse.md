@@ -20,6 +20,19 @@ updated: "2026-05-23"
 
 ## 执行步骤
 
+### Step 0: 概念确认（专有名词提取）
+在解析之前，先提取用户输入中的专有名词和技术术语：
+
+1. **规则驱动提取**：扫描用户输入，提取所有大写缩写词（如 GPU、API、SaaS）、专有名词（如 Kubernetes、PyTorch）、和行业术语（如“训练任务”、“推理延迟”）
+2. **匹配常见列表**：与常见技术栈列表对比
+   - 云平台: AWS, Azure, GCP, 阿里云, 腾讯云, 华为云
+   - AI框架: PyTorch, TensorFlow, PaddlePaddle, JAX
+   - 基础设施: Kubernetes, Docker, Istio, Nginx
+   - 数据库: MySQL, PostgreSQL, Redis, MongoDB, TiDB
+3. **输出 terms 列表**：将提取的术语写入 `confirmed.terms`，每个术语包含 `name`、`category`、`definition`（如果用户给出了定义）
+
+> 目的：让后续轮次能正确使用领域术语，减少误解。
+
 ### Step 1: 解析用户输入
 从用户自然语言中提取以下信息（只提取**明确提到**的）：
 
@@ -32,7 +45,7 @@ updated: "2026-05-23"
 | key_scenarios | 关键场景 | ["研究员提交训练任务"] |
 | capabilities | 能力要求 | {"always_do": [...], "should_do": [...], "never_do": [...]} |
 | quality_attributes | 质量属性 | [{"category": "性能", "spec": "1000并发", "priority": "P0"}] |
-| constraints | 约束条件 | {"budget": "500万", "timeline": "6个月", "tech_stack": [...]} |
+| constraints | 约束条件 | {"platform": "阿里云", "tech_stack": ["PyTorch"], "data_source": [...]} |
 | integration | 已有系统/集成 | {"existing_systems": [...], "requirements": [...]} |
 | risks | 风险与假设 | {"risks": [...], "assumptions": [...]} |
 

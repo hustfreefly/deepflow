@@ -15,9 +15,8 @@ from core.config.path_config import PathConfig
 
 import asyncio
 import json
-import sys
 import time
-sys.path.insert(0, str(PathConfig.resolve().base_dir))
+import core.bootstrap
 
 # ── 计数器 ──
 issues = []

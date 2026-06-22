@@ -2,9 +2,7 @@
 ResearchPro 单元测试 — _SafeFetcher
 """
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+import core.bootstrap
 
 import socket
 import unittest

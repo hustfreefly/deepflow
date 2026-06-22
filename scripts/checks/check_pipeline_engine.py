@@ -15,12 +15,9 @@ check_pipeline_engine.py - PipelineEngine 契约验证
 import pytest
 pytest.skip("PipelineEngine 已移除，待重写测试以匹配 PipelineOrchestrator", allow_module_level=True)
 
-import sys
 from pathlib import Path
 
 # 添加路径
-sys.path.insert(0, str(Path(__file__).parent))
-
 
 def test_normalize_threshold_idempotent():
     """测试_normalize_threshold幂等性"""
@@ -48,7 +45,6 @@ def test_normalize_threshold_idempotent():
             all_pass = False
     
     return all_pass
-
 
 def test_no_double_scaling():
     """验证没有重复缩放"""
@@ -78,7 +74,6 @@ def test_no_double_scaling():
         print("  ✅ 无重复缩放违规")
         return True
 
-
 def test_threshold_comparison():
     """测试阈值比较逻辑"""
     print("\n[TEST] 阈值比较逻辑")
@@ -106,12 +101,12 @@ def test_threshold_comparison():
         print("  ❌ 阈值比较逻辑错误")
         return False
 
-
 def test_coding_standards():
     """编码规范验证"""
     print("\n[TEST] 编码规范 P0=0")
     
     from coding_standards import CodingStandardsChecker
+import core.bootstrap
     
     checker = CodingStandardsChecker(strict_mode=False)
     report = checker.check_file(Path("pipeline_engine.py"))
@@ -127,7 +122,6 @@ def test_coding_standards():
             if v.level == "P0":
                 print(f"     行{v.line}: {v.rule}")
         return False
-
 
 def main():
     """主入口"""
@@ -169,7 +163,6 @@ def main():
     else:
         print("⚠️  存在失败项，请修复后再提交。")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

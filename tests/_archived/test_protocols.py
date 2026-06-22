@@ -5,15 +5,12 @@ Protocols模块契约测试
 """
 
 import unittest
-import sys
 from pathlib import Path
 
 # 添加项目根目录到路径
 ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(ROOT / "cage"))
 
 from protocols import scale_01_to_100, scale_100_to_01, format_score
-
 
 class TestScale01To100(unittest.TestCase):
     """测试scale_01_to_100函数"""
@@ -44,7 +41,6 @@ class TestScale01To100(unittest.TestCase):
         result = scale_01_to_100(1.5)
         self.assertEqual(result, 150.0)
 
-
 class TestScale100To01(unittest.TestCase):
     """测试scale_100_to_01函数"""
 
@@ -74,7 +70,6 @@ class TestScale100To01(unittest.TestCase):
         result = scale_100_to_01(150.0)
         self.assertEqual(result, 1.5)
 
-
 class TestRoundTrip(unittest.TestCase):
     """测试双向转换的一致性"""
 
@@ -91,7 +86,6 @@ class TestRoundTrip(unittest.TestCase):
         converted = scale_100_to_01(original)
         back = scale_01_to_100(converted)
         self.assertAlmostEqual(original, back, places=10)
-
 
 class TestFormatScore(unittest.TestCase):
     """测试format_score函数"""
@@ -111,18 +105,17 @@ class TestFormatScore(unittest.TestCase):
         result = format_score(3.7, precision=0)
         self.assertEqual(result, 4.0)
 
-
 class TestContractCompliance(unittest.TestCase):
     """测试契约合规性"""
 
     def test_module_has_all_interface_methods(self):
         """模块应包含契约中定义的所有接口方法"""
         import protocols as p
+import core.bootstrap
         self.assertTrue(hasattr(p, 'scale_01_to_100'))
         self.assertTrue(hasattr(p, 'scale_100_to_01'))
         self.assertTrue(callable(getattr(p, 'scale_01_to_100')))
         self.assertTrue(callable(getattr(p, 'scale_100_to_01')))
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

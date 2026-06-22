@@ -9,15 +9,11 @@ check_resilience_timeout.py
 4. 配置加载与运行时应用
 """
 
-import sys
 import tempfile
 from pathlib import Path
 import yaml
 
-sys.path.insert(0, str(Path(__file__).parent))
-
 from core.config_loader import ConfigLoader, ResilienceConfig
-
 
 def test_fixed_vs_dynamic_timeout():
     """验证固定超时 vs 动态分层超时"""
@@ -41,7 +37,6 @@ def test_fixed_vs_dynamic_timeout():
     
     print("📋 超时模式对比完成")
     return True
-
 
 def test_complexity_assessment():
     """验证复杂度评估逻辑（待实现）"""
@@ -90,7 +85,6 @@ def test_complexity_assessment():
     
     print("🔍 复杂度评估逻辑验证完成")
     return True
-
 
 def test_yaml_config_loading():
     """验证 YAML 配置加载"""
@@ -146,7 +140,6 @@ def test_yaml_config_loading():
         print("🔧 YAML 配置加载验证完成")
         return True
 
-
 def test_t6_semiconductor_scenario():
     """验证 T6 半导体场景（失败案例）"""
     print("\n⚠️  Test 4: T6 半导体测试场景验证")
@@ -186,7 +179,6 @@ def test_t6_semiconductor_scenario():
     print("⚠️  T6 场景验证完成")
     return True
 
-
 def test_backward_compatibility():
     """验证向后兼容性"""
     print("\n📏 Test 5: 向后兼容性验证")
@@ -223,7 +215,6 @@ def test_backward_compatibility():
         print("📏 向后兼容性验证完成")
         return True
 
-
 def main():
     """主验证流程"""
     print("=" * 60)
@@ -252,6 +243,7 @@ def main():
             failed += 1
             print(f"\n❌ {name} 验证异常: {e}")
             import traceback
+import core.bootstrap
             traceback.print_exc()
     
     print("\n" + "=" * 60)
@@ -270,7 +262,6 @@ def main():
     else:
         print(f"\n⚠️  {failed} 项验证失败，需要修复。")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

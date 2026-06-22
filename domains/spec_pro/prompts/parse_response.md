@@ -102,7 +102,7 @@ updated: "2026-05-23"
       "never_do": []
     },
     "quality_attributes": [{"category": "性能", "spec": "具体指标", "priority": "P0"}],
-    "constraints": {"budget": "", "timeline": "", "tech_stack": []},
+    "constraints": {"platform": "", "tech_stack": [], "data_source": []},
     "integration": {
       "existing_systems": [{"name": "系统名", "role": "角色"}],
       "requirements": []

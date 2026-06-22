@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-import sys
 import json
-sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')
 
-from domains.solution.orchestrator_agent import SolutionOrchestratorV21
+from domains.solution_pro.orchestrator_agent import SolutionOrchestratorV21
+import core.bootstrap
 
 # 初始化第一个任务
 orch = SolutionOrchestratorV21(

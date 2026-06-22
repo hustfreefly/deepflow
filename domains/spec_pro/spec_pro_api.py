@@ -27,14 +27,9 @@ import json
 import argparse
 from pathlib import Path
 
-# DeepFlow 基础路径
-DEEPFLOW_BASE = str(Path(__file__).resolve().parents[2])
-if DEEPFLOW_BASE not in sys.path:
-    sys.path.insert(0, DEEPFLOW_BASE)
+import core.bootstrap
 from core.config.path_config import PathConfig
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
-if DEEPFLOW_BASE not in sys.path:
-    sys.path.insert(0, DEEPFLOW_BASE)
 
 from domains.spec_pro import SpecProCoordinator
 

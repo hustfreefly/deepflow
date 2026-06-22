@@ -19,7 +19,6 @@ DeepFlow Solution Domain - End-to-End Test Script
 """
 
 import os
-import sys
 import json
 import re
 import time
@@ -28,10 +27,9 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 # 添加项目根路径到 sys.path
+from core.config.path_config import PathConfig
+import core.bootstrap
 DEEPFLOW_HOME = str(PathConfig.resolve().base_dir)
-sys.path.insert(0, DEEPFLOW_HOME)
-sys.path.insert(0, os.path.join(DEEPFLOW_HOME, 'core'))
-
 
 class QualityChecker:
     """质量检查器 - 实现 7 项质量检查"""
@@ -331,7 +329,6 @@ class QualityChecker:
         )
         return passed
 
-
 class E2ETestCase:
     """E2E 测试用例"""
     
@@ -363,7 +360,7 @@ class E2ETestCase:
             # 我们创建一个模拟的测试框架，展示如何验证产出质量
             
             # 在实际场景中，应该是：
-            # from domains.solution.orchestrator import SolutionOrchestrator
+            # from domains.solution_pro.orchestrator import SolutionOrchestrator
             # orchestrator = SolutionOrchestrator({
             #     "topic": self.name,
             #     "type": self.type,
@@ -586,7 +583,6 @@ class E2ETestCase:
                 }
             }
 
-
 def run_all_tests() -> Dict[str, Any]:
     """运行所有测试用例"""
     
@@ -655,7 +651,6 @@ def run_all_tests() -> Dict[str, Any]:
     
     return summary
 
-
 def print_report(summary: Dict[str, Any]):
     """打印测试报告"""
     
@@ -702,7 +697,6 @@ def print_report(summary: Dict[str, Any]):
         print("❌ MANY TESTS FAILED - Significant improvements needed")
     
     print("="*80 + "\n")
-
 
 if __name__ == "__main__":
     print("Starting E2E Tests for Solution Domain...")

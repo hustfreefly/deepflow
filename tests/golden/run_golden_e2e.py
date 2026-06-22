@@ -16,14 +16,11 @@ Solution Pro E2E Golden Case 启动器
 """
 
 import json
-import sys
 import os
 
 DEEPFLOW_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, DEEPFLOW_ROOT)
 
-from domains.solution import run_solution_pro
-
+from domains.solution_pro import run_solution_pro
 
 def main():
     # 加载 golden case
@@ -83,6 +80,7 @@ def main():
 1. 清理旧状态文件:
    python3 -c "
    import os
+import core.bootstrap
    base = '{plan['base_path']}'
    for f in ['.completed', '.cron_job_id', '.cron_run_count', '.notified_stages.json', '.run_start_at']:
        p = os.path.join(base, f)
@@ -112,7 +110,6 @@ def main():
         f.write(plan["session_id"])
 
     return plan
-
 
 if __name__ == "__main__":
     main()
