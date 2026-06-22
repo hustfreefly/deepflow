@@ -30,9 +30,9 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
-# Import STAGE_PATH_REGISTRY for path resolution
+# Import BlackboardManager for V6 API
 import core.bootstrap
-from domains.ship_pro.blackboard import STAGE_PATH_REGISTRY
+from domains.ship_pro.blackboard import BlackboardManager
 
 from domains.ship_pro.eval.eval_code_checks import (
     check_schema_compliance,
@@ -614,23 +614,17 @@ def main() -> None:
 
     base = args.test_data_dir
 
-    # Use STAGE_PATH_REGISTRY for path resolution
-    base_path = Path(base)
-    files = {
-        "architect": base_path / STAGE_PATH_REGISTRY["architect"],
-        "decomposer": base_path / STAGE_PATH_REGISTRY["decomposer"],
-        "specifier": base_path / STAGE_PATH_REGISTRY["specifier"],
-        "packager": base_path / STAGE_PATH_REGISTRY["packager"],
-    }
+    # Use BlackboardManager V6 API for stage I/O
+    bm = BlackboardManager(session_id="gate_debug", base_dir=base)
 
     data = {}
-    for agent, path in files.items():
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                data[agent] = json.load(f)
-            print(f"✅ Loaded {agent}: {path}")
+    for agent in ["architect", "decomposer", "specifier", "packager"]:
+        result = bm.read_stage(agent)
+        if result is not None:
+            data[agent] = result
+            print(f"✅ Loaded {agent}")
         else:
-            print(f"❌ Missing {agent}: {path}")
+            print(f"❌ Missing {agent}")
 
     print("\n" + "=" * 60)
     print("  Ship Pro V3.1 — Harness Gate Results")

@@ -22,16 +22,15 @@ spec_pro_api.py — Spec Pro API for Agent Calls
 """
 
 import sys
-import os
 import json
 import argparse
 from pathlib import Path
 
 import core.bootstrap
 from core.config.path_config import PathConfig
-DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 
 from domains.spec_pro import SpecProCoordinator
+from domains.spec_pro.blackboard import BlackboardManager
 
 
 def save_coord_state(coord: SpecProCoordinator) -> str:
@@ -45,34 +44,17 @@ def save_coord_state(coord: SpecProCoordinator) -> str:
         "state": coord.state.value,
         "architecture_version": getattr(coord, 'architecture_version', 'v2_nested'),
     }
-    state_path = os.path.join(coord.base_path, "coord_state.json")
-    with open(state_path, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
-    return state_path
+    coord.bb.write("coord_state.json", state)
+    return str(coord.bb.session_dir / "coord_state.json")
 
 
 def load_coord_state(session_id: str) -> dict:
     """加载 Coordinator 状态"""
-    # 查找 session 目录
-    blackboard_dir = os.path.join(DEEPFLOW_BASE, "blackboard")
-    session_dir = None
-    for d in os.listdir(blackboard_dir):
-        if d == session_id:
-            session_dir = os.path.join(blackboard_dir, d)
-            break
-    
-    if not session_dir:
-        raise ValueError(f"Session not found: {session_id}")
-    
-    state_path = os.path.join(session_dir, "coord_state.json")
-    if not os.path.exists(state_path):
-        raise ValueError(f"State file not found: {state_path}")
-    
-    try:
-        with open(state_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Corrupted JSON in {state_path}: {e}") from e
+    bb = BlackboardManager(session_id)
+    state = bb.read_json("coord_state.json")
+    if state is None:
+        raise ValueError(f"State file not found for session: {session_id}")
+    return state
 
 
 def reconstruct_coord(state: dict) -> SpecProCoordinator:

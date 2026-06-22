@@ -20,18 +20,18 @@ from core.blackboard.blackboard_manager import BlackboardManager as CoreBlackboa
 # ============================================================================
 STAGE_PATH_REGISTRY = {
     # Agent 阶段输出
-    "architect":    "stages/architect.json",
-    "decomposer":   "stages/decomposer.json",
-    "specifier":    "stages/specifier.json",
-    "reviewer":     "stages/reviewer.json",
-    "packager":     "stages/packager.json",
+    "architect":    "architect",
+    "decomposer":   "decomposer",
+    "specifier":    "specifier",
+    "reviewer":     "reviewer",
+    "packager":     "packager",
 
     # 交付物
-    "ship_package": "ship_package.json",
-    "summary":      "summary.md",
+    "ship_package": "ship_package",
+    "summary":      "summary",
 
     # 输入
-    "input":        "input.json",
+    "input":        "input",
 }
 
 PIPELINE_STAGES = (

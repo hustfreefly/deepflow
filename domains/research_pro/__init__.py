@@ -13,8 +13,6 @@ result = run_research_pro(
 
 # result = {
 #     "session_id": str,
-#     "base_path": str,
-#     "plan_path": str,
 #     "spawn_params": dict,  # 直接传给 sessions_spawn
 # }
 ```
@@ -35,6 +33,8 @@ import os
 import time
 from pathlib import Path
 
+from core.blackboard.blackboard_manager import BlackboardManager
+
 try:
     from domains.research_pro.orchestrator import ResearchProOrchestrator
 except ImportError:
@@ -52,12 +52,32 @@ _ORCHESTRATOR_PROMPT_TEMPLATE = """\
 
 你是 Research Pro 的研究执行子 Agent。你的任务是搜索、分析、验证并生成报告。
 
+## 📦 BlackboardManager 使用指南
+
+所有数据读写都通过 BlackboardManager V6 API，禁止直接构造文件路径。
+
+```python
+import sys; sys.path.insert(0, '/deepflow/workspace')
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager(session_id='{session_id}')
+```
+
+**可用方法**:
+| 方法 | 说明 |
+|------|------|
+| `bm.write(filename, data)` | 写入 session 根目录文件（原子操作） |
+| `bm.read(filename)` | 读取 session 根目录文件（文本） |
+| `bm.read_json(filename)` | 读取 session 根目录 JSON 文件 |
+| `bm.write_stage(name, data)` | 写入 stage 文件（位于 stages 目录） |
+| `bm.read_stage(name)` | 读取 stage 文件（位于 stages 目录） |
+| `bm.stage_exists(name)` | 检查 stage 是否存在 |
+| `bm.get_session_dir()` | 获取 session 目录 Path（仅传给外部类） |
+
 ## 当前状态
 
-- **session_id**: __SESSION_ID__
-- **base_path**: __BASE_PATH__
-- **mode**: __MODE__
-- **query**: __QUERY__
+- **session_id**: {session_id}
+- **mode**: {mode}
+- **query**: {query}
 
 ## 你的可用工具
 
@@ -73,7 +93,14 @@ _ORCHESTRATOR_PROMPT_TEMPLATE = """\
 读取分析计划，了解研究维度和关键词组：
 
 ```bash
-cat __BASE_PATH__/state.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get('analysis_plan',dict()), ensure_ascii=False, indent=2))"
+python3 -c "
+import sys; sys.path.insert(0, '/deepflow/workspace')
+import core.bootstrap; import json
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager(session_id='{session_id}')
+state = bm.read_json('state.json')
+print(json.dumps(state.get('analysis_plan', dict()), ensure_ascii=False, indent=2))
+"
 ```
 
 ### Step 2: 多源搜索（核心步骤）
@@ -100,10 +127,13 @@ web_fetch(url="<url>")
 
 **2d. 注册来源** — 每个搜索结果都注册到 Source Registry（防幻觉核心）：
 ```bash
-cd __BASE_PATH__/../../.. && python3 -c "
+python3 -c "
+import sys; sys.path.insert(0, '/deepflow/workspace')
 import core.bootstrap; import json
+from core.blackboard.blackboard_manager import BlackboardManager
 from domains.research_pro.source_registry import SourceRegistry
-reg = SourceRegistry('__BASE_PATH__/source_registry.json')
+bm = BlackboardManager(session_id='{session_id}')
+reg = SourceRegistry(str(bm.get_session_dir() / 'source_registry.json'))
 sources = json.loads('''__SOURCES_JSON__''')
 for s in sources:
     reg.register(url=s['url'], title=s['title'], content=s.get('content','')[:1000], quality_tier=s.get('tier','unverified'), summary=s.get('summary','')[:200])
@@ -111,7 +141,11 @@ print(f'Registered: {len(reg.sources)} sources')
 "
 ```
 
-**重要**：将搜索结果整理后写入 `__BASE_PATH__/research/search_results.json`，格式：
+**重要**：将搜索结果整理后通过 `bm.write()` 写入：
+```python
+bm.write('research/search_results.json', json.dumps(results, ensure_ascii=False, indent=2))
+```
+格式：
 ```json
 [
   {"url": "...", "title": "...", "snippet": "...", "content": "...", "tier": "tier_1|tier_2|tier_3", "dimension": "..."}
@@ -127,30 +161,39 @@ print(f'Registered: {len(reg.sources)} sources')
 3. 每个关键陈述标注来源编号 `[N]`
 4. 识别风险因素和不确定性
 
-将分析结果写入 `__BASE_PATH__/research/analysis.md`。
+将分析结果通过 `bm.write()` 写入：
+```python
+bm.write('research/analysis.md', analysis_content)
+```
 
 ### Step 4: 引用验证（Python 辅助）
 
 调用 CitationVerifier 执行五步验证循环：
 
 ```bash
-cd __BASE_PATH__/../../.. && python3 -c "
+python3 -c "
+import sys; sys.path.insert(0, '/deepflow/workspace')
 import core.bootstrap; import json
+from core.blackboard.blackboard_manager import BlackboardManager
 from domains.research_pro.citation_verifier import CitationVerifier
+bm = BlackboardManager(session_id='{session_id}')
+session_dir = bm.get_session_dir()
 verifier = CitationVerifier(
-    registry_path='__BASE_PATH__/source_registry.json',
-    report_path='__BASE_PATH__/report/draft.md'
+    registry_path=str(session_dir / 'source_registry.json'),
+    report_path=str(session_dir / 'report' / 'draft.md')
 )
 result = verifier.verify_all()
+bm.write('report/citations.json', json.dumps(result, ensure_ascii=False, indent=2))
 print(json.dumps(result, ensure_ascii=False, indent=2))
 "
 ```
 
-将验证结果写入 `__BASE_PATH__/report/citations.json`。
-
 ### Step 5: 生成最终报告
 
-将分析报告整理为最终格式，写入 `__BASE_PATH__/report/final.md`。
+将分析报告整理为最终格式，通过 `bm.write()` 写入：
+```python
+bm.write('report/final.md', report_content)
+```
 
 报告结构：
 ```markdown
@@ -178,7 +221,14 @@ print(json.dumps(result, ensure_ascii=False, indent=2))
 ### Step 6: 写入完成标记
 
 ```bash
-echo '{"completed_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'", "status": "done"}' > __BASE_PATH__/.completed
+python3 -c "
+import sys; sys.path.insert(0, '/deepflow/workspace')
+from core.blackboard.blackboard_manager import BlackboardManager
+import json
+bm = BlackboardManager(session_id='{session_id}')
+bm.write('.completed', json.dumps({'completed_at': __import__('datetime').datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'status': 'done'}))
+print('Done: .completed')
+"
 ```
 
 ## 重要约束
@@ -209,13 +259,11 @@ def run_research_pro(
     Args:
         query: 研究主题（必需，>=10字符）
         mode: 'quick' 或 'standard'，默认 'standard'
-        **kwargs: spawn_fn, web_search_fn, base_path（可选）
+        **kwargs: spawn_fn, web_search_fn, base_path（可选，base_path 已废弃，改用 BlackboardManager）
 
     Returns:
         {
             "session_id": str,
-            "base_path": str,
-            "plan_path": str,
             "spawn_params": dict,  # 直接传给 sessions_spawn 的参数
         }
     """
@@ -225,19 +273,19 @@ def run_research_pro(
     spawn_fn = kwargs.get("spawn_fn")
     web_search_fn = kwargs.get("web_search_fn")
 
-    # 生成 session_id 和 base_path（与 Solution Pro 对齐）
+    # 生成 session_id
     import hashlib
     query_hash = hashlib.md5(query.encode()).hexdigest()[:8]
     session_id = f"research_pro_{query_hash}_{int(time.time())}"
-    
-    from core.config.path_config import PathConfig
-    _path_config = PathConfig.resolve()
-    base_path_input = str(_path_config.base_dir / "blackboard" / session_id)
 
-    # Step 1: 初始化 Orchestrator
+    # 初始化 BlackboardManager（替代旧路径 API）
+    bm = BlackboardManager(session_id=session_id)
+    bm.init_session()
+
+    # Step 1: 初始化 Orchestrator（传入 session_dir 以供内部使用）
     orch = ResearchProOrchestrator(
         mode=mode,
-        base_path=base_path_input,
+        base_path=str(bm.get_session_dir()),
         spawn_fn=spawn_fn,
         web_search_fn=web_search_fn,
     )
@@ -249,29 +297,24 @@ def run_research_pro(
     if orch.state.get("session_id") != session_id:
         orch.state["session_id"] = session_id
         orch._save_state()
-    base_path = str(orch.base_path)
-    plan_path = f"{base_path}/state.json"
 
-    # Step 3: 清理旧状态文件（与 Solution Pro 一致）
+    # Step 3: 清理旧状态文件
     for old_file in [".completed", ".cron_run_count", ".notified_stages.json"]:
-        path = os.path.join(base_path, old_file)
-        if os.path.exists(path):
-            os.remove(path)
+        try:
+            bm._resolve(old_file).unlink(missing_ok=True)
+        except Exception:
+            pass
 
     # Step 4: 初始化通知状态文件
-    os.makedirs(base_path, exist_ok=True)
-    with open(os.path.join(base_path, ".notified_stages.json"), "w") as f:
-        json.dump({"notified": [], "total_messages_sent": 0}, f)
-    with open(os.path.join(base_path, ".cron_run_count"), "w") as f:
-        json.dump({"count": 0, "max_runs": 20, "run_start_at": "PENDING"}, f)
+    bm.write(".notified_stages.json", json.dumps({"notified": [], "total_messages_sent": 0}))
+    bm.write(".cron_run_count", json.dumps({"count": 0, "max_runs": 20, "run_start_at": "PENDING"}))
 
-    # Step 5: 构建 orchestrator prompt（替换占位符）
+    # Step 5: 构建 orchestrator prompt（仅替换 {session_id}, {mode}, {query}）
     orchestrator_prompt = (
         _ORCHESTRATOR_PROMPT_TEMPLATE
-        .replace("__SESSION_ID__", session_id)
-        .replace("__BASE_PATH__", base_path)
-        .replace("__MODE__", mode)
-        .replace("__QUERY__", query)
+        .replace("{session_id}", session_id)
+        .replace("{mode}", mode)
+        .replace("{query}", query)
     )
 
     # Step 6: 根据模式决定超时时间
@@ -279,8 +322,6 @@ def run_research_pro(
 
     return {
         "session_id": session_id,
-        "base_path": base_path,
-        "plan_path": plan_path,
         "analysis_plan": init_result.get("analysis_plan", {}),
         "spawn_params": {
             "runtime": "subagent",

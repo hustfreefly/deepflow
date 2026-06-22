@@ -29,6 +29,7 @@ from typing import Optional, Dict, Any, List, Callable
 from urllib.parse import quote_plus, urlparse
 
 from core.config.path_config import PathConfig
+from core.blackboard.blackboard_manager import BlackboardManager
 from domains.research_pro.source_registry import SourceRegistry
 from domains.research_pro.url_utils import validate_safe_url as _validate_safe_url
 from domains.research_pro.tier_classifier import TierClassifier
@@ -192,8 +193,10 @@ class ResearchProOrchestrator:
         # P0-1: 注入 web_search 工具（主搜索引擎）
         self._web_search_fn = web_search_fn
         
-        # 初始化目录（PathConfig 跨平台兼容）
-        self.base_path.mkdir(parents=True, exist_ok=True)
+        # 初始化 BlackboardManager（V6 API：替代直接路径操作）
+        self._bm = BlackboardManager(session_id=self.base_path.name)
+        self._bm.init_session()
+        # 创建子目录（research/ 和 report/ 供非 stage 文件使用）
         (self.base_path / "research").mkdir(parents=True, exist_ok=True)
         (self.base_path / "report").mkdir(parents=True, exist_ok=True)
         
@@ -205,13 +208,9 @@ class ResearchProOrchestrator:
         
         契约: CWE-754 (JSON 异常处理)
         """
-        if self.state_path.exists():
-            try:
-                with open(self.state_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, OSError) as e:
-                # 损坏文件不崩溃, 重新创建
-                print(f"[WARNING] state.json 损坏 ({e}), 重新创建")
+        existing = self._bm.read_json("state.json")
+        if existing:
+            return existing
 
         # 文件不存在或损坏时创建新 state
         state = {
@@ -229,16 +228,13 @@ class ResearchProOrchestrator:
         return state
 
     def _save_state(self, state: Dict[str, Any]) -> None:
-        """原子写入 state.json (RED-DC-003: 先写 .tmp 再 replace)。
+        """原子写入 state.json（BlackboardManager V6 内置原子写入）。
         
         P2-10: 并发锁保护，防止多线程同时写入导致状态损坏。
         """
         with self._state_lock:
             state["updated_at"] = datetime.now().isoformat()
-            tmp_path = str(self.state_path) + ".tmp"
-            with open(tmp_path, 'w', encoding='utf-8') as f:
-                json.dump(state, f, indent=2, ensure_ascii=False)
-            os.replace(tmp_path, str(self.state_path))  # 原子操作
+            self._bm.write("state.json", json.dumps(state, indent=2, ensure_ascii=False))
 
     def _update_state(
         self,
@@ -297,9 +293,7 @@ class ResearchProOrchestrator:
         plan = self._generate_analysis_plan(query)
         
         # 保存计划
-        plan_path = self.base_path / "analysis_plan.json"
-        with open(plan_path, 'w', encoding='utf-8') as f:
-            json.dump(plan, f, indent=2, ensure_ascii=False)
+        self._bm.write("analysis_plan.json", json.dumps(plan, indent=2, ensure_ascii=False))
 
         state = self._update_state({
             "current_stage": "confirming",
@@ -414,9 +408,7 @@ class ResearchProOrchestrator:
                         plan[field] = value
                 
                 # 保存修改后的计划
-                plan_path = self.base_path / "analysis_plan.json"
-                with open(plan_path, 'w', encoding='utf-8') as f:
-                    json.dump(plan, f, indent=2, ensure_ascii=False)
+                self._bm.write("analysis_plan.json", json.dumps(plan, indent=2, ensure_ascii=False))
                 self._update_state({"analysis_plan": plan})
             
             # modify 后回到 confirming 状态，等待再次确认
@@ -437,16 +429,11 @@ class ResearchProOrchestrator:
                 "confirmed_at": datetime.now().isoformat(),
                 "action": "approve",
             }
-            confirmed_plan_path = self.base_path / "confirmed_plan.json"
-            tmp_path = str(confirmed_plan_path) + ".tmp"
-            with open(tmp_path, 'w', encoding='utf-8') as f:
-                json.dump(confirmed_plan, f, indent=2, ensure_ascii=False)
-            os.replace(tmp_path, str(confirmed_plan_path))  # 原子写入
+            self._bm.write("confirmed_plan.json", json.dumps(confirmed_plan, indent=2, ensure_ascii=False))
             
             return {
                 "state": state,
                 "message": "计划已确认, 开始执行研究。",
-                "confirmed_plan_path": confirmed_plan_path
             }
         
         # 未知 action
@@ -1063,13 +1050,10 @@ class ResearchProOrchestrator:
 
         # P1-3: 保存报告 (契约 L3: data.blackboard_layout 要求 final.md)
         report_path = self.base_path / "report" / "final.md"
-        with open(report_path, 'w', encoding='utf-8') as f:
-            f.write(report_md)
+        self._bm.write("report/final.md", report_md)
 
         # 保存引用验证结果
-        citations_path = self.base_path / "report" / "citations.json"
-        with open(citations_path, 'w', encoding='utf-8') as f:
-            json.dump(citations, f, indent=2, ensure_ascii=False)
+        self._bm.write("report/citations.json", json.dumps(citations, indent=2, ensure_ascii=False))
 
         final_completion_check = self._evaluate_completion(
             report_md=report_md,

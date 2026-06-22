@@ -4,7 +4,7 @@ version: 1.0.0
 description: 验证 Fixer 修复是否有效，确保 Ship Package 可交付
 author: DeepFlow Team
 created: 2026-06-18
-updated: 2026-06-21
+updated: 2026-06-23
 tags: [ship_pro, prompt, harness, validation]
 ---
 
@@ -14,18 +14,43 @@ tags: [ship_pro, prompt, harness, validation]
 
 当前验证轮次: **{fix_round}**
 
+## 📦 BlackboardManager 使用指南
+
+所有文件读写通过 BlackboardManager V6 API，**禁止自行拼接文件路径**。
+
+```python
+from domains.ship_pro.blackboard import BlackboardManager
+
+bm = BlackboardManager(session_id="{session_id}", base_dir="<blackboard_dir>")
+
+# 读取 stage
+data = bm.read_stage("stage_name")       # 返回 dict | None
+exists = bm.stage_exists("stage_name")   # 返回 bool
+
+# 写入 stage（原子写入，自动创建 stages/ 目录）
+bm.write_stage("stage_name", data)       # 返回 bool
+
+# 列出所有已存在的 stage
+all_stages = bm.list_stages()            # 返回 list[str]
+```
+
+**可用的 stage 名称**（从 Registry 注册）：
+- `"architect"`, `"decomposer"`, `"specifier"`, `"reviewer"`, `"packager"`
+- `"ship_package"`, `"ship_package_fixed"`, `"ship_review_result"`, `"ship_review_data"`, `"summary"`, `"input"`
+- 自定义 stage 名称（如 `"ship_harness_result"` 等）
+
 ## 输入
 
-读取以下文件：
-- `{base_path}/ship_package_fixed.json` — Fixer 修复后的 Ship Package（如果存在）
-- `{base_path}/ship_package.json` — 原始 Ship Package（用于对比）
-- `{base_path}/ship_review_result.json` — Reviewer 的原始问题清单
+通过 BlackboardManager 读取以下 stage：
+- `read_stage("ship_package_fixed")` — Fixer 修复后的 Ship Package（如果存在）
+- `read_stage("ship_package")` — 原始 Ship Package（用于对比）
+- `read_stage("ship_review_result")` — Reviewer 的原始问题清单
 
 ## 验证规则
 
 ### 1. 问题真实性回检（⛔ 必须先执行）
 
-遍历 `ship_review_result.json` 中的每个 issue，检查其在原始 Ship Package 中是否有对应证据：
+遍历 `ship_review_result` 中的每个 issue，检查其在原始 Ship Package 中是否有对应证据：
 
 | Issue 类型 | 验证方式 |
 |-----------|---------|
@@ -72,7 +97,7 @@ tags: [ship_pro, prompt, harness, validation]
 
 ## 输出
 
-用 **write** 工具写入 `{base_path}/ship_harness_result.json`：
+用 `write_stage("ship_harness_result", result_data)` 写入验证结果：
 
 ### passed 场景
 ```json

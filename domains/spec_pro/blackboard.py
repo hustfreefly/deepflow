@@ -7,7 +7,7 @@ Date: 2026-06-22
 
 Spec Pro 使用混合路径模式:
 - 固定路径: spec/living_spec.json 等
-- 动态路径: stages/round_{NN}_parse.json 等（轮次号动态）
+- 动态路径: round_{NN}_parse.json 等（轮次号动态，在 s_dir 子目录下）
 """
 
 from core.blackboard.registry_base import DomainRegistry
@@ -16,6 +16,8 @@ from core.blackboard.blackboard_manager import BlackboardManager as CoreBlackboa
 
 # ============================================================================
 # 固定路径注册表（唯一事实源）
+# ⚠️ DEPRECATED: 请使用 BlackboardManager.write_stage/read_stage 代替
+# 将在 v7 中移除。
 # ============================================================================
 STAGE_PATH_REGISTRY = {
     # Spec 核心文件
@@ -33,6 +35,9 @@ STAGE_PATH_REGISTRY = {
 # ============================================================================
 # 动态路径生成器（轮次相关）
 # ============================================================================
+_S = "stages"
+
+
 def round_path(round_num: int, stage_type: str) -> str:
     """
     生成轮次相关文件路径
@@ -42,9 +47,9 @@ def round_path(round_num: int, stage_type: str) -> str:
         stage_type: 阶段类型 (parse / response / questions / confirmation)
 
     Returns:
-        相对路径，如 "stages/round_01_parse.json"
+        相对路径，如 "{s_dir}/round_01_parse.json"
     """
-    return f"stages/round_{round_num:02d}_{stage_type}.json"
+    return f"{_S}/round_{round_num:02d}_{stage_type}.json"
 
 
 # ============================================================================
