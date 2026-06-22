@@ -151,7 +151,6 @@ class ResearchProOrchestrator:
         # PathConfig 跨平台路径管理
         self.base_path = Path(base_path) if base_path else _BASE_DIR / 'blackboard'
         self.mode = mode
-        self.state_path = self.base_path / "state.json"
         self.registry = SourceRegistry(str(self.base_path / "source_registry.json"))
         self.classifier = TierClassifier()
         self._fetcher = _SafeFetcher(timeout=ORCH_FETCH_TIMEOUT)
