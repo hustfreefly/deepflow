@@ -2,14 +2,28 @@
 Blackboard Bridge - Integrates DeepFlow status updates with frontend.
 """
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 import core.bootstrap
 
-# Blackboard directory
-BLACKBOARD_DIR = Path.home() / ".openclaw" / "workspace" / ".deepflow" / "blackboard"
+logger = logging.getLogger(__name__)
+
+
+def get_blackboard_dir() -> Path:
+    """获取 blackboard 目录（通过 PathConfig，fallback 到硬编码路径）"""
+    try:
+        from core.config.path_config import PathConfig
+        return PathConfig.resolve().base_dir / "blackboard"
+    except (ImportError, RuntimeError):
+        logger.warning("PathConfig not available, using hardcoded fallback for blackboard_dir")
+        return Path.home() / ".openclaw" / "workspace" / ".deepflow" / "blackboard"
+
+
+# Blackboard directory（通过函数获取，不再硬编码模块级常量）
+BLACKBOARD_DIR = get_blackboard_dir()
 
 
 class BlackboardBridge:
