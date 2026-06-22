@@ -79,7 +79,7 @@ sessions_yield()
 
 子 Agent 完成后，**必须在同一个 turn 内完成：**
 
-1. 读取报告：`cat {base_path}/report/final.md`
+1. 读取报告：通过 BlackboardManager V6 API `bm.read("report/final.md")`
 2. **🔴 推送结果**：用 `message(action=send)` 把核心发现摘要推送给用户
 
 **交付铁律**：推送是 turn 的最后一个动作，禁止 yield / 等待 / 什么都不做。

@@ -34,22 +34,23 @@ STAGE_PATH_REGISTRY = {
 
 # ============================================================================
 # 动态路径生成器（轮次相关）
+# ⚠️ DEPRECATED: 请使用 BlackboardManager.write_stage/read_stage 代替
+# 将在 v7 中移除。
 # ============================================================================
-_S = "stages"
 
 
 def round_path(round_num: int, stage_type: str) -> str:
     """
-    生成轮次相关文件路径
+    生成轮次相关 stage 名称 (V6: 返回 stage name, 不再包含 stages/ 前缀)
 
     Args:
         round_num: 轮次号 (1-based)
         stage_type: 阶段类型 (parse / response / questions / confirmation)
 
     Returns:
-        相对路径，如 "{s_dir}/round_01_parse.json"
+        stage 名称，如 "round_01_parse"
     """
-    return f"{_S}/round_{round_num:02d}_{stage_type}.json"
+    return f"round_{round_num:02d}_{stage_type}"
 
 
 # ============================================================================
@@ -72,19 +73,21 @@ class BlackboardManager(CoreBlackboardManager):
     """
     Spec Pro BlackboardManager
 
-    自动配置 SpecRegistry + 轮次路径支持
+    自动配置 SpecRegistry + 轮次路径支持。
+    V6: write_round/read_round 使用 write_stage/read_stage API。
     """
 
     def __init__(self, session_id: str, base_dir=None):
         super().__init__(session_id, base_dir=base_dir, registry=SpecRegistry)
 
     def write_round(self, round_num: int, stage_type: str, data: dict) -> "Path":
-        """写入轮次文件"""
+        """写入轮次文件 (V6: 使用 write_stage API)"""
         from pathlib import Path
-        rel_path = round_path(round_num, stage_type)
-        return self.write(rel_path, data)
+        stage_name = f"round_{round_num:02d}_{stage_type}"
+        self.write_stage(stage_name, data)
+        return self._stage_path(stage_name)
 
     def read_round(self, round_num: int, stage_type: str, default=None) -> dict:
-        """读取轮次文件"""
-        rel_path = round_path(round_num, stage_type)
-        return self.read_json(rel_path, default=default or {})
+        """读取轮次文件 (V6: 使用 read_stage API)"""
+        stage_name = f"round_{round_num:02d}_{stage_type}"
+        return self.read_stage(stage_name, default=default or {})

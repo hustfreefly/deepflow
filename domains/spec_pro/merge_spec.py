@@ -361,6 +361,84 @@ def merge_user_directives(spec: dict, response: dict) -> None:
                 existing.add(key)
 
 
+def merge_spec_v6(base_path: str, stage_name: str) -> dict:
+    """
+    V6 API merge: 读取 stage 数据并合并到 living_spec.json。
+
+    Args:
+        base_path: session 目录路径
+        stage_name: stage 名称，如 "round_02_response"
+
+    Returns:
+        dict with status and contradictions
+    """
+    from core.blackboard.blackboard_manager import BlackboardManager as CoreBB
+
+    # 从 base_path 提取 session_id
+    session_id = os.path.basename(base_path)
+    bb = CoreBB(session_id)
+
+    # 使用 V6 API 读取 stage 数据
+    response = bb.read_stage(stage_name)
+    if response is None:
+        return {"status": "error", "message": f"Stage not found: {stage_name}"}
+
+    # 读取 living_spec
+    living_spec_path = os.path.join(base_path, "spec", "living_spec.json")
+    if not os.path.exists(living_spec_path):
+        return {"status": "error", "message": "Living spec file not found"}
+
+    try:
+        with open(living_spec_path, "r", encoding="utf-8") as f:
+            spec = json.load(f)
+    except json.JSONDecodeError as e:
+        return {"status": "error", "message": f"Invalid JSON in living spec file: {e}"}
+
+    # 通过 ResponseNormalizer 规范化输入
+    try:
+        response, migration_warnings = normalize_response(response)
+    except Exception as e:
+        return {"status": "error", "message": f"Response format error: {e}"}
+
+    if migration_warnings:
+        try:
+            log_format_migration(base_path, migration_warnings, base_path)
+        except Exception:
+            pass
+
+    parsed_updates = response.get("parsed_updates", {})
+
+    # Step 0: Validate structure
+    if "confirmed" not in spec:
+        spec["confirmed"] = {
+            "objective": "", "pain_points": [], "success_metrics": [],
+            "users": [], "key_scenarios": [],
+            "capabilities": {"always_do": [], "should_do": [], "never_do": []},
+            "quality_attributes": [], "constraints": {},
+            "integration": {"existing_systems": [], "requirements": []},
+            "risks_and_assumptions": {"risks": [], "assumptions": [], "dependencies": []},
+        }
+
+    # Step 1-5: Merge
+    merge_confirmed(spec, parsed_updates)
+    merge_inferred(spec, response)
+    merge_guardrails(spec, response)
+    contradictions = check_contradictions(spec)
+    merge_user_directives(spec, response)
+    merge_conversation_digest(spec, response)
+
+    # Update meta
+    meta = spec.setdefault("meta", {})
+    meta["updated_at"] = datetime.now().isoformat()
+    meta["conversation_rounds"] = meta.get("conversation_rounds", 0) + 1
+
+    # Write back
+    with open(living_spec_path, "w", encoding="utf-8") as f:
+        json.dump(spec, f, ensure_ascii=False, indent=2)
+
+    return {"status": "merged", "contradictions": contradictions}
+
+
 def merge_spec(response_path: str, living_spec_path: str) -> dict:
     """Main merge function with robust error handling."""
     # P0-5: 文件不存在/JSON 格式错误异常处理
@@ -486,12 +564,17 @@ def main():
     if len(sys.argv) < 3:
         print("Usage: merge_spec.py <response_json> <living_spec_json>")
         print("       merge_spec.py --revisions <confirmation_json> <living_spec_json>")
+        print("       merge_spec.py --v6 <base_path> <stage_name>")
         sys.exit(1)
 
     if sys.argv[1] == "--revisions":
         confirmation_path = sys.argv[2]
         living_spec_path = sys.argv[3]
         result = apply_revisions(confirmation_path, living_spec_path)
+    elif sys.argv[1] == "--v6":
+        base_path = sys.argv[2]
+        stage_name = sys.argv[3]
+        result = merge_spec_v6(base_path, stage_name)
     else:
         response_path = sys.argv[1]
         living_spec_path = sys.argv[2]

@@ -193,7 +193,8 @@ class ResearchProOrchestrator:
         self._web_search_fn = web_search_fn
         
         # 初始化 BlackboardManager（V6 API：替代直接路径操作）
-        self._bm = BlackboardManager(session_id=self.base_path.name)
+        # 使用 base_path.parent 作为 base_dir，确保与外部传入路径一致
+        self._bm = BlackboardManager(session_id=self.base_path.name, base_dir=self.base_path.parent)
         self._bm.init_session()
         # 创建子目录（research/ 和 report/ 供非 stage 文件使用）
         (self.base_path / "research").mkdir(parents=True, exist_ok=True)

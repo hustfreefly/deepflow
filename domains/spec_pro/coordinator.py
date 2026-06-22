@@ -20,7 +20,6 @@ V6 去路径化: 所有文件 I/O 通过 BlackboardManager API，不再直接拼
 """
 
 import json
-import os
 import time
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -37,10 +36,6 @@ from domains.spec_pro.models import (
 
 # DeepFlow base directory
 _BASE_DIR = PathConfig.resolve().base_dir
-
-# 避免在源码中出现字面量 "stages/" (V6 去路径化)
-_S = "stages"
-
 
 class SpecProCoordinator:
     """
@@ -115,8 +110,6 @@ class SpecProCoordinator:
         """
         if self._bb is not None:
             return str(self._bb.session_dir)
-        if self.session_id is not None:
-            return os.path.join(str(_BASE_DIR), "blackboard", self.session_id)
         return None
 
     # ------------------------------------------------------------------
@@ -867,9 +860,9 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
 ```
 stage_exists("round_01_parse")
 ```
-如果不存在,执行:
+如果不存在,使用 write_stage 写入 fallback 数据:
 ```
-python3 .deepflow/domains/spec_pro/worker_fallback.py parse <Blackboard>/{_S}/round_01_parse.json
+write_stage("round_01_parse", {"status": "timeout", "parsed": {}, "inferred": [], "confidence": 0})
 ```
 
 ## Step 2: spawn AssessWorker
@@ -881,9 +874,9 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py parse <Blackboard>/{_S}/ro
 等待完成.
 
 ## Step 2.5: Worker 存在性检查
-如果 spec/quality_report.json 不存在:
+如果 spec/quality_report.json 不存在,使用 write 写入 fallback 数据:
 ```
-python3 .deepflow/domains/spec_pro/worker_fallback.py assess <Blackboard>/spec/quality_report.json
+write("spec/quality_report.json", {"overall_score": 0, "level": "C", "dimensions": [], "top_missing": ["评估超时"], "recommendation": "请继续补充信息"})
 ```
 
 ## Step 3: spawn QuestionWorker
@@ -908,9 +901,9 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py assess <Blackboard>/spec/q
 ```
 stage_exists("round_01_questions")
 ```
-如果不存在:
+如果不存在,使用 write_stage 写入 fallback 数据:
 ```
-python3 .deepflow/domains/spec_pro/worker_fallback.py question <Blackboard>/{_S}/round_01_questions.json
+write_stage("round_01_questions", {"questions": [{"type": "clarification", "text": "请再展开说说你的需求？", "dimension": "objective"}], "strategy_note": "fallback"})
 ```
 
 ## Step 4: 汇总 (D3: 包含 7 维分数)
@@ -979,7 +972,7 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py append_trajectory <Blackbo
 **验证**: 确认 spec/round_result.json 已创建且为合法 JSON。
 **验证**: 确认 spec/conversation_log.json 已更新。
 
-**完成。**""".replace("{_S}", _S)
+**完成。**"""
 
     def _collecting_phase_instructions(self, round_num: int) -> str:
         """Round N: Response -> Merge -> ProcessGuard -> Assess -> (Question | Proposal | Harness -> Structure)
@@ -1044,16 +1037,17 @@ ResponseWorker 的 write_stage("round_{nn}_response") 必须严格按以下 JSON
 ```
 stage_exists("round_{nn}_response")
 ```
-如果不存在:
+如果不存在,使用 write_stage 写入 fallback 数据:
 ```
-python3 .deepflow/domains/spec_pro/worker_fallback.py response {{Blackboard}}/{_S}/round_{nn}_response.json
+write_stage("round_{nn}_response", {{"input_guard": {{"valid": false}}, "parsed_updates": {{}}, "meta_signals": {{}}}})
 ```
 
 ## Step 2: 合并 living_spec.json(代码化,不靠 LLM)
-执行以下命令合并:
+使用 read_stage 读取 round_{nn}_response 的数据,使用 read_json 读取 spec/living_spec.json,然后执行合并命令:
 ```
-python3 .deepflow/domains/spec_pro/merge_spec.py {{Blackboard}}/{_S}/round_{nn}_response.json {{Blackboard}}/spec/living_spec.json
+python3 .deepflow/domains/spec_pro/merge_spec.py --v6 {{Blackboard}} round_{nn}_response
 ```
+该命令会使用 V6 API 读取 stage 数据,合并到 living_spec.json 并写回。
 该脚本会按 writer_protocol 规则合并:
 - confirmed 层: 追加新项,不删除已有项
 - inferred 层: status=confirmed->移入confirmed层, status=rejected->标记rejected, 新推断->追加
@@ -1106,9 +1100,10 @@ python3 .deepflow/domains/spec_pro/process_guard.py {{Blackboard}} {round_num}
 等待 AssessGuideWorker 完成.
 
 ## Step 4.5: Worker 存在性检查
-如果 spec/quality_report.json 不存在:
+如果 spec/quality_report.json 不存在,使用 write 和 write_stage 写入 fallback:
 ```
-python3 .deepflow/domains/spec_pro/worker_fallback.py assess_guide {{Blackboard}}/spec/quality_report.json {{Blackboard}}/{_S}/round_{nn}_questions.json
+write("spec/quality_report.json", {{"overall_score": 0, "level": "C", "dimensions": [], "top_missing": ["AssessGuideWorker 超时"], "recommendation": "请继续补充"}})
+write_stage("round_{nn}_questions", {{"questions": [{{"type": "clarification", "text": "请再展开说说你的需求？", "dimension": "objective"}}], "strategy_note": "fallback"}})
 ```
 
 ## Step 5: 更新 quality_trajectory.json
@@ -1177,9 +1172,9 @@ spawn HarnessWorker:
 等待 HarnessWorker 完成.
 
 ## Step 6.5: HarnessWorker 存在性检查
-如果 spec/harness_report.json 不存在:
+如果 spec/harness_report.json 不存在,使用 write 写入 fallback:
 ```
-python3 .deepflow/domains/spec_pro/worker_fallback.py harness {{Blackboard}}/spec/harness_report.json
+write("spec/harness_report.json", {{"final_decision": "WARN", "final_reasoning": "Harness Worker 超时,跳过门禁"}})
 ```
 
 使用 read_json 读取 harness_report.json 的 final_decision:
@@ -1241,7 +1236,7 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py harness {{Blackboard}}/spe
   "stop_asking_dimensions": [用户明确要求停止提问的维度]
 }}
 ```
-""".replace("{_S}", _S)
+"""
 
     def _confirmation_phase_instructions(self) -> str:
         """Confirmation: confirm -> Structure / revise -> merge -> AssessGuide -> (Question | Harness -> Structure)"""
@@ -1282,9 +1277,10 @@ spawn StructureWorker:
    - timeoutSeconds: 180
 
 3. AssessGuideWorker 存在性检查:
-   如果 spec/quality_report.json 不存在:
+   如果 spec/quality_report.json 不存在,使用 write 和 write_stage 写入 fallback:
    ```
-   python3 .deepflow/domains/spec_pro/worker_fallback.py assess_guide {{Blackboard}}/spec/quality_report.json {{Blackboard}}/{_S}/round_{nn}_questions.json
+   write("spec/quality_report.json", {{"overall_score": 0, "level": "C", "dimensions": [], "top_missing": ["AssessGuideWorker 超时"], "recommendation": "请继续补充"}})
+   write_stage("round_{nn}_questions", {{"questions": [{{"type": "clarification", "text": "请再展开说说你的需求？", "dimension": "objective"}}], "strategy_note": "fallback"}})
    ```
 
 4. 使用 read_json 读取 quality_report.json 的 overall_score:
@@ -1292,7 +1288,7 @@ spawn StructureWorker:
    - 未达标 -> 使用 write 工具写入 round_result.json (使用 read_stage 读取 round_{nn}_questions)
 
 更新 conversation_log.json,追加一条 confirmation 阶段记录.
-""".replace("{_S}", _S)
+"""
 
     def _write_execution_log(self, event: str, data: Dict[str, Any]) -> None:
         """Append event to execution_log.json. Non-critical: failures are silent."""

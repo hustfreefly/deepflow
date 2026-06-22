@@ -32,8 +32,8 @@ bm.init_session()
 | `bm.read(filename)` | 读取 session 根目录文件（文本） |
 | `bm.read_json(filename)` | 读取 session 根目录 JSON 文件 |
 | `bm.read_json(filename, subdir="data")` | 读取 data/ 子目录 JSON 文件 |
-| `bm.write_stage(name, data)` | 写入 stages/{name}.json |
-| `bm.read_stage(name)` | 读取 stages/{name}.json |
+| `bm.write_stage(name, data)` | 写入 stage 文件 |
+| `bm.read_stage(name)` | 读取 stage 文件 |
 | `bm.stage_exists(name)` | 检查 stage 是否存在 |
 | `bm.get_session_dir()` | 获取 session 目录 Path（仅传给外部类） |
 
@@ -211,7 +211,7 @@ stage_output = {
 }
 
 bm.write_stage("data_manager_output", stage_output)
-print(f"✅ Stage 输出已写入: stages/data_manager_output.json")
+print(f"✅ Stage 输出已写入: data_manager_output")
 ```
 
 ## 6. 写入完成信号
@@ -261,7 +261,7 @@ print(f"✅ DataManager 完成信号已写入")
 | 行情指标 | `data/02_market_quote/key_metrics.json` | 通过 `bm.read_json("key_metrics.json", subdir="data/02_market_quote")` |
 | 补充数据 | `data/05_supplement/*.json` | 通过 `bm.get_session_dir()` 访问 |
 | 关键指标 | `data/key_metrics.json` | 通过 `bm.read_json("key_metrics.json", subdir="data")` |
-| **Stage 输出** | `stages/data_manager_output.json` | 通过 `bm.write_stage("data_manager_output", data)` |
+| **Stage 输出** | `data_manager_output` (通过 `bm.write_stage("data_manager_output", data)` 管理) |
 | **完成信号** | `data/data_manager_completed.json` | 通过 `bm.write("data_manager_completed.json", data, subdir="data")` |
 
 ## 禁止行为

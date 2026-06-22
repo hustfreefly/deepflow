@@ -25,7 +25,7 @@ bm = BlackboardManager(session_id='{session_id}')
 | `bm.write(filename, data)` | 写入 session 根目录文件（原子操作） |
 | `bm.read(filename)` | 读取 session 根目录文件（文本） |
 | `bm.read_json(filename)` | 读取 session 根目录 JSON 文件 |
-| `bm.read_stage(name)` | 读取 stages/{name}.json |
+| `bm.read_stage(name)` | 读取 stage 文件 |
 | `bm.stage_exists(name)` | 检查 stage 是否存在 |
 | `bm.list_stages()` | 列出所有已存在的 stage 名称 |
 | `bm.get_session_dir()` | 获取 session 目录 Path |
