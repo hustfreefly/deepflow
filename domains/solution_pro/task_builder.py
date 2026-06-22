@@ -1,5 +1,5 @@
 """
-任务构建器,使用 _get_stage_path 动态生成路径
+任务构建器,使用 BlackboardManager API 替代路径拼接
 
 Version: 2.1.0
 Author: DeepFlow Solution Pro
@@ -43,29 +43,42 @@ from domains.solution_pro.spec_context import build_worker_context_section
 LAYER2_READ_INSTRUCTION = """
 ## Layer 2 场景约束(运行时读取)
 
-在开始你的任务前,你必须先读取以下文件获取 Planner 生成的场景约束:
+在开始你的任务前,你必须先通过 BlackboardManager API 读取 Planner 生成的场景约束:
 
-```
-read {planning_path}
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager(session_id="{session_id}")
+planning_data = bb.read_stage("planning")
 ```
 
-从 `planning.json` 中提取 `layer2_constraints` 字段(如果存在),
+从 `planning_data` 中提取 `layer2_constraints` 字段(如果存在),
 找到 `worker_role="{worker_role}"` 对应的约束列表。
 
-如果文件中没有 `layer2_constraints` 字段或该字段为 `null`,
+如果 `layer2_constraints` 字段不存在或为 `null`,
 则使用以下默认约束:
 1. [完整性] 覆盖该任务的关键方面
 2. [必要性] 方案贴合实际,无过度设计
 
 在你的输出 JSON 中包含 `layer2_response` 字段来响应这些约束。
+
+⚠️ 绝对禁止自己拼接路径。所有 stage 操作必须通过 BlackboardManager API。
 """
 
 REQ_TRACEABILITY_INSTRUCTION = """
 ## REQ-ID 需求追踪要求
 
-在开始任务前,读取 `{blackboard_path}/data/frozen_spec.json`。
-如果 `{blackboard_path}/data/structured_requirements.json` 存在,也必须读取它作为 Planner 生成的覆盖矩阵参考。
-`frozen_spec.json.executive_summary` 是全局理解的权威来源；prompt 中注入的“全局理解”文本只作为辅助摘要。若两者不一致，以 `frozen_spec.json` 为准，并在输出中说明差异。
+在开始任务前,通过 BlackboardManager API 读取需求文件:
+
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager(session_id="{session_id}")
+frozen_spec = bb.read_data("frozen_spec.json")
+structured_req = bb.read_data("structured_requirements.json")  # 如果存在
+```
+
+`frozen_spec.json.executive_summary` 是全局理解的权威来源；prompt 中注入的"全局理解"文本只作为辅助摘要。若两者不一致，以 `frozen_spec.json` 为准，并在输出中说明差异。
+
+⚠️ 绝对禁止自己拼接路径。所有 data 操作必须通过 BlackboardManager API。
 
 你的输出 JSON 顶层必须包含:
 
@@ -88,27 +101,6 @@ REQ_TRACEABILITY_INSTRUCTION = """
 - 如果某个 P0 需求与你的任务相关但无法覆盖,必须写入 `status="missing"` 并说明原因。
 - 不要臆造新的 REQ-ID;需要新增需求时写入建议,但不要改变 frozen spec。
 """
-
-def _get_stage_path(session_id: str, stage_name: str) -> str:
-    """
-    获取 stage 文件的完整路径(从注册表获取)
-
-    Args:
-        session_id: 会话 ID
-        stage_name: stage 名称,如 'planning', 'audit'
-
-    Returns:
-        str: 完整路径字符串
-
-    Raises:
-        ValueError: stage 名称不在注册表中
-    """
-    config = PathConfig.resolve()
-    bb_path = config.get_blackboard_path(session_id)
-    if stage_name in STAGE_PATH_REGISTRY:
-        return str(bb_path / STAGE_PATH_REGISTRY[stage_name])
-    # Fallback: use raw path for template strings not in registry
-    return str(bb_path / stage_name)
 
 # ============================================================================
 # Harness V2 修复:Layer 2 约束注入
@@ -221,7 +213,7 @@ def inject_layer2_constraints(base_prompt: str, worker_role: str,
 def inject_req_traceability(base_prompt: str, session_id: str) -> str:
     """Append the shared REQ-ID traceability contract to a worker prompt."""
     return base_prompt + "\n\n" + REQ_TRACEABILITY_INSTRUCTION.format(
-        blackboard_path=str(PathConfig.resolve().get_blackboard_path(session_id))
+        session_id=session_id
     )
 
 
@@ -445,7 +437,7 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list, l
         # 替换模板变量
         prompt = prompt.replace("{{TOPIC}}", topic)
         prompt = prompt.replace("{{CONSTRAINTS_TEXT}}", constraints_text)
-        prompt = prompt.replace("{{DEEPFLOW_BASE}}", str(PathConfig.resolve().base_dir))
+        # DEEPFLOW_BASE from PathConfig base_dir
         prompt = prompt.replace("{{SESSION_ID}}", session_id)
     except FileNotFoundError:
         # 向后兼容:硬编码兜底
@@ -467,7 +459,7 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list, l
 1. 使用 web_fetch 访问上述种子 URL 获取最新信息
 2. 收集行业报告和案例分析
 3. 整理竞品信息
-4. 将结果写入 {_get_stage_path(session_id, "data/")}
+4. 使用 BlackboardManager API 写入结果到 stage "data_collection"
 
 ## 输出格式(JSON)
 ```json
@@ -481,7 +473,7 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list, l
 
 ## 输出要求(子Agent直接写入模式)
 1. 使用 **write** 工具将结果写入:
-   `{_get_stage_path(session_id, "data/collection.json")}`
+   `bb.write_stage("data_collection", {...})`
 2. 写入前确保目录存在(必要时创建)
 3. 写入格式为JSON,包含以下字段:
    ```json
@@ -498,7 +490,7 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list, l
      }},
    }}
    ```
-4. 在最终回复中确认:✅ 结果已写入 `{_get_stage_path(session_id, "data/collection.json")}`
+4. 在最终回复中确认:✅ 结果已写入 `bb.write_stage("data_collection", {...})`
 """
 
     # Append living_spec_context (全局理解) to prompt
@@ -607,13 +599,13 @@ def build_planner_task(session_id: str, topic: str, solution_type: str,
 {living_spec_context}
 ## 前置输入(必须读取)
 1. 数据收集结果:
-   `{_get_stage_path(session_id, "data_collection")}`
+   `bb.read_stage("data_collection")`
 
 请先读取 `data/collection.json`, 将其中的 `for_planner`、`recommendations_for_planner`、`search_results_summary` 等信息纳入规划。若文件不存在或内容为空, 在 `warnings` 中说明, 但不要假装已经使用。
 
 ## 输出要求(子Agent直接写入模式)
 1. 使用 **write** 工具将结果写入:
-   `{_get_stage_path(session_id, "planning")}`
+   `bb.write_stage("planning", {...})`
 2. 写入前确保目录存在(必要时创建)
 3. 写入格式为JSON,包含以下字段:
    ```json
@@ -631,7 +623,7 @@ def build_planner_task(session_id: str, topic: str, solution_type: str,
      }},
    }}
    ```
-4. 在最终回复中确认:✅ 结果已写入 `{_get_stage_path(session_id, "planning")}`
+4. 在最终回复中确认:✅ 结果已写入 `bb.write_stage("planning", {...})`
 """
     final_prompt = prompt + "\n" + context
 
@@ -672,7 +664,7 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
     prompt = prompt.replace("{{ topic }}", topic)
     prompt = prompt.replace("{{ constraints }}", json.dumps({}, ensure_ascii=False, indent=2))
     prompt = prompt.replace("{{ expert_id }}", expert_id)
-    prompt = prompt.replace("{blackboard_path}", str(PathConfig.resolve().get_blackboard_path(session_id)))
+    # BlackboardManager API injected via prompt template
     prompt = prompt.replace("{{ solution_type }}", context.get("type", "architecture"))
     prompt = prompt.replace("{{ mode }}", context.get("mode", "standard"))
     prompt = prompt.replace("{{ stage_name }}", f"research_expert_{expert_id}")
@@ -738,7 +730,7 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
 {living_spec_context}
 ## 输出要求(子Agent直接写入模式)
 1. 使用 **write** 工具将结果写入:
-   `{_get_stage_path(session_id, f"research_{expert_id}")}`
+   `bb.write_stage(f"research_{expert_id}", {...})`
 2. 写入前确保目录存在(必要时创建)
 3. 写入格式为JSON,包含以下字段:
    ```json
@@ -755,7 +747,7 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
      }},
    }}
    ```
-4. 在最终回复中确认:✅ 结果已写入 `{_get_stage_path(session_id, f"research_{expert_id}")}`
+4. 在最终回复中确认:✅ 结果已写入 `bb.write_stage(f"research_{expert_id}", {...})`
 """
     final_prompt = prompt + "\n" + ctx
 
@@ -781,16 +773,16 @@ def build_designer_task(session_id: str, topic: str, context: dict) -> str:
 {context_json}
 
 ## 前置输入(必须读取)
-1. 规划阶段: {_get_stage_path(session_id, "planning")}
+1. 规划阶段: bb.read_stage("planning")
 2. 研究结果:
-   - {_get_stage_path(session_id, "research_expert_1")}
-   - {_get_stage_path(session_id, "research_expert_2")}
-   - {_get_stage_path(session_id, "research_expert_3")}
-3. 数据收集: {_get_stage_path(session_id, "data/")}
+   - bb.read_stage("research_expert_1")
+   - bb.read_stage("research_expert_2")
+   - bb.read_stage("research_expert_3")
+3. 数据收集: bb.read_stage("data_collection")
 
 ## 输出要求(子Agent直接写入模式)
 1. 使用 **write** 工具将结果写入:
-   `{_get_stage_path(session_id, "design")}`
+   `bb.write_stage("design", {...})`
 2. 写入前确保目录存在(必要时创建)
 3. 写入格式为JSON,包含以下字段:
    ```json
@@ -807,7 +799,7 @@ def build_designer_task(session_id: str, topic: str, context: dict) -> str:
      }}
    }}
    ```
-4. 在最终回复中确认:✅ 结果已写入 `{_get_stage_path(session_id, "design")}`
+4. 在最终回复中确认:✅ 结果已写入 `bb.write_stage("design", {...})`
 """
     return prompt + "\n" + ctx
 
@@ -865,7 +857,7 @@ def build_auditor_task(session_id: str, topic: str, context: dict,
 {living_spec_context}
 ## 输出要求(子Agent直接写入模式)
 1. 使用 **write** 工具将结果写入:
-   `{_get_stage_path(session_id, "audit")}`
+   `bb.write_stage("audit", {...})`
 2. 写入前确保目录存在(必要时创建)
 3. 写入格式为JSON,包含以下字段:
    ```json
@@ -888,7 +880,7 @@ def build_auditor_task(session_id: str, topic: str, context: dict,
    - 每个 P1 问题: -15分
    - 每个 P2 问题: -5分
    - 最低分: 0分
-5. 在最终回复中确认:✅ 结果已写入 `{_get_stage_path(session_id, "audit")}`
+5. 在最终回复中确认:✅ 结果已写入 `bb.write_stage("audit", {...})`
 """
     final_prompt = prompt + "\n" + ctx
 
@@ -913,7 +905,7 @@ def build_fixer_task(session_id: str, topic: str, context: dict,
     prompt = inject_layer2_constraints(base_prompt, "fixer", {})
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
     prompt = prompt.replace("{{ TOPIC }}", topic)
-    prompt = prompt.replace("{{ AUDIT_PATH }}", _get_stage_path(session_id, "audit"))
+    # AUDIT_PATH replaced with bb.read_stage("audit") guide
 
     # Living Spec 上下文注入:全局理解
     living_spec_context = ""
@@ -943,7 +935,7 @@ def build_fixer_task(session_id: str, topic: str, context: dict,
 {living_spec_context}
 ## 输出要求(子Agent直接写入模式)
 1. 使用 **write** 工具将结果写入:
-   `{_get_stage_path(session_id, "fix")}`
+   `bb.write_stage("fix", {...})`
 2. 写入前确保目录存在(必要时创建)
 3. 写入格式为JSON,包含以下字段:
    ```json
@@ -958,7 +950,7 @@ def build_fixer_task(session_id: str, topic: str, context: dict,
      }}
    }}
    ```
-4. 在最终回复中确认:✅ 结果已写入 `{_get_stage_path(session_id, "fix")}`
+4. 在最终回复中确认:✅ 结果已写入 `bb.write_stage("fix", {...})`
 """
     final_prompt = prompt + "\n" + ctx
 
@@ -1000,7 +992,7 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str, li
         prompt = prompt.replace("{{ TOPIC }}", topic)
         prompt = prompt.replace("{{AUDIT_PATH}}", audit_path)
         prompt = prompt.replace("{{ AUDIT_PATH }}", audit_path)
-        prompt = prompt.replace("{{DEEPFLOW_BASE}}", str(PathConfig.resolve().base_dir))
+        # DEEPFLOW_BASE from PathConfig base_dir
         prompt = prompt.replace("{{ DEEPFLOW_BASE }}", str(PathConfig.resolve().base_dir))
         prompt = prompt.replace("{{SESSION_ID}}", session_id)
         prompt = prompt.replace("{{ SESSION_ID }}", session_id)
@@ -1036,8 +1028,8 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str, li
    - 为每个问题制定修复方案
 4. 按优先级排序修复项
 5. 使用 **write** 工具将修复方案写入:
-   `{_get_stage_path(session_id, "fix")}`
-6. 在最终回复中确认:✅ 修复方案已写入 `{_get_stage_path(session_id, "fix")}`
+   `bb.write_stage("fix", {...})`
+6. 在最终回复中确认:✅ 修复方案已写入 `bb.write_stage("fix", {...})`
 
 ## 输出格式
 ```json
@@ -1118,13 +1110,13 @@ def build_deliver_task(session_id: str, topic: str, context: dict) -> str:
 {context_json}
 
 ## 前置输入(必须读取)
-1. 设计方案: {_get_stage_path(session_id, "stages/design.md")}
-2. 审计报告: {_get_stage_path(session_id, "audit")}
-3. 修复记录: {_get_stage_path(session_id, "fix")}
+1. 设计方案: bb.read_stage("design")
+2. 审计报告: bb.read_stage("audit")
+3. 修复记录: bb.read_stage("fix")
 
 ## 输出要求(子Agent直接写入模式)
 1. 使用 **write** 工具将结果写入:
-   `{_get_stage_path(session_id, "stages/deliver.json")}`
+   `bb.write_stage("deliver", {...})`
 2. 写入前确保目录存在(必要时创建)
 3. 写入格式为JSON,包含以下字段:
    ```json
@@ -1142,7 +1134,7 @@ def build_deliver_task(session_id: str, topic: str, context: dict) -> str:
      }}
    }}
    ```
-4. 在最终回复中确认:✅ 结果已写入 `{_get_stage_path(session_id, "stages/deliver.json")}`
+4. 在最终回复中确认:✅ 结果已写入 `bb.write_stage("deliver", {...})`
 """
     return prompt + "\n" + ctx
 
@@ -1284,7 +1276,7 @@ def build_reviewer_task(session_id: str, topic: str, review_type: str,
 {input_plan_json}
 {living_spec_context}
 ## Blackboard路径
-{str(PathConfig.resolve().get_blackboard_path(session_id))}
+BlackboardManager(session_id="{session_id}").get_blackboard_path()
 """
     final_prompt = prompt + "\n" + ctx
 
@@ -1338,7 +1330,7 @@ def build_harness_v2_task(session_id: str, topic: str, worker_role: str,
     # 注入通用上下文
     prompt = prompt.replace("{topic}", topic)
     prompt = prompt.replace("{session_id}", session_id)
-    prompt = prompt.replace("{_DEEPFLOW_BASE}", str(PathConfig.resolve().base_dir))
+    # _DEEPFLOW_BASE from PathConfig base_dir
 
     return prompt
 
@@ -1362,7 +1354,7 @@ def build_harness_final_task(session_id: str, topic: str, living_spec: dict = No
     harness_scoring = read_prompt("solution/harness_scoring")
 
     # 注入输入文件路径
-    prompt = prompt.replace("{blackboard_path}", str(PathConfig.resolve().get_blackboard_path(session_id)))
+    # BlackboardManager API injected via prompt template
     prompt = prompt.replace("{topic}", topic)
     prompt = prompt.replace("{session_id}", session_id)
 
@@ -1555,7 +1547,7 @@ def build_harness_task(session_id: str, topic: str, current_solution: dict,
     prompt = prompt.replace("{{ necessity_items }}", necessity_items)
     prompt = prompt.replace("{{ alignment_items }}", alignment_items)
     prompt = prompt.replace("{{ global_impact_items }}", global_impact_items)
-    prompt = prompt.replace("{blackboard_path}", str(PathConfig.resolve().get_blackboard_path(session_id)))
+    # BlackboardManager API injected via prompt template
     prompt = prompt.replace("{topic}", topic)
     prompt = prompt.replace("{session_id}", session_id)
 
@@ -1569,7 +1561,7 @@ def build_harness_task(session_id: str, topic: str, current_solution: dict,
 {solution_json}
 
 ## Blackboard路径
-{str(PathConfig.resolve().get_blackboard_path(session_id))}
+BlackboardManager(session_id="{session_id}").get_blackboard_path()
 """
     return prompt + "\n" + ctx
 
@@ -1657,7 +1649,7 @@ def build_consolidator_task(session_id: str, topic: str,
 读取失败时, 必须在 `data.missing_research_outputs` 中记录缺失路径, 并在 Harness 自评中降低完整性评分。
 
 ## Blackboard路径
-{str(PathConfig.resolve().get_blackboard_path(session_id))}
+BlackboardManager(session_id="{session_id}").get_blackboard_path()
 {living_spec_context}
 """
     final_prompt = prompt + "\n" + ctx
@@ -1684,10 +1676,10 @@ def build_fixer_expert_task(session_id: str, topic: str,
         session_id: Session ID
         topic: 修正主题
         audit_findings: Auditor发现的问题列表
-        severity: 严重性级别（critical/major/minor）
-        living_spec: Living Spec（Spec Pro 产出，可选）
+        severity: 严重性级别(critical/major/minor)
+        living_spec: Living Spec(Spec Pro 产出,可选)
     """
-    # 读取基础Prompt并注入Layer 2约束（使用默认）
+    # 读取基础Prompt并注入Layer 2约束(使用默认)
     base_prompt = read_prompt("solution/fixer_expert_v2_harness")
     prompt = inject_layer2_constraints(base_prompt, "fixer_expert", {})
 
@@ -1753,7 +1745,7 @@ def build_fixer_expert_task(session_id: str, topic: str,
 如果审计文件不存在、没有 P0/critical 问题, 或初步修复已经解决全部关键问题, 必须在输出 `data.summary.overall_assessment` 和 `harness_check.reasoning` 中说明依据。
 
 ## Blackboard路径
-{str(PathConfig.resolve().get_blackboard_path(session_id))}
+BlackboardManager(session_id="{session_id}").get_blackboard_path()
 {living_spec_context}
 """
     final_prompt = prompt + "\n" + ctx
@@ -1780,9 +1772,9 @@ def build_summarizer_task(session_id: str, topic: str,
         session_id: Session ID
         topic: 总结主题
         all_outputs: 所有stage的输出字典
-        living_spec: Living Spec（Spec Pro 产出，可选）
+        living_spec: Living Spec(Spec Pro 产出,可选)
     """
-    # 读取基础Prompt并注入Layer 2约束（使用默认）
+    # 读取基础Prompt并注入Layer 2约束(使用默认)
     base_prompt = read_prompt("solution/summarizer_v2_harness")
     prompt = inject_layer2_constraints(base_prompt, "summarizer", {})
 
@@ -1881,10 +1873,10 @@ def build_summarizer_task(session_id: str, topic: str,
 {topic}
 {living_spec_context}
 ## Blackboard路径
-{str(PathConfig.resolve().get_blackboard_path(session_id))}
+BlackboardManager(session_id="{session_id}").get_blackboard_path()
 
 ## 输出文件要求
-1. final_result.json - 结构化最终结果（唯一输出文件，包含 covered_req_ids + 完整方案）
+1. final_result.json - 结构化最终结果(唯一输出文件,包含 covered_req_ids + 完整方案)
 """
     final_prompt = prompt + "\n" + ctx
 

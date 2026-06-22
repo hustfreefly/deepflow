@@ -1,9 +1,11 @@
 """
 Solution Pro 模块入口，提供 run_solution_pro 公共 API
 
-Version: 2.1.0
+Version: 2.2.0
 Author: DeepFlow Solution Pro
-Date: 2026-06-01
+Date: 2026-06-23
+
+V2.2: 迁移到 V6 BlackboardManager API
 """
 
 """
@@ -60,7 +62,12 @@ print(result["plan_path"])
 ```
 """
 
+import json
+import pathlib
+from pathlib import Path
+
 from .orchestrator_agent import _SolutionDispatcher
+from .blackboard import BlackboardManager
 
 
 def run_solution_pro(topic: str, **kwargs):
@@ -89,31 +96,36 @@ def run_solution_pro(topic: str, **kwargs):
     orchestrator.save_tasks()
     orchestrator.save_execution_plan()
 
+    # 使用 V6 BlackboardManager 统一管理 session 目录
     base_path = orchestrator.base_path
-    plan_path = f"{base_path}/execution_plan.json"
+    bm = BlackboardManager(session_id, base_dir=Path(base_path).parent)
+    bm.init_session()
 
-    # 自动初始化状态文件
-    import json as _json, os as _os
+    # 清理旧文件
     for old_file in [".completed", ".cron_run_count", ".notified_stages.json"]:
-        path = f"{base_path}/{old_file}"
-        if _os.path.exists(path):
-            _os.remove(path)
+        old_path = bm.session_dir / old_file
+        if old_path.exists():
+            old_path.unlink()
 
-    _os.makedirs(base_path, exist_ok=True)
-    with open(f"{base_path}/.notified_stages.json", "w") as f:
-        _json.dump({"notified": [], "total_messages_sent": 0}, f)
-    with open(f"{base_path}/.cron_run_count", "w") as f:
-        _json.dump({"count": 0, "max_runs": 20, "run_start_at": "PENDING"}, f)
+    # 初始化元数据文件
+    bm.write(".notified_stages.json", {"notified": [], "total_messages_sent": 0})
+    bm.write(".cron_run_count", {"count": 0, "max_runs": 20, "run_start_at": "PENDING"})
 
     # 读取并替换 orchestrator prompt
-    import pathlib
     prompt_path = pathlib.Path(__file__).parent / "prompts" / "pipeline_orchestrator_v4.md"
     prompt_template = prompt_path.read_text(encoding="utf-8")
-    orchestrator_prompt = prompt_template.replace("{base_path}", base_path).replace("{session_id}", session_id).replace("{plan_path}", plan_path)
+    session_dir = str(bm.session_dir)
+    plan_path = f"{session_dir}/execution_plan.json"
+    orchestrator_prompt = (
+        prompt_template
+        .replace("{base_path}", session_dir)
+        .replace("{session_id}", session_id)
+        .replace("{plan_path}", plan_path)
+    )
 
     return {
         "session_id": session_id,
-        "base_path": base_path,
+        "base_path": session_dir,
         "plan_path": plan_path,
         "spawn_params": {
             "runtime": "subagent",

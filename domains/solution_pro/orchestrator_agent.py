@@ -105,10 +105,15 @@ def resolve_worker_output_path(stage_name: str, worker_id: str) -> str:
         registry_key = f"research_{worker_id}"
     else:
         registry_key = f"{stage_name}_{worker_id}"
-    return STAGE_PATH_REGISTRY.get(
-        registry_key,
-        PARALLEL_OUTPUT_PATHS.get(stage_name, {}).get(worker_id, f"stages/{stage_name}_{worker_id}.json"),
-    )
+    # 优先从 Registry 获取，fallback 到动态构建 stage 名称
+    path = STAGE_PATH_REGISTRY.get(registry_key)
+    if path:
+        return path
+    parallel_path = PARALLEL_OUTPUT_PATHS.get(stage_name, {}).get(worker_id)
+    if parallel_path:
+        return parallel_path
+    # fallback: 返回 stage 名称（不含路径），由 BlackboardManager 处理
+    return f"{stage_name}_{worker_id}"
 
 
 class _SolutionDispatcher:
@@ -276,10 +281,11 @@ class _SolutionDispatcher:
         """
         if not self.base_path:
             return []
-        planning_path = f"{self.base_path}/stages/planning.json"
+        # 使用 BlackboardManager API 读取 planning
+        planning = self.blackboard.read_stage("planning")
+        if planning is None:
+            return []
         try:
-            with open(planning_path, 'r', encoding='utf-8') as f:
-                planning = json.load(f)
             experts_raw = planning.get("required_experts", [])
             if not experts_raw:
                 return []
@@ -356,8 +362,7 @@ class _SolutionDispatcher:
                         "focus": "技术风险、业务连续性风险、合规风险"
                     }
                 ]
-                # P0-3 修复: 注入 Layer 2 读取指令，让 Reviewer 运行时读取 planning.json
-                planning_path = f"{self.base_path}/stages/planning.json"
+                # P0-3 修复: 注入 Layer 2 读取指令，让 Reviewer 运行时读取 planning
                 for config in reviewer_configs:
                     base_task = build_reviewer_task(
                         self.session_id, self.topic,
@@ -367,7 +372,7 @@ class _SolutionDispatcher:
                     )
                     # P0-3: 追加 Layer 2 运行时读取指令
                     layer2_instruction = LAYER2_READ_INSTRUCTION.format(
-                        planning_path=planning_path,
+                        session_id=self.session_id,
                         worker_role=f"reviewer_{config['type']}"
                     )
                     tasks[stage][config["type"]] = base_task + "\n" + layer2_instruction
@@ -430,29 +435,27 @@ class _SolutionDispatcher:
             elif stage == "audit":
                 # Stage 6: 审计
                 # P0-3: 注入 Layer 2 运行时读取指令
-                planning_path = f"{self.base_path}/stages/planning.json"
                 base_task = build_auditor_task(
                     self.session_id, self.topic,
                     {"type": self.solution_type, "constraints": self.constraints},
                     living_spec=self.living_spec
                 )
                 layer2_instruction = LAYER2_READ_INSTRUCTION.format(
-                    planning_path=planning_path,
+                    session_id=self.session_id,
                     worker_role="auditor"
                 )
                 tasks[stage] = base_task + "\n" + layer2_instruction
 
             elif stage == "fix":
                 # Stage 7: 初步修正
-                audit_path = str(self.blackboard.get_stage_path("audit"))
+                audit_path = "audit"  # 使用 stage 名称，由 BlackboardManager 解析
                 # P0-3: 注入 Layer 2 运行时读取指令
-                planning_path = f"{self.base_path}/stages/planning.json"
                 base_task = build_fixer_task_with_audit(
                     self.session_id, self.topic, audit_path,
                     living_spec=self.living_spec
                 )
                 layer2_instruction = LAYER2_READ_INSTRUCTION.format(
-                    planning_path=planning_path,
+                    session_id=self.session_id,
                     worker_role="fixer"
                 )
                 tasks[stage] = base_task + "\n" + layer2_instruction
@@ -460,18 +463,17 @@ class _SolutionDispatcher:
             elif stage == "fixer_expert":
                 # Stage 8: 深度修正
                 # P0-3: 注入 Layer 2 运行时读取指令
-                planning_path = f"{self.base_path}/stages/planning.json"
                 base_task = build_fixer_expert_task(
                     self.session_id, self.topic,
                     [
                         {
                             "source": "audit",
-                            "path": str(self.blackboard.get_stage_path("audit")),
+                            "path": "audit",  # 使用 stage 名称，由 BlackboardManager 解析
                             "extract": "data.issues 或 data.audit_findings 中 severity/level 为 critical/P0 的问题",
                         },
                         {
                             "source": "fix",
-                            "path": str(self.blackboard.get_stage_path("fix")),
+                            "path": "fix",  # 使用 stage 名称，由 BlackboardManager 解析
                             "extract": "已完成的初步修复,用于避免重复修复并验证残留问题",
                         },
                     ],
@@ -479,7 +481,7 @@ class _SolutionDispatcher:
                     living_spec=self.living_spec
                 )
                 layer2_instruction = LAYER2_READ_INSTRUCTION.format(
-                    planning_path=planning_path,
+                    session_id=self.session_id,
                     worker_role="fixer_expert"
                 )
                 tasks[stage] = base_task + "\n" + layer2_instruction
@@ -571,7 +573,7 @@ class _SolutionDispatcher:
                     "task_key": stage_name,
                     "parallel": False,
                     "timeout": 300,
-                    "expected_output_path": STAGE_OUTPUT_PATHS.get(stage_name, f"stages/{stage_name}.json"),
+                    "expected_output_path": STAGE_OUTPUT_PATHS.get(stage_name, stage_name),
                 })
 
         plan = {
@@ -727,23 +729,15 @@ class _SolutionDispatcher:
         - 跨阶段依赖通过Blackboard传递
         - 错误处理有fallback机制(返回空列表)
         """
-        harness_path = str(self.blackboard.get_stage_path("harness_final"))
+        harness_output = self.blackboard.read_stage("harness_final", default={})
 
-        try:
-            with open(harness_path, 'r', encoding='utf-8') as f:
-                harness_output = json.load(f)
-
-            feedback = harness_output.get("feedback", [])
-            print(f"[Harness Final] 从Blackboard读取到{len(feedback)}条反馈意见")
-            return feedback
-
-        except FileNotFoundError:
+        if harness_output is None:
             print(f"[Harness Final] Warning: 输出文件不存在,使用空列表")
             return []
 
-        except json.JSONDecodeError as e:
-            print(f"[Harness Final] Error: 输出解析失败: {e}")
-            return []
+        feedback = harness_output.get("feedback", [])
+        print(f"[Harness Final] 从Blackboard读取到{len(feedback)}条反馈意见")
+        return feedback
 
     def _read_harness_final_improvements(self) -> list:
         """
@@ -753,17 +747,13 @@ class _SolutionDispatcher:
         - 跨阶段依赖通过Blackboard传递
         - 错误处理有fallback机制
         """
-        harness_path = str(self.blackboard.get_stage_path("harness_final"))
+        harness_output = self.blackboard.read_stage("harness_final", default={})
 
-        try:
-            with open(harness_path, 'r', encoding='utf-8') as f:
-                harness_output = json.load(f)
-
-            improvements = harness_output.get("improvements", [])
-            return improvements
-
-        except (FileNotFoundError, json.JSONDecodeError, IOError):
+        if harness_output is None:
             return []
+
+        improvements = harness_output.get("improvements", [])
+        return improvements
 
     # ========== 静态方法(V1兼容) ==========
 
