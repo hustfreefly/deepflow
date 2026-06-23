@@ -163,12 +163,62 @@ orchestrator 完成后会自动 announce 回来。
 
 当收到 Solution Pro 完成消息，且消息包含 `🔗 自动触发下游管线: ship_pro` 时：
 
-1. 读取消息中的 `prepare` 命令并执行
-2. 依次执行 `task` + `gate` 完成 Ship Pro 5 Agent 管线
-3. 每个 Agent 完成后调用 `update-status`
-4. 最终调用 `validate` 生成 ship_package.json
+#### 7a. 启动 Ship Pro 管线
 
-> **铁律**: 看到 "🔗 自动触发" 就必须执行，不要问用户是否继续。
+```python
+# 运行启动脚本
+result = exec("python3 scripts/start_ship_pro.py --input blackboard/<session>/stages/final_result.json --output blackboard/<session>/ship_output --print-watcher-prompt")
+
+# 解析 JSON 输出
+spawn_params = result["spawn_params"]
+```
+
+#### 7b. Spawn Ship Pro Orchestrator
+
+```python
+sessions_spawn(**spawn_params)
+```
+
+#### 7c. 🔴 创建 Watcher Cron（必须！）
+
+```python
+from contracts.shared.watcher_config import render_wrapper_prompt, DeliveryConfig
+
+# 渲染 wrapper prompt
+wrapper_prompt = render_wrapper_prompt(
+    config_path=f"{deepflow_root}/domains/ship_pro/config/watcher_config.json",
+    base_path=result["output_path"],
+    run_start_at=result["run_start_at"],
+    cron_job_id="{cron_job_id}",  # 创建后回填
+    deepflow_root=deepflow_root,
+)
+
+# 创建 cron job
+cron_result = cron(action="add", job={
+    "name": f"deepflow_ship_watcher_{session_id[:8]}",
+    "schedule": {"kind": "every", "everyMs": 120000},
+    "sessionTarget": "isolated",
+    "payload": {"kind": "agentTurn", "message": wrapper_prompt, "timeoutSeconds": 60, "lightContext": True},
+    "delivery": DeliveryConfig(mode="announce").to_cron_dict(),
+    "enabled": True
+})
+
+# 回填 cron_job_id
+cron_job_id = cron_result["id"]
+wrapper_prompt = wrapper_prompt.replace("{cron_job_id}", cron_job_id)
+cron(action="update", jobId=cron_job_id, patch={"payload": {"message": wrapper_prompt}})
+```
+
+#### 7d. Yield 等待完成
+
+```python
+sessions_yield()
+```
+
+> **🔴 铁律**:
+> - 看到 "🔗 自动触发" 就必须执行，不要问用户是否继续
+> - **必须创建 Watcher Cron**，否则用户无法收到进度通知
+> - 不创建 Watcher = 违规，等同于静默失败
 
 ---
 
