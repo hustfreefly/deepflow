@@ -433,6 +433,22 @@ def check_gate(agent_name: str, output_dir: str) -> dict:
             "skippable": False,
         }
 
+    if output_file.is_dir():
+        # Agent wrote to a directory instead of a file — try to find output.json inside
+        fallback = output_file / "output.json"
+        if fallback.exists():
+            output_file = fallback
+        else:
+            return {
+                "agent": agent_name,
+                "decision": "FAIL",
+                "critical_failures": ["output_is_directory"],
+                "feedback": f"Agent output is a directory, not a file: {output_file}. Agent must write JSON to this exact path (not create a directory).",
+                "should_retry": True,
+                "retry_count": 0,
+                "skippable": False,
+            }
+
     with open(output_file) as f:
         agent_output = json.load(f)
 

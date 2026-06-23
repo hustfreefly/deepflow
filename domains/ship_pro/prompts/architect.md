@@ -130,6 +130,8 @@ quality_assurance.requirement_coverage  → 仅统计数字，标记 partial
 }
 ```
 
+⚠️ **注意**：`requirements` 必须是**数组**（list），不是对象（dict）。即使输入格式是 `{"total": N, "items": [...]}` 这种对象形式，你也必须提取其中的数组，归一化为 `[{req_id, description, priority, coverage, mapped_components}, ...]`。
+
 ### 4. 专项架构深度信息（domain_details）
 
 以下信息如果存在，提取到 domain_details 对象中（key 为领域名）：

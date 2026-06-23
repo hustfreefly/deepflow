@@ -181,6 +181,9 @@ def gate_architect(blueprint: dict) -> dict:
 
     # 3. requirements_non_empty
     requirements = blueprint.get("requirements", [])
+    # Defensive: handle dict format (e.g. {"items": [...], "total": N}) from LLM
+    if isinstance(requirements, dict):
+        requirements = requirements.get("items", requirements.get("requirements", []))
     critical["requirements_non_empty"] = isinstance(requirements, list) and len(requirements) > 0
 
     # --- Major checks (Pydantic contract enforced) ---

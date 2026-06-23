@@ -70,7 +70,7 @@ tags: [ship_pro, prompt, specification, acceptance_criteria]
         "time_minutes": 30,
         "max_retries": 3
       },
-      "complexity": "simple | medium | complex",
+      "complexity": "trivial | low | medium | high | critical",
       "model_tier": "<建议模型等级，如 claude-opus / qwen-max>",
       "dependencies": ["<从 wp_structure 透传>"],
       "priority": "high | medium | low",
@@ -159,9 +159,11 @@ tags: [ship_pro, prompt, specification, acceptance_criteria]
 
 | 复杂度 | 条件 | 建议 model_tier | 建议 budget.tokens |
 |:---:|------|------|:---:|
-| **simple** | 单文件修改、配置变更、CRUD 接口 | qwen-max | 20000 |
+| **trivial** | 单文件修改、配置变更 | qwen-max | 10000 |
+| **low** | CRUD 接口、简单功能 | qwen-max | 20000 |
 | **medium** | 多文件协调、业务逻辑、第三方集成 | claude-opus | 50000 |
-| **complex** | 跨服务事务、性能优化、安全关键 | claude-opus | 100000 |
+| **high** | 跨服务事务、性能优化 | claude-opus | 80000 |
+| **critical** | 安全关键、核心架构 | claude-opus | 100000 |
 
 ### 5. 关联需求 ID
 
@@ -210,7 +212,7 @@ tags: [ship_pro, prompt, specification, acceptance_criteria]
 4. **约束可追溯**：`constraints` 中的每条约束是否都能追溯到 blueprint？
 5. **无编造内容**：是否有 blueprint 中不存在的信息被你添加了？
 6. **需求关联**：每个 WP 是否都关联了至少一个 `requirements` ID？（如无需求信息，标注 `[REQ_GAP]`）
-7. **budget 合理**：`complexity` 为 `complex` 的 WP 是否有足够的 `budget.tokens`（≥ 80000）？
+7. **budget 合理**：`complexity` 为 `high` 或 `critical` 的 WP 是否有足够的 `budget.tokens`（≥ 80000）？
 
 **不通过** → 在输出中设置 `"self_check": {"passed": false, "issues": ["<具体问题>"]}`，并尽力修复后再输出。
 

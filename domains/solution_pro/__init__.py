@@ -142,7 +142,6 @@ def run_solution_pro(topic: str, **kwargs):
             "mode": "run",
             "label": "solution_orchestrator",
             "task": orchestrator_prompt,
-            "runTimeoutSeconds": 3600,
         },
         # --- Watcher fields (new, backward-compatible) ---
         "run_start_at": run_start_at,

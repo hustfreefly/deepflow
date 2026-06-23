@@ -74,7 +74,7 @@ tags: [ship_pro, prompt, packaging, assembly]
       "title": "工作包标题",
       "objective": "一句话目标",
       "budget": { "tokens": 50000, "time_minutes": 30, "max_retries": 3 },
-      "complexity": "simple | medium | complex",
+      "complexity": "trivial | low | medium | high | critical",
       "model_tier": "claude-opus | claude-sonnet | claude-haiku | gpt-4o | gpt-4o-mini | qwen-max | qwen-plus | auto",
       "dependencies": ["WP-000"],
       "priority": "high | medium | low",
@@ -115,8 +115,8 @@ tags: [ship_pro, prompt, packaging, assembly]
   },
   "quality_report": {
     "layer1_structural": { "score": 0.85, "checks_passed": 8, "checks_total": 10, "issues": [] },
-    "layer2_semantic": { "score": 0.80, "checks_passed": 4, "checks_total": 5, "issues": [] },
-    "layer3_actionable": { "score": 0.75, "checks_passed": 3, "checks_total": 4, "issues": [] },
+    "layer2_semantic": { "score": 0.80, "coverage_assessment": "...", "coherence_assessment": "...", "feasibility_assessment": "..." },
+    "layer3_actionable": { "score": 0.75, "clarity_score": 0.8, "testability_score": 0.7, "dependency_completeness": 0.9, "blockers": [] },
     "overall_score": 0.80,
     "recommendations": ["..."]
   }
