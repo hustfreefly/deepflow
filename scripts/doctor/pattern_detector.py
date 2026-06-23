@@ -40,8 +40,11 @@ def detect_issues(events: list[dict], session_label: str = "") -> list[dict]:
 
 def _detect_tool_error_recovery(events: list[dict]) -> list[dict]:
     """
-    检测: tool_call → tool_result(error) → tool_call(重试/换路径) → tool_result(success)
-    这是最隐蔽的带病模式: 最终成功了，但浪费了 token 和时间。
+    检测两类工具错误模式:
+    T1a: tool_call → tool_result(error) → tool_call(重试/换路径) → tool_result(success)
+         隐蔽的带病模式: 最终成功了，但浪费了 token 和时间。
+    T1b: tool_call → tool_result(error)
+         独立错误: 工具调用失败，无论是否恢复都记录。
     """
     issues = []
 
@@ -51,16 +54,25 @@ def _detect_tool_error_recovery(events: list[dict]) -> list[dict]:
         if ev["type"] == "tool_call" and ev.get("tool_id"):
             call_map[ev["tool_id"]] = ev
 
-    # 找连续的 error → retry 模式
+    # 第一遍: 收集所有错误事件
+    all_errors = []
+    for ev in events:
+        if ev["type"] != "tool_result":
+            continue
+        if not ev.get("success") and ev.get("error"):
+            all_errors.append(ev)
+
+    # 第二遍: 分类每个错误是 "恢复型" 还是 "独立型"
+    recovered_error_ids = set()
+    
+    # 找 error → retry(success) 模式
     prev_error = None
     for ev in events:
         if ev["type"] != "tool_result":
             continue
 
         if not ev.get("success") and ev.get("error"):
-            # 记录错误
             prev_error = ev
-            call_event = call_map.get(ev.get("tool_id", ""), {})
             continue
 
         # 成功了，但之前有错误？
@@ -68,23 +80,52 @@ def _detect_tool_error_recovery(events: list[dict]) -> list[dict]:
             error_call = call_map.get(prev_error.get("tool_id", ""), {})
             success_call = call_map.get(ev.get("tool_id", ""), {})
 
-            # 计算浪费时间（两次调用之间的时间差）
             time_diff = 0
-            if error_call.get("ts") and success_call.get("ts"):
-                time_diff = (success_call["ts"] - error_call["ts"]) / 1000.0
+            try:
+                if error_call.get("ts") and success_call.get("ts"):
+                    t1, t2 = error_call["ts"], success_call["ts"]
+                    if isinstance(t1, (int, float)) and isinstance(t2, (int, float)):
+                        time_diff = (t2 - t1) / 1000.0
+            except (TypeError, ValueError):
+                pass
 
+            error_text = prev_error.get("error", "")
             issues.append({
                 "category": "T1",
                 "severity": "red",
+                "sub_type": "T1a_recovered",
                 "description": f"工具调用错误后自动恢复",
-                "evidence": f"错误: {prev_error.get('error', '')[:150]}\n恢复: {success_call.get('input_preview', '')[:150]}",
-                "error_type": _classify_error(prev_error.get("error", "")),
+                "evidence": f"错误: {error_text[:150]}\n恢复: {success_call.get('input_preview', '')[:150]}",
+                "error_type": _classify_error(error_text),
                 "tool": error_call.get("tool", "unknown"),
-                "wasted_tokens": _estimate_retry_tokens(prev_error.get("error", "")),
-                "wasted_seconds": max(time_diff, 5),  # 至少 5 秒
+                "wasted_tokens": _estimate_retry_tokens(error_text),
+                "wasted_seconds": max(time_diff, 5),
                 "ts": prev_error.get("ts", 0),
             })
+            recovered_error_ids.add(prev_error.get("tool_id", ""))
             prev_error = None
+
+    # 第三遍: 收集未恢复的独立错误 (T1b)
+    for ev in all_errors:
+        tool_id = ev.get("tool_id", "")
+        if tool_id in recovered_error_ids:
+            continue  # 已在 T1a 中报告
+        
+        error_call = call_map.get(tool_id, {})
+        error_text = ev.get("error", ev.get("content_preview", ""))
+        
+        issues.append({
+            "category": "T1",
+            "severity": "red",
+            "sub_type": "T1b_standalone",
+            "description": f"工具调用错误（未恢复）",
+            "evidence": f"错误: {error_text[:200]}",
+            "error_type": _classify_error(error_text),
+            "tool": error_call.get("tool", "unknown"),
+            "wasted_tokens": _estimate_retry_tokens(error_text),
+            "wasted_seconds": 3,
+            "ts": ev.get("ts", 0),
+        })
 
     return issues
 
@@ -94,11 +135,19 @@ def _classify_error(error: str) -> str:
     error_lower = error.lower()
     if "module" in error_lower and "not found" in error_lower:
         return "ModuleNotFoundError"
-    if "enoent" in error_lower or "file not found" in error_lower:
+    if "enoent" in error_lower or "no such file" in error_lower:
         return "FileNotFoundError"
+    if "file not found" in error_lower or "does not exist" in error_lower:
+        return "FileNotFoundError"
+    if "not found" in error_lower:
+        return "NotFound"
     if "importerror" in error_lower:
         return "ImportError"
-    if "key" in error_lower and "error" in error_lower:
+    if "syntaxerror" in error_lower:
+        return "SyntaxError"
+    if "attributeerror" in error_lower:
+        return "AttributeError"
+    if "keyerror" in error_lower or ("key" in error_lower and "error" in error_lower):
         return "KeyError"
     if "pydantic" in error_lower or "validation" in error_lower:
         return "ValidationError"
@@ -106,6 +155,20 @@ def _classify_error(error: str) -> str:
         return "Traceback"
     if "timeout" in error_lower or "timed out" in error_lower:
         return "Timeout"
+    if "could not find" in error_lower or "edit mismatch" in error_lower:
+        return "EditMismatch"
+    if "cross.app" in error_lower:
+        return "FeishuCrossApp"
+    if "not a git" in error_lower:
+        return "NotGitRepo"
+    if "未知命令" in error_lower or "unknown command" in error_lower:
+        return "UnknownCommand"
+    if "invalid.*param" in error_lower or "invalid param" in error_lower:
+        return "InvalidParam"
+    if "exit code" in error_lower:
+        return "NonZeroExit"
+    if "status" in error_lower and "error" in error_lower:
+        return "ToolStatusError"
     if "exit code" in error_lower:
         return "NonZeroExit"
     return "OtherError"
@@ -268,7 +331,12 @@ def _detect_scope_creep(events: list[dict], session_label: str = "") -> list[dic
     # 过滤预期的写操作（stages/, blackboard/, .json 输出等）
     unexpected_writes = [
         t for t in write_targets
-        if not any(kw in t.lower() for kw in ["stages/", "blackboard/", "_output.json", "_result.json", ".completed"])
+        if not any(kw in t.lower() for kw in [
+            "stages/", "blackboard/", "_output.json", "_result.json", ".completed",
+            "ship_output/", "ship_package", "summary.md", "pipeline_state", "pipeline_config",
+            ".notified_stages", ".cron_run_count", ".stage_progress", ".auto_chain",
+            "architect", "decomposer", "specifier", "reviewer", "packager"
+        ])
     ]
 
     # 信号: 非预期的写操作过多（>8 个）

@@ -43,14 +43,33 @@ def parse_transcript(path: str | Path) -> list[dict]:
                 msg = record.get("message", {})
                 role = msg.get("role", "")
                 content = msg.get("content", "")
-                events.extend(_parse_message(role, content, ts))
+                msg_is_error = msg.get("isError", False)
+                tool_name = msg.get("toolName", "")
+                tool_call_id = msg.get("toolCallId", "")
+
+                # toolResult 在 message 层级 (role=toolResult)
+                if role == "toolResult":
+                    result_text = _extract_result_text(content)
+                    error_msg = _extract_error(result_text, msg_is_error)
+                    events.append({
+                        "type": "tool_result",
+                        "role": "toolResult",
+                        "tool": tool_name,
+                        "tool_id": tool_call_id,
+                        "success": not msg_is_error and error_msg is None,
+                        "error": error_msg,
+                        "content_preview": result_text[:500],
+                        "ts": ts,
+                    })
+                else:
+                    events.extend(_parse_message(role, content, ts, msg_is_error=msg_is_error))
             elif rtype == "session":
                 events.append({"type": "session_start", "id": record.get("id", ""), "ts": ts})
 
     return events
 
 
-def _parse_message(role: str, content: Any, ts: int) -> list[dict]:
+def _parse_message(role: str, content: Any, ts: int, msg_is_error: bool = False) -> list[dict]:
     """解析 message 内容块。"""
     events = []
 
@@ -91,7 +110,7 @@ def _parse_message(role: str, content: Any, ts: int) -> list[dict]:
         elif ptype == "toolResult":
             tool_id = part.get("toolUseId", "")
             result_content = part.get("content", "")
-            is_error = part.get("isError", False)
+            is_error = part.get("isError", False) or msg_is_error
             result_text = _extract_result_text(result_content)
             error_msg = _extract_error(result_text, is_error)
             events.append({
@@ -149,23 +168,43 @@ def _extract_error(result_text: str, is_error: bool) -> str | None:
     if is_error:
         return result_text[:300]
 
-    # 常见错误模式
+    # 常见错误模式（扩展版）
     error_patterns = [
+        # Python 错误
         (r'(?i)traceback \(most recent call last\)', 'Python Traceback'),
         (r'(?i)module ?not ?found ?error', 'ModuleNotFoundError'),
-        (r'(?i)file ?not ?found', 'FileNotFoundError'),
-        (r'(?i)ENOENT', 'ENOENT (file not found)'),
-        (r'(?i)permission denied', 'Permission denied'),
-        (r'(?i)command not found', 'Command not found'),
         (r'(?i)importerror', 'ImportError'),
+        (r'(?i)file ?not ?found', 'FileNotFoundError'),
         (r'(?i)json.?decode.?error', 'JSONDecodeError'),
         (r'(?i)key ?error', 'KeyError'),
         (r'(?i)attribute ?error', 'AttributeError'),
+        (r'(?i)syntaxerror', 'SyntaxError'),
+        (r'(?i)nameerror', 'NameError'),
+        (r'(?i)typeerror', 'TypeError'),
+        (r'(?i)valueerror', 'ValueError'),
+        (r'(?i)indexerror', 'IndexError'),
         (r'(?i)validation ?error', 'ValidationError'),
         (r'(?i)pydantic.*error', 'Pydantic Error'),
-        (r'(?i)timed?\s*out', 'Timeout'),
+        # 系统错误
+        (r'(?i)ENOENT', 'ENOENT (file not found)'),
+        (r'(?i)permission denied', 'Permission denied'),
+        (r'(?i)command not found', 'Command not found'),
+        (r'(?i)not found', 'Not found'),
         (r'(?i)connection refused', 'Connection refused'),
+        (r'(?i)timed?\s*out', 'Timeout'),
         (r'(?i)exit code [1-9]', 'Non-zero exit code'),
+        # 工具特定错误
+        (r'(?i)could not find', 'Edit mismatch'),
+        (r'(?i)status.*error', 'Tool error status'),
+        (r'(?i)未知命令', 'Unknown command'),
+        (r'(?i)invalid.*param', 'Invalid parameter'),
+        (r'(?i)no such file', 'No such file'),
+        (r'(?i)does not exist', 'Path not exist'),
+        (r'(?i)not a git repository', 'Not git repo'),
+        # OpenClaw 特定
+        (r'(?i)cross.?app', 'Feishu cross-app'),
+        (r'(?i)no active session', 'No active session'),
+        (r'(?i)not found.*cron', 'Cron not found'),
     ]
 
     for pattern, label in error_patterns:
