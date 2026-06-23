@@ -125,11 +125,12 @@ class CircuitBreaker:
     def reset(self) -> None: atomic_write(self.path, json.dumps({"count": 0}))
     def should_break(self) -> bool: return self._read() >= self.threshold
 
+# ── Default templates — UI v3 (ported from pipeline_progress_notify.py) ──
 _TPL = {
-    "progress": "📊 {pipeline.display_name}进度 ({pipeline.completed}/{pipeline.total})\n━━━━━━━━━━━━━━━━━━━━\n{pipeline.stage_lines}\n已耗时: {pipeline.elapsed}",
-    "completed": "✅ {pipeline.display_name}完成！\n📊 {pipeline.completed}/{pipeline.total} 阶段 | 耗时 {pipeline.elapsed}\n📄 产出: {pipeline.final_artifact}",
-    "failed": "⚠️ {pipeline.display_name}失败\n已完成: {pipeline.completed}/{pipeline.total}\n原因: {pipeline.error}",
-    "timeout": "⚠️ {pipeline.display_name}运行超时（>{pipeline.timeout_min}分钟）\norchestrator 可能已崩溃。",
+    "progress": "🟠 [{project_short}] {current_phase_name}\n{progress_bar} {completed}/{total} 阶段\n{icon_chain}\n⏱️ 已运行 {elapsed} · 预计剩余 {remaining}",
+    "completed": "✅ [{project_short}] {display_name} 完成\n{progress_bar} {total}/{total} 阶段\n⏱️ 总耗时 {elapsed}\n📄 {artifact_count} 个交付物",
+    "failed": "⚠️ {display_name}失败\n已完成: {completed}/{total}\n原因: {error}",
+    "timeout": "⚠️ {display_name}运行超时（>{pipeline.timeout_min}分钟）\norchestrator 可能已崩溃。",
     "circuit_break": "⚠️ 连续{pipeline.failures}次巡检无输出\norchestrator 可能已停止。",
 }
 _SYM = {"done": "✅", "running": "⏳", "pending": "⬜"}
@@ -141,10 +142,94 @@ class _AttrDict(dict):
         except KeyError: raise AttributeError(k)
 
 class MessageFormatter:
-    """Renders messages with {pipeline.xxx} placeholders."""
+    """Renders messages with {pipeline.xxx} placeholders.
+
+    UI v3 enhancements (ported from pipeline_progress_notify.py):
+    - progress_bar(): Unicode progress bar
+    - build_icon_chain(): Phase icon chain (e.g. 📊✅ 📝⏳ 👁️○)
+    - estimate_remaining(): Time remaining estimate
+    - Default templates use UI v3 format; custom config templates still override.
+    """
     def __init__(self, config: Dict, all_stages: List[Dict]):
         self.cfg, self.stages = config, all_stages
         self.tpl, self.sym = {**_TPL, **config.get("templates", {})}, {**_SYM, **config.get("stage_symbols", {})}
+
+    # ── UI v3 helpers (ported from pipeline_progress_notify.py) ──
+
+    @staticmethod
+    def _progress_bar(completed: int, total: int, width: int = 20) -> str:
+        """Unicode progress bar. Source: pipeline_progress_notify.py progress_bar()."""
+        if total <= 0:
+            return "░" * width
+        filled = min(int(width * completed / total), width)
+        return "█" * filled + "░" * (width - filled)
+
+    @staticmethod
+    def _estimate_remaining(elapsed_minutes: int, completed_count: int, total: int) -> str:
+        """Estimate remaining time. Source: pipeline_progress_notify.py estimate_remaining()."""
+        if completed_count <= 0 or elapsed_minutes <= 0:
+            return "计算中"
+        avg_per_phase = elapsed_minutes / completed_count
+        remaining_phases = total - completed_count
+        remaining_minutes = int(avg_per_phase * remaining_phases)
+        if remaining_minutes < 1:
+            return "即将完成"
+        if remaining_minutes >= 60:
+            h, m = remaining_minutes // 60, remaining_minutes % 60
+            return f"{h}h{m}m"
+        return f"{remaining_minutes}m"
+
+    def _phase_defs(self) -> List[tuple]:
+        """Extract unique (name, seq, icon) phases from config stage_files, sorted by seq."""
+        seen: Dict[tuple, str] = {}
+        for sd in self.cfg.get("detection", {}).get("scan_dirs", []):
+            for _fname, info in sd.get("stage_files", {}).items():
+                key = (info["name"], info.get("seq", 0))
+                if key not in seen:
+                    seen[key] = info.get("icon", "❓")
+        return [(name, seq, icon) for (name, seq), icon in sorted(seen.items(), key=lambda x: x[0][1])]
+
+    def _build_icon_chain(self, completed_seqs: set, current_seq: int) -> str:
+        """Build phase icon chain: 📊✅ 📝⏳ 👁️○ 🔬○. Source: pipeline_progress_notify.py build_phase_icon_chain()."""
+        parts = []
+        for _name, seq, icon in self._phase_defs():
+            if seq in completed_seqs:
+                parts.append(f"{icon}✅")
+            elif seq == current_seq:
+                parts.append(f"{icon}⏳")
+            else:
+                parts.append(f"{icon}○")
+        return " ".join(parts)
+
+    def _project_short(self) -> str:
+        """Extract short project name from base_path."""
+        bp = str(self.cfg.get("base_path", ""))
+        basename = os.path.basename(bp.rstrip("/"))
+        parts = basename.split("_")
+        if len(parts) >= 2:
+            return parts[0]
+        return basename[:12] if basename else "Pipeline"
+
+    def _elapsed_minutes(self, run_start_at: str) -> int:
+        """Elapsed minutes as integer (for estimate_remaining)."""
+        s = parse_timestamp(run_start_at)
+        if not s:
+            return 0
+        return max(0, int((datetime.now(timezone.utc) - s).total_seconds() / 60))
+
+    def _elapsed_v3(self, run_start_at: str) -> str:
+        """Compact elapsed time format for UI v3."""
+        s = parse_timestamp(run_start_at)
+        if not s:
+            return "—"
+        m = max(0, int((datetime.now(timezone.utc) - s).total_seconds() / 60))
+        if m >= 60:
+            h, mins = m // 60, m % 60
+            return f"{h}h{mins}m"
+        return f"{m}m"
+
+    # ── Original helpers (unchanged) ──
+
     def _ctx(self, **kw: Any) -> Dict:
         inner = _AttrDict({
             "display_name": self.cfg.get("display_name", "Pipeline"),
@@ -168,10 +253,49 @@ class MessageFormatter:
         lines = [f"  {self.sym['done']} {n}" for n in sorted(done)]
         lines += [f"  {self.sym['running']} {n}" for n in sorted({s["name"] for s in new_stages} - done)]
         return "\n".join(lines) if lines else "  (无阶段信息)"
+
+    # ── Message renderers ──
+
     def progress(self, new_stages: List[Dict], run_start_at: str) -> str:
-        return self.tpl["progress"].format_map(self._ctx(stage_lines=self._stage_lines(new_stages), elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at)))
+        # Compute UI v3 elements
+        phase_defs = self._phase_defs()
+        completed_seqs = {s.get("seq", 0) for s in self.stages}
+        completed_count = len(completed_seqs)
+        total = self.cfg["detection"]["total_stages"]
+        # Current phase = first phase not yet completed
+        current_name, current_seq = "完成", 0
+        for name, seq, _icon in phase_defs:
+            if seq not in completed_seqs:
+                current_name, current_seq = name, seq
+                break
+        if current_seq == 0 and phase_defs:
+            current_name, current_seq = phase_defs[-1][0], phase_defs[-1][1]
+        elapsed_v3 = self._elapsed_v3(run_start_at)
+        elapsed_min = self._elapsed_minutes(run_start_at)
+        bar = self._progress_bar(completed_count, total)
+        chain = self._build_icon_chain(completed_seqs, current_seq)
+        remaining = self._estimate_remaining(elapsed_min, completed_count, total)
+        return self.tpl["progress"].format_map(self._ctx(
+            stage_lines=self._stage_lines(new_stages),
+            elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at),
+            # UI v3 variables
+            progress_bar=bar, icon_chain=chain, remaining=remaining,
+            project_short=self._project_short(), current_phase_name=current_name,
+            artifact_count=len(self.stages),
+        ))
     def completed(self, data: Dict, run_start_at: str) -> str:
-        return self.tpl["completed"].format_map(self._ctx(elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at), score=data.get("score", "N/A")))
+        total = self.cfg["detection"]["total_stages"]
+        bar = self._progress_bar(total, total)
+        all_completed_seqs = {pd[1] for pd in self._phase_defs()}
+        return self.tpl["completed"].format_map(self._ctx(
+            elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at),
+            score=data.get("score", "N/A"),
+            # UI v3 variables
+            progress_bar=bar, project_short=self._project_short(),
+            artifact_count=len(self.stages) if self.stages else 0,
+            icon_chain=self._build_icon_chain(all_completed_seqs, 0),
+            elapsed_v3=self._elapsed_v3(run_start_at),
+        ))
     def failed(self, data: Dict, run_start_at: str) -> str:
         return self.tpl["failed"].format_map(self._ctx(elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at), error=data.get("error", "未知")))
     def timeout(self) -> str: return self.tpl["timeout"].format_map(self._ctx(timeout_min=self.cfg["limits"].get("timeout_minutes", 60), timeout_minutes=self.cfg["limits"].get("timeout_minutes", 60)))
