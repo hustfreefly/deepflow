@@ -10,6 +10,9 @@ import stat
 import tempfile
 import warnings
 from pathlib import Path
+import logging
+logger = logging.getLogger(__name__)
+
 from typing import Optional
 
 # ============================================================================
@@ -173,8 +176,8 @@ class PathConfig:
                         f"DEEPFLOW_BASE owner mismatch: "
                         f"expected uid={os.getuid()}, got uid={dir_stat.st_uid}"
                     )
-            except FileNotFoundError:
-                pass  # 目录尚未创建，允许
+            except FileNotFoundError as e:
+                logger.debug(f"path validation: {e}")  # 目录尚未创建，允许
     
     def _get_cache_dir(self) -> Path:
         """获取缓存目录（跨平台，P0-2 修复）"""
@@ -285,8 +288,8 @@ class PathConfig:
                 try:
                     if now - file_path.stat().st_mtime > max_age_seconds:
                         file_path.unlink()
-                except (OSError, FileNotFoundError):
-                    pass
+                except (OSError, FileNotFoundError) as e:
+                    logger.debug(f"cache cleanup: {e}")
     
     # ============================================================
     # Blackboard V2 方法（projects/runs/ 三层结构）

@@ -14,6 +14,9 @@ import json
 import os
 import sys
 from datetime import datetime
+import logging
+logger = logging.getLogger(__name__)
+
 
 
 FALLBACKS = {
@@ -119,8 +122,8 @@ def cmd_append_trajectory(base_path: str, round_num: int, score: float,
         try:
             with open(trajectory_path, "r", encoding="utf-8") as f:
                 trajectory = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"trajectory read: {e}")
 
     # Calculate delta
     prev_score = trajectory[-1]["overall_score"] if trajectory else 0
@@ -135,8 +138,8 @@ def cmd_append_trajectory(base_path: str, round_num: int, score: float,
                 report = json.load(f)
             for d in report.get("dimensions", []):
                 dimension_scores[d["dimension"]] = d["score"]
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"dimension scores read: {e}")
 
     point = {
         "round": round_num,

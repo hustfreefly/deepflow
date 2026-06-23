@@ -3,6 +3,9 @@ import time
 import json
 import os
 from pathlib import Path
+import logging
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter()
 
@@ -103,8 +106,8 @@ def list_sessions(limit: int = 20, domain: str = None):
                         session_info["status"] = status_data.get("status", "unknown")
                         session_info["quality_score"] = status_data.get("quality_score")
                         session_info["created_at"] = status_data.get("created_at", session_dir.stat().st_mtime)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"status list: {e}")
                 
                 # Filter by domain if specified
                 if domain and session_info.get("domain") != domain:

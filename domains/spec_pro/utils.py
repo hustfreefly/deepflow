@@ -18,6 +18,9 @@ import os
 import sys
 from datetime import datetime
 from typing import Any, Dict, List
+import logging
+logger = logging.getLogger(__name__)
+
 
 
 # ============================================================================
@@ -81,8 +84,8 @@ def check_worker_fallback(worker_name: str, output_path: str) -> Dict[str, Any]:
             if content:
                 json.loads(content)  # 验证 JSON 有效性
                 return {"status": "ok"}
-        except (json.JSONDecodeError, OSError):
-            pass  # 文件损坏，视为缺失
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"data read: {e}")  # 文件损坏，视为缺失
 
     # 写入 fallback
     fallback_data = FALLBACKS[worker_name]
@@ -104,8 +107,8 @@ def append_execution_log(log_path: str, event: str, data: Dict[str, Any]) -> Non
         try:
             with open(log_path, "r", encoding="utf-8") as f:
                 log = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"data append: {e}")
 
     log["events"].append({
         "timestamp": datetime.now().isoformat(),
@@ -140,8 +143,8 @@ def append_trajectory(
         try:
             with open(trajectory_path, "r", encoding="utf-8") as f:
                 trajectory = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"trajectory read: {e}")
 
     overall_score = quality_report.get("overall_score", 0)
     level = quality_report.get("level", "C")
@@ -197,8 +200,8 @@ def append_conversation_log(
         try:
             with open(log_path, "r", encoding="utf-8") as f:
                 log = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"conversation log read: {e}")
 
     delta = quality_after - quality_before
 

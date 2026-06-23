@@ -34,7 +34,7 @@ import os
 import hashlib
 import shutil
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 # Import STAGE_PATH_REGISTRY for path resolution
@@ -175,6 +175,9 @@ def prepare_pipeline(input_path: str, output_dir: str) -> dict:
     - Initialize pipeline status
     - Return pipeline config
     """
+    # Record pipeline start time for watcher timeout detection
+    run_start_at = datetime.now(timezone.utc).isoformat()
+
     input_p = Path(input_path)
     output_p = Path(output_dir)
 
@@ -233,6 +236,15 @@ def prepare_pipeline(input_path: str, output_dir: str) -> dict:
             "last_gate_feedback": None,
         }
     _save_status(output_p, status)
+
+    # Watcher integration: provide all info needed for main Agent to create cron
+    deepflow_root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    watcher_config_rel = "domains/ship_pro/config/watcher_config.json"
+    watcher_config_abs = os.path.join(deepflow_root, watcher_config_rel)
+    pipeline_config["run_start_at"] = run_start_at
+    pipeline_config["watcher_config"] = watcher_config_rel
+    pipeline_config["watcher_config_abs"] = watcher_config_abs
+    pipeline_config["deepflow_root"] = deepflow_root
 
     return pipeline_config
 

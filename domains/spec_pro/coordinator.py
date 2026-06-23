@@ -20,8 +20,10 @@ V6 去路径化: 所有文件 I/O 通过 BlackboardManager API，不再直接拼
 """
 
 import json
+import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from core.config.path_config import PathConfig
@@ -139,6 +141,9 @@ class SpecProCoordinator:
                 f"Input too long ({len(user_input)} chars). Maximum 2000 characters."
             )
 
+        # Record pipeline start time for watcher timeout detection
+        run_start_at = datetime.now(timezone.utc).isoformat()
+
         # Generate session ID
         self.session_id = self._generate_session_id()
 
@@ -172,12 +177,22 @@ class SpecProCoordinator:
                 round_num=1, phase="init"
             )
 
+        # Watcher integration: provide all info needed for main Agent to create cron
+        deepflow_root = str(Path(__file__).resolve().parent.parent.parent)
+        watcher_config_rel = "domains/spec_pro/config/watcher_config.json"
+        watcher_config_abs = os.path.join(deepflow_root, watcher_config_rel)
+
         return {
             "session_id": self.session_id,
             "base_path": str(self._bb.session_dir),
             "orchestrator_task": task,
             "v3_parse_worker_prompt": self._build_v3_parse_worker_prompt(1) if self.architecture_version == "v3_flat" else None,
             "v3_main_eval_prompt": self._build_v3_main_eval_prompt(1) if self.architecture_version == "v3_flat" else None,
+            # --- Watcher fields (new, backward-compatible) ---
+            "run_start_at": run_start_at,
+            "watcher_config": watcher_config_rel,
+            "watcher_config_abs": watcher_config_abs,
+            "deepflow_root": deepflow_root,
         }
 
     def build_next_round_task(self, user_response: str) -> Dict[str, Any]:

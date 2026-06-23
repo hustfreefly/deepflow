@@ -13,6 +13,9 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 import yaml
 from pathlib import Path
+import logging
+logger = logging.getLogger(__name__)
+
 
 
 def _read_spec_pro_version() -> str:
@@ -23,8 +26,8 @@ def _read_spec_pro_version() -> str:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
                 return config.get('component_version', '2.1.0')
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"version read: {e}")
     return '2.1.0'  # fallback
 
 

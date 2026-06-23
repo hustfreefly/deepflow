@@ -21,6 +21,9 @@ Usage:
 import json
 import sys
 import argparse
+import logging
+logger = logging.getLogger(__name__)
+
 
 # 复用 utils.py 的实现（P1-2 去重）
 from domains.spec_pro.utils import append_conversation_log
@@ -51,8 +54,8 @@ def main():
             with open(args.questions_file, "r", encoding="utf-8") as f:
                 q_data = json.load(f)
             questions = q_data.get("questions", [])
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logger.debug(f"questions read: {e}")
 
     # Read user response
     user_response = args.user_response
@@ -60,8 +63,8 @@ def main():
         try:
             with open(args.user_response_file, "r", encoding="utf-8") as f:
                 user_response = f.read()
-        except FileNotFoundError:
-            pass
+        except FileNotFoundError as e:
+            logger.debug(f"user response read: {e}")
 
     # 调用 utils.py 的统一实现（P1-2 去重）
     append_conversation_log(

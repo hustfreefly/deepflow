@@ -17,6 +17,9 @@ Pipeline Orchestrator Agent（depth-1）
 - Worker 失败不阻断（容错）
 - 向后兼容：旧调用方式仍然可用
 """
+import logging
+logger = logging.getLogger(__name__)
+
 
 import json
 import time
@@ -611,8 +614,8 @@ class PipelineOrchestrator:
                             "source": "blackboard",
                             "label": label,
                         }
-                except (json.JSONDecodeError, OSError):
-                    pass
+                except (json.JSONDecodeError, OSError) as e:
+                    logger.debug(f"worker wait: {e}")
 
             time.sleep(poll_interval)
 

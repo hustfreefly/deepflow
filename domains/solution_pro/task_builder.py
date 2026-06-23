@@ -29,6 +29,9 @@ import core.bootstrap
 import os
 import json
 from typing import Dict, List, Tuple
+import logging
+logger = logging.getLogger(__name__)
+
 
 from core.prompt_registry import read_prompt, read_prompt_with_vars
 from core.config.path_config import PathConfig
@@ -1003,9 +1006,8 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str, li
             if spec_ctx:
                 final_prompt += "\n\n" + spec_ctx
         return final_prompt
-    except FileNotFoundError:
-        # 向后兼容:硬编码兜底
-        pass
+    except FileNotFoundError as e:
+        logger.debug(f"fixer audit: {e}")  # 向后兼容:硬编码兜底
 
     return f"""你是 Solution 修复 Agent。
 

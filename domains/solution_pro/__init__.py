@@ -63,7 +63,9 @@ print(result["plan_path"])
 """
 
 import json
+import os
 import pathlib
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .orchestrator_agent import _SolutionDispatcher
@@ -90,6 +92,9 @@ def run_solution_pro(topic: str, **kwargs):
             "spawn_params": dict,  # 直接传给 sessions_spawn 的参数
         }
     """
+    # Record pipeline start time for watcher timeout detection
+    run_start_at = datetime.now(timezone.utc).isoformat()
+
     orchestrator = _SolutionDispatcher(topic=topic, spawn_fn=None, **kwargs)
     session_id = orchestrator.init()
     orchestrator.get_all_tasks()
@@ -123,6 +128,11 @@ def run_solution_pro(topic: str, **kwargs):
         .replace("{plan_path}", plan_path)
     )
 
+    # Watcher integration: provide all info needed for main Agent to create cron
+    deepflow_root = str(Path(__file__).resolve().parent.parent.parent)
+    watcher_config_rel = "domains/solution_pro/config/watcher_config.json"
+    watcher_config_abs = os.path.join(deepflow_root, watcher_config_rel)
+
     return {
         "session_id": session_id,
         "base_path": session_dir,
@@ -134,6 +144,11 @@ def run_solution_pro(topic: str, **kwargs):
             "task": orchestrator_prompt,
             "runTimeoutSeconds": 3600,
         },
+        # --- Watcher fields (new, backward-compatible) ---
+        "run_start_at": run_start_at,
+        "watcher_config": watcher_config_rel,
+        "watcher_config_abs": watcher_config_abs,
+        "deepflow_root": deepflow_root,
     }
 
 

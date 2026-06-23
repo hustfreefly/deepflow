@@ -134,13 +134,30 @@ _TPL = {
 }
 _SYM = {"done": "✅", "running": "⏳", "pending": "⬜"}
 
+class _AttrDict(dict):
+    """Dict that supports {parent.key} in str.format_map via attribute access."""
+    def __getattr__(self, k: str) -> Any:
+        try: return self[k]
+        except KeyError: raise AttributeError(k)
+
 class MessageFormatter:
     """Renders messages with {pipeline.xxx} placeholders."""
     def __init__(self, config: Dict, all_stages: List[Dict]):
         self.cfg, self.stages = config, all_stages
         self.tpl, self.sym = {**_TPL, **config.get("templates", {})}, {**_SYM, **config.get("stage_symbols", {})}
     def _ctx(self, **kw: Any) -> Dict:
-        return {"pipeline": {"display_name": self.cfg.get("display_name", "Pipeline"), "completed": len(self.stages), "total": self.cfg["detection"]["total_stages"], "final_artifact": self.cfg["detection"].get("final_artifact", ""), **kw}}
+        inner = _AttrDict({
+            "display_name": self.cfg.get("display_name", "Pipeline"),
+            "completed": len(self.stages),
+            "total": self.cfg["detection"]["total_stages"],
+            "final_artifact": self.cfg["detection"].get("final_artifact", ""),
+            "base_path": str(self.cfg.get("base_path", "")),
+            **kw,
+        })
+        # Support both {pipeline.xxx} (default _TPL) and {xxx} (config templates)
+        ctx = dict(inner)
+        ctx["pipeline"] = inner
+        return ctx
     def _elapsed(self, run_start_at: str) -> str:
         s = parse_timestamp(run_start_at)
         if not s: return "未知"
@@ -152,11 +169,11 @@ class MessageFormatter:
         lines += [f"  {self.sym['running']} {n}" for n in sorted({s["name"] for s in new_stages} - done)]
         return "\n".join(lines) if lines else "  (无阶段信息)"
     def progress(self, new_stages: List[Dict], run_start_at: str) -> str:
-        return self.tpl["progress"].format_map(self._ctx(stage_lines=self._stage_lines(new_stages), elapsed=self._elapsed(run_start_at)))
+        return self.tpl["progress"].format_map(self._ctx(stage_lines=self._stage_lines(new_stages), elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at)))
     def completed(self, data: Dict, run_start_at: str) -> str:
-        return self.tpl["completed"].format_map(self._ctx(elapsed=self._elapsed(run_start_at), score=data.get("score", "N/A")))
+        return self.tpl["completed"].format_map(self._ctx(elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at), score=data.get("score", "N/A")))
     def failed(self, data: Dict, run_start_at: str) -> str:
-        return self.tpl["failed"].format_map(self._ctx(elapsed=self._elapsed(run_start_at), error=data.get("error", "未知")))
+        return self.tpl["failed"].format_map(self._ctx(elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at), error=data.get("error", "未知")))
     def timeout(self) -> str: return self.tpl["timeout"].format_map(self._ctx(timeout_min=self.cfg["limits"].get("timeout_minutes", 60)))
     def circuit_break(self, failures: int) -> str: return self.tpl["circuit_break"].format_map(self._ctx(failures=failures))
 

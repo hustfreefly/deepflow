@@ -5,6 +5,9 @@ import json
 import re
 from pathlib import Path
 from typing import Optional, Dict, Any
+import logging
+logger = logging.getLogger(__name__)
+
 
 from fastapi import APIRouter, HTTPException
 
@@ -286,8 +289,8 @@ def get_active_task() -> Optional[dict]:
                     "stages": bb_status.get("stages", []),
                     "blackboard_status": bb_status.get("status", ""),
                 }
-            except (json.JSONDecodeError, IOError):
-                pass
+            except (json.JSONDecodeError, IOError) as e:
+                logger.debug(f"pipeline info: {e}")
         
         return {
             "session_id": task.session_id,

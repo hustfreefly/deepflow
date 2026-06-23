@@ -13,6 +13,9 @@ Date: 2026-06-01
 
 import time
 from typing import Dict, Any
+import logging
+logger = logging.getLogger(__name__)
+
 
 DEFAULT_TOTAL_STAGES = 10
 
@@ -72,6 +75,6 @@ class ProgressTracker:
             stages = get_enabled_stages()
             if stages:
                 return len(stages)
-        except (ImportError, FileNotFoundError, AttributeError, TypeError):
-            pass
+        except (ImportError, FileNotFoundError, AttributeError, TypeError) as e:
+            logger.debug(f"resolve total stages: {e}")
         return DEFAULT_TOTAL_STAGES

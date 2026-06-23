@@ -18,6 +18,9 @@ Output: JSON with {anomalies: [...], adjustment_instruction: "text or empty"}
 import json
 import os
 import sys
+import logging
+logger = logging.getLogger(__name__)
+
 
 
 EXPECTED_DELTA = {
@@ -111,8 +114,8 @@ def main():
         try:
             with open(trajectory_path, "r", encoding="utf-8") as f:
                 trajectory = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"process guard: {e}")
 
     anomalies = []
     anomalies.extend(check_progress_rate(trajectory, current_round))

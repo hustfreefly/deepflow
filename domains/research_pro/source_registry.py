@@ -11,6 +11,9 @@ import hashlib
 import threading
 import copy
 from datetime import datetime
+import logging
+logger = logging.getLogger(__name__)
+
 from typing import Optional
 
 # URL 安全验证从 url_utils 导入（解决 safe_fetcher ↔ source_registry 循环导入）
@@ -169,5 +172,5 @@ class SourceRegistry:
         backup_path = f"{self.registry_path}.corrupt.{timestamp}"
         try:
             os.replace(self.registry_path, backup_path)
-        except OSError:
-            pass
+        except OSError as e:
+            logger.debug(f"registry backup: {e}")

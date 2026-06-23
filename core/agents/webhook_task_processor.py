@@ -13,6 +13,9 @@ import time
 import sqlite3
 import sys
 from pathlib import Path
+import logging
+logger = logging.getLogger(__name__)
+
 from typing import Optional, Dict, Any, List, Callable
 
 # Add parent directory to path for imports
@@ -44,8 +47,8 @@ def _resolve_spawn_fn() -> Optional[Callable]:
         from openclaw import sessions_spawn
         _spawn_fn = sessions_spawn
         return _spawn_fn
-    except ImportError:
-        pass
+    except ImportError as e:
+        logger.debug(f"optional import: {e}")
     
     # Fallback: use subprocess to call openclaw CLI
     # This allows the processor to work in exec environment

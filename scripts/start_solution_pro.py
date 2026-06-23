@@ -28,6 +28,7 @@ Solution Pro 启动脚本
 import argparse
 import json
 import os
+import sys
 
 # 动态获取 DeepFlow 根目录（跨平台兼容）
 # 使用 os.path.expanduser('~') 动态获取 home 目录，避免硬编码 /Users/allen
@@ -41,7 +42,10 @@ if not os.path.exists(DEEPFLOW_HOME):
 
 # 确保在正确的工作目录
 os.chdir(DEEPFLOW_HOME)
+if DEEPFLOW_HOME not in sys.path:
+    sys.path.insert(0, DEEPFLOW_HOME)
 
+import core.bootstrap
 from domains.solution_pro import run_solution_pro
 
 def main():
@@ -51,6 +55,8 @@ def main():
     parser.add_argument('--constraints', default='[]', help='约束条件（JSON 数组）')
     parser.add_argument('--living-spec-path', help='Living Spec 文件路径（相对于 .deepflow）')
     parser.add_argument('--stakeholders', default='[]', help='利益相关者（JSON 数组）')
+    parser.add_argument('--print-watcher-prompt', action='store_true',
+                        help='打印 watcher wrapper prompt（供主 Agent 创建 cron 使用）')
     
     args = parser.parse_args()
     
@@ -119,14 +125,26 @@ def main():
             except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
                 print(f"⚠️ 读取执行计划失败，跳过 startup_notification: {e}", file=sys.stderr)
         result['startup_notification'] = startup_notification
-        
+
+        # Watcher wrapper prompt (for main Agent to create cron)
+        if args.print_watcher_prompt:
+            from scripts.pipeline_watcher import WRAPPER_PROMPT
+            result['watcher_wrapper_prompt_template'] = WRAPPER_PROMPT
+            # Pre-fill all placeholders except {cron_job_id} (unknown until cron is created)
+            result['watcher_wrapper_prompt_prefilled'] = WRAPPER_PROMPT.format(
+                deepflow_root=result.get('deepflow_root', DEEPFLOW_HOME),
+                config_path=result.get('watcher_config_abs', ''),
+                base_path=result.get('base_path', ''),
+                run_start_at=result.get('run_start_at', ''),
+                cron_job_id='{cron_job_id}',  # placeholder for main Agent
+            )
+
         # 输出结果（JSON 格式）
         print(json.dumps(result, ensure_ascii=False, indent=2))
         
     except Exception as e:
         print(f"❌ 启动 Solution Pro 失败: {e}", file=sys.stderr)
         import traceback
-import core.bootstrap
         traceback.print_exc()
         sys.exit(1)
 

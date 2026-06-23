@@ -16,6 +16,9 @@ import uuid
 import time
 from pathlib import Path
 from typing import Optional
+import logging
+logger = logging.getLogger(__name__)
+
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 
@@ -44,8 +47,8 @@ async def cleanup_old_uploads():
             try:
                 f.unlink()
                 count += 1
-            except OSError:
-                pass
+            except OSError as e:
+                logger.debug(f"old upload cleanup: {e}")
     if count > 0:
         print(f"[Upload] Cleaned up {count} old upload files")
 
