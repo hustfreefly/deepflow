@@ -183,7 +183,7 @@ def good_package():
                 "complexity": "medium",
                 "dependencies": [],
                 "priority": "high",
-                "outputs": ["src/gateway/main.go"],
+                "outputs": [{"type": "file", "path": "src/gateway/main.go", "description": "API gateway entry"}],
                 "acceptance_criteria": [
                     "POST /v1/chat/completions returns 200 status code",
                     "curl http://localhost:8080/health returns 200 with exit code 0",
@@ -194,10 +194,10 @@ def good_package():
                 "title": "Frontend",
                 "objective": "Build the frontend UI",
                 "budget": {"tokens": 80000, "time_minutes": 240, "max_retries": 3},
-                "complexity": "complex",
+                "complexity": "high",
                 "dependencies": ["WP-001"],
                 "priority": "medium",
-                "outputs": ["src/frontend/pages/index.tsx"],
+                "outputs": [{"type": "file", "path": "src/frontend/pages/index.tsx", "description": "Frontend UI"}],
                 "acceptance_criteria": [
                     "npm run build completes with exit code 0",
                     "Lighthouse performance score >= 80",

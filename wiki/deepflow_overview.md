@@ -1,6 +1,6 @@
 # DeepFlow Overview
 
-> 最后更新: 2026-06-21
+> 最后更新: 2026-06-23
 
 ---
 
@@ -8,7 +8,7 @@
 
 DeepFlow 是一个多 Agent 管线框架，运行在 OpenClaw 平台上。核心职责是将用户需求转化为可执行的方案。
 
-### 管线架构
+### 管线架构 (V0.5.0)
 
 ```
 用户需求
@@ -28,13 +28,14 @@ DeepFlow 是一个多 Agent 管线框架，运行在 OpenClaw 平台上。核心
 │  Harness Final → Summarizer                            │
 │  4维度 Harness 评分 + Multi-Reviewer 机制              │
 └─────────────────────────────────────────────────────────┘
-    │
+    │ final_result.json 自动交接
     ▼
 ┌─────────────────────────────────────────────────────────┐
-│ Ship Pro（执行交付）                                    │
+│ Ship Pro V3.2（执行交付）                               │
 │  5-Agent 管线：Architect → Decomposer → Specifier →    │
-│  Reviewer → Packager                                   │
-│  Quality Gate V2：Compiler → Reviewer → Fixer → Harness│
+│  Reviewer ↔ 反馈闭环 → Packager                       │
+│  Pydantic 契约笼子 + run_pipeline.py 单一执行引擎      │
+│  pipeline_state.json 唯一状态文件                      │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -168,6 +169,7 @@ Python 脚本 + 薄 LLM wrapper。监控管线运行状态，推送进度通知�
 
 ## 版本历史
 
+- **2026-06-23**：Phase 0-3 架构加固完成 — Pydantic 契约笼子 + 单一执行引擎 + 状态单一化；版本升至 V0.5.0
 - **2026-06-21**：Ship Pro V3 + Summarizer 单文件输出 + Pipeline Watcher V2 + Blackboard V2 设计
 - **2026-06-11**：GitHub 基线版本（Spec Pro + Solution Pro + Research Pro 13项修复）
 

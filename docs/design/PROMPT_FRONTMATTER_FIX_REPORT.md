@@ -32,8 +32,8 @@
 
 | # | 文件 | id | description |
 |---|------|-----|-------------|
-| 10 | `domains/solution/prompts/REQ_DEDUP_DESIGN.md` | `solution/REQ_DEDUP_DESIGN` | REQ 语义去重规则设计，消除 Consolidator 输出中的语义重复需求 |
-| 11 | `domains/solution/prompts/orchestrator_completion.md` | `solution/orchestrator_completion` | 10 阶段管线完成后的处理流程，包括编译 Frozen Blueprint 和 Ship Package |
+| 10 | `domains/solution_pro/prompts/REQ_DEDUP_DESIGN.md` | `solution/REQ_DEDUP_DESIGN` | REQ 语义去重规则设计，消除 Consolidator 输出中的语义重复需求 |
+| 11 | `domains/solution_pro/prompts/orchestrator_completion.md` | `solution/orchestrator_completion` | 10 阶段管线完成后的处理流程，包括编译 Frozen Blueprint 和 Ship Package |
 
 ## 3. 修复内容
 

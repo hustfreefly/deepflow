@@ -41,7 +41,7 @@ _DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 
 # ============================================================================
 # P0-1 修复: Worker 名称 → 完整相对路径映射
-# 事实源: domains/solution/blackboard.py::STAGE_PATH_REGISTRY
+# 事实源: domains/solution_pro/blackboard.py::STAGE_PATH_REGISTRY
 # 此字典仅补充 STAGE_PATH_REGISTRY 中没有的别名映射
 # ============================================================================
 WORKER_OUTPUT_PATH_MAP = {

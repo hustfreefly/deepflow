@@ -125,7 +125,8 @@ quality_assurance.requirement_coverage  → 仅统计数字，标记 partial
   "req_id": "REQ-001",
   "description": "需求描述",
   "priority": "P0|P1|P2",       // 从输入继承，无则根据 category 推断：objective→P0, constraint→P1
-  "coverage": "covered|partial|missing"  // 从 status 字段映射：fully_covered→covered
+  "coverage": "covered|partial|missing",  // 从 status 字段映射：fully_covered→covered
+  "mapped_components": ["COMP-001"]  // 实现该需求的模块 ID 列表（Gate 必检字段）
 }
 ```
 
@@ -204,13 +205,15 @@ modules 字段：尝试将阶段任务关联到具体模块 ID。无法关联则
 
 在输出 blueprint.json 之前，逐条检查：
 
-1. □ JSON 是否包含所有必填顶层字段？（_meta, project, modules, dependencies, domain_details, sla_constraints, requirements, risks, implementation_hints）
+1. □ JSON 是否包含所有必填顶层字段？（_meta, project_type, project, modules, dependencies, domain_details, sla_constraints, requirements, risks, implementation_hints, wp_file_mapping）
 2. □ _meta 中 input_format 是否与 Orchestrator 告知的一致？
 3. □ modules 列表是否为空？如果为空，overall_confidence 是否为 "low"？
 4. □ 每个 module 是否有 name 和 summary？（id 可自动生成）
 5. □ 是否有明显的内容重复？（同一模块出现两次）
 6. □ 是否有编造的信息？（输入中不存在的模块/技术/数字）
 7. □ data_sufficiency 各项是否与实际情况一致？
+8. □ project_type 是否已填写？（Gate Major 必检字段）
+9. □ 每个 requirement 是否有 mapped_components？（Gate Major 必检字段，值为实现该需求的模块 ID 列表）
 
 不通过任何一项 → 修正后再输出。如无法修正，在 _meta 中添加 self_check 字段说明问题。
 
@@ -236,6 +239,7 @@ modules 字段：尝试将阶段任务关联到具体模块 ID。无法关联则
     "round": 0,
     "timestamp": ""
   },
+  "project_type": "web_app | data_pipeline | multi_agent | api_service | mobile_app | desktop_app | other",
   "project": {
     "name": "项目名称",
     "objective": "项目目标（一段话）",
@@ -247,7 +251,8 @@ modules 字段：尝试将阶段任务关联到具体模块 ID。无法关联则
   "sla_constraints": [],
   "requirements": [],
   "risks": [],
-  "implementation_hints": []
+  "implementation_hints": [],
+  "wp_file_mapping": {}
 }
 ```
 
@@ -302,6 +307,7 @@ modules 字段：尝试将阶段任务关联到具体模块 ID。无法关联则
       "risks": "insufficient"
     }
   },
+  "project_type": "web_app",
   "project": {
     "name": "智能简历系统",
     "objective": "自动生成ATS友好简历",
@@ -321,15 +327,16 @@ modules 字段：尝试将阶段任务关联到具体模块 ID。无法关联则
   },
   "sla_constraints": [],
   "requirements": [
-    { "req_id": "REQ-001", "description": "PDF/Word解析", "priority": "P0", "coverage": "covered" },
-    { "req_id": "REQ-002", "description": "JD匹配算法", "priority": "P1", "coverage": "covered" },
-    { "req_id": "REQ-003", "description": "双格式输出", "priority": "P1", "coverage": "covered" }
+    { "req_id": "REQ-001", "description": "PDF/Word解析", "priority": "P0", "coverage": "covered", "mapped_components": ["COMP-01"] },
+    { "req_id": "REQ-002", "description": "JD匹配算法", "priority": "P1", "coverage": "covered", "mapped_components": ["COMP-02"] },
+    { "req_id": "REQ-003", "description": "双格式输出", "priority": "P1", "coverage": "covered", "mapped_components": ["COMP-03"] }
   ],
   "risks": [],
   "implementation_hints": [
     { "phase": "Phase 1", "description": "核心管道（COMP-01 + COMP-02），2周", "modules": ["COMP-01", "COMP-02"] },
     { "phase": "Phase 2", "description": "渲染与测试（COMP-03），2周", "modules": ["COMP-03"] }
-  ]
+  ],
+  "wp_file_mapping": { "REQ-001": "comp-01-parser", "REQ-002": "comp-02-matcher", "REQ-003": "comp-03-renderer" }
 }
 ```
 
@@ -385,6 +392,7 @@ modules 字段：尝试将阶段任务关联到具体模块 ID。无法关联则
       "risks": "sufficient"
     }
   },
+  "project_type": "api_service",
   "project": {
     "name": "API中转平台",
     "objective": "聚合中国AI API转售海外开发者",
@@ -404,8 +412,8 @@ modules 字段：尝试将阶段任务关联到具体模块 ID。无法关联则
     { "metric": "故障切换时间", "target": "<3秒", "scope": "供应商级别" }
   ],
   "requirements": [
-    { "req_id": "REQ-001", "description": "100%OpenAI兼容API", "priority": "P0", "coverage": "covered" },
-    { "req_id": "REQ-002", "description": "自动故障切换<3s", "priority": "P1", "coverage": "covered" }
+    { "req_id": "REQ-001", "description": "100%OpenAI兼容API", "priority": "P0", "coverage": "covered", "mapped_components": ["COMP-001"] },
+    { "req_id": "REQ-002", "description": "自动故障切换<3s", "priority": "P1", "coverage": "covered", "mapped_components": ["COMP-001"] }
   ],
   "risks": [
     { "id": "RISK-001", "description": "供应商ToS合规", "severity": "high" },
@@ -415,7 +423,8 @@ modules 字段：尝试将阶段任务关联到具体模块 ID。无法关联则
     { "phase": "Phase 1", "description": "核心基础设施，Day 1-5", "modules": ["COMP-001"] },
     { "phase": "Phase 2", "description": "支付与用户，Day 6-10", "modules": ["COMP-003"] },
     { "phase": "Phase 3", "description": "前端与上线，Day 11-15", "modules": ["COMP-002"] }
-  ]
+  ],
+  "wp_file_mapping": { "REQ-001": "comp-001-gateway", "REQ-002": "comp-001-gateway" }
 }
 ```
 ```

@@ -8,7 +8,7 @@ import sys
 import re
 
 BASE = os.path.expanduser("~/.openclaw/workspace/.deepflow")
-PROMPTS_DIR = os.path.join(BASE, "domains/solution/prompts")
+PROMPTS_DIR = os.path.join(BASE, "domains/solution_pro/prompts")
 SOLUTION_DIR = os.path.join(BASE, "domains/solution")
 
 results = []

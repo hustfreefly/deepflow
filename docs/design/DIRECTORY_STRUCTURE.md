@@ -549,7 +549,7 @@
 | Directory | Purpose |
 |-----------|---------|
 | `domains/spec_pro/` | Spec Pro v2.4 — Requirements collection via Socratic dialog → Living Spec |
-| `domains/solution/` | Solution Pro V4.4 — 10-stage pipeline for solution design → final_solution.md |
+| `domains/solution_pro/` | Solution Pro V4.4 — 10-stage pipeline for solution design → final_solution.md |
 | `domains/research_pro/` | Research Pro — Multi-source search → tiered research → citation-verified reports |
 | `domains/ship_pro/` | Ship Pro V3 — AI-native multi-agent: Architect → Decomposer → Specifier → Reviewer → Packager |
 

@@ -285,15 +285,15 @@ _None found — both pipelines are operationally functional._
 ## Appendix: File Index
 
 ### Solution Pro Files Analyzed
-- `domains/solution/SKILL.md` — Pipeline definition (V4.4)
-- `domains/solution/blackboard.py` — STAGE_PATH_REGISTRY, BlackboardManager
-- `domains/solution/task_builder.py` — All build_*_task() functions
-- `domains/solution/harness_scorer.py` — 4-dimension scoring
-- `domains/solution/frozen_spec.py` — REQ-ID generation
-- `domains/solution/spec_context.py` — Living spec → worker context adapter
-- `domains/solution/__init__.py` — run_solution_pro() entry point
-- `domains/solution/orchestrator_agent.py` — _SolutionDispatcher
-- `domains/solution/prompts/` — 22 prompt files
+- `domains/solution_pro/SKILL.md` — Pipeline definition (V4.4)
+- `domains/solution_pro/blackboard.py` — STAGE_PATH_REGISTRY, BlackboardManager
+- `domains/solution_pro/task_builder.py` — All build_*_task() functions
+- `domains/solution_pro/harness_scorer.py` — 4-dimension scoring
+- `domains/solution_pro/frozen_spec.py` — REQ-ID generation
+- `domains/solution_pro/spec_context.py` — Living spec → worker context adapter
+- `domains/solution_pro/__init__.py` — run_solution_pro() entry point
+- `domains/solution_pro/orchestrator_agent.py` — _SolutionDispatcher
+- `domains/solution_pro/prompts/` — 22 prompt files
 
 ### Ship Pro Files Analyzed
 - `domains/ship_pro/SKILL.md` — V2 三段式 pipeline definition

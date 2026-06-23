@@ -293,9 +293,9 @@ Cron 触发
 
 ## 8. 相关文档
 
-- `domains/solution/SKILL.md` - 主 Agent 执行指南
-- `domains/solution/prompts/pipeline_orchestrator_v4.md` - Orchestrator Prompt
-- `domains/solution/prompts/cron_watcher.md` - Cron Watcher Prompt
+- `domains/solution_pro/SKILL.md` - 主 Agent 执行指南
+- `domains/solution_pro/prompts/pipeline_orchestrator_v4.md` - Orchestrator Prompt
+- `domains/solution_pro/prompts/cron_watcher.md` - Cron Watcher Prompt
 - `core/orchestrator/completion_handler.py` - 完成处理脚本
 - `docs/CRON_EARLY_EXIT_POSTMORTEM.md` - Cron 提前退出问题复盘
 - `docs/CRON_DESIGN.md` - Cron 设计文档（专家评审报告）

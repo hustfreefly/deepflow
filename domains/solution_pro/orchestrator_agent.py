@@ -767,7 +767,7 @@ class _SolutionDispatcher:
         执行完整 Solution 流程(Harness V2 完整闭环 - 默认执行方式)
 
         .. deprecated:: 2026-05-31
-            此方法已废弃。请使用 domains/solution/SKILL.md 中的标准执行方式。
+            此方法已废弃。请使用 domains/solution_pro/SKILL.md 中的标准执行方式。
 
         这是 Solution Pro 的唯一执行入口,使用 EntryHarness + PipelineOrchestrator
         完整闭环:

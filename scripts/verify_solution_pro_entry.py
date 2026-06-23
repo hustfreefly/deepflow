@@ -87,7 +87,7 @@ except ImportError as e:
 # ========== 测试 6: Dispatcher 单次实例化 ==========
 print("\n[测试 6] Dispatcher 单次实例化")
 
-with open(os.path.join(DEEPFLOW_BASE, "domains/solution/__init__.py"), "r") as f:
+with open(os.path.join(DEEPFLOW_BASE, "domains/solution_pro/__init__.py"), "r") as f:
     source = f.read()
 
 tree = ast.parse(source)

@@ -40,7 +40,7 @@
 4. 手动应用必要的改动
 
 **相关文件**:
-- `domains/solution/task_builder.py`
+- `domains/solution_pro/task_builder.py`
 - `/tmp/solution_pro_edits.json`
 
 ---
@@ -59,7 +59,7 @@
 3. 手动重建文件
 
 **相关文件**:
-- `domains/solution/QUALITY_GUIDE.md`（待创建）
+- `domains/solution_pro/QUALITY_GUIDE.md`（待创建）
 
 ---
 
@@ -77,7 +77,7 @@
 3. 验证关键改动是否已应用
 
 **相关文件**:
-- `domains/solution/SKILL.md`
+- `domains/solution_pro/SKILL.md`
 
 ---
 
@@ -110,11 +110,11 @@
 - 如果路径错误，Solution Pro 无法启动
 
 **建议行动**:
-1. 检查 `domains/solution/__init__.py` 中的路径引用
+1. 检查 `domains/solution_pro/__init__.py` 中的路径引用
 2. 确认引用的是 `pipeline_orchestrator.md` 而不是 `pipeline_orchestrator_v6.md`
 
 **相关文件**:
-- `domains/solution/__init__.py`
+- `domains/solution_pro/__init__.py`
 
 ---
 
@@ -433,7 +433,7 @@ list_runs(slug: str) -> List[str]
    - 覆盖 Spec Pro → Solution Pro → Ship Pro
    - 双维度模型：模块内质量 + 跨模块对齐
 
-2. ✅ `domains/solution/QUALITY_GUIDE.md` - 7.0KB, 250 行
+2. ✅ `domains/solution_pro/QUALITY_GUIDE.md` - 7.0KB, 250 行
    - Solution Pro 质量评估指南
    - Harness 四维评分 + 15维宪法 + Multi-Reviewer
    - Prompt 文件索引更新

@@ -6,7 +6,7 @@ Author: DeepFlow Solution Pro
 Date: 2026-06-01
 """
 
-# domains/solution/prefix_extractor.py
+# domains/solution_pro/prefix_extractor.py
 """
 会话前缀提取器
 

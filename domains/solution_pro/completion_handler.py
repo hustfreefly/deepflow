@@ -461,6 +461,18 @@ def write_completion_marker(
 
     marker_path = bb.write('.completed', marker_data)
 
+    # 同步更新 .stage_progress.json，避免状态不一致（P1-4 修复）
+    try:
+        progress_raw = bb.read('.stage_progress', subdir='stages')
+        if progress_raw:
+            import json as _json
+            progress_data = _json.loads(progress_raw)
+            progress_data['status'] = 'completed' if status == 'completed' else 'failed'
+            progress_data['completed_at'] = marker_data['completed_at']
+            bb.write('.stage_progress', progress_data, subdir='stages')
+    except Exception:
+        pass  # 非关键路径，不阻塞主流程
+
     return marker_path
 
 

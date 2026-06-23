@@ -55,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **文档版本全面对齐** — README / SKILL.md 更新为 0.3.0
 
 ### Fixed
-- **Solution Pro V4.4 契约笼子修复** — `domains/solution/`
+- **Solution Pro V4.4 契约笼子修复** — `domains/solution_pro/`
 - **Spec Pro V2.4 修复** — `domains/spec_pro/`
 
 ---

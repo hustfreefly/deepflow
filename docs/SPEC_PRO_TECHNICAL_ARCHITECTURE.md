@@ -990,8 +990,8 @@ sessions_yield()
 
 | 文件 | 改动 |
 |:---|:---|
-| `domains/solution/orchestrator_agent.py` | 新增 `living_spec` 参数 |
-| `domains/solution/task_builder.py` | 各 build_xxx_task 支持 living_spec |
+| `domains/solution_pro/orchestrator_agent.py` | 新增 `living_spec` 参数 |
+| `domains/solution_pro/task_builder.py` | 各 build_xxx_task 支持 living_spec |
 
 ### 7.3 对比 v1.0（修正了什么）
 

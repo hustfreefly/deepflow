@@ -316,6 +316,6 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) != 2:
-        print("Usage: python3 domains/solution/control_contract.py <base_path>")
+        print("Usage: python3 domains/solution_pro/control_contract.py <base_path>")
         raise SystemExit(2)
     print(json.dumps(rewrite_after_planning(sys.argv[1]), ensure_ascii=False, indent=2))

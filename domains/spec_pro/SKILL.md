@@ -116,7 +116,7 @@ living_spec = read(
 
 # 传递给 Solution Pro
 exec(
-    command="python3 domains/solution/SKILL.md --living-spec blackboard/{session_id}/spec/living_spec.json",
+    command="python3 domains/solution_pro/SKILL.md --living-spec blackboard/{session_id}/spec/living_spec.json",
     workdir="/Users/allen/.openclaw/workspace/.deepflow"
 )
 ```

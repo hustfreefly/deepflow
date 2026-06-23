@@ -45,7 +45,7 @@
 **证据**:
 - `frozen_spec.py::build_frozen_spec()` — 不读取 `living_spec.get("route_recommendation")`
 - `task_builder.py` — 所有 10 个 `build_*_task()` 函数都不读取 `route_recommendation`
-- `domains/solution/` 下全文搜索 `route_recommendation` 结果为 **0**
+- `domains/solution_pro/` 下全文搜索 `route_recommendation` 结果为 **0**
 - `route_recommendation` 仅在 `domains/spec_pro/models.py:190` 定义为 dataclass
 
 **影响**: 这个字段做了完整的复杂度评估（8个因子、4个引擎档位），但下游引擎不知道"为什么选择了自己"、"复杂度多少"、"建议什么模式"。如果 Solution Pro 需要根据复杂度动态调整深度（例如 complexity_score > 80 时启用更多研究者），这个字段本应提供依据。
@@ -70,7 +70,7 @@
 **证据**:
 - `frozen_spec.py::build_frozen_spec()` — 不读取 `confirmed.get("user_directives")`
 - `task_builder.py` — 所有函数直接从 `confirmed` 提取字段拼接 context，不检查 `user_directives`
-- `domains/solution/` 下全文搜索 `user_directives` / `deliberately_omitted` 结果为 **0**
+- `domains/solution_pro/` 下全文搜索 `user_directives` / `deliberately_omitted` 结果为 **0**
 
 **影响**: Spec Pro 的 AssessWorker 知道对 deliberately_omitted 维度给 50 分不扣分（coordinator.py 注释明确说明），但 Solution Pro 的所有 Worker（Planner、Researcher、Auditor、Reviewer 等）都不知道哪些维度被用户主动放弃了。如果 Spec Pro 因为用户说"不考虑安全"而没有追问安全需求，Solution Pro 的 Auditor 可能反过来审计"安全方案缺失"，产生无意义的负面反馈。
 
@@ -95,7 +95,7 @@
 **证据**:
 - `frozen_spec.py` — 不读取 `inferred_pending`
 - `task_builder.py` — 不读取 `inferred_pending`
-- `domains/solution/` 下全文搜索 `inferred_pending` 结果为 **0**
+- `domains/solution_pro/` 下全文搜索 `inferred_pending` 结果为 **0**
 
 **影响**: Spec Pro 收集到的待确认推断（如"推断用户可能还需要移动端支持，置信度 0.6"）在 Spec Pro 流程结束后完全丢失。Solution Pro 无法知道"有哪些推断需要验证"或"有哪些 AI 假设需要在方案中标注"。
 
@@ -165,7 +165,7 @@
 **证据**:
 - `frozen_spec.py:142-148` 将 hints 展平为 hint 类 REQ，anti_patterns 没有被单独提取
 - `task_builder.py` 没有任何函数读取 `anti_patterns`
-- `domains/solution/` 下全文搜索 `anti_pattern` 结果为 **0**
+- `domains/solution_pro/` 下全文搜索 `anti_pattern` 结果为 **0**
 
 **影响**: 这些反模式是 Spec Pro 基于需求分析得出的具体"不要做什么"的警告（比 guardrails.never_do 更具体、更有上下文），Solution Pro 的 Worker 完全看不到。
 

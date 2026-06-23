@@ -62,22 +62,22 @@
 
 | File (relative) | Declared Version | Expected | Consistent? |
 |-----------------|-----------------|----------|-------------|
-| `domains/solution/config/solution.yaml` → `component_version` | `1.0.0` | `4.4` | ❌ NO |
-| `domains/solution/_overview.md` | `4.3.0` | `4.4` | ❌ NO |
-| `domains/solution/SKILL.md` | `V4.4` | `4.4` | ✅ YES |
-| `domains/solution/prompts/pipeline_orchestrator_v4.md` | `4.3.0` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/pipeline_orchestrator.md` | `4.3.0` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/reviewer.md` | `5.4.1` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/consolidator.md` | `5.4.1` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/planner.md` | `5.4.1` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/summarizer.md` | `2.1.0` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/designer.md` | `2.0.0` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/deliver.md` | `2.0.0` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/data_collection.md` | `2.0.0` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/harness_v3.md` | `2.0.0` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/cron_watcher.md` | `1.0.0` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/harness_scoring.md` | `1.0.0` | *(prompt-level)* | ℹ️ N/A |
-| `domains/solution/prompts/*_v2_harness.md` (7 files) | `2.1.0` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/config/solution.yaml` → `component_version` | `1.0.0` | `4.4` | ❌ NO |
+| `domains/solution_pro/_overview.md` | `4.3.0` | `4.4` | ❌ NO |
+| `domains/solution_pro/SKILL.md` | `V4.4` | `4.4` | ✅ YES |
+| `domains/solution_pro/prompts/pipeline_orchestrator_v4.md` | `4.3.0` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/pipeline_orchestrator.md` | `4.3.0` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/reviewer.md` | `5.4.1` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/consolidator.md` | `5.4.1` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/planner.md` | `5.4.1` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/summarizer.md` | `2.1.0` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/designer.md` | `2.0.0` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/deliver.md` | `2.0.0` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/data_collection.md` | `2.0.0` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/harness_v3.md` | `2.0.0` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/cron_watcher.md` | `1.0.0` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/harness_scoring.md` | `1.0.0` | *(prompt-level)* | ℹ️ N/A |
+| `domains/solution_pro/prompts/*_v2_harness.md` (7 files) | `2.1.0` | *(prompt-level)* | ℹ️ N/A |
 | `cage/active/solution_v1.0.yaml` → `version` | `1.1` | *(cage-level)* | ℹ️ N/A |
 
 ### 3.4 Research Pro Domain
@@ -147,8 +147,8 @@
 | 2 | `domains/spec_pro/config/spec_pro.yaml` | `2.3.0` | `2.4.0` | 🔴 HIGH — runtime version read by code |
 | 3 | `domains/spec_pro/_overview.md` | `2.3.0` | `2.4.0` | 🟡 MEDIUM — documentation |
 | 4 | `domains/spec_pro/VERSION.md` (table) | `2.3.0` | `2.4.0` | 🟡 MEDIUM — documentation |
-| 5 | `domains/solution/config/solution.yaml` | `1.0.0` | `4.4` | 🔴 HIGH — runtime version read by code |
-| 6 | `domains/solution/_overview.md` | `4.3.0` | `4.4` | 🟡 MEDIUM — documentation |
+| 5 | `domains/solution_pro/config/solution.yaml` | `1.0.0` | `4.4` | 🔴 HIGH — runtime version read by code |
+| 6 | `domains/solution_pro/_overview.md` | `4.3.0` | `4.4` | 🟡 MEDIUM — documentation |
 | 7 | `domains/research_pro/SKILL.md` | `V2.1` | `1.0.0` | 🟡 MEDIUM — SKILL.md vs CHANGELOG |
 
 ### Internal Inconsistency (Ship Pro — no CHANGELOG baseline)
@@ -167,8 +167,8 @@
 2. **`domains/spec_pro/config/spec_pro.yaml`**: Update `component_version: "2.3.0"` → `"2.4.0"`.
 3. **`domains/spec_pro/_overview.md`**: Update `version: "2.3.0"` → `"2.4.0"`.
 4. **`domains/spec_pro/VERSION.md`**: Update the table's Component row from `2.3.0` → `2.4.0`.
-5. **`domains/solution/config/solution.yaml`**: Update `component_version: "1.0.0"` → `"4.4"`.
-6. **`domains/solution/_overview.md`**: Update `版本: 4.3.0` → `版本: 4.4`.
+5. **`domains/solution_pro/config/solution.yaml`**: Update `component_version: "1.0.0"` → `"4.4"`.
+6. **`domains/solution_pro/_overview.md`**: Update `版本: 4.3.0` → `版本: 4.4`.
 7. **`domains/research_pro/SKILL.md`**: Clarify whether version is V2.1 or 1.0.0; align with CHANGELOG.
 8. **Ship Pro**: Decide canonical version (V2.0 vs V3 vs 3.0.0) and update all three files to match. Add Ship Pro to CHANGELOG.
 

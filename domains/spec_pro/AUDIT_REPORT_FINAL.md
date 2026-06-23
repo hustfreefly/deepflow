@@ -110,7 +110,7 @@ S5: 代码清理 (30 min)
 - 测试专家：角色差异化测试
 
 **修复内容**:
-1. 创建 `domains/solution/spec_context.py`，职责：
+1. 创建 `domains/solution_pro/spec_context.py`，职责：
    - 提取 user_directives（用户显式要求）
    - 提取 inferred_pending（待确认推断）
    - 提取 solution_pro_hints（保持结构，不展平）
@@ -203,7 +203,7 @@ S5: 代码清理 (30 min)
 | 文件 | 行数 | 职责 |
 |------|------|------|
 | `domains/spec_pro/schemas.py` | 241 | Schema 定义 + 软校验 |
-| `domains/solution/spec_context.py` | 199 | 下游消费 Adapter |
+| `domains/solution_pro/spec_context.py` | 199 | 下游消费 Adapter |
 | `tests/unit/test_spec_pro_regression.py` | 266 | 回归测试套件 |
 
 ### 修改文件
@@ -214,8 +214,8 @@ S5: 代码清理 (30 min)
 | `domains/spec_pro/merge_spec.py` | +20/-5 | 入口校验、meta setdefault |
 | `domains/spec_pro/spec_pro_api.py` | +15/-3 | JSON 异常处理 |
 | `domains/spec_pro/utils.py` | -40 | 删除 check_process_guard |
-| `domains/solution/frozen_spec.py` | +5/-0 | 透传 guardrails/hints |
-| `domains/solution/task_builder.py` | +10/-0 | 调用 spec_context |
+| `domains/solution_pro/frozen_spec.py` | +5/-0 | 透传 guardrails/hints |
+| `domains/solution_pro/task_builder.py` | +10/-0 | 调用 spec_context |
 
 **总代码变更**: ~600 行新增，~60 行删除
 

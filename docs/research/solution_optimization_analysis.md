@@ -10,7 +10,7 @@
 
 ### 1.1 架构组成
 - **配置层**: `domains/solution.yaml` (领域配置), `cage/domain_solution.yaml` (契约笼子)
-- **执行层**: `domains/solution/orchestrator.py` (SolutionOrchestrator)
+- **执行层**: `domains/solution_pro/orchestrator.py` (SolutionOrchestrator)
 - **提示词层**: `prompts/solution/*.md` (6个角色 Prompt)
 
 ### 1.2 Pipeline 阶段

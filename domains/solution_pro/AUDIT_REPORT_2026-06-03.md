@@ -1,7 +1,7 @@
 # 代码一致性审计报告 — Prompt vs Code
 
 > 审计时间: 2026-06-03 00:39 CST
-> 审计范围: `/Users/allen/.openclaw/workspace/.deepflow/domains/solution/`
+> 审计范围: `/Users/allen/.openclaw/workspace/.deepflow/domains/solution_pro/`
 > 审计人: Subagent (集成审计专家)
 > 参考: AUDIT_REPORT_2026-06-02.md（不重复已发现问题）
 

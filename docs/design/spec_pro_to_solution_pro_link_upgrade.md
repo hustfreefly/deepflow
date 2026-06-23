@@ -82,8 +82,8 @@ Solution Pro 的 `frozen_spec.py` ~~把 Spec Pro 的 `living_spec` 展平成 REQ
 #### 2.4 修改范围
 | 文件 | 改动 | 行数预估 |
 |------|------|----------|
-| `domains/solution/frozen_spec.py` | 新增 `_build_executive_summary()` 和 `_build_requirement_groups()` 函数 | ~80 行 |
-| `domains/solution/task_builder.py` | 更新 Worker prompt，引导先读 executive_summary | ~10 行 |
+| `domains/solution_pro/frozen_spec.py` | 新增 `_build_executive_summary()` 和 `_build_requirement_groups()` 函数 | ~80 行 |
+| `domains/solution_pro/task_builder.py` | 更新 Worker prompt，引导先读 executive_summary | ~10 行 |
 
 #### 2.5 向后兼容性
 - ✅ 新增字段，不改 REQ 结构
@@ -206,7 +206,7 @@ def build_frozen_spec(topic, constraints, living_spec):
 | `domains/spec_pro/requirement_structuring_worker.py` | 新增 LLM Worker | ~150 行 |
 | `domains/spec_pro/coordinator.py` | 在收尾阶段调用新 Worker | ~20 行 |
 | `domains/spec_pro/worker_prompts.py` | 新增 Worker prompt | ~100 行 |
-| `domains/solution/frozen_spec.py` | 改为透传模式 | ~30 行 |
+| `domains/solution_pro/frozen_spec.py` | 改为透传模式 | ~30 行 |
 
 #### 3.4 向后兼容性
 - ✅ `frozen_spec.py` 有 fallback 逻辑，旧版 `living_spec` 仍然能工作

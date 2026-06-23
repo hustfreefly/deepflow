@@ -10,7 +10,7 @@
 | 域 | Prompt 数量 | 文件位置 |
 |:---|:---|:---|
 | Spec Pro | 10 | `domains/spec_pro/prompts/` |
-| Solution Pro | 25 | `domains/solution/prompts/` |
+| Solution Pro | 25 | `domains/solution_pro/prompts/` |
 | Ship Pro | 9 | `domains/ship_pro/prompts/` |
 | Research Pro | 6 | `domains/research_pro/prompts/` |
 | 通用 | 20+ | `prompts/` |

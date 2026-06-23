@@ -41,10 +41,10 @@ S4 提议在 `frozen_spec.py` 中新增 `build_living_spec_context()` 函数，�
 
 ### 建议方案
 
-**在 `domains/solution/` 下新建 `spec_context.py`**，作为 Solution Pro 侧的"输入适配器"：
+**在 `domains/solution_pro/` 下新建 `spec_context.py`**，作为 Solution Pro 侧的"输入适配器"：
 
 ```python
-# domains/solution/spec_context.py
+# domains/solution_pro/spec_context.py
 
 def build_living_spec_context(living_spec: dict) -> dict:
     """将 Spec Pro 的 living_spec 翻译为 Solution Pro Worker 可用的上下文。
@@ -80,7 +80,7 @@ def build_living_spec_context(living_spec: dict) -> dict:
 |:---|:---|
 | Spec Pro 侧（domains/spec_pro/） | ❌ 不推荐。Spec Pro 不应该知道 Solution Pro 的内部上下文格式。这是下游依赖上游，增加 Spec Pro 的下游耦合。 |
 | frozen_spec.py | ❌ 不推荐（见视角 1）。职责污染。 |
-| **Solution Pro 侧新模块（domains/solution/spec_context.py）** | ✅ **推荐**。Solution Pro 作为消费方，定义自己需要的输入格式是合理的。Spec Pro 只需保证 living_spec 的产出格式稳定（由 S1 Schema 层保障）。 |
+| **Solution Pro 侧新模块（domains/solution_pro/spec_context.py）** | ✅ **推荐**。Solution Pro 作为消费方，定义自己需要的输入格式是合理的。Spec Pro 只需保证 living_spec 的产出格式稳定（由 S1 Schema 层保障）。 |
 | 独立的 bridge 层（domains/bridge/ 或 core/） | ⚠️ 过度设计。当前只有两个域之间的适配，不值得引入第三层。 |
 
 ### 关键原则
@@ -231,7 +231,7 @@ def build_omitted_dimension_instructions(omitted: list, worker_role: str) -> str
 
 **评价**：⚠️ 方向正确，位置不当。
 
-**改进**：改为在 `domains/solution/spec_context.py` 中新增此函数（详见视角 2）。
+**改进**：改为在 `domains/solution_pro/spec_context.py` 中新增此函数（详见视角 2）。
 
 ### 行动项 2：task_builder.py 各 Worker context 注入 deliberately_omitted_dimensions
 

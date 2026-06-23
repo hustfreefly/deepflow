@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "AgentState": {
+      "description": "单个 Agent 的执行状态。",
+      "properties": {
+        "state": {
+          "default": "pending",
+          "enum": [
+            "pending",
+            "running",
+            "gate_pass",
+            "gate_conditional",
+            "gate_fail",
+            "skipped",
+            "done"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "retry_count": {
+          "default": 0,
+          "title": "Retry Count",
+          "type": "integer"
+        },
+        "max_retries": {
+          "default": 2,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "gate_decision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gate Decision"
+        },
+        "last_gate_feedback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Gate Feedback"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "completed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        }
+      },
+      "title": "AgentState",
+      "type": "object"
+    }
+  },
+  "description": "管线统一状态。\n\n这是唯一的状态文件 (pipeline_state.json)。\n所有更新必须通过 `run_pipeline.py update-status` CLI。",
+  "properties": {
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "session_id": {
+      "default": "",
+      "title": "Session Id",
+      "type": "string"
+    },
+    "status": {
+      "default": "preparing",
+      "enum": [
+        "preparing",
+        "running",
+        "completed",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "current_agent": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Current Agent"
+    },
+    "agents": {
+      "additionalProperties": {
+        "$ref": "#/$defs/AgentState"
+      },
+      "title": "Agents",
+      "type": "object"
+    },
+    "started_at": {
+      "default": "",
+      "title": "Started At",
+      "type": "string"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    },
+    "skipped_agents": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Skipped Agents",
+      "type": "array"
+    }
+  },
+  "required": [
+    "run_id"
+  ],
+  "title": "PipelineState",
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://deepflow.local/schemas/pipeline_state_v3.schema.json"
+}

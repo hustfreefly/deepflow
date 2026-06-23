@@ -1,0 +1,134 @@
+{
+  "$defs": {
+    "Issue": {
+      "description": "Reviewer 发现的单个问题。",
+      "properties": {
+        "severity": {
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "target_agent": {
+          "enum": [
+            "architect",
+            "decomposer",
+            "specifier"
+          ],
+          "title": "Target Agent",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "suggestion": {
+          "default": "",
+          "title": "Suggestion",
+          "type": "string"
+        },
+        "affected_wp": {
+          "default": "",
+          "title": "Affected Wp",
+          "type": "string"
+        },
+        "target_field": {
+          "default": "",
+          "title": "Target Field",
+          "type": "string"
+        }
+      },
+      "required": [
+        "severity",
+        "target_agent",
+        "description"
+      ],
+      "title": "Issue",
+      "type": "object"
+    },
+    "QualityMetrics": {
+      "description": "Reviewer 评估的质量指标。\n\n字段名来自 reviewer.md prompt 定义：\n- ac_verifiability_score: AC 可验证性均分 (0-100)\n- coverage_rate: 模块覆盖率 (0.0-1.0)\n- dependency_sanity: 依赖无环检查 (\"ok\" / \"cycle_detected\")\n- details: 逐 WP 评分详情 (optional)",
+      "properties": {
+        "ac_verifiability_score": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Ac Verifiability Score",
+          "type": "number"
+        },
+        "coverage_rate": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Coverage Rate",
+          "type": "number"
+        },
+        "dependency_sanity": {
+          "default": "ok",
+          "enum": [
+            "ok",
+            "cycle_detected"
+          ],
+          "title": "Dependency Sanity",
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "title": "Details",
+          "type": "object"
+        }
+      },
+      "required": [
+        "ac_verifiability_score",
+        "coverage_rate"
+      ],
+      "title": "QualityMetrics",
+      "type": "object"
+    }
+  },
+  "description": "Reviewer Agent 输出契约。\n\nCritical 字段: verdict, issues, quality_metrics\nMajor 字段: summary, round",
+  "properties": {
+    "verdict": {
+      "enum": [
+        "PASS",
+        "PASS_WITH_CONDITIONS",
+        "FAIL"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    },
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/Issue"
+      },
+      "title": "Issues",
+      "type": "array"
+    },
+    "quality_metrics": {
+      "$ref": "#/$defs/QualityMetrics"
+    },
+    "summary": {
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "round": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Round",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "verdict",
+    "quality_metrics",
+    "summary"
+  ],
+  "title": "ReviewerOutput",
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://deepflow.local/schemas/reviewer_output_v3.schema.json"
+}

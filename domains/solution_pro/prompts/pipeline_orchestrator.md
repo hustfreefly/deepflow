@@ -179,7 +179,7 @@ bb.write_stage(".stage_progress", {
 当 `stage == "planning"` 完成并确认输出存在后：
 ```bash
 cd /Users/allen/.openclaw/workspace/.deepflow
-python3 domains/solution/control_contract.py {session_id}
+python3 domains/solution_pro/control_contract.py {session_id}
 ```
 然后重新读取 `{plan_path}` 和 `bb.read_stage("tasks", default={})`，继续 Phase 3。
 

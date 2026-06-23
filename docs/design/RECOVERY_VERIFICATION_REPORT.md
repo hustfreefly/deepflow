@@ -82,7 +82,7 @@ All Python files compile without syntax errors.
 | `domains/ship_pro/schemas/ship_package_v3.schema.json` | ✅ Valid |
 | `domains/ship_pro/schemas/final_result_v3.schema.json` | ✅ Valid |
 
-Note: `domains/solution/eval/` contains no `.json` files (only `.py` and `.md`).
+Note: `domains/solution_pro/eval/` contains no `.json` files (only `.py` and `.md`).
 
 ---
 
@@ -100,7 +100,7 @@ Note: `domains/solution/eval/` contains no `.json` files (only `.py` and `.md`).
 | Domain | Files | Total Size | Empty Files | Status |
 |--------|-------|-----------|-------------|--------|
 | `domains/ship_pro/` | 164 | 2.1 MB | 0 | ✅ Healthy |
-| `domains/solution/` | 108 | 869 KB | 0 | ✅ Healthy |
+| `domains/solution_pro/` | 108 | 869 KB | 0 | ✅ Healthy |
 | `domains/spec_pro/` | 50 | 590 KB | 0 | ✅ Healthy |
 | `domains/research_pro/` | 67 | 757 KB | 1 | ⚠️ 1 empty `__init__.py` |
 | `core/` | 50 | 485 KB | 2 | ⚠️ 2 empty `__init__.py` |
@@ -127,7 +127,7 @@ None.
 
 ### 🔵 Info (2)
 1. **9 prompt files contain TODO/PLACEHOLDER markers** — May indicate incomplete recovery or intentional future work items.
-2. **`domains/solution/eval/` has no JSON schemas** — Only `.py` test files and one `.md` doc present.
+2. **`domains/solution_pro/eval/` has no JSON schemas** — Only `.py` test files and one `.md` doc present.
 
 ---
 

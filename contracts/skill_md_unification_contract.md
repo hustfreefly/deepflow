@@ -32,14 +32,14 @@ updated: "2026-06-01"
 
 ## 2. 实施步骤
 
-### Step 1: 创建 domains/solution/SKILL.md
+### Step 1: 创建 domains/solution_pro/SKILL.md
 **输入**: 
 - 现有 QUICKSTART.md 的"方案设计 — 三步启动"部分
 - 现有 skills/solution-pro/SKILL.md 的欢迎界面部分
 - 评审专家的建议
 
 **输出**:
-- domains/solution/SKILL.md（Agent 唯一执行指南）
+- domains/solution_pro/SKILL.md（Agent 唯一执行指南）
 
 **验证**:
 - [ ] 文件存在且可读
@@ -50,8 +50,8 @@ updated: "2026-06-01"
 
 ### Step 2: 统一 _resolve_spawn_fn()
 **输入**:
-- domains/solution/orchestrator_agent.py 中的 `_resolve_spawn_fn()`
-- domains/solution/pipeline_orchestrator.py 中的 `_resolve_spawn_fn()`
+- domains/solution_pro/orchestrator_agent.py 中的 `_resolve_spawn_fn()`
+- domains/solution_pro/pipeline_orchestrator.py 中的 `_resolve_spawn_fn()`
 - 其他模块中的重复实现
 
 **输出**:
@@ -77,7 +77,7 @@ updated: "2026-06-01"
 **验证**:
 - [ ] run_v3() 调用时打印 deprecation warning
 - [ ] run_legacy() 调用时打印 deprecation warning
-- [ ] warning 消息指向 domains/solution/SKILL.md
+- [ ] warning 消息指向 domains/solution_pro/SKILL.md
 - [ ] 现有测试仍然通过
 
 ---

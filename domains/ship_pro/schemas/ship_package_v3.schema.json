@@ -1,491 +1,876 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://deepflow.local/schemas/ship_package_v3.schema.json",
-  "title": "Ship Pro V3 Output Package Schema",
-  "description": "AI Coding era work package structure for Ship Pro V3. Generated from Solution Pro final_result input.",
-  "type": "object",
-  "required": ["schema_version", "meta", "project_context", "work_packages", "dependency_graph", "summary"],
-  "additionalProperties": false,
-  "properties": {
-    "schema_version": {
-      "type": "string",
-      "const": "3.0.0",
-      "description": "Schema version identifier"
-    },
-    "meta": {
-      "type": "object",
-      "description": "Project metadata and generation info",
-      "required": ["package_id", "generated_at", "generator", "source_session_id"],
-      "additionalProperties": false,
+  "$defs": {
+    "AcceptanceTest": {
       "properties": {
-        "package_id": {
-          "type": "string",
-          "description": "Unique package identifier (e.g. SP-001)",
-          "pattern": "^SP-[0-9]+$"
+        "command": {
+          "title": "Command",
+          "type": "string"
         },
-        "project_name": {
-          "type": "string",
-          "description": "Human-readable project name"
+        "expected_exit_code": {
+          "default": 0,
+          "title": "Expected Exit Code",
+          "type": "integer"
         },
-        "generated_at": {
-          "type": "string",
-          "format": "date-time",
-          "description": "ISO 8601 generation timestamp"
+        "expected_output_contains": {
+          "default": "",
+          "title": "Expected Output Contains",
+          "type": "string"
         },
-        "generator": {
-          "type": "object",
-          "description": "Generator agent info",
-          "required": ["agent", "model", "version"],
-          "properties": {
-            "agent": { "type": "string", "const": "ship-pro" },
-            "model": { "type": "string" },
-            "version": { "type": "string" }
-          }
-        },
-        "source_session_id": {
-          "type": "string",
-          "description": "Source Solution Pro session ID"
-        },
-        "input_format": {
-          "type": "string",
-          "enum": ["A_final_solution", "B_flat_domain", "C_pipeline_summary", "D_minimal"],
-          "description": "Detected input format variant"
-        },
-        "tags": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Optional project tags"
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
         }
-      }
+      },
+      "required": [
+        "command"
+      ],
+      "title": "AcceptanceTest",
+      "type": "object"
     },
-    "project_context": {
-      "type": "object",
-      "description": "Extracted project context from the solution",
-      "required": ["problem_statement", "solution_overview"],
-      "additionalProperties": false,
+    "Architecture": {
       "properties": {
-        "problem_statement": {
-          "type": "string",
-          "description": "Core problem being solved"
+        "style": {
+          "default": "",
+          "title": "Style",
+          "type": "string"
         },
-        "solution_overview": {
-          "type": "string",
-          "description": "High-level solution description"
+        "components": {
+          "items": {
+            "$ref": "#/$defs/ArchitectureComponent"
+          },
+          "title": "Components",
+          "type": "array"
         },
-        "core_value": {
-          "type": "string",
-          "description": "Core value proposition"
-        },
-        "architecture": {
-          "type": "object",
-          "description": "Architecture decisions extracted from solution",
-          "properties": {
-            "style": {
-              "type": "string",
-              "description": "Architecture style (e.g. microservices, monolith, serverless)"
-            },
-            "components": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": ["name"],
-                "properties": {
-                  "name": { "type": "string" },
-                  "type": { "type": "string" },
-                  "technology": { "type": "string" },
-                  "description": { "type": "string" }
-                }
-              }
-            },
-            "layers": {
-              "type": "array",
-              "items": { "type": "string" }
-            }
-          }
-        },
-        "requirements_coverage": {
-          "type": "object",
-          "description": "Requirements coverage summary",
-          "properties": {
-            "total": { "type": "integer" },
-            "covered": { "type": "integer" },
-            "coverage_rate": { "type": "number", "minimum": 0, "maximum": 1 },
-            "items": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": ["id"],
-                "properties": {
-                  "id": { "type": "string" },
-                  "title": { "type": "string" },
-                  "status": { "type": "string", "enum": ["covered", "partial", "gap"] }
-                }
-              }
-            }
-          }
-        },
-        "constraints": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Project constraints extracted from solution"
-        },
-        "known_gaps": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Known gaps or limitations"
+        "layers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Layers",
+          "type": "array"
         }
-      }
+      },
+      "title": "Architecture",
+      "type": "object"
     },
-    "work_packages": {
-      "type": "array",
-      "description": "AI Coding era work packages",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "required": ["id", "title", "objective", "budget", "complexity", "priority", "outputs", "acceptance_criteria"],
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Work package identifier (e.g. WP-001)",
-            "pattern": "^WP-[0-9]+$"
-          },
-          "title": {
-            "type": "string",
-            "description": "Short descriptive title",
-            "maxLength": 120
-          },
-          "objective": {
-            "type": "string",
-            "description": "Clear objective statement for the coding agent"
-          },
-          "budget": {
-            "type": "object",
-            "description": "Resource budget for execution",
-            "required": ["tokens", "time_minutes", "max_retries"],
-            "additionalProperties": false,
-            "properties": {
-              "tokens": {
-                "type": "integer",
-                "description": "Token budget for this WP",
-                "minimum": 1000
-              },
-              "time_minutes": {
-                "type": "integer",
-                "description": "Time budget in minutes",
-                "minimum": 1
-              },
-              "max_retries": {
-                "type": "integer",
-                "description": "Maximum retry attempts on failure",
-                "minimum": 0,
-                "maximum": 10
-              }
-            }
-          },
-          "complexity": {
-            "type": "string",
-            "enum": ["trivial", "low", "medium", "high", "critical"],
-            "description": "Estimated complexity level"
-          },
-          "model_tier": {
-            "type": "string",
-            "description": "Recommended model tier for execution",
-            "enum": ["claude-opus", "claude-sonnet", "claude-haiku", "gpt-4o", "gpt-4o-mini", "qwen-max", "qwen-plus", "auto"]
-          },
-          "dependencies": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "pattern": "^WP-[0-9]+$"
-            },
-            "description": "IDs of WPs that must complete before this one",
-            "uniqueItems": true
-          },
-          "priority": {
-            "type": "string",
-            "enum": ["critical", "high", "medium", "low"],
-            "description": "Execution priority"
-          },
-          "context_files": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "File paths or globs the coding agent needs as context"
-          },
-          "outputs": {
-            "type": "array",
-            "description": "Expected output artifacts",
-            "minItems": 1,
-            "items": {
-              "type": "object",
-              "required": ["type", "path"],
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "enum": ["file", "directory", "api_endpoint", "database_migration", "config", "test", "documentation"]
-                },
-                "path": {
-                  "type": "string",
-                  "description": "Expected output path or identifier"
-                },
-                "description": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "acceptance_criteria": {
-            "type": "array",
-            "description": "Human-readable acceptance criteria",
-            "minItems": 1,
-            "items": { "type": "string" }
-          },
-          "acceptance_tests": {
-            "type": "array",
-            "description": "Automated test commands or scripts to verify acceptance",
-            "items": {
-              "type": "object",
-              "required": ["command"],
-              "properties": {
-                "command": {
-                  "type": "string",
-                  "description": "Shell command to run the test"
-                },
-                "expected_exit_code": {
-                  "type": "integer",
-                  "default": 0
-                },
-                "expected_output_contains": {
-                  "type": "string",
-                  "description": "String that must appear in stdout"
-                },
-                "description": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "retry_policy": {
-            "type": "object",
-            "description": "Retry behavior on failure",
-            "properties": {
-              "on_failure": {
-                "type": "string",
-                "enum": ["abort", "retry", "skip", "fallback"],
-                "default": "abort"
-              },
-              "fallback_wp": {
-                "type": "string",
-                "pattern": "^WP-[0-9]+$",
-                "description": "Fallback WP ID if on_failure=fallback"
-              }
-            }
-          },
-          "requires_human_approval": {
-            "type": "boolean",
-            "default": false,
-            "description": "Whether this WP requires human approval before execution"
-          },
-          "tags": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Categorization tags"
-          }
+    "ArchitectureComponent": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "default": "",
+          "title": "Type",
+          "type": "string"
+        },
+        "technology": {
+          "default": "",
+          "title": "Technology",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
         }
-      }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ArchitectureComponent",
+      "type": "object"
     },
-    "dependency_graph": {
-      "type": "object",
-      "description": "Topological execution order and dependency visualization",
-      "required": ["execution_order", "parallel_groups"],
-      "additionalProperties": false,
+    "Budget": {
+      "properties": {
+        "tokens": {
+          "minimum": 1000,
+          "title": "Tokens",
+          "type": "integer"
+        },
+        "time_minutes": {
+          "minimum": 1,
+          "title": "Time Minutes",
+          "type": "integer"
+        },
+        "max_retries": {
+          "default": 3,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "tokens",
+        "time_minutes"
+      ],
+      "title": "Budget",
+      "type": "object"
+    },
+    "ComplexityDistribution": {
+      "properties": {
+        "trivial": {
+          "default": 0,
+          "title": "Trivial",
+          "type": "integer"
+        },
+        "low": {
+          "default": 0,
+          "title": "Low",
+          "type": "integer"
+        },
+        "medium": {
+          "default": 0,
+          "title": "Medium",
+          "type": "integer"
+        },
+        "high": {
+          "default": 0,
+          "title": "High",
+          "type": "integer"
+        },
+        "critical": {
+          "default": 0,
+          "title": "Critical",
+          "type": "integer"
+        }
+      },
+      "title": "ComplexityDistribution",
+      "type": "object"
+    },
+    "DependencyEdge": {
+      "properties": {
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        },
+        "type": {
+          "default": "hard",
+          "enum": [
+            "hard",
+            "soft"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "title": "DependencyEdge",
+      "type": "object"
+    },
+    "DependencyGraph": {
       "properties": {
         "execution_order": {
-          "type": "array",
-          "description": "Topologically sorted WP IDs",
           "items": {
-            "type": "string",
-            "pattern": "^WP-[0-9]+$"
+            "type": "string"
           },
-          "uniqueItems": true
+          "title": "Execution Order",
+          "type": "array"
         },
         "parallel_groups": {
-          "type": "array",
-          "description": "Groups of WPs that can execute in parallel (each group is a phase)",
           "items": {
-            "type": "array",
             "items": {
-              "type": "string",
-              "pattern": "^WP-[0-9]+$"
+              "type": "string"
             },
-            "uniqueItems": true
-          }
+            "type": "array"
+          },
+          "title": "Parallel Groups",
+          "type": "array"
         },
         "critical_path": {
-          "type": "array",
-          "description": "WP IDs on the critical path (longest chain)",
           "items": {
-            "type": "string",
-            "pattern": "^WP-[0-9]+$"
-          }
+            "type": "string"
+          },
+          "title": "Critical Path",
+          "type": "array"
         },
         "edges": {
-          "type": "array",
-          "description": "Dependency edges for visualization",
           "items": {
-            "type": "object",
-            "required": ["from", "to"],
-            "properties": {
-              "from": { "type": "string", "pattern": "^WP-[0-9]+$" },
-              "to": { "type": "string", "pattern": "^WP-[0-9]+$" },
-              "type": { "type": "string", "enum": ["hard", "soft"] }
-            }
-          }
+            "$ref": "#/$defs/DependencyEdge"
+          },
+          "title": "Edges",
+          "type": "array"
         }
-      }
+      },
+      "required": [
+        "execution_order",
+        "parallel_groups"
+      ],
+      "title": "DependencyGraph",
+      "type": "object"
     },
-    "risk_register": {
-      "type": "array",
-      "description": "Extracted risks with mitigation strategies",
-      "items": {
-        "type": "object",
-        "required": ["id", "title", "severity", "likelihood"],
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^RISK-[0-9]+$"
-          },
-          "title": { "type": "string" },
-          "description": { "type": "string" },
-          "severity": {
-            "type": "string",
-            "enum": ["critical", "high", "medium", "low"]
-          },
-          "likelihood": {
-            "type": "string",
-            "enum": ["certain", "likely", "possible", "unlikely", "rare"]
-          },
-          "mitigation": {
-            "type": "string",
-            "description": "Mitigation strategy"
-          },
-          "affected_wps": {
-            "type": "array",
-            "items": { "type": "string", "pattern": "^WP-[0-9]+$" },
-            "description": "WPs affected by this risk"
-          }
+    "Generator": {
+      "properties": {
+        "agent": {
+          "const": "ship-pro",
+          "default": "ship-pro",
+          "title": "Agent",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
         }
-      }
+      },
+      "required": [
+        "model",
+        "version"
+      ],
+      "title": "Generator",
+      "type": "object"
     },
-    "summary": {
-      "type": "object",
-      "description": "Human-readable summary of the ship package",
-      "required": ["total_wps", "estimated_effort"],
-      "additionalProperties": false,
+    "Layer1Structural": {
+      "properties": {
+        "score": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        },
+        "checks_passed": {
+          "default": 0,
+          "title": "Checks Passed",
+          "type": "integer"
+        },
+        "checks_total": {
+          "default": 0,
+          "title": "Checks Total",
+          "type": "integer"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/$defs/QualityIssue"
+          },
+          "title": "Issues",
+          "type": "array"
+        }
+      },
+      "title": "Layer1Structural",
+      "type": "object"
+    },
+    "Layer2Semantic": {
+      "properties": {
+        "score": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        },
+        "coverage_assessment": {
+          "default": "",
+          "title": "Coverage Assessment",
+          "type": "string"
+        },
+        "coherence_assessment": {
+          "default": "",
+          "title": "Coherence Assessment",
+          "type": "string"
+        },
+        "feasibility_assessment": {
+          "default": "",
+          "title": "Feasibility Assessment",
+          "type": "string"
+        }
+      },
+      "title": "Layer2Semantic",
+      "type": "object"
+    },
+    "Layer3Actionable": {
+      "properties": {
+        "score": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        },
+        "clarity_score": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Clarity Score",
+          "type": "number"
+        },
+        "testability_score": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Testability Score",
+          "type": "number"
+        },
+        "dependency_completeness": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Dependency Completeness",
+          "type": "number"
+        },
+        "blockers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Blockers",
+          "type": "array"
+        }
+      },
+      "title": "Layer3Actionable",
+      "type": "object"
+    },
+    "OutputArtifact": {
+      "properties": {
+        "type": {
+          "enum": [
+            "file",
+            "directory",
+            "api_endpoint",
+            "database_migration",
+            "config",
+            "test",
+            "documentation"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "OutputArtifact",
+      "type": "object"
+    },
+    "PackageMeta": {
+      "properties": {
+        "package_id": {
+          "description": "Unique package identifier (e.g. SP-001)",
+          "pattern": "^SP-[0-9]+$",
+          "title": "Package Id",
+          "type": "string"
+        },
+        "project_name": {
+          "default": "",
+          "title": "Project Name",
+          "type": "string"
+        },
+        "generated_at": {
+          "description": "ISO 8601 generation timestamp",
+          "title": "Generated At",
+          "type": "string"
+        },
+        "generator": {
+          "$ref": "#/$defs/Generator"
+        },
+        "source_session_id": {
+          "title": "Source Session Id",
+          "type": "string"
+        },
+        "input_format": {
+          "default": "A_final_solution",
+          "enum": [
+            "A_final_solution",
+            "B_flat_domain",
+            "C_pipeline_summary",
+            "D_minimal"
+          ],
+          "title": "Input Format",
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "package_id",
+        "generated_at",
+        "generator",
+        "source_session_id"
+      ],
+      "title": "PackageMeta",
+      "type": "object"
+    },
+    "PackageSummary": {
       "properties": {
         "total_wps": {
-          "type": "integer",
-          "description": "Total number of work packages"
+          "title": "Total Wps",
+          "type": "integer"
         },
         "estimated_effort": {
-          "type": "string",
-          "description": "Human-readable effort estimate (e.g. '2-3 days', '1 week')"
+          "title": "Estimated Effort",
+          "type": "string"
         },
         "total_token_budget": {
-          "type": "integer",
-          "description": "Sum of all WP token budgets"
+          "default": 0,
+          "title": "Total Token Budget",
+          "type": "integer"
         },
         "total_time_minutes": {
-          "type": "integer",
-          "description": "Sum of all WP time budgets (sequential estimate)"
+          "default": 0,
+          "title": "Total Time Minutes",
+          "type": "integer"
         },
         "parallel_time_minutes": {
-          "type": "integer",
-          "description": "Estimated time with maximum parallelism"
+          "default": 0,
+          "title": "Parallel Time Minutes",
+          "type": "integer"
         },
         "complexity_distribution": {
-          "type": "object",
-          "properties": {
-            "trivial": { "type": "integer" },
-            "low": { "type": "integer" },
-            "medium": { "type": "integer" },
-            "high": { "type": "integer" },
-            "critical": { "type": "integer" }
-          }
+          "$ref": "#/$defs/ComplexityDistribution"
         },
         "narrative": {
-          "type": "string",
-          "description": "Multi-paragraph human-readable narrative summary"
+          "default": "",
+          "title": "Narrative",
+          "type": "string"
         },
         "immediate_next_steps": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Recommended immediate next steps"
+          "items": {
+            "type": "string"
+          },
+          "title": "Immediate Next Steps",
+          "type": "array"
         }
-      }
+      },
+      "required": [
+        "total_wps",
+        "estimated_effort"
+      ],
+      "title": "PackageSummary",
+      "type": "object"
     },
-    "quality_report": {
-      "type": "object",
-      "description": "Three-layer quality assessment results",
-      "additionalProperties": false,
+    "ProjectContext": {
+      "properties": {
+        "problem_statement": {
+          "title": "Problem Statement",
+          "type": "string"
+        },
+        "solution_overview": {
+          "title": "Solution Overview",
+          "type": "string"
+        },
+        "core_value": {
+          "default": "",
+          "title": "Core Value",
+          "type": "string"
+        },
+        "architecture": {
+          "$ref": "#/$defs/Architecture"
+        },
+        "requirements_coverage": {
+          "$ref": "#/$defs/RequirementsCoverage"
+        },
+        "constraints": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Constraints",
+          "type": "array"
+        },
+        "known_gaps": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Known Gaps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "problem_statement",
+        "solution_overview"
+      ],
+      "title": "ProjectContext",
+      "type": "object"
+    },
+    "QualityIssue": {
+      "properties": {
+        "check": {
+          "default": "",
+          "title": "Check",
+          "type": "string"
+        },
+        "status": {
+          "default": "pass",
+          "enum": [
+            "pass",
+            "warn",
+            "fail"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "message": {
+          "default": "",
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "title": "QualityIssue",
+      "type": "object"
+    },
+    "QualityReport": {
       "properties": {
         "layer1_structural": {
-          "type": "object",
-          "description": "Structural completeness checks",
-          "properties": {
-            "score": { "type": "number", "minimum": 0, "maximum": 1 },
-            "checks_passed": { "type": "integer" },
-            "checks_total": { "type": "integer" },
-            "issues": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "check": { "type": "string" },
-                  "status": { "type": "string", "enum": ["pass", "warn", "fail"] },
-                  "message": { "type": "string" }
-                }
-              }
-            }
-          }
+          "$ref": "#/$defs/Layer1Structural"
         },
         "layer2_semantic": {
-          "type": "object",
-          "description": "Semantic quality assessment",
-          "properties": {
-            "score": { "type": "number", "minimum": 0, "maximum": 1 },
-            "coverage_assessment": { "type": "string" },
-            "coherence_assessment": { "type": "string" },
-            "feasibility_assessment": { "type": "string" }
-          }
+          "$ref": "#/$defs/Layer2Semantic"
         },
         "layer3_actionable": {
-          "type": "object",
-          "description": "Actionability assessment - can coding agents execute this?",
-          "properties": {
-            "score": { "type": "number", "minimum": 0, "maximum": 1 },
-            "clarity_score": { "type": "number", "minimum": 0, "maximum": 1 },
-            "testability_score": { "type": "number", "minimum": 0, "maximum": 1 },
-            "dependency_completeness": { "type": "number", "minimum": 0, "maximum": 1 },
-            "blockers": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Items that block execution"
-            }
-          }
+          "$ref": "#/$defs/Layer3Actionable"
         },
         "overall_score": {
-          "type": "number",
-          "minimum": 0,
+          "default": 0.0,
           "maximum": 1,
-          "description": "Weighted overall quality score"
+          "minimum": 0,
+          "title": "Overall Score",
+          "type": "number"
         },
         "recommendations": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Quality improvement recommendations"
+          "items": {
+            "type": "string"
+          },
+          "title": "Recommendations",
+          "type": "array"
         }
-      }
+      },
+      "title": "QualityReport",
+      "type": "object"
+    },
+    "RequirementCoverageItem": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "status": {
+          "default": "covered",
+          "enum": [
+            "covered",
+            "partial",
+            "gap"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "RequirementCoverageItem",
+      "type": "object"
+    },
+    "RequirementsCoverage": {
+      "properties": {
+        "total": {
+          "default": 0,
+          "title": "Total",
+          "type": "integer"
+        },
+        "covered": {
+          "default": 0,
+          "title": "Covered",
+          "type": "integer"
+        },
+        "coverage_rate": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Coverage Rate",
+          "type": "number"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/RequirementCoverageItem"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "title": "RequirementsCoverage",
+      "type": "object"
+    },
+    "RetryPolicy": {
+      "properties": {
+        "on_failure": {
+          "default": "abort",
+          "enum": [
+            "abort",
+            "retry",
+            "skip",
+            "fallback"
+          ],
+          "title": "On Failure",
+          "type": "string"
+        },
+        "fallback_wp": {
+          "default": "",
+          "title": "Fallback Wp",
+          "type": "string"
+        }
+      },
+      "title": "RetryPolicy",
+      "type": "object"
+    },
+    "RiskRegisterItem": {
+      "properties": {
+        "id": {
+          "pattern": "^RISK-[0-9]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "likelihood": {
+          "enum": [
+            "certain",
+            "likely",
+            "possible",
+            "unlikely",
+            "rare"
+          ],
+          "title": "Likelihood",
+          "type": "string"
+        },
+        "mitigation": {
+          "default": "",
+          "title": "Mitigation",
+          "type": "string"
+        },
+        "affected_wps": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Wps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "severity",
+        "likelihood"
+      ],
+      "title": "RiskRegisterItem",
+      "type": "object"
+    },
+    "WorkPackage": {
+      "properties": {
+        "id": {
+          "pattern": "^WP-[0-9]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 120,
+          "title": "Title",
+          "type": "string"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "string"
+        },
+        "budget": {
+          "$ref": "#/$defs/Budget"
+        },
+        "complexity": {
+          "enum": [
+            "trivial",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Complexity",
+          "type": "string"
+        },
+        "model_tier": {
+          "default": "auto",
+          "enum": [
+            "claude-opus",
+            "claude-sonnet",
+            "claude-haiku",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "qwen-max",
+            "qwen-plus",
+            "auto"
+          ],
+          "title": "Model Tier",
+          "type": "string"
+        },
+        "dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependencies",
+          "type": "array"
+        },
+        "priority": {
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Priority",
+          "type": "string"
+        },
+        "context_files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Context Files",
+          "type": "array"
+        },
+        "outputs": {
+          "items": {
+            "$ref": "#/$defs/OutputArtifact"
+          },
+          "minItems": 1,
+          "title": "Outputs",
+          "type": "array"
+        },
+        "acceptance_criteria": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Acceptance Criteria",
+          "type": "array"
+        },
+        "acceptance_tests": {
+          "items": {
+            "$ref": "#/$defs/AcceptanceTest"
+          },
+          "title": "Acceptance Tests",
+          "type": "array"
+        },
+        "retry_policy": {
+          "$ref": "#/$defs/RetryPolicy"
+        },
+        "requires_human_approval": {
+          "default": false,
+          "title": "Requires Human Approval",
+          "type": "boolean"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "objective",
+        "budget",
+        "complexity",
+        "priority",
+        "outputs",
+        "acceptance_criteria"
+      ],
+      "title": "WorkPackage",
+      "type": "object"
     }
-  }
+  },
+  "additionalProperties": false,
+  "description": "Ship Pro V3 最终交付物契约。\n\nPydantic 模型是唯一真相源。JSON Schema 由 ShipPackage.model_json_schema() 生成。\n所有 Prompt 中的输出格式和 Gate 中的字段检查都应从此模型派生。",
+  "properties": {
+    "schema_version": {
+      "const": "3.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "meta": {
+      "$ref": "#/$defs/PackageMeta"
+    },
+    "project_context": {
+      "$ref": "#/$defs/ProjectContext"
+    },
+    "work_packages": {
+      "items": {
+        "$ref": "#/$defs/WorkPackage"
+      },
+      "minItems": 1,
+      "title": "Work Packages",
+      "type": "array"
+    },
+    "dependency_graph": {
+      "$ref": "#/$defs/DependencyGraph"
+    },
+    "risk_register": {
+      "items": {
+        "$ref": "#/$defs/RiskRegisterItem"
+      },
+      "title": "Risk Register",
+      "type": "array"
+    },
+    "summary": {
+      "$ref": "#/$defs/PackageSummary"
+    },
+    "quality_report": {
+      "$ref": "#/$defs/QualityReport"
+    }
+  },
+  "required": [
+    "schema_version",
+    "meta",
+    "project_context",
+    "work_packages",
+    "dependency_graph",
+    "summary"
+  ],
+  "title": "ShipPackage",
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://deepflow.local/schemas/ship_package_v3.schema.json"
 }

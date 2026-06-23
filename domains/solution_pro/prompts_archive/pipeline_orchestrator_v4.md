@@ -142,7 +142,7 @@ write {base_path}/.stage_progress.json:
 当 `stage == "planning"` 完成并确认文件存在后：
 ```bash
 cd /Users/allen/.openclaw/workspace/.deepflow
-python3 domains/solution/control_contract.py {base_path}
+python3 domains/solution_pro/control_contract.py {base_path}
 ```
 然后重新读取 `{plan_path}` 和 `{base_path}/tasks.json`，继续 Phase 3。
 

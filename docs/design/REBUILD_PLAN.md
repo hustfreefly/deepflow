@@ -77,20 +77,20 @@
 
 | 文件 | 改动次数 | 数据源 |
 |:---|:---|:---|
-| `domains/solution/blackboard.py` | 2x | 今天 session (Step 2) |
-| `domains/solution/task_builder.py` | 12x | 今天 session (Step 3) + 6/20 |
-| `domains/solution/completion_handler.py` | 1x | 今天 session (Step 4) |
-| `domains/solution/prompts/summarizer.md` | 1x | 今天 session (Step 1) |
-| `domains/solution/__init__.py` | 1x | 6/20 session (a6112077) |
-| `domains/solution/SKILL.md` | 7x | 6/20 session (5e67a492) |
-| `domains/solution/frozen_spec.py` | 3x | 6/20 session (5e67a492) |
+| `domains/solution_pro/blackboard.py` | 2x | 今天 session (Step 2) |
+| `domains/solution_pro/task_builder.py` | 12x | 今天 session (Step 3) + 6/20 |
+| `domains/solution_pro/completion_handler.py` | 1x | 今天 session (Step 4) |
+| `domains/solution_pro/prompts/summarizer.md` | 1x | 今天 session (Step 1) |
+| `domains/solution_pro/__init__.py` | 1x | 6/20 session (a6112077) |
+| `domains/solution_pro/SKILL.md` | 7x | 6/20 session (5e67a492) |
+| `domains/solution_pro/frozen_spec.py` | 3x | 6/20 session (5e67a492) |
 
 **3.2 新建文件 (2 个)**:
 
 | 文件 | 数据源 |
 |:---|:---|
-| `domains/solution/normalize.py` | 6/20 session (5e67a492) |
-| `domains/solution/orchestrator_agent.py` | 6/20 session (5e67a492) |
+| `domains/solution_pro/normalize.py` | 6/20 session (5e67a492) |
+| `domains/solution_pro/orchestrator_agent.py` | 6/20 session (5e67a492) |
 
 **3.3 其他改动 (17 个)**:
 - prompts/pipeline_orchestrator.md, planner.md
@@ -190,7 +190,7 @@
 **预计时间**: 30 分钟
 
 - tests/golden/verify_golden_case.py
-- domains/solution/eval/test_v6_improvements.py
+- domains/solution_pro/eval/test_v6_improvements.py
 - 各种契约文件 (cage/*.yaml)
 - docs/design/ 下的设计文档
 

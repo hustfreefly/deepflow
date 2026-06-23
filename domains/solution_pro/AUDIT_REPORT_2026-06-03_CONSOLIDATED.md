@@ -1,7 +1,7 @@
 # Solution Pro 多专家团队审计报告（综合版）
 
 > **审计日期**: 2026-06-03  
-> **审计范围**: `domains/solution/` 全部模块（12 个 .py 文件 + 14 个 .md prompt 模板）  
+> **审计范围**: `domains/solution_pro/` 全部模块（12 个 .py 文件 + 14 个 .md prompt 模板）  
 > **审计方法**: 4 位专家并行独立审计，代码证据驱动  
 > **参考**: AUDIT_REPORT_2026-06-02.md（不重复已发现问题）
 

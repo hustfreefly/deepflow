@@ -1,6 +1,38 @@
 # DeepFlow Changelog
 
-> 最后更新: 2026-06-21
+> 最后更新: 2026-06-23
+
+---
+
+## [0.5.0] - 2026-06-23
+
+### 🚀 Phase 0-3 架构加固
+
+#### Phase 0: 止血
+- 128 Schema 错 → 0
+- contracts/generator.py CI 一致性检查
+
+#### Phase 1: Pydantic 真相源 (Single Source of Truth)
+- `contracts/architect.py` → ArchitectOutput Pydantic 模型
+- `contracts/packager.py` → ShipPackage Pydantic 模型
+- `contracts/generator.py` → 自动从模型生成 JSON Schema + Prompt 段落 + Gate 清单
+- `gate_architect()` + `gate_packager()` → Pydantic 验证替代手写 `.get()`
+- **效果**: 改一处 Pydantic 模型 → Schema/Gate/Prompt 自动对齐
+
+#### Phase 2: 执行引擎化
+- `scripts/orchestrator.py` → **DEPRECATED**（功能合并到 run_pipeline.py）
+- `scripts/run_pipeline.py` → **唯一执行引擎** (prepare/task/gate/validate/status/update-status)
+- `SKILL.md` V3.2 更新
+
+#### Phase 3: 状态单一化
+- `pipeline_state.json` → 唯一状态文件（基于 Pydantic PipelineState 模型）
+- `pipeline_status.json` → **已删除**
+
+### 📚 文档更新
+- README.md → 四域架构，Ship Pro 加入
+- SKILL.md → V0.5.0，四域架构
+- docs/ARCHITECTURE.md → V2.0，Ship Pro 章节 + Phase 0-3 记录
+- wiki/deepflow_overview.md → 更新架构图 + 版本说明
 
 ---
 
@@ -102,7 +134,8 @@
 
 ## 版本说明
 
-- **[Unreleased]**：6/11 之后的所有改动（尚未发布到 GitHub）
+- **[0.5.0]**：2026-06-23 — Phase 0-3 架构加固 + Ship Pro V3.2
+- **[Unreleased]**：6/11 到 6/22 之间的改动
 - **[1.0.0]**：6/11 GitHub 基线版本
 
 ---

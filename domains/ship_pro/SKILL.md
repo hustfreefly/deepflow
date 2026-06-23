@@ -1,8 +1,9 @@
 # Ship Pro V3 - Agent 执行指南
 
-> **版本**: V3.0 | **最后更新**: 2026-06-15  
-> **架构**: LLM 预扫描 → 确定性编译 → LLM 质量门禁  
-> **核心理念**: LLM 理解领域，编译器消费理解结果，零硬编码
+> **版本**: V3.2 | **最后更新**: 2026-06-23  
+> **架构**: Pydantic 契约笼子 → LLM Agent → 质量门禁  
+> **核心理念**: Pydantic 模型 = 唯一真相源，改一处三处自动对齐  
+> **执行引擎**: `run_pipeline.py` CLI（唯一入口）
 
 ---
 
@@ -35,7 +36,57 @@ Solution Pro 管线完成时，`completion_handler.py` 会自动编译 Ship Pack
 
 ---
 
-## 🚀 主 Agent 执行步骤（V2 三段式）
+## 🚀 主 Agent 执行流程（V3 — 唯一入口）
+
+> **铁律**: 主 Agent 只能通过 `run_pipeline.py` CLI 驱动管线，禁止手动 spawn。
+
+### CLI 命令一览
+
+```bash
+# 1. 准备管线
+python3 scripts/run_pipeline.py prepare <input_path> <output_dir>
+
+# 2. 获取某个 Agent 的任务 prompt
+python3 scripts/run_pipeline.py task <agent_name> <output_dir>
+
+# 3. 运行质量门禁
+python3 scripts/run_pipeline.py gate <agent_name> <output_dir>
+
+# 4. 更新状态（每个 Agent 完成后必须调用）
+python3 scripts/run_pipeline.py update-status <output_dir> <agent_name> <PASS|CONDITIONAL|FAIL> [feedback]
+
+# 5. 查看管线状态
+python3 scripts/run_pipeline.py status <output_dir>
+
+# 6. 最终验证
+python3 scripts/run_pipeline.py validate <output_dir>
+```
+
+### 执行顺序
+
+```
+prepare → [architect: task→spawn→gate→update-status]
+        → [decomposer: task→spawn→gate→update-status]
+        → [specifier: task→spawn→gate→update-status]
+        → [reviewer: task→spawn→gate→update-status]  (无 code gate，自动 PASS)
+        → [packager: task→spawn→gate→update-status]
+        → validate
+```
+
+### 状态文件
+
+管线状态统一由 `run_pipeline.py` 管理，写入 `pipeline_status.json`。
+主 Agent **禁止直接写状态文件**，必须通过 `update-status` CLI 命令。
+
+### 契约笼子
+
+输出格式由 Pydantic 模型定义（`contracts/` 目录），Gate 使用 Pydantic 验证。
+CI 检查: `python3 -m domains.ship_pro.contracts.generator --check`
+
+---
+
+<details>
+<summary>📦 V2 三段式（已废弃，保留参考）</summary>
 
 ### 架构总览
 
@@ -400,31 +451,34 @@ LLM 质量门禁 (Phase 3, V2 简化版)
   └── Harness: 验证修复有效 + 防幻觉回检
 ```
 
+</details>
+
 ---
 
 ## ⛔ 禁止
 
-- ❌ 直接修改 Frozen Blueprint 文件
-- ❌ 忽略 `readiness.blocked` 状态继续编译
+- ❌ 直接写 `pipeline_status.json`（必须用 `update-status` CLI）
+- ❌ 手动 spawn Agent（必须用 `task` + `gate` CLI）
+- ❌ 修改 Pydantic 模型不同步更新 Schema（必须跑 `generator --check`）
+- ❌ 调用已废弃的 `orchestrator.py`
 - ❌ 输出到非 blackboard 目录
-- ❌ 修改 Ship Package 的 `meta` 字段
-- ❌ 在编译器中硬编码任何领域关键词
 
 ---
 
 ## 🎯 记忆锚点
 
-> "LLM 理解领域 → 编译器消费理解 → 质量门禁兜底"
-> "预扫描失败 → 3 级降级 → 永远不会完全失败"
-> "零硬编码 → 所有领域知识来自 domain_config.json"
-> "QG 只做轻量兜底 → 2 项检查 + 闭环修复"
+> "Pydantic 是笼子，LLM 输出必须过笼子"
+> "run_pipeline.py 是唯一入口，禁止手动 spawn"
+> "改一处 Pydantic → Schema/Gate/Prompt 自动对齐"
+> "update-status 是状态更新的唯一方式"
 
 ---
 
 ## 📖 参考文档
 
-- **V2 设计文档**: 见 `domains/ship_pro/docs/ship_pro_v2_design.md`
-- **Pre-Scanner Prompt**: 见 `domains/ship_pro/prompts/ship_pre_scanner.md`
-- **Schema 契约**: 见 `domains/ship_pro/schemas/ship_package.schema.json`
+- **契约模型**: `domains/ship_pro/contracts/` (Pydantic 真相源)
+- **Schema**: `domains/ship_pro/schemas/ship_package_v3.schema.json`
+- **Gate 代码**: `domains/ship_pro/eval/gates.py` (使用 Pydantic 验证)
+- **V2 设计文档**(废弃): `domains/ship_pro/docs/ship_pro_v2_design.md`
 
-*V2.0 | 2026-06-15 | LLM 引导 + 确定性编译 + 质量门禁架构*
+*V3.2 | 2026-06-23 | Pydantic 契约笼子 + 单一执行引擎*

@@ -44,7 +44,7 @@
 ### 2.2 零影响保证（Investment 模块）
 
 ```
-所有修改限于 domains/solution/ 目录内
+所有修改限于 domains/solution_pro/ 目录内
 禁止修改: domains/investment/*, core/orchestrator_base.py（除非修复 bug）
 ```
 
@@ -72,9 +72,9 @@
 | # | 任务 | 交付物 | 验收标准 |
 |:---|:---|:---|:---|
 | 1.1 | 创建数据层契约 | `cage/data_collection_contract.yaml` | 定义输入/输出 schema、数据源列表、验证规则 |
-| 1.2 | 创建数据源配置 | `domains/solution/config/config/data_sources/solution.yaml` | 包含技术文档、行业报告、竞品分析三类数据源 |
-| 1.3 | 实现数据采集方法 | `domains/solution/orchestrator.py` 新增 `_execute_data_collection()` | 能调用搜索工具获取外部数据 |
-| 1.4 | 实现数据验证方法 | `domains/solution/orchestrator.py` 新增 `_verify_data_collection()` | 检查关键数据文件是否存在 |
+| 1.2 | 创建数据源配置 | `domains/solution_pro/config/config/data_sources/solution.yaml` | 包含技术文档、行业报告、竞品分析三类数据源 |
+| 1.3 | 实现数据采集方法 | `domains/solution_pro/orchestrator.py` 新增 `_execute_data_collection()` | 能调用搜索工具获取外部数据 |
+| 1.4 | 实现数据验证方法 | `domains/solution_pro/orchestrator.py` 新增 `_verify_data_collection()` | 检查关键数据文件是否存在 |
 | 1.5 | 修改 pipeline | `domains/solution.yaml` | 在 planning 前插入 data_collection 阶段 |
 | 1.6 | 运行契约验证 | `python3 cage/validate_solution.py` | 67/67 通过 |
 | 1.7 | 运行数据层专用验证 | `python3 cage/check_data_collection.py` | 全部通过 |
@@ -82,7 +82,7 @@
 #### 数据源设计
 
 ```yaml
-# domains/solution/config/config/data_sources/solution.yaml
+# domains/solution_pro/config/config/data_sources/solution.yaml
 data_sources:
   tech_documentation:
     - name: "mdn"
@@ -130,7 +130,7 @@ data_sources:
 | 2.1 | 新增 cost_analyst | `prompts/solution/cost_analyst.md` | 能估算基础设施成本、人力成本、时间成本 |
 | 2.2 | 新增 competitor_analyst | `prompts/solution/competitor_analyst.md` | 能分析 3-5 个竞品方案，对比优缺点 |
 | 2.3 | 修改 pipeline 配置 | `domains/solution.yaml` | research 阶段包含 5 个并行 researcher |
-| 2.4 | 更新 Orchestrator | `domains/solution/orchestrator.py` | 支持 5 个并行 worker（Semaphore 仍为 3，分两批） |
+| 2.4 | 更新 Orchestrator | `domains/solution_pro/orchestrator.py` | 支持 5 个并行 worker（Semaphore 仍为 3，分两批） |
 | 2.5 | 运行契约验证 | `python3 cage/validate_solution.py` | 67/67 通过 |
 
 #### Researcher 分工
@@ -224,7 +224,7 @@ test_cases:
 
 **验收标准**:
 - [ ] `cage/validate_solution.py` 67/67 通过
-- [ ] `python3 domains/solution/check_contract.py` 通过
+- [ ] `python3 domains/solution_pro/check_contract.py` 通过
 - [ ] 运行测试：`_execute_data_collection()` 能获取外部数据
 - [ ] 数据验证：`_verify_data_collection()` 检查数据完整性
 

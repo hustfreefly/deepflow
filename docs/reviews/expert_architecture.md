@@ -24,7 +24,7 @@
 
 评审代码后发现，**当前代码库中存在两套并行的执行路径**，其中一套天然具备进度可见性：
 
-### 路径 1：Python 确定性编排（`domains/solution/__init__.py` → `run_solution_pro()`）
+### 路径 1：Python 确定性编排（`domains/solution_pro/__init__.py` → `run_solution_pro()`）
 
 ```
 主 Agent exec
@@ -70,7 +70,7 @@ SKILL.md 中 Step 2（LLM 子 Agent 编排）是**路径 1 的退化版本**，�
 
 **不使用 LLM orchestrator 子 Agent，直接在主 Agent exec 中运行 `run_solution_pro()`**。
 
-这是现有代码已经支持的路径（`domains/solution/__init__.py` 中的 `run_solution_pro()` 函数），只需在调用方式上做两处增强：
+这是现有代码已经支持的路径（`domains/solution_pro/__init__.py` 中的 `run_solution_pro()` 函数），只需在调用方式上做两处增强：
 
 #### 1. 调用方式（主 Agent）
 
@@ -137,8 +137,8 @@ print(f"[DEEPFLOW_PROGRESS] {json.dumps(progress_msg, ensure_ascii=False)}")
 | 文件 | 修改内容 | 复杂度 |
 |------|---------|--------|
 | `core/orchestrator/pipeline_orchestrator.py` | `run_pipeline()` 中每阶段完成后输出 `[DEEPFLOW_PROGRESS]` 行 | 低（~10行） |
-| `domains/solution/SKILL.md` | 将 Step 1（Python 方式）标注为**推荐路径**，Step 2 标注为**备选** | 低（文档） |
-| `domains/solution/progress_tracker.py` | 已有模块，与 pipeline_orchestrator 集成输出 | 低（已有代码） |
+| `domains/solution_pro/SKILL.md` | 将 Step 1（Python 方式）标注为**推荐路径**，Step 2 标注为**备选** | 低（文档） |
+| `domains/solution_pro/progress_tracker.py` | 已有模块，与 pipeline_orchestrator 集成输出 | 低（已有代码） |
 
 ---
 
@@ -272,7 +272,7 @@ orchestrator sub-agent
 
 | 风险 | 严重程度 | 缓解措施 |
 |------|---------|---------|
-| `sessions_spawn` 在 exec 中不可用 | 中 | 已验证：`domains/solution/orchestrator_agent.py` 中的 `_resolve_spawn_fn()` 就是为此设计的 |
+| `sessions_spawn` 在 exec 中不可用 | 中 | 已验证：`domains/solution_pro/orchestrator_agent.py` 中的 `_resolve_spawn_fn()` 就是为此设计的 |
 | 长时间 exec 运行超时 | 低 | 设置合理的 exec timeout（3600s），PipelineOrchestrator 本身有 per-worker 超时 |
 | exec 输出被截断，进度行丢失 | 低 | 使用 `[DEEPFLOW_PROGRESS]` 标记，主 Agent 解析 stdout 时过滤 |
 | 并行阶段的进度报告顺序不确定 | 低 | 只报告阶段完成（不是 worker 粒度），阶段完成是串行的 |

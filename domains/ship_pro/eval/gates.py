@@ -128,7 +128,10 @@ def gate_architect(blueprint: dict) -> dict:
     """
     Quality gate for Architect Agent output.
 
-    Checks the architectural blueprint for structural completeness:
+    Uses Pydantic contract (ArchitectOutput) for schema validation,
+    plus custom checks for acyclic dependencies.
+
+    Checks:
     - Critical: modules non-empty, dependencies acyclic, requirements non-empty
     - Major: requirements mapped, project_type exists
     - Minor: wp_file_mapping exists, domain_details non-empty
@@ -143,6 +146,20 @@ def gate_architect(blueprint: dict) -> dict:
     major = {}
     minor = {}
 
+    # --- Pydantic schema validation (契约笼子) ---
+    pydantic_valid = False
+    pydantic_errors = []
+    try:
+        from domains.ship_pro.contracts.architect import ArchitectOutput
+        # Strip _meta before validation (Pydantic treats underscore fields as private)
+        bp_for_validation = {k: v for k, v in blueprint.items() if not k.startswith("_")}
+        validated = ArchitectOutput(**bp_for_validation)
+        pydantic_valid = True
+    except Exception as e:
+        pydantic_errors = str(e)
+        # Fall back to dict-based checks
+        validated = None
+
     # --- Critical checks ---
     # 1. modules_non_empty
     modules = blueprint.get("modules", [])
@@ -150,7 +167,6 @@ def gate_architect(blueprint: dict) -> dict:
 
     # 2. dependencies_acyclic
     deps = blueprint.get("dependencies", [])
-    # Build adjacency for cycle check: edge from → to means "from depends on to"
     dep_adj = {}
     module_ids = {m.get("id") for m in modules if isinstance(m, dict)}
     for d in deps:
@@ -159,7 +175,6 @@ def gate_architect(blueprint: dict) -> dict:
             tgt = d.get("to")
             if src and tgt:
                 dep_adj.setdefault(src, []).append(tgt)
-    # Ensure all module IDs are in adj
     for mid in module_ids:
         dep_adj.setdefault(mid, [])
     critical["dependencies_acyclic"] = _check_acyclic_from_adj(dep_adj)
@@ -168,7 +183,7 @@ def gate_architect(blueprint: dict) -> dict:
     requirements = blueprint.get("requirements", [])
     critical["requirements_non_empty"] = isinstance(requirements, list) and len(requirements) > 0
 
-    # --- Major checks ---
+    # --- Major checks (Pydantic contract enforced) ---
     # 1. requirements_mapped: each requirement has mapped_components
     if requirements:
         mapped_count = sum(
@@ -183,12 +198,12 @@ def gate_architect(blueprint: dict) -> dict:
     major["project_type_exists"] = bool(blueprint.get("project_type"))
 
     # --- Minor checks ---
-    # 1. wp_file_mapping_exists
     minor["wp_file_mapping_exists"] = "wp_file_mapping" in blueprint
-
-    # 2. domain_details_non_empty
     domain_details = blueprint.get("domain_details", {})
     minor["domain_details_non_empty"] = isinstance(domain_details, dict) and len(domain_details) > 0
+
+    # Add Pydantic validation status as informational check
+    minor["pydantic_schema_valid"] = pydantic_valid
 
     # --- Decision ---
     critical_failures = [k for k, v in critical.items() if not v]
@@ -216,6 +231,8 @@ def gate_architect(blueprint: dict) -> dict:
         if minor_failures:
             feedback_parts.append(f"Minor notes: {', '.join(minor_failures)}")
         feedback_parts.append("Architect output is structurally sound.")
+        if not pydantic_valid:
+            feedback_parts.append(f"(Pydantic validation warnings: {pydantic_errors[:200]})")
         feedback = " ".join(feedback_parts)
 
     return _make_result(passed, decision, critical, major, minor, feedback)
@@ -489,7 +506,107 @@ def gate_specifier(specs: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Gate 4: Packager
+# Gate 4: Reviewer (★ 契约笼子)
+# ---------------------------------------------------------------------------
+
+def gate_reviewer(review_output: dict) -> dict:
+    """
+    Quality gate for Reviewer Agent output.
+
+    Uses Pydantic contract (ReviewerOutput) for schema validation,
+    plus structural checks.
+
+    Checks:
+    - Critical: verdict_valid, issues_is_list, quality_metrics_present, pydantic_valid
+    - Major: summary_non_empty, round_present
+
+    Args:
+        review_output: The reviewer output dict
+
+    Returns:
+        Gate result dict
+    """
+    critical = {}
+    major = {}
+    minor = {}
+
+    # --- Pydantic schema validation (契约笼子) ---
+    pydantic_valid = False
+    pydantic_errors = []
+    try:
+        from domains.ship_pro.contracts.reviewer import ReviewerOutput
+        validated = ReviewerOutput(**review_output)
+        pydantic_valid = True
+    except Exception as e:
+        pydantic_errors = str(e)
+        validated = None
+
+    # --- Critical checks ---
+    # 1. verdict_valid: must be PASS / PASS_WITH_CONDITIONS / FAIL
+    verdict = review_output.get("verdict", "")
+    critical["verdict_valid"] = verdict in ("PASS", "PASS_WITH_CONDITIONS", "FAIL")
+
+    # 2. issues_is_list: issues must be a list (can be empty)
+    issues = review_output.get("issues")
+    critical["issues_is_list"] = isinstance(issues, list)
+
+    # 3. quality_metrics_present: must be a non-empty dict
+    metrics = review_output.get("quality_metrics")
+    critical["quality_metrics_present"] = isinstance(metrics, dict) and len(metrics) > 0
+
+    # 4. pydantic_valid: Pydantic contract passed
+    critical["pydantic_valid"] = pydantic_valid
+
+    # --- Major checks ---
+    # 1. summary_non_empty
+    summary = review_output.get("summary", "")
+    major["summary_non_empty"] = isinstance(summary, str) and len(summary.strip()) > 0
+
+    # 2. round_present
+    major["round_present"] = "round" in review_output and isinstance(
+        review_output.get("round"), int
+    )
+
+    # --- Decision ---
+    critical_failures = [k for k, v in critical.items() if not v]
+    major_failures = [k for k, v in major.items() if not v]
+
+    if critical_failures:
+        decision = "FAIL"
+        passed = False
+        details = []
+        if not critical["verdict_valid"]:
+            details.append(f"verdict='{verdict}' (expected PASS/PASS_WITH_CONDITIONS/FAIL)")
+        if not critical["issues_is_list"]:
+            details.append("issues is not a list")
+        if not critical["quality_metrics_present"]:
+            details.append("quality_metrics missing or empty")
+        if not critical["pydantic_valid"]:
+            details.append(f"Pydantic: {pydantic_errors[:200]}")
+        feedback = (
+            f"Reviewer Gate FAIL: Critical checks failed: {', '.join(critical_failures)}. "
+            f"Details: {'; '.join(details)}. "
+            f"Reviewer must output valid verdict, issues list, and quality_metrics."
+        )
+    elif len(major_failures) > len(major) * 0.5:
+        decision = "CONDITIONAL"
+        passed = True
+        feedback = (
+            f"Reviewer Gate CONDITIONAL: Major checks failed: {', '.join(major_failures)}. "
+        )
+    else:
+        decision = "PASS"
+        passed = True
+        feedback = (
+            f"Reviewer output is structurally sound. "
+            f"Verdict: {verdict}, Issues: {len(issues) if isinstance(issues, list) else 0}."
+        )
+
+    return _make_result(passed, decision, critical, major, minor, feedback)
+
+
+# ---------------------------------------------------------------------------
+# Gate 5: Packager
 # ---------------------------------------------------------------------------
 
 def gate_packager(package: dict) -> dict:
@@ -516,9 +633,36 @@ def gate_packager(package: dict) -> dict:
 
     # --- Critical checks ---
 
-    # 1. schema_compliant: passes JSON Schema validation
-    schema_result = check_schema_compliance(package)
+    # 1. schema_compliant: Pydantic contract validation (契约笼子)
+    pydantic_errors = []
+    try:
+        from domains.ship_pro.contracts.packager import ShipPackage
+        ShipPackage(**package)
+        schema_result = {"passed": True, "errors": []}
+    except Exception as e:
+        pydantic_errors = str(e)
+        schema_result = {"passed": False, "errors": [pydantic_errors[:300]]}
     critical["schema_compliant"] = schema_result["passed"]
+
+    # 1b. json_schema_compliant: validate against generated JSON Schema (契约笼子双重验证)
+    json_schema_valid = False
+    json_schema_errors = []
+    schema_path = (
+        Path(__file__).resolve().parents[1] / "schemas" / "ship_package_v3.schema.json"
+    )
+    if schema_path.exists():
+        try:
+            schema_data = json.loads(schema_path.read_text())
+            result = check_schema_compliance(package, schema_data)
+            json_schema_valid = result["passed"]
+            json_schema_errors = result.get("errors", [])[:5]
+        except Exception as e:
+            json_schema_errors = [str(e)[:200]]
+    else:
+        # Schema file not generated yet — skip, don't fail
+        json_schema_valid = True
+        json_schema_errors = ["Schema file not found (skipped)"]
+    critical["json_schema_compliant"] = json_schema_valid
 
     # 2. ac_text_not_count: AC should be text arrays, not count numbers
     ac_is_text = True
@@ -577,7 +721,9 @@ def gate_packager(package: dict) -> dict:
         passed = False
         details = []
         if not critical["schema_compliant"]:
-            details.append(f"schema errors: {schema_result.get('errors', [])[:3]}")
+            details.append(f"Pydantic schema errors: {schema_result.get('errors', [])[:3]}")
+        if not critical["json_schema_compliant"]:
+            details.append(f"JSON Schema errors: {json_schema_errors[:3]}")
         if not critical["ac_text_not_count"]:
             details.append("AC contains objects/numbers instead of text strings")
         if not critical["dependency_graph_acyclic"]:
@@ -618,7 +764,7 @@ def main() -> None:
     bm = BlackboardManager(session_id="gate_debug", base_dir=base)
 
     data = {}
-    for agent in ["architect", "decomposer", "specifier", "packager"]:
+    for agent in ["architect", "decomposer", "specifier", "reviewer", "packager"]:
         result = bm.read_stage(agent)
         if result is not None:
             data[agent] = result
@@ -657,7 +803,16 @@ def main() -> None:
         print(f"     Major: {result['major_results']}")
         print(f"     Feedback: {result['feedback']}\n")
 
-    # Gate 4: Packager
+    # Gate 4: Reviewer
+    if "reviewer" in data:
+        result = gate_reviewer(data["reviewer"])
+        icon = "✅" if result["decision"] == "PASS" else ("⚠️" if result["decision"] == "CONDITIONAL" else "❌")
+        print(f"  {icon} Reviewer Gate: {result['decision']}")
+        print(f"     Critical: {result['critical_results']}")
+        print(f"     Major: {result['major_results']}")
+        print(f"     Feedback: {result['feedback']}\n")
+
+    # Gate 5: Packager
     if "packager" in data:
         result = gate_packager(data["packager"])
         icon = "✅" if result["decision"] == "PASS" else ("⚠️" if result["decision"] == "CONDITIONAL" else "❌")

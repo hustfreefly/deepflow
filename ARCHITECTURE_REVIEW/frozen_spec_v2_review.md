@@ -3,7 +3,7 @@
 > 评审日期：2026-06-02  
 > 更新日期：2026-06-03（frozen_spec V2.0 修复记录）
 > 评审人：架构专家（Subagent）  
-> 范围：`domains/solution/frozen_spec.py` + `domains/solution/task_builder.py` + 消费侧
+> 范围：`domains/solution_pro/frozen_spec.py` + `domains/solution_pro/task_builder.py` + 消费侧
 
 ---
 

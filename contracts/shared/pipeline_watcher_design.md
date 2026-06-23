@@ -313,7 +313,7 @@ Solution Pro watcher 检测完成
 {
   "pipeline_id": "composite_monitor",
   "watch_targets": [
-    {"config": "domains/solution/config/watcher_config.json", "base_path": "..."},
+    {"config": "domains/solution_pro/config/watcher_config.json", "base_path": "..."},
     {"config": "domains/ship_pro/config/watcher_config.json", "base_path": "..."}
   ],
   "aggregation": "independent"  // 或 "sequential"（等 A 完成后才监 B）
@@ -357,7 +357,7 @@ Solution Pro watcher 检测完成
 
 | 步骤 | 内容 |
 |:----:|------|
-| 4.1 | 删除 `domains/solution/prompts/cron_watcher.md` |
+| 4.1 | 删除 `domains/solution_pro/prompts/cron_watcher.md` |
 | 4.2 | 删除 `domains/ship_pro/prompts/cron_watcher.md` |
 | 4.3 | 更新 SKILL.md 中的 cron watcher 注册说明 |
 

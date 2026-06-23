@@ -1,7 +1,7 @@
 ## Prompt 体系视角补充
 
 > 评审日期：2026-06-01
-> 评审范围：`domains/solution/prompts/` 目录下全部 35 个 `.md` 文件
+> 评审范围：`domains/solution_pro/prompts/` 目录下全部 35 个 `.md` 文件
 > 评审人：Prompt 工程 + 多 Agent 协作系统专家
 
 ---
@@ -59,7 +59,7 @@
 
 **⚠️ task_builder.py 实际使用的是 v2_harness 版本**：
 ```python
-# domains/solution/task_builder.py 中的引用
+# domains/solution_pro/task_builder.py 中的引用
 "planner"     → "solution/planner_v2_harness"
 "researcher"  → "solution/researcher_v2_harness"
 "auditor"     → "solution/auditor_v2_harness"
@@ -710,7 +710,7 @@ Stage 10: Summarizer
 #### 2.3 data_sources/solution.yaml 使用情况
 
 **结论：完全没有被代码使用。**
-- `grep 'data_sources' domains/solution/*.py` → **零匹配**
+- `grep 'data_sources' domains/solution_pro/*.py` → **零匹配**
 - 定义了 tech_documentation/industry_reports/competitor_analysis 搜索源
 - orchestrator 的 `_run_data_collection` 使用 `web_search` 工具，不参考此配置
 - 这是一个 **死配置文件**

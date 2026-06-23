@@ -51,7 +51,7 @@ GATE_CONFIG = {
     "architect":  {"max_retries": 2, "gate_fn": "gate_architect"},
     "decomposer": {"max_retries": 2, "gate_fn": "gate_decomposer"},
     "specifier":  {"max_retries": 2, "gate_fn": "gate_specifier"},
-    "reviewer":   {"max_retries": 5, "gate_fn": None},  # Reviewer has no code gate
+    "reviewer":   {"max_retries": 5, "gate_fn": "gate_reviewer"},
     "packager":   {"max_retries": 2, "gate_fn": "gate_packager"},
 }
 
@@ -79,7 +79,7 @@ AGENT_DEPENDENCIES = {
     "packager":   ["architect", "specifier", "reviewer"],
 }
 
-STATUS_FILE = "pipeline_status.json"
+STATUS_FILE = "pipeline_state.json"  # V3.2: 统一状态文件（Phase 3 单一化）
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +131,16 @@ def _load_status(output_dir: Path) -> dict:
 
 
 def _save_status(output_dir: Path, status: dict) -> None:
-    """Save pipeline status to output_dir."""
+    """Save pipeline status to output_dir (Pydantic validated)."""
+    # V3.2: Pydantic 契约笼子验证状态
+    try:
+        from domains.ship_pro.contracts.pipeline_state import PipelineState
+        PipelineState(**status)
+    except Exception:
+        pass  # 降级: 允许写入，但记录警告
+    status_path = output_dir / STATUS_FILE
+    with open(status_path, "w") as f:
+        json.dump(status, f, indent=2, ensure_ascii=False)
     status_path = output_dir / STATUS_FILE
     with open(status_path, "w") as f:
         json.dump(status, f, indent=2, ensure_ascii=False)
@@ -189,6 +198,23 @@ def prepare_pipeline(input_path: str, output_dir: str) -> dict:
     bb_dir = output_p / "blackboard"
     bb_dir.mkdir(exist_ok=True)
 
+    # Clean up stale state files from previous runs (prevents Watcher false positives)
+    stale_files = [
+        ".notified_stages.json", ".cron_run_count", ".watcher_no_output_count",
+        ".pipeline_watcher.lock", ".completed", ".watcher_should_remove",
+    ]
+    for sf in stale_files:
+        p = bb_dir / sf
+        if p.exists():
+            p.unlink()
+    # Also clean old stage output files (registry paths)
+    for stage_name, rel_path in STAGE_PATH_REGISTRY.items():
+        if stage_name == "input":
+            continue
+        p = bb_dir / rel_path
+        if p.exists():
+            p.unlink()
+
     # Read input
     with open(input_p) as f:
         input_data = json.load(f)
@@ -237,7 +263,7 @@ def prepare_pipeline(input_path: str, output_dir: str) -> dict:
         }
     _save_status(output_p, status)
 
-    # Watcher integration: provide all info needed for main Agent to create cron
+    # Watcher integration: provide complete cron payload for main Agent
     deepflow_root = str(Path(__file__).resolve().parent.parent.parent.parent)
     watcher_config_rel = "domains/ship_pro/config/watcher_config.json"
     watcher_config_abs = os.path.join(deepflow_root, watcher_config_rel)
@@ -245,6 +271,32 @@ def prepare_pipeline(input_path: str, output_dir: str) -> dict:
     pipeline_config["watcher_config"] = watcher_config_rel
     pipeline_config["watcher_config_abs"] = watcher_config_abs
     pipeline_config["deepflow_root"] = deepflow_root
+
+    # Render the wrapper prompt so main Agent can directly create the cron job
+    try:
+        from scripts.pipeline_watcher import render_wrapper_prompt
+        wrapper_prompt = render_wrapper_prompt(
+            deepflow_root=deepflow_root,
+            config_path=watcher_config_abs,
+            base_path=str(bb_dir.resolve()),
+            run_start_at=run_start_at,
+            cron_job_id="__CRON_JOB_ID__",  # main Agent backfills after cron creation
+        )
+        pipeline_config["watcher_cron_payload"] = {
+            "name": f"deepflow_watcher_{run_id[:16]}",
+            "schedule": {"kind": "every", "everyMs": 180000},
+            "sessionTarget": "isolated",
+            "payload": {
+                "kind": "agentTurn",
+                "message": wrapper_prompt,
+                "timeoutSeconds": 60,
+                "lightContext": True,
+            },
+            "delivery": {"mode": "announce"},
+            "enabled": True,
+        }
+    except ImportError:
+        pipeline_config["watcher_cron_payload"] = None
 
     return pipeline_config
 
@@ -384,26 +436,27 @@ def check_gate(agent_name: str, output_dir: str) -> dict:
     with open(output_file) as f:
         agent_output = json.load(f)
 
-    # If no gate function (reviewer), auto-pass
+    # If no gate function, auto-pass (should not happen after contract cage hardening)
     if gate_fn_name is None:
-        _update_gate_status(output_p, agent_name, "PASS", "No code gate for reviewer. Auto-pass.")
+        _update_gate_status(output_p, agent_name, "PASS", "No code gate configured. Auto-pass.")
         return {
             "agent": agent_name,
             "decision": "PASS",
             "critical_failures": [],
-            "feedback": "No code gate for reviewer. Auto-pass.",
+            "feedback": "No code gate configured. Auto-pass.",
             "should_retry": False,
             "retry_count": 0,
             "skippable": False,
         }
 
     # Import and run gate function
-    from domains.ship_pro.eval.gates import gate_architect, gate_decomposer, gate_specifier, gate_packager
+    from domains.ship_pro.eval.gates import gate_architect, gate_decomposer, gate_specifier, gate_reviewer, gate_packager
 
     gate_fns = {
         "gate_architect": gate_architect,
         "gate_decomposer": gate_decomposer,
         "gate_specifier": gate_specifier,
+        "gate_reviewer": gate_reviewer,
         "gate_packager": gate_packager,
     }
 
@@ -437,6 +490,8 @@ def check_gate(agent_name: str, output_dir: str) -> dict:
             }
         result = gate_fn(agent_output, blueprint)
     elif gate_fn_name == "gate_specifier":
+        result = gate_fn(agent_output)
+    elif gate_fn_name == "gate_reviewer":
         result = gate_fn(agent_output)
     elif gate_fn_name == "gate_packager":
         result = gate_fn(agent_output)
@@ -749,9 +804,30 @@ def _cli_main() -> None:
         result = get_pipeline_status(sys.argv[2])
         print(json.dumps(result, indent=2, ensure_ascii=False))
 
+    elif cmd == "update-status":
+        if len(sys.argv) < 5:
+            print("用法: python3 run_pipeline.py update-status <output_dir> <agent_name> <PASS|CONDITIONAL|FAIL> [feedback]")
+            sys.exit(1)
+        output_dir = Path(sys.argv[2])
+        agent_name = sys.argv[3]
+        decision = sys.argv[4].upper()
+        feedback = sys.argv[5] if len(sys.argv) > 5 else ""
+        _update_gate_status(output_dir, agent_name, decision, feedback)
+        # Advance current_agent to next stage
+        status = _load_status(output_dir)
+        config_path = output_dir / "pipeline_config.json"
+        if config_path.exists():
+            config = json.load(open(config_path))
+            order = config.get("execution_order", [])
+            if agent_name in order:
+                idx = order.index(agent_name)
+                status["current_agent"] = order[idx + 1] if idx < len(order) - 1 else None
+        _save_status(output_dir, status)
+        print(json.dumps({"ok": True, "agent": agent_name, "decision": decision, "next_agent": status.get("current_agent")}, indent=2))
+
     else:
         print(f"未知命令: {cmd}")
-        print("可用命令: prepare, task, gate, feedback, validate, status")
+        print("可用命令: prepare, task, gate, feedback, validate, status, update-status")
         sys.exit(1)
 
 

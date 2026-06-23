@@ -66,5 +66,5 @@ ls blackboard/{session_id}/stages/
 > "Solution Pro 用 UnifiedEntry → EntryHarness → PipelineOrchestrator → Workers"
 
 ---
-*Solution Pro 设计详见：[domains/solution/SKILL.md](domains/solution/SKILL.md)*
+*Solution Pro 设计详见：[domains/solution_pro/SKILL.md](domains/solution_pro/SKILL.md)*
 *架构文档详见：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)*

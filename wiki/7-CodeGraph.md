@@ -164,16 +164,16 @@ class TrajectoryAuditGate:
 ### Solution Pro
 
 ```python
-# domains/solution/spec_context.py
+# domains/solution_pro/spec_context.py
 def build_living_spec_context(living_spec: dict) -> dict
 def build_conversation_digest_for_prompt(digest: dict) -> str
 def build_worker_context_section(living_spec: dict, role: str) -> str
 
-# domains/solution/orchestrator_agent.py
+# domains/solution_pro/orchestrator_agent.py
 class OrchestratorAgent:
     def get_all_tasks(self, blackboard_path: str) -> list[dict]
 
-# domains/solution/task_builder.py
+# domains/solution_pro/task_builder.py
 def build_task(blackboard_path: str, stage: int, role: str) -> dict
 ```
 
@@ -250,8 +250,8 @@ Spec Pro
 Solution Pro
   ├── core/config/path_config.py (路径管理)
   ├── core/prompt_registry.py (Prompt 加载)
-  ├── domains/solution/spec_context.py (上下文注入) ◄── Spec Pro
-  └── domains/solution/prompts/*.md (25 个 Prompt)
+  ├── domains/solution_pro/spec_context.py (上下文注入) ◄── Spec Pro
+  └── domains/solution_pro/prompts/*.md (25 个 Prompt)
 
 Ship Pro
   ├── core/config/path_config.py (路径管理)
@@ -280,10 +280,10 @@ tests/
 ├── test_prompt_registry.py ──────────────────► core/prompt_registry.py
 ├── test_e2e_living_spec_v2.py ───────────────► domains/spec_pro/merge_spec.py
 │                                               domains/spec_pro/eval/harness.py
-│                                               domains/solution/spec_context.py
+│                                               domains/solution_pro/spec_context.py
 ├── test_spec_pro_full.py ────────────────────► domains/spec_pro/ (全部)
 ├── contract/test_quality_gate.py ────────────► core/quality/quality_gate.py
-├── e2e_solution_test.py ─────────────────────► domains/solution/ (全部)
+├── e2e_solution_test.py ─────────────────────► domains/solution_pro/ (全部)
 └── domains/ship_pro/eval/
     ├── test_eval_checks.py ─────────────────► domains/ship_pro/eval/eval_code_checks.py
     └── test_gates.py ────────────────────────► domains/ship_pro/eval/gates.py

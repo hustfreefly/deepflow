@@ -132,8 +132,8 @@
 
 | 重复 | 操作 |
 |------|------|
-| `core/orchestrator_agent.py` vs `domains/solution/orchestrator_agent.py` | 保留 domains 版本 |
-| `core/task_builder.py` vs `domains/solution/task_builder.py` | 检查差异，合并 |
+| `core/orchestrator_agent.py` vs `domains/solution_pro/orchestrator_agent.py` | 保留 domains 版本 |
+| `core/task_builder.py` vs `domains/solution_pro/task_builder.py` | 检查差异，合并 |
 | `core/spec_pro/` vs 契约要求放 `domains/` | P1 迁移，移到 domains/spec_pro/ |
 
 ### 阶段 7：更新所有契约路径（20 分钟，低风险）

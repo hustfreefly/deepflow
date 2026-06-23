@@ -1,10 +1,10 @@
 # DeepFlow Skill — 多 Agent 协作自动化管线
 
-> DeepFlow 0.4.0 (Spec Pro v2.4 + Solution Pro V4.4 + Research Pro)
+> DeepFlow 0.5.0 (Spec Pro v2.4 + Solution Pro V4.4 + Ship Pro V3.2 + Research Pro)
 
-> **0.4.0 变更**: Investment 模块已移除（依赖 tushare/duckduckgo/google-genai），框架更轻量，OpenClaw 用户 clone 即跑
+> **0.5.0 变更**: 新增 Ship Pro V3.2（Pydantic 契约笼子 + 单一执行引擎 + 状态单一化）；Phase 0-3 架构加固完成
 
-**定位**: 支持 Spec Pro（需求梳理）、Solution Pro（方案设计）、Research Pro（深度研究）的多 Agent 协作自动化管线。
+**定位**: 支持 Spec Pro（需求梳理）、Solution Pro（方案设计）、Ship Pro（交付编译）、Research Pro（深度研究）的多 Agent 协作自动化管线。
 
 **完整架构说明**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
@@ -12,57 +12,31 @@
 
 | 命令 | 示例 | 领域 |
 |:---|:---|:---|
-| `/solution` | `/solution 设计一个智能物流仓储系统升级方案` | solution |
-| `方案设计` | `方案设计：设计企业级微服务架构` | solution |
 | `/spec-pro` | `/spec-pro 我要做一个 AI 算力调度平台` | spec_pro |
+| `/solution` | `/solution 设计一个智能物流仓储系统升级方案` | solution_pro |
+| `/ship-pro` | `/ship-pro` (自动消费 Solution Pro 输出) | ship_pro |
+| `方案设计` | `方案设计：设计企业级微服务架构` | solution_pro |
 
 ## 执行流程（Solution Pro）
 
-### 方式一：统一入口（推荐）
+### 方式一：主 Agent 触发（推荐）
 
-```python
-from core.unified_entry import UnifiedEntry
-from core.config.path_config import PathConfig
+```
+# Solution Pro 方案设计
+/spec-pro 我要做一个 AI 算力调度平台
+# → Spec Pro 输出 Living Spec → 自动触发 Solution Pro
 
-# 获取 DeepFlow 基础路径
-base_path = str(PathConfig.resolve().base_dir)
-
-# 投资分析
-entry = UnifiedEntry()
-result = entry.run({
-    "domain": "investment",
-    "code": "688981.SH",
-    "name": "中芯国际"
-})
-
-# 方案设计
-result = entry.run({
-    "domain": "solution",
-    "topic": "设计一个智能物流仓储系统升级方案",
-    "solution_type": "architecture",
-    "constraints": ["预算500万", "周期6个月"]
-})
+# Ship Pro 交付编译（自动触发）
+# Solution Pro 完成后，completion_handler.py 自动编译 Ship Package
+# 手动触发：
+cd ~/.openclaw/workspace/.deepflow
+python3 domains/ship_pro/scripts/run_pipeline.py prepare <input_path> <output_dir>
 ```
 
-### 方式二：主 Agent 直接 spawn（Agent Run 模式）
+### 方式二：主 Agent 直接 spawn
 
 ```python
-# 投资分析
-sessions_spawn(
-    runtime="subagent",
-    mode="run",
-    label="investment_analysis",
-    task="""
-你是 DeepFlow Investment Orchestrator Agent。
-
-股票: 688981.SH 中芯国际
-执行完整投资分析管线。
-所有输出写入 blackboard/ 目录。
-""",
-    timeout_seconds=1800
-)
-
-# 方案设计
+# Solution Pro
 sessions_spawn(
     runtime="subagent",
     mode="run",
@@ -80,7 +54,6 @@ sessions_spawn(
     timeout_seconds=1800
 )
 
-# 等待完成
 sessions_yield()
 ```
 
@@ -89,7 +62,8 @@ sessions_yield()
 | 领域 | 管线类型 | 特点 | 模式 |
 |:---|:---|:---|:---|
 | `spec_pro` | 苏格拉底对话 | 需求梳理，输出 Living Spec + 三层版本号 | 对话式 |
-| `solution` | 固定 10 阶段闭环 | Harness V4 + REQ-ID 追踪 + 状态持久化 | 固定管线 |
+| `solution_pro` | 固定 10 阶段闭环 | Harness V4 + REQ-ID 追踪 + 状态持久化 | 固定管线 |
+| `ship_pro` | 5 Agent 管线 | Pydantic 契约笼子 + 质量门禁 + 单一执行引擎 | 固定管线 |
 | `research_pro` | 分层搜索+引用验证 | 多源搜索 → 分层研究 → 引用验证 | 单模式 |
 
 ## Solution Pro 固定 10 阶段管线
@@ -119,6 +93,8 @@ sessions_yield()
 | **Task Builder** | `core/task_builder.py` | 构建各 Worker Task |
 | **DataManager** | `core/data/data_manager_worker.py` | 数据采集+统一搜索 |
 | **Contract Cage** | `core/cage/` | 契约笼子验证框架 |
+| **Pydantic Contracts** | `domains/ship_pro/contracts/` | Pydantic 模型 = 唯一真相源 |
+| **Run Pipeline CLI** | `domains/ship_pro/scripts/run_pipeline.py` | Ship Pro 唯一执行引擎 |
 | **Prompt Registry** | `core/prompt_registry.py` | Prompt 集中式注册表 |
 | **PathConfig** | `core/config/path_config.py` | 跨平台路径管理 |
 
@@ -141,6 +117,6 @@ sessions_yield()
 
 ## 版本
 
-- **Version**: 0.4.0
-- **Status**: Investment 模块移除，框架精简；Spec Pro v2.4 + Solution Pro V4.4 + 契约笼子 + REQ-ID 质量追踪 + 状态持久化
-- **Date**: 2026-06-05
+- **Version**: 0.5.0
+- **Status**: 四域架构；Pydantic 契约笼子 + 单一执行引擎 + 状态单一化；Phase 0-3 架构加固完成
+- **Date**: 2026-06-23

@@ -68,7 +68,7 @@ DeepFlow 的全链路质量评估采用**双维度模型**：
 
 ### 2.2 Solution Pro 质量门禁
 
-**评估框架**: 4维度 Harness Scorer（详见 `domains/solution/harness_scorer.py`）
+**评估框架**: 4维度 Harness Scorer（详见 `domains/solution_pro/harness_scorer.py`）
 
 | 维度 | 权重 | 评估内容 |
 |------|------|---------|
@@ -231,14 +231,14 @@ Ship Pro (ship_package.json)
 ### 6.1 相关文档
 
 - Spec Pro Harness: `domains/spec_pro/prompts/harness.md`
-- Solution Pro Harness: `domains/solution/harness_scorer.py`
+- Solution Pro Harness: `domains/solution_pro/harness_scorer.py`
 - Ship Pro Quality Gate: `domains/ship_pro/docs/quality_gate_design.md`
 
 ### 6.2 验证脚本
 
 - Golden Case 验证: `tests/golden/verify_golden_case.py`
-- 需求去重验证: `domains/solution/scripts/validate_req_dedup.py`
-- V6 改进测试: `domains/solution/eval/test_v6_improvements.py`
+- 需求去重验证: `domains/solution_pro/scripts/validate_req_dedup.py`
+- V6 改进测试: `domains/solution_pro/eval/test_v6_improvements.py`
 
 ### 6.3 变更历史
 

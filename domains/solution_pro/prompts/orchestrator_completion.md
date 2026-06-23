@@ -51,7 +51,7 @@ else:
 
 ```bash
 cd {deepflow_path}
-python3 domains/solution/completion_handler.py {session_id}
+python3 domains/solution_pro/completion_handler.py {session_id}
 ```
 
 此脚本会：

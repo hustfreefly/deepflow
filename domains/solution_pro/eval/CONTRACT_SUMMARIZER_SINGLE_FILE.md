@@ -15,12 +15,12 @@ Summarizer Worker 只写一个文件 `final_result.json`，删除 `stages/summar
 | # | 文件 | 改动 | 类型 |
 |:---|:---|:---|:---|
 | D1 | `prompts/summarizer.md` | 输出要求从"3 文件"改为"1 文件"，删除 summarizer.json 和 final_solution.md | prompt |
-| D2 | `domains/solution/blackboard.py` | STAGE_PATH_REGISTRY["summarizer"] 从 `stages/summarizer.json` 改为 `final_result.json` | 代码 |
-| D3 | `domains/solution/completion_handler.py` | ① REQUIRED_SOLUTION_FINAL_ARTIFACTS 删除 `final_solution.md`；② final_output 查找顺序删除 md | 代码 |
+| D2 | `domains/solution_pro/blackboard.py` | STAGE_PATH_REGISTRY["summarizer"] 从 `stages/summarizer.json` 改为 `final_result.json` | 代码 |
+| D3 | `domains/solution_pro/completion_handler.py` | ① REQUIRED_SOLUTION_FINAL_ARTIFACTS 删除 `final_solution.md`；② final_output 查找顺序删除 md | 代码 |
 | D4 | `core/orchestrator/pipeline_orchestrator.py` | STAGE_PATHS["summarizer"] 改为 `final_result.json` | 代码 |
-| D5 | `domains/solution/eval/propagation_checker.py` | 删除 summarizer.json 降级逻辑，只读 final_result.json | 代码 |
+| D5 | `domains/solution_pro/eval/propagation_checker.py` | 删除 summarizer.json 降级逻辑，只读 final_result.json | 代码 |
 | D6 | `frontend/backend/routers/status_v2.py` | 从 `final_result.json` 渲染报告，删除 md 查找 | 代码 |
-| D7 | `domains/solution/task_builder.py` | build_summarizer_task 输出要求从 3 文件改为 1 文件 | 代码 |
+| D7 | `domains/solution_pro/task_builder.py` | build_summarizer_task 输出要求从 3 文件改为 1 文件 | 代码 |
 | D8 | `scripts/golden_solution_pro_dry_run.py` | 删除 summarizer.json mock + final_solution.md mock | 测试 |
 | D9 | `scripts/validate_solution_pro_contract.py` | 不动（只引用 stage name，不引用文件路径） | — |
 | D10 | `tests/golden/verify_golden_case.py` | 更新 final_solution.md 检查逻辑 | 测试 |

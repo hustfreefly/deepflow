@@ -27,7 +27,7 @@ def check_contract():
     warnings = []
     
     # 1. 检查领域配置文件
-    config_path = str(PathConfig.resolve().base_dir / "domains/solution/config/solution.yaml")
+    config_path = str(PathConfig.resolve().base_dir / "domains/solution_pro/config/solution.yaml")
     if not os.path.exists(config_path):
         errors.append("P0: solution.yaml 不存在")
         return {"pass": False, "errors": errors, "warnings": warnings}
@@ -80,7 +80,7 @@ def check_contract():
             errors.append(f"P0: pipeline stages 不匹配，期望 {required_stages}，实际 {found_stages}")
     
     # 5. 验证 prompts 文件
-    prompt_dir = str(PathConfig.resolve().base_dir / "domains/solution/prompts/")
+    prompt_dir = str(PathConfig.resolve().base_dir / "domains/solution_pro/prompts/")
     required_prompts = [
         'data_collection.md',
         'planner_v2_harness.md',

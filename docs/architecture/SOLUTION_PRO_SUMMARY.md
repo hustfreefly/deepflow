@@ -152,30 +152,30 @@ Jun 1 01:41 - Orchestrator 真正完成
 
 ### 核心文档
 
-- `domains/solution/SKILL.md` - 主 Agent 执行指南（V4.1）
+- `domains/solution_pro/SKILL.md` - 主 Agent 执行指南（V4.1）
 - `docs/SOLUTION_PRO_ARCHITECTURE.md` - 架构说明
 - `docs/SOLUTION_PRO_USAGE_GUIDE.md` - 使用指南
 - `docs/CRON_EARLY_EXIT_POSTMORTEM.md` - Cron 提前退出问题复盘
 
 ### Prompt 文件
 
-- `domains/solution/prompts/pipeline_orchestrator_v4.md` - Orchestrator Prompt
-- `domains/solution/prompts/cron_watcher.md` - Cron Watcher Prompt
-- `domains/solution/prompts/planning.md` - Planning Worker Prompt
-- `domains/solution/prompts/reviewer_*.md` - Reviewer Workers Prompt
-- `domains/solution/prompts/researcher_*.md` - Researcher Workers Prompt
-- `domains/solution/prompts/consolidator.md` - Consolidator Worker Prompt
-- `domains/solution/prompts/audit.md` - Audit Worker Prompt
-- `domains/solution/prompts/fix.md` - Fix Worker Prompt
-- `domains/solution/prompts/fixer_expert.md` - Fixer Expert Worker Prompt
-- `domains/solution/prompts/harness_final.md` - Harness Final Worker Prompt
-- `domains/solution/prompts/summarizer.md` - Summarizer Worker Prompt
+- `domains/solution_pro/prompts/pipeline_orchestrator_v4.md` - Orchestrator Prompt
+- `domains/solution_pro/prompts/cron_watcher.md` - Cron Watcher Prompt
+- `domains/solution_pro/prompts/planning.md` - Planning Worker Prompt
+- `domains/solution_pro/prompts/reviewer_*.md` - Reviewer Workers Prompt
+- `domains/solution_pro/prompts/researcher_*.md` - Researcher Workers Prompt
+- `domains/solution_pro/prompts/consolidator.md` - Consolidator Worker Prompt
+- `domains/solution_pro/prompts/audit.md` - Audit Worker Prompt
+- `domains/solution_pro/prompts/fix.md` - Fix Worker Prompt
+- `domains/solution_pro/prompts/fixer_expert.md` - Fixer Expert Worker Prompt
+- `domains/solution_pro/prompts/harness_final.md` - Harness Final Worker Prompt
+- `domains/solution_pro/prompts/summarizer.md` - Summarizer Worker Prompt
 
 ### 代码文件
 
 - `core/orchestrator/completion_handler.py` - 完成处理脚本
-- `domains/solution/__init__.py` - 入口函数 `run_solution_pro`
-- `domains/solution/task_builder.py` - 任务构建器
+- `domains/solution_pro/__init__.py` - 入口函数 `run_solution_pro`
+- `domains/solution_pro/task_builder.py` - 任务构建器
 
 ### 评审报告
 
@@ -271,8 +271,8 @@ Jun 1 01:41 - Orchestrator 真正完成
 
 ### 代码
 
-- `domains/solution/SKILL.md` - 主 Agent 执行指南
-- `domains/solution/prompts/` - Prompt 文件目录
+- `domains/solution_pro/SKILL.md` - 主 Agent 执行指南
+- `domains/solution_pro/prompts/` - Prompt 文件目录
 - `core/orchestrator/completion_handler.py` - 完成处理脚本
 
 ### 配置

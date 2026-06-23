@@ -19,7 +19,7 @@ These files were archived on 2026-06-02 because they are not referenced by any c
 
 ## Current Active Prompts (13 files)
 
-The following prompts are actively used in Solution Pro V4.3 and remain in `domains/solution/prompts/`:
+The following prompts are actively used in Solution Pro V4.3 and remain in `domains/solution_pro/prompts/`:
 
 1. `auditor_v2_harness.md` - Auditor worker
 2. `consolidator_v2_harness.md` - Consolidator worker
@@ -39,7 +39,7 @@ The following prompts are actively used in Solution Pro V4.3 and remain in `doma
 
 - **Do not reference archived files** in new code
 - **Do not delete** these files without explicit approval (kept for historical reference)
-- If you need to restore a file, move it back to `domains/solution/prompts/` and update the corresponding code references
+- If you need to restore a file, move it back to `domains/solution_pro/prompts/` and update the corresponding code references
 
 ## Migration Notes
 

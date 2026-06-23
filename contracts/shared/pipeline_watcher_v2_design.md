@@ -327,7 +327,7 @@ cron_result = cron(action="add", job={
 
 # 改为（~10 行，配置驱动）
 wrapper_prompt = render_wrapper_prompt(
-    config_path=f"{deepflow_root}/domains/solution/config/watcher_config.json",
+    config_path=f"{deepflow_root}/domains/solution_pro/config/watcher_config.json",
     base_path=base_path,
     run_start_at=run_start_at,
     cron_job_id="PLACEHOLDER",  # 创建后回填

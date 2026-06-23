@@ -86,13 +86,13 @@ Ship Pro    input ← solution/final_result.json
 | 文件 | 改动类型 | 说明 |
 |:---|:---|:---|
 | core/config/path_config.py | 新增方法 | generate_slug, get_project_path, get_run_path, is_v2_session_id等 |
-| domains/solution/blackboard.py | STAGE_PATH_REGISTRY v3.0.0 | 所有stage路径加solution/前缀；summarizer改为final_result.json |
-| domains/solution/prompts/summarizer.md | v5.5.0 | 单文件输出+REQ传播铁律 |
-| domains/solution/completion_handler.py | 列表变更 | 删除final_solution.md |
+| domains/solution_pro/blackboard.py | STAGE_PATH_REGISTRY v3.0.0 | 所有stage路径加solution/前缀；summarizer改为final_result.json |
+| domains/solution_pro/prompts/summarizer.md | v5.5.0 | 单文件输出+REQ传播铁律 |
+| domains/solution_pro/completion_handler.py | 列表变更 | 删除final_solution.md |
 | core/orchestrator/pipeline_orchestrator.py | 路径变更 | summarizer→final_result.json |
-| domains/solution/eval/propagation_checker.py | 删除降级 | 移除summarizer.json降级逻辑 |
+| domains/solution_pro/eval/propagation_checker.py | 删除降级 | 移除summarizer.json降级逻辑 |
 | frontend/backend/routers/status_v2.py | 新增渲染 | 从JSON渲染报告 |
-| domains/solution/task_builder.py | 输出变更 | 只写final_result.json |
+| domains/solution_pro/task_builder.py | 输出变更 | 只写final_result.json |
 | scripts/golden_solution_pro_dry_run.py | mock适配 | 删除final_solution.md的mock |
 | tests/golden/verify_golden_case.py | 检查变更 | 检查final_result.json |
 | prompts/orchestrator_completion.md | 引用更新 | final_result.json |

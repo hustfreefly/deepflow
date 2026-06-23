@@ -55,7 +55,7 @@ FEISHU_APP_ID = os.environ.get("FEISHU_APP_ID", "")  # 或 os.environ["FEISHU_AP
 
 | 文件 | 行号 | 匹配内容 |
 |:---|:---|:---|
-| `domains/solution/SKILL.md` | 138 | `ou_d****044c`（文档模板中的 User Open ID） |
+| `domains/solution_pro/SKILL.md` | 138 | `ou_d****044c`（文档模板中的 User Open ID） |
 
 ### 1.3 低风险信息（P3）— 3 处
 
@@ -90,8 +90,8 @@ FEISHU_APP_ID = os.environ.get("FEISHU_APP_ID", "")  # 或 os.environ["FEISHU_AP
 | 文件 | 数量 | 典型未使用 import |
 |:---|:---|:---|
 | `core/orchestrator/orchestrator_base.py` | 5 | `os`, `copy`, `asdict`, `TypeVar`, `Generic` |
-| `domains/solution/orchestrator_agent.py` | 6 | `os`, `glob`, `List`, `Dict`, `Any`, `Callable` |
-| `domains/solution/task_builder.py` | 2 | `os`, `read_prompt_with_vars` |
+| `domains/solution_pro/orchestrator_agent.py` | 6 | `os`, `glob`, `List`, `Dict`, `Any`, `Callable` |
+| `domains/solution_pro/task_builder.py` | 2 | `os`, `read_prompt_with_vars` |
 | `scripts/checks/` (多个文件) | 25+ | `os`, `json`, `ast`, `List`, `Tuple`, `Mock` |
 | `tests/` (多个文件) | 30+ | `Path`, `json`, `time`, `subprocess`, `List`, `Dict` |
 | `core/cage/` (多个文件) | 8 | `os`, `json`, `Optional`, `Tuple` |
@@ -174,15 +174,15 @@ FEISHU_APP_ID = os.environ.get("FEISHU_APP_ID", "")  # 或 os.environ["FEISHU_AP
 | `domains/ship_pro/test_output/gen_specifier_v312.py` | `gen_case3()` | 350 |
 | `domains/ship_pro/test_output/gen_specifier_v312.py` | `gen_case4()` | 337 |
 | `domains/spec_pro/coordinator.py` | `_collecting_phase_instructions()` | 257 |
-| `domains/solution/orchestrator_agent.py` | `get_all_tasks()` | 224 |
+| `domains/solution_pro/orchestrator_agent.py` | `get_all_tasks()` | 224 |
 | `scripts/checks/check_orchestrator_agent.py` | `check_orchestrator_agent()` | 224 |
 | `tests/unit/test_e2e_production.py` | `run_e2e_test()` | 203 |
 | `tests/e2e_solution_test.py` | `_generate_mock_output()` | 175 |
 | `domains/ship_pro/decomposer.py` | `_decompose_work_packages()` | 184 |
-| `domains/solution/frozen_spec.py` | `build_frozen_spec()` | 156 |
+| `domains/solution_pro/frozen_spec.py` | `build_frozen_spec()` | 156 |
 | `domains/ship_pro/eval/gates.py` | `gate_specifier()` | 164 |
-| `domains/solution/task_builder.py` | 6 个函数 >100 行 | 110-144 |
-| `domains/solution/harness_validator.py` | `validate_summarizer_harness_response()` | 148 |
+| `domains/solution_pro/task_builder.py` | 6 个函数 >100 行 | 110-144 |
+| `domains/solution_pro/harness_validator.py` | `validate_summarizer_harness_response()` | 148 |
 | `domains/spec_pro/coordinator.py` | `_build_v3_round_task()` | 145 |
 | `scripts/checks/check_pipeline_engine_spawn.py` | `check_pipeline_engine()` | 146 |
 | `core/orchestrator/pipeline_orchestrator.py` | `run_pipeline()` | 144 |

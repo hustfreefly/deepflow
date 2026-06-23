@@ -35,7 +35,7 @@
 
 #### 1.2.1 STAGE_PATH_REGISTRY 使用方式
 
-**定义位置**：`domains/solution/blackboard.py`
+**定义位置**：`domains/solution_pro/blackboard.py`
 
 ```python
 STAGE_PATH_REGISTRY = {
@@ -53,12 +53,12 @@ STAGE_PATH_REGISTRY = {
 
 | 文件 | 使用方式 | 行号 |
 |:---|:---|:---|
-| `domains/solution/control_contract.py` | `STAGE_PATH_REGISTRY.get(stage_name)` | 24, 56 |
-| `domains/solution/planner.py` | `STAGE_PATH_REGISTRY["planning"]` | 15, 121 |
-| `domains/solution/harness_check_expert.py` | `blackboard_path / session_id / STAGE_PATH_REGISTRY[...]` | 19, 34-35 |
-| `domains/solution/completion_handler.py` | 构建 `STAGE_REQUIREMENTS` 映射 | 27, 34-55 |
-| `domains/solution/task_builder.py` | 拼接完整路径 `{base}/blackboard/{session_id}/{STAGE_PATH_REGISTRY[...]}` | 34, 109-112, 225, 676, 1288, 1366, 1559, 1573, 1661, 1757, 1885 |
-| `domains/solution/orchestrator_agent.py` | 构建 `STAGE_TO_PATH` 映射 | 69, 75-92 |
+| `domains/solution_pro/control_contract.py` | `STAGE_PATH_REGISTRY.get(stage_name)` | 24, 56 |
+| `domains/solution_pro/planner.py` | `STAGE_PATH_REGISTRY["planning"]` | 15, 121 |
+| `domains/solution_pro/harness_check_expert.py` | `blackboard_path / session_id / STAGE_PATH_REGISTRY[...]` | 19, 34-35 |
+| `domains/solution_pro/completion_handler.py` | 构建 `STAGE_REQUIREMENTS` 映射 | 27, 34-55 |
+| `domains/solution_pro/task_builder.py` | 拼接完整路径 `{base}/blackboard/{session_id}/{STAGE_PATH_REGISTRY[...]}` | 34, 109-112, 225, 676, 1288, 1366, 1559, 1573, 1661, 1757, 1885 |
+| `domains/solution_pro/orchestrator_agent.py` | 构建 `STAGE_TO_PATH` 映射 | 69, 75-92 |
 | `core/orchestrator/pipeline_orchestrator.py` | 导入并补充别名映射 | 32-34, 44-93 |
 
 #### 1.2.2 get_blackboard_path() 调用点
@@ -75,9 +75,9 @@ def get_blackboard_path(self, session_id: str) -> Path:
 
 | 文件 | 调用方式 | 行号 |
 |:---|:---|:---|
-| `domains/solution/blackboard.py` | `config.get_blackboard_path(session_id)` | 70 |
-| `domains/solution/config.py` | `config.get_blackboard_path(self.session_id)` | 46 |
-| `domains/solution/harness_check_expert.py` | 间接通过 `blackboard_path` 参数 | 34 |
+| `domains/solution_pro/blackboard.py` | `config.get_blackboard_path(session_id)` | 70 |
+| `domains/solution_pro/config.py` | `config.get_blackboard_path(self.session_id)` | 46 |
+| `domains/solution_pro/harness_check_expert.py` | 间接通过 `blackboard_path` 参数 | 34 |
 
 #### 1.2.3 硬编码 blackboard 路径的文件
 
@@ -85,7 +85,7 @@ def get_blackboard_path(self, session_id: str) -> Path:
 
 | 文件 | 硬编码模式 | 行号 |
 |:---|:---|:---|
-| `domains/solution/task_builder.py` | `f"{_DEEPFLOW_BASE}/blackboard/{session_id}"` | 109-112, 225, 676, 1288, 1366, 1559, 1573, 1661, 1757, 1885 |
+| `domains/solution_pro/task_builder.py` | `f"{_DEEPFLOW_BASE}/blackboard/{session_id}"` | 109-112, 225, 676, 1288, 1366, 1559, 1573, 1661, 1757, 1885 |
 | `domains/spec_pro/coordinator.py` | `os.path.join(str(_BASE_DIR), "blackboard", self.session_id)` | 118 |
 | `domains/spec_pro/spec_pro_api.py` | `os.path.join(DEEPFLOW_BASE, "blackboard")` | 62 |
 | `domains/research_pro/__init__.py` | `_path_config.base_dir / "blackboard" / session_id` | 235 |
@@ -147,18 +147,18 @@ Ship Pro 嵌套问题:
 |:---|:---|:---|:---:|:---:|
 | 1 | `core/config/path_config.py` | 新增 V2 路径方法 `get_project_path()`, `get_run_path()` | 🟢 低 | S |
 | 2 | `core/blackboard/path_resolver.py` | **新建**兼容层，统一新旧路径解析 | 🟢 低 | M |
-| 3 | `domains/solution/blackboard.py` | `STAGE_PATH_REGISTRY` 路径前缀适配 V2 | 🟡 中 | M |
-| 4 | `domains/solution/task_builder.py` | 替换 10+ 处硬编码路径拼接 | 🔴 高 | L |
+| 3 | `domains/solution_pro/blackboard.py` | `STAGE_PATH_REGISTRY` 路径前缀适配 V2 | 🟡 中 | M |
+| 4 | `domains/solution_pro/task_builder.py` | 替换 10+ 处硬编码路径拼接 | 🔴 高 | L |
 | 5 | `domains/ship_pro/scripts/run_pipeline.py` | 删除 `bb_dir = output_p / "blackboard"` 套娃逻辑 | 🟡 中 | M |
 
 #### 中优先级（状态文件路径）
 
 | # | 文件 | 修改内容 | 风险 | 工作量 |
 |:---|:---|:---|:---:|:---:|
-| 6 | `domains/solution/completion_handler.py` | `.completed` 路径改为 `state/.completed` | 🟡 中 | S |
+| 6 | `domains/solution_pro/completion_handler.py` | `.completed` 路径改为 `state/.completed` | 🟡 中 | S |
 | 7 | `scripts/pipeline_watcher.py` | 状态文件路径改为 `state/` 子目录 | 🟡 中 | M |
 | 8 | `scripts/pipeline_progress_notify.py` | `.stage_progress.json` 路径改为 `state/` | 🟡 中 | S |
-| 9 | `domains/solution/__init__.py` | 清理旧状态文件逻辑 | 🟢 低 | S |
+| 9 | `domains/solution_pro/__init__.py` | 清理旧状态文件逻辑 | 🟢 低 | S |
 | 10 | `domains/research_pro/__init__.py` | 状态文件路径改为 `state/` | 🟡 中 | S |
 
 #### 低优先级（跨域引用）
@@ -175,10 +175,10 @@ Ship Pro 嵌套问题:
 
 | 文件 | 原因 |
 |:---|:---|
-| `domains/solution/control_contract.py` | 通过 `STAGE_PATH_REGISTRY` 间接引用，改注册表即可 |
-| `domains/solution/planner.py` | 同上 |
-| `domains/solution/harness_check_expert.py` | 通过 `STAGE_PATH_REGISTRY` 间接引用 |
-| `domains/solution/orchestrator_agent.py` | 同上 |
+| `domains/solution_pro/control_contract.py` | 通过 `STAGE_PATH_REGISTRY` 间接引用，改注册表即可 |
+| `domains/solution_pro/planner.py` | 同上 |
+| `domains/solution_pro/harness_check_expert.py` | 通过 `STAGE_PATH_REGISTRY` 间接引用 |
+| `domains/solution_pro/orchestrator_agent.py` | 同上 |
 | `core/orchestrator/pipeline_orchestrator.py` | 同上 |
 | `core/quality/entry_harness.py` | 使用 `BlackboardManager` API，不直接拼路径 |
 
@@ -190,18 +190,18 @@ Phase 1: 基础设施（零风险）
   └─ 1.2 core/blackboard/path_resolver.py（新建兼容层）
 
 Phase 2: 核心迁移（按依赖顺序）
-  ├─ 2.1 domains/solution/blackboard.py（STAGE_PATH_REGISTRY 适配）
+  ├─ 2.1 domains/solution_pro/blackboard.py（STAGE_PATH_REGISTRY 适配）
   │     ↓
-  ├─ 2.2 domains/solution/task_builder.py（替换硬编码路径）
+  ├─ 2.2 domains/solution_pro/task_builder.py（替换硬编码路径）
   │     ↓
   ├─ 2.3 domains/ship_pro/scripts/run_pipeline.py（删除套娃逻辑）
   │     ↓
-  └─ 2.4 domains/solution/completion_handler.py（状态文件路径）
+  └─ 2.4 domains/solution_pro/completion_handler.py（状态文件路径）
 
 Phase 3: 状态文件集中化
   ├─ 3.1 scripts/pipeline_watcher.py
   ├─ 3.2 scripts/pipeline_progress_notify.py
-  ├─ 3.3 domains/solution/__init__.py
+  ├─ 3.3 domains/solution_pro/__init__.py
   └─ 3.4 domains/research_pro/__init__.py
 
 Phase 4: 跨域引用统一
@@ -586,8 +586,8 @@ class PathResolver:
 |:---|:---|:---|:---:|
 | 2.1 | Solution Pro session_id 改为 V2 格式 | `scripts/start_solution_pro.py` | M |
 | 2.2 | Ship Pro 删除套娃逻辑 | `domains/ship_pro/scripts/run_pipeline.py` | M |
-| 2.3 | STAGE_PATH_REGISTRY 适配 V2 | `domains/solution/blackboard.py` | M |
-| 2.4 | task_builder.py 使用 path_resolver | `domains/solution/task_builder.py` | L |
+| 2.3 | STAGE_PATH_REGISTRY 适配 V2 | `domains/solution_pro/blackboard.py` | M |
+| 2.4 | task_builder.py 使用 path_resolver | `domains/solution_pro/task_builder.py` | L |
 
 **关键修改**：
 
@@ -673,10 +673,10 @@ blackboard_path = resolver.resolve_session_path(session_id)
 
 | # | 任务 | 文件 | 工作量 |
 |:---|:---|:---|:---:|
-| 3.1 | completion_handler.py 状态路径 | `domains/solution/completion_handler.py` | S |
+| 3.1 | completion_handler.py 状态路径 | `domains/solution_pro/completion_handler.py` | S |
 | 3.2 | pipeline_watcher.py 状态路径 | `scripts/pipeline_watcher.py` | M |
 | 3.3 | pipeline_progress_notify.py 状态路径 | `scripts/pipeline_progress_notify.py` | S |
-| 3.4 | solution/__init__.py 状态清理 | `domains/solution/__init__.py` | S |
+| 3.4 | solution/__init__.py 状态清理 | `domains/solution_pro/__init__.py` | S |
 | 3.5 | research_pro/__init__.py 状态路径 | `domains/research_pro/__init__.py` | S |
 
 **关键修改**：
@@ -958,10 +958,10 @@ python3 scripts/migrate_blackboard_v2.py --rollback
 |:---|:---:|:---:|:---|
 | `core/config/path_config.py` | 292 | P1 | 新增方法 |
 | `core/blackboard/path_resolver.py` | 新建 | P1 | 新建 |
-| `domains/solution/blackboard.py` | 180 | P1 | 修改注册表 |
-| `domains/solution/task_builder.py` | 1900 | P1 | 替换硬编码 |
+| `domains/solution_pro/blackboard.py` | 180 | P1 | 修改注册表 |
+| `domains/solution_pro/task_builder.py` | 1900 | P1 | 替换硬编码 |
 | `domains/ship_pro/scripts/run_pipeline.py` | 550 | P1 | 删除套娃 |
-| `domains/solution/completion_handler.py` | 500 | P2 | 状态路径 |
+| `domains/solution_pro/completion_handler.py` | 500 | P2 | 状态路径 |
 | `scripts/pipeline_watcher.py` | 245 | P2 | 状态路径 |
 | `frontend/backend/routers/status_v2.py` | 650 | P3 | 兼容层 |
 

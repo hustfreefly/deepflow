@@ -80,19 +80,19 @@
 ### 2. Write 操作提取 (3 个文件)
 
 从 session transcripts 中提取了 3 个完整文件：
-- `domains/solution/normalize.py` (4826 chars)
-- `domains/solution/prompts/orchestrator_completion.md` (1188 chars)
-- `domains/solution/eval/CONTRACT_SUMMARIZER_SINGLE_FILE.md` (2162 chars)
+- `domains/solution_pro/normalize.py` (4826 chars)
+- `domains/solution_pro/prompts/orchestrator_completion.md` (1188 chars)
+- `domains/solution_pro/eval/CONTRACT_SUMMARIZER_SINGLE_FILE.md` (2162 chars)
 
 ### 3. 手动重建 (2 个文件)
 
 基于 RECOVERY_DATA.md 和 edit 操作描述，手动重建了 2 个文件：
-- `domains/solution/eval/propagation_checker.py` (4868 chars)
+- `domains/solution_pro/eval/propagation_checker.py` (4868 chars)
   - 检查 final_result.json 存在性
   - 验证 covered_req_ids 和 requirement_evidence
   - 删除 summarizer.json 降级逻辑
 
-- `domains/solution/eval/test_v6_improvements.py` (7709 chars)
+- `domains/solution_pro/eval/test_v6_improvements.py` (7709 chars)
   - 测试 Summarizer 单文件输出
   - 测试 REQ-ID 传播完整性
   - 测试 Schema 合规性

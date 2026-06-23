@@ -21,11 +21,11 @@ EntryHarness → Planning → Reviewer×3(并行) → Research×3(并行) → Co
 
 | 文件 | 说明 |
 |:---|:---|
-| `domains/solution/prompts/REQ_DEDUP_DESIGN.md` | 需求去重设计文档 |
-| `domains/solution/reviews/review_edge_cases.md` | 边界情况评审 |
-| `domains/solution/reviews/review_execution_reliability.md` | 执行可靠性评审 |
-| `domains/solution/reviews/review_simplicity.md` | 简洁性评审 |
-| `domains/solution/scripts/validate_req_dedup.py` | 需求去重验证脚本 |
+| `domains/solution_pro/prompts/REQ_DEDUP_DESIGN.md` | 需求去重设计文档 |
+| `domains/solution_pro/reviews/review_edge_cases.md` | 边界情况评审 |
+| `domains/solution_pro/reviews/review_execution_reliability.md` | 执行可靠性评审 |
+| `domains/solution_pro/reviews/review_simplicity.md` | 简洁性评审 |
+| `domains/solution_pro/scripts/validate_req_dedup.py` | 需求去重验证脚本 |
 | `skills/solution-pro/orchestrator_prompt_v2.md` | Solution Pro编排器Prompt V2 |
 | `tests/golden/verify_golden_case.py` | Golden Case验证脚本 |
 

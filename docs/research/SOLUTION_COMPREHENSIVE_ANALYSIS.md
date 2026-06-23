@@ -301,7 +301,7 @@ planner_output:
 | Mode 切换导致 Pipeline 混乱 | 中 | 高 | 严格契约验证，每种 Mode 独立测试 |
 | 动态 Agent 生成质量不稳定 | 中 | 高 | Planner 输出增加验证步骤，fallback 到默认角度 |
 | 配置复杂度上升 | 高 | 中 | 提供默认配置，用户只需选择 Mode |
-| 影响 Investment 模块 | 低 | 高 | 修改范围严格限制在 `domains/solution/` |
+| 影响 Investment 模块 | 低 | 高 | 修改范围严格限制在 `domains/solution_pro/` |
 
 ---
 

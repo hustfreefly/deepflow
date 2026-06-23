@@ -87,7 +87,7 @@ domains: ['solution', 'code', 'general', 'research_pro']
 ### 8.1 QUALITY_GUIDE.md — 全链路质量评估方法论
 
 新建文件，覆盖Spec Pro → Solution Pro → Ship Pro端到端追溯
-位置: 项目根目录QUALITY_GUIDE.md + domains/solution/QUALITY_GUIDE.md
+位置: 项目根目录QUALITY_GUIDE.md + domains/solution_pro/QUALITY_GUIDE.md
 
 ### 8.2 Golden Case验证
 
@@ -102,7 +102,7 @@ tests/golden/verify_golden_case.py:
 
 ### 8.4 需求去重验证
 
-domains/solution/scripts/validate_req_dedup.py:
+domains/solution_pro/scripts/validate_req_dedup.py:
 - 一致性检查
 - 软性去重率警告
 - 安全约束验证（POST /api/login vs /api/logout不误合并）

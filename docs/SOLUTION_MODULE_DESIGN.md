@@ -16,7 +16,7 @@
 | **Standard** | 一般架构设计 | 10-15分钟 | 8-10个 | 平衡质量与时效，完整10阶段 |
 | **Rigorous** | 复杂企业级方案 | 20-30分钟 | 12+个 | 深度研究、Harness V2 质量保障 |
 
-> ⚠️ Quick 模式已删除（2026-05），所有运行都使用完整 10 阶段 Harness V2 管线。详见 `domains/solution/orchestrator_agent.py:258`。
+> ⚠️ Quick 模式已删除（2026-05），所有运行都使用完整 10 阶段 Harness V2 管线。详见 `domains/solution_pro/orchestrator_agent.py:258`。
 
 ### 1.2 输入模式
 
@@ -54,10 +54,10 @@
 
 | 组件 | 职责 | 文件 |
 |:---|:---|:---|
-| **SolutionOrchestratorV21** | 入口、10阶段管线调度 | `domains/solution/orchestrator_agent.py` |
-| **TaskBuilder** | 动态任务构建 | `domains/solution/task_builder.py` |
-| **HarnessV2OrchestratorHelper** | 两阶段执行、约束传递、验证闭环 | `domains/solution/orchestrator_v21_harness.py` |
-| **Harness Scorer** | 质量评分（完整性+适度性） | `domains/solution/harness_scorer.py` |
+| **SolutionOrchestratorV21** | 入口、10阶段管线调度 | `domains/solution_pro/orchestrator_agent.py` |
+| **TaskBuilder** | 动态任务构建 | `domains/solution_pro/task_builder.py` |
+| **HarnessV2OrchestratorHelper** | 两阶段执行、约束传递、验证闭环 | `domains/solution_pro/orchestrator_v21_harness.py` |
+| **Harness Scorer** | 质量评分（完整性+适度性） | `domains/solution_pro/harness_scorer.py` |
 | **Blackboard** | 数据持久化、跨阶段状态共享 | `core/blackboard_manager.py` |
 | **PromptRegistry** | Prompt 统一注册管理 | `core/prompt_registry.py` |
 

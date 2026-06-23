@@ -64,7 +64,7 @@
 
 | # | File (relative) | Line | Content (truncated) |
 |---|-----------------|------|---------------------|
-| 1 | `domains/solution/README.md` | 76 | `[prompts/pipeline_orchestrator_v4.md](prompts/pipeline_orchestrator_v4.md) \| Orchestrator 指令 \| 运行时` |
+| 1 | `domains/solution_pro/README.md` | 76 | `[prompts/pipeline_orchestrator_v4.md](prompts/pipeline_orchestrator_v4.md) \| Orchestrator 指令 \| 运行时` |
 | 2 | `docs/design/DIRECTORY_STRUCTURE.md` | 142 | `pipeline_orchestrator.md, pipeline_orchestrator_v4.md` |
 | 3 | `docs/design/SOLUTION_PRO_RECOVERY_STATUS.md` | 33 | `pipeline_orchestrator.md \| ✅ \| 从 pipeline_orchestrator_v4.md 复制` |
 | 4 | `docs/design/SOLUTION_PRO_RECOVERY_STATUS.md` | 107 | `pipeline_orchestrator_v4.md → pipeline_orchestrator.md` |
@@ -73,12 +73,12 @@
 | 7 | `docs/design/RECOVERY_PENDING_ISSUES.md` | 114 | `确认引用的是 pipeline_orchestrator.md 而不是 pipeline_orchestrator_v6.md` |
 | 8 | `docs/architecture/SOLUTION_PRO_ARCHITECTURE.md` | 297 | `pipeline_orchestrator_v4.md - Orchestrator Prompt` |
 | 9 | `docs/architecture/SOLUTION_PRO_SUMMARY.md` | 162 | `pipeline_orchestrator_v4.md - Orchestrator Prompt` |
-| 10 | `docs/guides/SOLUTION_PRO_USAGE_GUIDE.md` | 35 | `task=read("domains/solution/prompts/pipeline_orchestrator_v4.md").format(**plan)` |
+| 10 | `docs/guides/SOLUTION_PRO_USAGE_GUIDE.md` | 35 | `task=read("domains/solution_pro/prompts/pipeline_orchestrator_v4.md").format(**plan)` |
 | 11 | `docs/guides/SOLUTION_PRO_USAGE_GUIDE.md` | 272 | `pipeline_orchestrator_v4.md - Orchestrator Prompt` |
 | 12 | `docs/design/RECOVERY_VERIFICATION_REPORT.md` | 68 | `solution/prompts/pipeline_orchestrator_v4.md \| 1` |
 
 ### Assessment
-- `pipeline_orchestrator_v4.md` **still exists** in `domains/solution/prompts/` and is referenced as active in 5+ docs. This is a **stale reference** — the active file should be `pipeline_orchestrator.md` per recovery status.
+- `pipeline_orchestrator_v4.md` **still exists** in `domains/solution_pro/prompts/` and is referenced as active in 5+ docs. This is a **stale reference** — the active file should be `pipeline_orchestrator.md` per recovery status.
 - `pipeline_orchestrator_v6.md` is referenced in recovery pending issues as something that needs to be migrated away from — **migration may be incomplete**.
 - Multiple architecture/usage docs still point to `_v4.md` instead of the canonical `pipeline_orchestrator.md`.
 

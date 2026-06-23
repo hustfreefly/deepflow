@@ -1,7 +1,7 @@
 # Solution Pro 数据流转完整性审计报告
 
 > **审计日期**: 2026-06-03 01:39  
-> **审计范围**: `domains/solution/` 核心 6 模块 + `pipeline_orchestrator.py`  
+> **审计范围**: `domains/solution_pro/` 核心 6 模块 + `pipeline_orchestrator.py`  
 > **审计方法**: 代码证据驱动，逐阶段追踪输入→输出→消费链路  
 > **参考**: AUDIT_REPORT_2026-06-03_CONSOLIDATED.md（不重复已报告问题）
 

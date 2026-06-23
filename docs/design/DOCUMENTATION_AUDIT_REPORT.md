@@ -35,7 +35,7 @@
 |----------|------:|---------|
 | Missing design docs | ~25 | `docs/design/CODING_STANDARDS.md`, `DEVELOPMENT_RULES.md` |
 | Wrong skill paths | ~20 | `skills/research-pro/SKILL.md` (should be `domains/research_pro/SKILL.md`) |
-| Renamed/removed prompts | ~15 | `domains/solution/prompts/audit.md`, `fix.md`, `planning.md` |
+| Renamed/removed prompts | ~15 | `domains/solution_pro/prompts/audit.md`, `fix.md`, `planning.md` |
 | Missing CRON docs | ~8 | `docs/CRON_DESIGN.md`, `CRON_EARLY_EXIT_POSTMORTEM.md` |
 | Stale archive self-refs | ~15 | Archive docs referencing files that were also archived |
 | Missing cage YAML files | ~6 | `cage/frontend_phase4_cron_v1.0.yaml` etc. |
@@ -52,7 +52,7 @@ These broken links appear in **active, frequently-read documents**:
 | `CONTRACTS.md` | `docs/design/DEVELOPMENT_RULES.md` | Development rules unreachable |
 | `README.md` | `skills/research-pro/SKILL.md` | Wrong path for research-pro skill |
 | `docs/architecture/SOLUTION_PRO_SUMMARY.md` | 6 broken prompt paths | Architecture doc points to nonexistent prompts |
-| `docs/guides/SOLUTION_PRO_USAGE_GUIDE.md` | `domains/solution/prompts/planning.md` | Usage guide has wrong prompt path |
+| `docs/guides/SOLUTION_PRO_USAGE_GUIDE.md` | `domains/solution_pro/prompts/planning.md` | Usage guide has wrong prompt path |
 | `domains/research_pro/SKILL.md` | `../../../skills/research-pro/SKILL.md` | Skill self-reference uses old path |
 
 ### Full broken reference list
@@ -78,7 +78,7 @@ See: [AUDIT_TASK1_BROKEN_LINKS.md](AUDIT_TASK1_BROKEN_LINKS.md)
 |---|------|----------|----------|----------|
 | 1 | `pyproject.toml` | `0.1.0` | `0.4.0` | 🔴 HIGH |
 | 2 | `domains/spec_pro/config/spec_pro.yaml` | `2.3.0` | `2.4.0` | 🔴 HIGH |
-| 3 | `domains/solution/config/solution.yaml` | `1.0.0` | `4.4` | 🔴 HIGH |
+| 3 | `domains/solution_pro/config/solution.yaml` | `1.0.0` | `4.4` | 🔴 HIGH |
 
 ### Documentation Mismatches
 
@@ -86,7 +86,7 @@ See: [AUDIT_TASK1_BROKEN_LINKS.md](AUDIT_TASK1_BROKEN_LINKS.md)
 |---|------|----------|----------|----------|
 | 4 | `domains/spec_pro/_overview.md` | `2.3.0` | `2.4.0` | 🟡 MEDIUM |
 | 5 | `domains/spec_pro/VERSION.md` | `2.3.0` | `2.4.0` | 🟡 MEDIUM |
-| 6 | `domains/solution/_overview.md` | `4.3.0` | `4.4` | 🟡 MEDIUM |
+| 6 | `domains/solution_pro/_overview.md` | `4.3.0` | `4.4` | 🟡 MEDIUM |
 | 7 | `domains/research_pro/SKILL.md` | `V2.1` | `1.0.0` | 🟡 MEDIUM |
 
 ### Ship Pro Internal Inconsistency (No CHANGELOG Baseline)
@@ -140,7 +140,7 @@ See: [AUDIT_TASK2_VERSIONS.md](AUDIT_TASK2_VERSIONS.md)
 
 | Affected Document | References |
 |:---|:---|
-| `domains/solution/README.md` | `pipeline_orchestrator_v4.md` |
+| `domains/solution_pro/README.md` | `pipeline_orchestrator_v4.md` |
 | `docs/architecture/SOLUTION_PRO_ARCHITECTURE.md` | `pipeline_orchestrator_v4.md` |
 | `docs/architecture/SOLUTION_PRO_SUMMARY.md` | `pipeline_orchestrator_v4.md` |
 | `docs/guides/SOLUTION_PRO_USAGE_GUIDE.md` | `pipeline_orchestrator_v4.md` (×2) |

@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """
-Ship Pro V3 Orchestrator — 准备 Agent 执行环境
+[DEPRECATED] Ship Pro V3 Orchestrator
+
+⚠️  此文件已废弃。所有功能已合并到 run_pipeline.py。
+请使用: python3 run_pipeline.py prepare|task|gate|validate|status|update-status
+
+原始描述:
+    Ship Pro V3 Orchestrator — 准备 Agent 执行环境
 
 用法:
     python3 orchestrator.py <path/to/input.json> <output_dir>
@@ -138,6 +144,13 @@ def prepare_agent_task(agent_name: str, input_format: str, run_id: str,
     }
 
 def main():
+    import warnings
+    warnings.warn(
+        "orchestrator.py is DEPRECATED. Use run_pipeline.py instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    print("⚠️  orchestrator.py 已废弃，请使用 run_pipeline.py")
     if len(sys.argv) < 3:
         print("用法: python3 orchestrator.py <input.json> <output_dir>")
         print("\n示例:")

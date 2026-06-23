@@ -74,7 +74,7 @@ Stage Output (JSON)
 
 ### 2.4 实现
 
-详见 `domains/solution/harness_scorer.py`
+详见 `domains/solution_pro/harness_scorer.py`
 
 ---
 
@@ -220,7 +220,7 @@ Consolidator 合并三路评审意见，生成统一的改进建议列表。
 ### 7.1 V6 改进测试
 
 ```bash
-python3 domains/solution/eval/test_v6_improvements.py <path_to_final_result.json>
+python3 domains/solution_pro/eval/test_v6_improvements.py <path_to_final_result.json>
 ```
 
 测试项:
@@ -232,7 +232,7 @@ python3 domains/solution/eval/test_v6_improvements.py <path_to_final_result.json
 ### 7.2 传播检查
 
 ```bash
-python3 domains/solution/eval/propagation_checker.py <blackboard_path>
+python3 domains/solution_pro/eval/propagation_checker.py <blackboard_path>
 ```
 
 检查项:

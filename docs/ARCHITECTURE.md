@@ -1,9 +1,9 @@
 # DeepFlow Architecture Design
 
-> **Document Version**: 1.4
-> **Date**: 2026-06-05
+> **Document Version**: 2.0
+> **Date**: 2026-06-23
 > **Author**: Zhongli Ji (姬忠礼)
-> **Status**: Three-domain architecture — Spec Pro v2.4 + Solution Pro V4.4 + Research Pro
+> **Status**: Four-domain architecture — Spec Pro v2.4 + Solution Pro V4.4 + Ship Pro V3.2 + Research Pro
 
 ---
 
@@ -11,7 +11,7 @@
 
 This document describes the architectural evolution of DeepFlow:
 1. **Original Blueprint (V3.0)**: Configuration-driven declarative multi-agent collaboration platform
-2. **Current Implementation (V0.4.0 / 2026-06-05)**: Three-domain architecture with Spec Pro v2.4 + Solution Pro V4.4 + Research Pro. Investment module removed for zero external dependencies.
+2. **Current Implementation (V0.5.0 / 2026-06-23)**: Four-domain architecture with Spec Pro v2.4 + Solution Pro V4.4 + Ship Pro V3.2 + Research Pro. Phase 0-3 architecture hardening completed (Pydantic contract cage + single execution engine + state unification).
 3. **Gap Analysis**: Objective comparison between the V3.0 blueprint and the current implementation
 
 **Reference Documents**:
@@ -141,13 +141,13 @@ T+30min → 🔬 Deep Research (Full coverage + complete evidence chain + risk s
 
 ---
 
-## Part 2: Current Implementation (DeepFlow V0.4.0 / 2026-06-05)
+## Part 2: Current Implementation (DeepFlow V0.5.0 / 2026-06-23)
 
 ### 2.1 Implementation Background
 
-**Date**: 2026-06-05
-**Version**: 0.4.0
-**Goal**: Clean, lightweight multi-agent pipeline framework on OpenClaw. Investment module removed to achieve zero external Python dependencies.
+**Date**: 2026-06-23
+**Version**: 0.5.0
+**Goal**: Four-domain architecture with Pydantic contract cage hardening. Phase 0-3 completed: schema error elimination, Pydantic single source of truth, execution engine unification, state file consolidation.
 
 ### 2.2 Current Architecture (Solution Pro as Core Framework)
 
@@ -189,9 +189,45 @@ Main Agent (depth-0)
 | Configuration-Driven | ✅ | Domain YAML + Prompt Registry |
 | Zero External Dependencies | ✅ | OpenClaw 用户 clone 即跑 |
 
+### 2.5 Ship Pro Architecture (V3.2, 2026-06-23) ← NEW
+
+**Positioning**: AI-native delivery compilation engine. Consumes Solution Pro's `final_result.json`, produces `ship_package.json` (AI Coding work packages) through a 5-Agent pipeline with Pydantic contract cage.
+
+**Architecture**:
+```
+Architect → Decomposer → Specifier → Reviewer ↔ 反馈闭环 → Packager
+```
+
+**Pydantic Contract Cage** (Single Source of Truth):
+```
+contracts/architect.py    → ArchitectOutput Pydantic 模型
+contracts/packager.py     → ShipPackage Pydantic 模型
+contracts/pipeline_state.py → PipelineState 模型
+contracts/generator.py    → 自动从模型生成 JSON Schema + Prompt 段落 + Gate 清单
+```
+
+**Single Execution Engine** (`run_pipeline.py`):
+```
+python3 run_pipeline.py prepare <input> <output_dir>
+python3 run_pipeline.py task <agent_name> <output_dir>
+python3 run_pipeline.py gate <agent_name> <output_dir>
+python3 run_pipeline.py update-status <output_dir> <agent> <PASS|CONDITIONAL|FAIL>
+python3 run_pipeline.py validate <output_dir>
+python3 run_pipeline.py status <output_dir>
+```
+
+**Phase 0-3 Architecture Hardening**:
+
+| Phase | Goal | Status | Result |
+|-------|------|--------|--------|
+| **Phase 0** | 止血: 128 Schema 错误 → 0 | ✅ | Schema consistency validated |
+| **Phase 1** | Pydantic 真相源 | ✅ | contracts/ = 唯一真相源，改一处三处对齐 |
+| **Phase 2** | 执行引擎化 | ✅ | orchestrator.py DEPRECATED, run_pipeline.py 唯一入口 |
+| **Phase 3** | 状态单一化 | ✅ | pipeline_state.json 唯一状态文件，pipeline_status.json 已删除 |
+
 ---
 
-### 2.5 Solution Pro Architecture (V4.4, 2026-06-05)
+### 2.6 Solution Pro Architecture (V4.4, 2026-06-05)
 
 **Positioning**: The core framework layer of DeepFlow, providing general-purpose orchestration and quality gates for all domain-specific applications.
 
@@ -304,8 +340,11 @@ class PipelineEngine:
 - [x] **Prompt Registry**: Centralized registry
 - [x] **Solution Pro V4.4**: Fixed 10-stage pipeline + Harness V4 + REQ-ID tracking + State persistence + Contract Cage
 
-### 4.2 Medium-term (0.5.0)
+### 4.2 Medium-term (0.5.0) — In Progress
 
+- [x] **Ship Pro V3.2**: Pydantic contract cage + 5-Agent pipeline + single execution engine
+- [x] **Pydantic Contract Cage**: Single source of truth, auto Schema/Gate/Prompt alignment
+- [x] **State Unification**: `pipeline_state.json` as single state file
 - [ ] **Checkpoint Recovery**: `CheckpointManager` save per stage, support resume
 - [ ] **Intent Parsing**: `IntentParser` auto-recognize domain/depth
 - [ ] **Pipeline Templates**: 3 templates (iterative/audit/gated)
@@ -342,7 +381,8 @@ class PipelineEngine:
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **Deep Dive V3.0** | **2026-04-11** | **General Platform** | **PipelineEngine Class** | **✅ Multi-dimensional** | **✅ Marginal benefit** | **✅ Layered** | **✅ Per stage** |
 | **Solution Pro V4.4** | **2026-06-05** | **Fixed 10-Stage Pipeline** | **Python Pure Scheduling** | **✅ Harness V4** | **✅ REQ-ID Tracking** | **✅ State Persistence** | **✅ Contract Cage** |
+| **Ship Pro V3.2** | **2026-06-23** | **5-Agent Delivery** | **run_pipeline.py CLI** | **✅ Pydantic Gates** | **✅ Contract Cage** | **✅ Single State File** | **✅ Pydantic SSoT** |
 
 ---
 
-*This document objectively records the architectural evolution of DeepFlow: using Deep Dive V3.0 as the blueprint baseline, comparing it with the current Solution Pro V4.4 implementation, and providing a roadmap for future alignment. Investment module was removed in v0.4.0 to simplify the framework.*
+*This document objectively records the architectural evolution of DeepFlow: using Deep Dive V3.0 as the blueprint baseline, comparing it with the current V0.5.0 implementation (Solution Pro V4.4 + Ship Pro V3.2), and providing a roadmap for future alignment. Investment module was removed in v0.4.0. Phase 0-3 hardening completed on 2026-06-23.*

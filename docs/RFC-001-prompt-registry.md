@@ -571,7 +571,7 @@ migration_steps:
     name: "迁移代码"
     actions:
       - "core/task_builder.py: 使用read_prompt('investment/planner')"
-      - "domains/solution/task_builder.py: 使用read_prompt('solution/planner')"
+      - "domains/solution_pro/task_builder.py: 使用read_prompt('solution/planner')"
       - "删除旧的read_original_prompt函数"
     output: "更新后的代码"
     
@@ -593,7 +593,7 @@ migration_steps:
 ```bash
 # 如果迁移失败，一键回滚
 cp -r prompts.backup.20260501/* prompts/
-git checkout core/task_builder.py domains/solution/task_builder.py
+git checkout core/task_builder.py domains/solution_pro/task_builder.py
 rm core/prompt_registry.py
 ```
 

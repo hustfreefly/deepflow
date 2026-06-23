@@ -58,24 +58,51 @@ tags: [ship_pro, prompt, packaging, assembly]
     "generated_at": "ISO 8601",
     "generator": { "agent": "ship-pro", "model": "你的模型", "version": "3.0.0" },
     "source_session_id": "从输入获取",
-    "input_format": "检测到的格式"
+    "input_format": "A_final_solution | B_flat_domain | C_pipeline_summary | D_minimal"
   },
   "project_context": {
     "problem_statement": "从 blueprint 提取",
     "solution_overview": "从 blueprint 提取",
-    "architecture": { "style": "...", "components": [...], "layers": [...] },
+    "architecture": { "style": "...", "components": [{"name": "...", "type": "...", "technology": "...", "description": "..."}], "layers": [...] },
     "requirements_coverage": { "total": N, "covered": M, "coverage_rate": 0.XX },
     "constraints": [...],
     "known_gaps": [...]
   },
-  "work_packages": [...],
+  "work_packages": [
+    {
+      "id": "WP-001",
+      "title": "工作包标题",
+      "objective": "一句话目标",
+      "budget": { "tokens": 50000, "time_minutes": 30, "max_retries": 3 },
+      "complexity": "simple | medium | complex",
+      "model_tier": "claude-opus | claude-sonnet | claude-haiku | gpt-4o | gpt-4o-mini | qwen-max | qwen-plus | auto",
+      "dependencies": ["WP-000"],
+      "priority": "high | medium | low",
+      "context_files": ["相关文件路径"],
+      "outputs": [{ "type": "file | config | test | documentation", "path": "输出路径", "description": "说明" }],
+      "acceptance_criteria": ["具体的、可验证的 AC 文本"],
+      "acceptance_tests": [{ "command": "可执行的 shell 命令", "expected_exit_code": 0, "description": "说明" }],
+      "retry_policy": { "on_failure": "retry | abort | skip" },
+      "tags": ["分类标签"]
+    }
+  ],
   "dependency_graph": {
     "execution_order": ["WP-001", "WP-002", ...],
     "parallel_groups": [["WP-001"], ["WP-002", "WP-003"], ...],
     "critical_path": [...],
-    "edges": [...]
+    "edges": [{"from": "WP-001", "to": "WP-002"}]
   },
-  "risk_register": [...],
+  "risk_register": [
+    {
+      "id": "RISK-001",
+      "title": "风险标题（必填）",
+      "description": "风险描述",
+      "severity": "critical | high | medium | low",
+      "likelihood": "certain | likely | possible | unlikely | rare",
+      "mitigation": "缓解措施",
+      "affected_wps": ["WP-001"]
+    }
+  ],
   "summary": {
     "total_wps": N,
     "estimated_effort": "人类可读",
@@ -86,7 +113,13 @@ tags: [ship_pro, prompt, packaging, assembly]
     "narrative": "多段落叙述",
     "immediate_next_steps": [...]
   },
-  "quality_report": { ... }
+  "quality_report": {
+    "layer1_structural": { "score": 0.85, "checks_passed": 8, "checks_total": 10, "issues": [] },
+    "layer2_semantic": { "score": 0.80, "checks_passed": 4, "checks_total": 5, "issues": [] },
+    "layer3_actionable": { "score": 0.75, "checks_passed": 3, "checks_total": 4, "issues": [] },
+    "overall_score": 0.80,
+    "recommendations": ["..."]
+  }
 }
 ```
 
@@ -157,8 +190,11 @@ tags: [ship_pro, prompt, packaging, assembly]
 
 输出前检查：
 
-1. ship_package.json 是否通过 Schema 校验？
+1. ship_package.json 是否通过 Schema 校验？（禁止添加 Schema 未定义的顶层字段如 `_meta`）
 2. summary.md 是否包含所有必需章节？
-3. work_packages 是否未修改原始内容？
+3. work_packages 是否未修改原始内容？只包含 Schema 允许的字段（禁止 constraints/related_modules/requirements）
 4. dependency_graph 是否正确计算？
-5. _meta 中是否记录了 model_id 和 run_id？
+5. meta 中是否记录了 model 和 source_session_id？
+6. risk_register 每项是否包含 title 和 likelihood？
+7. work_packages.outputs 是否为 object 数组（含 type + path）而非 string 数组？
+8. meta.input_format 是否使用了正确的枚举值（A_final_solution/B_flat_domain/C_pipeline_summary/D_minimal）？

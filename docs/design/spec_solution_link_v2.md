@@ -26,7 +26,7 @@
 
 ### frozen_spec V2.0 实施完成
 
-**改动**：`domains/solution/frozen_spec.py`，16 行新增代码
+**改动**：`domains/solution_pro/frozen_spec.py`，16 行新增代码
 
 | 修复项 | 之前 | 之后 | REQ 数 |
 |--------|------|------|--------|
@@ -396,8 +396,8 @@ def _finalize_living_spec(living_spec_path, llm_call_fn):
 
 | 改动文件 | 改动内容 | 行数 |
 |:---|:---|:---|
-| `domains/solution/frozen_spec.py` | 新增 `_build_executive_summary()` + `_build_requirement_groups()` + 场景 B minimal summary + 修改返回值 | +80 |
-| `domains/solution/task_builder.py` | 各 Worker prompt 注入 executive_summary（按角色裁剪） | +60 |
+| `domains/solution_pro/frozen_spec.py` | 新增 `_build_executive_summary()` + `_build_requirement_groups()` + 场景 B minimal summary + 修改返回值 | +80 |
+| `domains/solution_pro/task_builder.py` | 各 Worker prompt 注入 executive_summary（按角色裁剪） | +60 |
 
 **向后兼容**：
 - ✅ 纯增量，不改 REQ 结构
@@ -417,8 +417,8 @@ def _finalize_living_spec(living_spec_path, llm_call_fn):
 |:---|:---|:---|
 | `domains/spec_pro/requirement_structuring.py` | 新建：LLM 标注 + JSON Schema 验证 + 覆盖率检查 | ~120 |
 | `domains/spec_pro/coordinator.py` | 收尾阶段调用标注 Worker | +20 |
-| `domains/solution/frozen_spec.py` | 新增 `_merge_annotations()` + 读取 annotations | +30 |
-| `domains/solution/task_builder.py` | Harness Final prompt 增加全局理解一致性检查 | +15 |
+| `domains/solution_pro/frozen_spec.py` | 新增 `_merge_annotations()` + 读取 annotations | +30 |
+| `domains/solution_pro/task_builder.py` | Harness Final prompt 增加全局理解一致性检查 | +15 |
 
 **向后兼容**：
 - ✅ frozen_spec.py 有 fallback：无 annotations 时走纯脚本路径
@@ -470,8 +470,8 @@ def _finalize_living_spec(living_spec_path, llm_call_fn):
 
 | 文件 | 阶段 | 改动类型 | 行数 |
 |:---|:---|:---|:---|
-| `domains/solution/frozen_spec.py` | 1 + 2 | 修改 | +110 |
-| `domains/solution/task_builder.py` | 1 + 2 | 修改 | +75 |
+| `domains/solution_pro/frozen_spec.py` | 1 + 2 | 修改 | +110 |
+| `domains/solution_pro/task_builder.py` | 1 + 2 | 修改 | +75 |
 | `domains/spec_pro/requirement_structuring.py` | 2 | 新建 | ~120 |
 | `domains/spec_pro/coordinator.py` | 2 | 修改 | +20 |
 | **总计** | | | **~325** |

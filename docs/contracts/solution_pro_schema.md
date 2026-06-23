@@ -358,7 +358,7 @@ The control contract is generated after the Planning stage to:
 
 ### `validate_stage_output()` Function
 
-**Location:** `domains/solution/task_builder.py`
+**Location:** `domains/solution_pro/task_builder.py`
 
 **Signature:**
 ```python
@@ -409,7 +409,7 @@ def validate_stage_output(output: dict, stage_name: str) -> tuple[bool, str]:
 
 ### Runtime Integration
 
-**Location:** `domains/solution/completion_handler.py`
+**Location:** `domains/solution_pro/completion_handler.py`
 
 **Behavior:**
 - Automatically called after each stage completes
@@ -431,9 +431,9 @@ def validate_stage_output(output: dict, stage_name: str) -> tuple[bool, str]:
 
 ## Related Documents
 
-- [README.md](../../domains/solution/README.md) - Solution Pro overview
-- [SKILL.md](../../domains/solution/SKILL.md) - Agent execution steps
-- [_overview.md](../../domains/solution/_overview.md) - Code file index
+- [README.md](../../domains/solution_pro/README.md) - Solution Pro overview
+- [SKILL.md](../../domains/solution_pro/SKILL.md) - Agent execution steps
+- [_overview.md](../../domains/solution_pro/_overview.md) - Code file index
 - [CHANGELOG.md](../../CHANGELOG.md) - Full version history
 
 ---

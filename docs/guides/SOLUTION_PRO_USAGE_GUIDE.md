@@ -32,7 +32,7 @@ plan = run_solution_pro(
 
 # Step 3: Spawn Orchestrator
 sessions_spawn(
-    task=read("domains/solution/prompts/pipeline_orchestrator_v4.md").format(**plan),
+    task=read("domains/solution_pro/prompts/pipeline_orchestrator_v4.md").format(**plan),
     mode="run",
     label=f"orchestrator_{plan['session_id'][:8]}"
 )
@@ -43,7 +43,7 @@ cron_job_id = cron(action="add", job={
     "schedule": {"kind": "every", "everyMs": 180000},
     "payload": {
         "kind": "agentTurn",
-        "message": read("domains/solution/prompts/cron_watcher.md").format(
+        "message": read("domains/solution_pro/prompts/cron_watcher.md").format(
             base_path=plan["base_path"],
             session_id=plan["session_id"]
         )
@@ -194,14 +194,14 @@ sqlite3 {db_path} "SELECT * FROM tasks WHERE session_id='{session_id}'"
 
 ### 自定义 Worker Prompt
 
-修改 `domains/solution/prompts/` 下的 prompt 文件：
+修改 `domains/solution_pro/prompts/` 下的 prompt 文件：
 
 ```bash
 # 修改 Planning Worker
-vim domains/solution/prompts/planning.md
+vim domains/solution_pro/prompts/planning.md
 
 # 修改 Reviewer Workers
-vim domains/solution/prompts/reviewer_*.md
+vim domains/solution_pro/prompts/reviewer_*.md
 ```
 
 ### 调整 Cron 巡检频率
@@ -268,9 +268,9 @@ cat {base_path}/stages/audit.json | jq .issues
 
 - `docs/SOLUTION_PRO_ARCHITECTURE.md` - 架构说明
 - `docs/CRON_EARLY_EXIT_POSTMORTEM.md` - Cron 提前退出问题复盘
-- `domains/solution/SKILL.md` - 主 Agent 执行指南
-- `domains/solution/prompts/pipeline_orchestrator_v4.md` - Orchestrator Prompt
-- `domains/solution/prompts/cron_watcher.md` - Cron Watcher Prompt
+- `domains/solution_pro/SKILL.md` - 主 Agent 执行指南
+- `domains/solution_pro/prompts/pipeline_orchestrator_v4.md` - Orchestrator Prompt
+- `domains/solution_pro/prompts/cron_watcher.md` - Cron Watcher Prompt
 
 ---
 

@@ -104,19 +104,19 @@ super_loop/README.md: Super Loop说明文档（新建）
 
 | # | 文件 | 类型 |
 |:---|:---|:---|
-| 28 | domains/solution/blackboard.py | 修改 |
-| 29 | domains/solution/completion_handler.py | 修改 |
-| 30 | domains/solution/orchestrator_agent.py | 修改 |
-| 31 | domains/solution/task_builder.py | 修改 |
-| 32 | domains/solution/prompts/summarizer.md | 修改 |
-| 33 | domains/solution/prompts/planner.md | 修改 |
-| 34 | domains/solution/prompts/consolidator.md | 修改 |
-| 35 | domains/solution/prompts/reviewer.md | 修改 |
-| 36 | domains/solution/prompts/pipeline_orchestrator.md | 修改 |
-| 37 | domains/solution/prompts/orchestrator_completion.md | 修改 |
-| 38 | domains/solution/eval/propagation_checker.py | 修改 |
-| 39-42 | domains/solution/ 其他修改文件(4个) | 修改 |
-| 43-49 | domains/solution/ 新建文件(7个) | 新建 |
+| 28 | domains/solution_pro/blackboard.py | 修改 |
+| 29 | domains/solution_pro/completion_handler.py | 修改 |
+| 30 | domains/solution_pro/orchestrator_agent.py | 修改 |
+| 31 | domains/solution_pro/task_builder.py | 修改 |
+| 32 | domains/solution_pro/prompts/summarizer.md | 修改 |
+| 33 | domains/solution_pro/prompts/planner.md | 修改 |
+| 34 | domains/solution_pro/prompts/consolidator.md | 修改 |
+| 35 | domains/solution_pro/prompts/reviewer.md | 修改 |
+| 36 | domains/solution_pro/prompts/pipeline_orchestrator.md | 修改 |
+| 37 | domains/solution_pro/prompts/orchestrator_completion.md | 修改 |
+| 38 | domains/solution_pro/eval/propagation_checker.py | 修改 |
+| 39-42 | domains/solution_pro/ 其他修改文件(4个) | 修改 |
+| 43-49 | domains/solution_pro/ 新建文件(7个) | 新建 |
 
 ### P1 — Spec Pro管线
 

@@ -162,7 +162,7 @@ orchestrator 完成后会自动 announce 回来。
 
 ### Prompt 模板
 
-见 `domains/solution/prompts/cron_watcher.md`
+见 `domains/solution_pro/prompts/cron_watcher.md`
 
 ### 核心逻辑
 
@@ -256,7 +256,7 @@ for f in [".cron_job_id", ".cron_run_count", ".notified_stages.json", ".run_star
 
 1. 解析完成状态
 2. 执行兜底清理（删除 cron + 清理状态文件）
-3. 执行 `python3 domains/solution/completion_handler.py <session_id>` 验证
+3. 执行 `python3 domains/solution_pro/completion_handler.py <session_id>` 验证
 4. 更新 tasks 数据库为 `completed`
 5. 向用户报告最终结果
 

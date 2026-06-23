@@ -77,9 +77,20 @@ class CompletionChecker:
         return data
 
 class StageDetector:
-    """Glob scan + diff + merge_group."""
-    def __init__(self, base_path: Path, detection: Dict, state_dir: Path):
+    """Glob scan + diff + merge_group + mtime validation."""
+    def __init__(self, base_path: Path, detection: Dict, state_dir: Path, run_start_at: str = ""):
         self.base_path, self.scan_dirs, self.notified_path, self._all = base_path, detection.get("scan_dirs", []), state_dir / ".notified_stages.json", []
+        self.run_start_at = run_start_at
+        self._run_start_dt = parse_timestamp(run_start_at) if run_start_at else None
+    def _is_stale(self, file_path: Path) -> bool:
+        """Check if file was created before this run started (stale from previous run)."""
+        if not self._run_start_dt:
+            return False
+        try:
+            mtime = datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc)
+            return mtime < self._run_start_dt
+        except (OSError, ValueError):
+            return False
     def scan(self) -> List[Dict]:
         notified_data = load_json(self.notified_path)
         notified = set(notified_data) if isinstance(notified_data, list) else set()
@@ -89,12 +100,14 @@ class StageDetector:
             dir_p = self.base_path / sd["path"] if sd["path"] != "." else self.base_path
             if not dir_p.is_dir(): continue
             matches = dir_p.rglob(sd.get("pattern", "*.json")) if sd.get("dir_mode") == "nested" else dir_p.glob(sd.get("pattern", "*.json"))
-            present = {p.name for p in matches if p.is_file()}
-            for fname, info in sd.get("stage_files", {}).items():
-                if fname in present:
-                    found[fname] = info
-                    mg = info.get("merge_group")
-                    if mg: merge_groups.setdefault(mg, []).append(info)
+            for p in matches:
+                if p.is_file() and not self._is_stale(p):
+                    fname = p.name
+                    if fname in sd.get("stage_files", {}):
+                        info = sd["stage_files"][fname]
+                        found[fname] = info
+                        mg = info.get("merge_group")
+                        if mg: merge_groups.setdefault(mg, []).append(info)
         self._all = sorted(found.values(), key=lambda x: x.get("seq", 0))
         new_files = set(found.keys()) - notified
         new_stages: List[Dict] = []
@@ -336,16 +349,37 @@ class MessageFormatter:
     def timeout(self) -> str: return self.tpl["timeout"].format_map(self._ctx(timeout_min=self.cfg["limits"].get("timeout_minutes", 60), timeout_minutes=self.cfg["limits"].get("timeout_minutes", 60)))
     def circuit_break(self, failures: int) -> str: return self.tpl["circuit_break"].format_map(self._ctx(failures=failures))
 
-WRAPPER_PROMPT = """你是 DeepFlow 管线巡检执行器。严格按以下步骤执行：
+WRAPPER_PROMPT_TEMPLATE = """你是 DeepFlow 管线巡检执行器。严格按以下步骤执行：
 
-1. 运行: exec("python3 {deepflow_root}/scripts/pipeline_watcher.py --config {config_path} --base-path {base_path} --run-start-at {run_start_at} --cron-job-id {cron_job_id}")
+1. 运行: exec("python3 __DEEPFLOW_ROOT__/scripts/pipeline_watcher.py --config __CONFIG_PATH__ --base-path __BASE_PATH__ --run-start-at __RUN_START_AT__ --cron-job-id __CRON_JOB_ID__")
 2. 验证 stdout 是合法 JSON（先尝试 json.loads 解析）
 3. 根据 action 字段：
    - "noop" → 回复 NO_REPLY
-   - 其他 → 原样输出 message 字段的文本（delivery 自动推送）
-4. 如果 should_remove_cron = true → 输出消息后执行 cron(action="remove", jobId="{cron_job_id}")
+   - 其他 → **只输出 message 字段的字符串值**（不是整个 JSON！）
+4. 如果 should_remove_cron = true → 输出消息后执行 cron(action="remove", jobId="__CRON_JOB_ID__")
+
+⚠️ 输出格式规则（违反 = 失败）：
+- ✅ 正确：直接输出 message 字符串，如 "✅ Ship Pro 完成\n\n5/5 阶段..."
+- ❌ 错误：输出 JSON 包裹，如 '{{"action": "completed", "message": "..."}}'
+- ❌ 错误：输出原始 stdout 内容
+- 规则：你的回复 = message 字段的值，不多不少
 
 禁止：自行判断进度、编造消息、跳过步骤。如果 JSON 解析失败，输出错误信息。"""
+
+
+def render_wrapper_prompt(deepflow_root: str, config_path: str, base_path: str,
+                          run_start_at: str, cron_job_id: str) -> str:
+    """Render the wrapper prompt with actual values. Safe for any JSON content."""
+    return (WRAPPER_PROMPT_TEMPLATE
+            .replace("__DEEPFLOW_ROOT__", deepflow_root)
+            .replace("__CONFIG_PATH__", config_path)
+            .replace("__BASE_PATH__", base_path)
+            .replace("__RUN_START_AT__", run_start_at)
+            .replace("__CRON_JOB_ID__", cron_job_id))
+
+
+# Backward compat alias
+WRAPPER_PROMPT = WRAPPER_PROMPT_TEMPLATE
 
 def write_auto_chain(config: Dict, base_path: Path, completion: Dict) -> Optional[str]:
     """Write .auto_chain_trigger if configured. Returns next pipeline name or None."""
@@ -380,7 +414,7 @@ def _run_pipeline(cfg: Dict, base: Path, state: Path, args: Any, fmt: str) -> No
         elif status == "failed":
             _mark_remove(state, "failed", cron_id)
             emit("failed", fm.failed(comp, args.run_start_at), should_remove=True, fmt=fmt)
-    sd = StageDetector(base, cfg["detection"], state)
+    sd = StageDetector(base, cfg["detection"], state, args.run_start_at)
     new_stages = sd.scan()
     if new_stages:
         CircuitBreaker(state, cfg["limits"]).reset()

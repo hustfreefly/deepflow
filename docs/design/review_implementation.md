@@ -25,10 +25,10 @@
 | # | 遗漏文件 | 引用方式 | 影响 |
 |:--|:--|:--|:--|
 | 1 | **`core/config/path_config.py`** | `get_blackboard_path()` 是所有路径的根，`self.blackboard_dir = self.base_dir / 'blackboard'` | 🔴 **必须改**。新结构 `projects/{slug}/runs/{ts}/` 需要 path_config 支持新的路径解析逻辑，否则所有下游都错 |
-| 2 | **`domains/solution/task_builder.py`** | 10+ 处硬编码 `f"{_DEEPFLOW_BASE}/blackboard/{session_id}/"` 作为 prompt 中的 `{blackboard_path}` 替换 | 🔴 **必须改**。LLM worker 收到的 prompt 里路径是错的，写文件写到旧位置 |
-| 3 | **`domains/solution/__init__.py`** | 状态文件初始化（`.completed`、`.cron_run_count` 等写入 `base_path/`），以及 delivery config 路径 | 🟡 必须改。状态文件要移到 `state/` 子目录 |
-| 4 | **`domains/solution/orchestrator_agent.py`** | `self.blackboard.base_path` 引用 + worker 输出路径拼接 | 🟡 需要适配 |
-| 5 | **`domains/solution/harness_check_expert.py`** | `blackboard_path / session_id / STAGE_PATH_REGISTRY["audit"]` | 🟡 路径拼接方式变了 |
+| 2 | **`domains/solution_pro/task_builder.py`** | 10+ 处硬编码 `f"{_DEEPFLOW_BASE}/blackboard/{session_id}/"` 作为 prompt 中的 `{blackboard_path}` 替换 | 🔴 **必须改**。LLM worker 收到的 prompt 里路径是错的，写文件写到旧位置 |
+| 3 | **`domains/solution_pro/__init__.py`** | 状态文件初始化（`.completed`、`.cron_run_count` 等写入 `base_path/`），以及 delivery config 路径 | 🟡 必须改。状态文件要移到 `state/` 子目录 |
+| 4 | **`domains/solution_pro/orchestrator_agent.py`** | `self.blackboard.base_path` 引用 + worker 输出路径拼接 | 🟡 需要适配 |
+| 5 | **`domains/solution_pro/harness_check_expert.py`** | `blackboard_path / session_id / STAGE_PATH_REGISTRY["audit"]` | 🟡 路径拼接方式变了 |
 | 6 | **`domains/spec_pro/coordinator.py`** | `self.base_path = os.path.join(str(_BASE_DIR), "blackboard", self.session_id)` | 🟡 Spec Pro 路径也要适配新结构 |
 | 7 | **`domains/research_pro/__init__.py`** | `base_path_input = str(_path_config.base_dir / "blackboard" / session_id)` + 状态文件操作 | 🟡 Research Pro 独立存放，但路径初始化代码要改 |
 | 8 | **`core/quality/entry_harness.py`** | `session_dir = _DEEPFLOW_BASE / "blackboard" / session_id` | 🟡 质量检查路径 |
@@ -130,9 +130,9 @@ status_v2.py (前端)
 | 步骤 | 文件 | 理由 |
 |:--|:--|:--|
 | **Step 1** | `core/config/path_config.py` | 基础层。新增 `get_project_run_path(slug, run_id)` 方法，不改现有 `get_blackboard_path()`。零风险 |
-| **Step 2** | `domains/solution/blackboard.py` | STAGE_PATH_REGISTRY 适配。新增 `get_stage_path_v2()` 方法，旧方法保留。通过 `BlackboardManager.__init__` 的参数判断用新还是旧 |
-| **Step 3** | `domains/solution/task_builder.py` + `orchestrator_agent.py` | prompt 路径注入。这是 LLM worker 的唯一路径来源，必须跟 Step 2 同步 |
-| **Step 4** | `domains/solution/__init__.py` + `start_solution_pro.py` | session_id 生成逻辑改为 `{slug}/runs/{timestamp}`。这是入口改动，改完后新跑的项目走新路径 |
+| **Step 2** | `domains/solution_pro/blackboard.py` | STAGE_PATH_REGISTRY 适配。新增 `get_stage_path_v2()` 方法，旧方法保留。通过 `BlackboardManager.__init__` 的参数判断用新还是旧 |
+| **Step 3** | `domains/solution_pro/task_builder.py` + `orchestrator_agent.py` | prompt 路径注入。这是 LLM worker 的唯一路径来源，必须跟 Step 2 同步 |
+| **Step 4** | `domains/solution_pro/__init__.py` + `start_solution_pro.py` | session_id 生成逻辑改为 `{slug}/runs/{timestamp}`。这是入口改动，改完后新跑的项目走新路径 |
 | **Step 5** | `completion_handler.py` + `pipeline_watcher.py` + `pipeline_progress_notify.py` | 状态文件路径 + 降级逻辑。必须在 Step 4 之后，因为要先有新路径才能写降级 |
 | **Step 6** | `run_pipeline.py` + `status_v2.py` + `coordinator.py` + `research_pro/__init__.py` | Ship Pro 去套娃 + 前端适配 + 其他域适配。独立于主链路，可以并行改 |
 
