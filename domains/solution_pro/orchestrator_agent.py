@@ -43,6 +43,7 @@ import unicodedata
 import glob
 import warnings
 
+from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable
 
 import core.bootstrap
@@ -265,7 +266,7 @@ class _SolutionDispatcher:
         
         # 初始化 BlackboardManager（统一路径管理）
         self.blackboard = BlackboardManager(self.session_id)
-        self.base_path = str(self.blackboard.base_path)
+        self.base_path = str(self.blackboard.session_dir)
         write_frozen_spec(self.base_path, self.topic, self.constraints, self.living_spec)
 
         print(f"[SolutionDispatcher] Session: {self.session_id}")
@@ -422,7 +423,7 @@ class _SolutionDispatcher:
                 research_inputs = [
                     {
                         "worker_id": expert_id,
-                        "path": str(self.blackboard.base_path / resolve_worker_output_path("research", expert_id)),
+                        "path": str(Path(self.base_path) / resolve_worker_output_path("research", expert_id)),
                     }
                     for expert_id in ("expert_1", "expert_2", "expert_3")
                 ]
@@ -496,7 +497,7 @@ class _SolutionDispatcher:
             elif stage == "summarizer":
                 # Stage 10: 最终总结
                 upstream_outputs = {
-                    name: str(self.blackboard.base_path / rel_path)
+                    name: str(Path(self.base_path) / rel_path)
                     for name, rel_path in STAGE_PATH_REGISTRY.items()
                     if name in {
                         "data_collection",

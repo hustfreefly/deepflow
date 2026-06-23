@@ -310,6 +310,8 @@ class MessageFormatter:
         return self.tpl["progress"].format_map(self._ctx(
             stage_lines=self._stage_lines(new_stages),
             elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at),
+            # Override completed with deduplicated count (unique seqs, not raw file count)
+            completed=completed_count,
             # UI v3 variables
             progress_bar=bar, icon_chain=chain, remaining=remaining,
             project_short=self._project_short(), current_phase_name=current_name,

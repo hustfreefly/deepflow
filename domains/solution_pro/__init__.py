@@ -117,7 +117,7 @@ def run_solution_pro(topic: str, **kwargs):
     bm.write(".cron_run_count", {"count": 0, "max_runs": 20, "run_start_at": "PENDING"})
 
     # 读取并替换 orchestrator prompt
-    prompt_path = pathlib.Path(__file__).parent / "prompts" / "pipeline_orchestrator_v4.md"
+    prompt_path = pathlib.Path(__file__).parent / "prompts" / "pipeline_orchestrator.md"
     prompt_template = prompt_path.read_text(encoding="utf-8")
     session_dir = str(bm.session_dir)
     plan_path = f"{session_dir}/execution_plan.json"

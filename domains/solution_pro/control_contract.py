@@ -265,6 +265,7 @@ def rewrite_after_planning(base_path: str) -> Dict[str, Any]:
         )
         research_tasks[worker["id"]] = inject_req_traceability(
             task + "\n" + LAYER2_READ_INSTRUCTION.format(
+                session_id=session_id,
                 planning_path=planning_path,
                 worker_role=worker.get("worker_role") or f"researcher_{worker['id']}",
             ),
@@ -277,17 +278,17 @@ def rewrite_after_planning(base_path: str) -> Dict[str, Any]:
     ]:
         base_task = builder(session_id, topic, {"type": solution_type, "mode": mode, "constraints": constraints})
         tasks[stage] = inject_req_traceability(
-            base_task + "\n" + LAYER2_READ_INSTRUCTION.format(planning_path=planning_path, worker_role=role),
+            base_task + "\n" + LAYER2_READ_INSTRUCTION.format(session_id=session_id, planning_path=planning_path, worker_role=role),
             session_id,
         )
 
     audit_path = str(bm.session_dir / STAGE_PATH_REGISTRY.get("audit", "audit"))
     tasks["fix"] = inject_req_traceability(
-        build_fixer_task_with_audit(session_id, topic, audit_path) + "\n" + LAYER2_READ_INSTRUCTION.format(planning_path=planning_path, worker_role="fixer"),
+        build_fixer_task_with_audit(session_id, topic, audit_path) + "\n" + LAYER2_READ_INSTRUCTION.format(session_id=session_id, planning_path=planning_path, worker_role="fixer"),
         session_id,
     )
     tasks["fixer_expert"] = inject_req_traceability(
-        build_fixer_expert_task(session_id, topic, [], severity="critical") + "\n" + LAYER2_READ_INSTRUCTION.format(planning_path=planning_path, worker_role="fixer_expert"),
+        build_fixer_expert_task(session_id, topic, [], severity="critical") + "\n" + LAYER2_READ_INSTRUCTION.format(session_id=session_id, planning_path=planning_path, worker_role="fixer_expert"),
         session_id,
     )
 
