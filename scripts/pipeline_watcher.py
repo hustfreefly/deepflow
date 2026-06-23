@@ -127,8 +127,8 @@ class CircuitBreaker:
 
 # ── Default templates — UI v3 (ported from pipeline_progress_notify.py) ──
 _TPL = {
-    "progress": "🟠 [{project_short}] {current_phase_name}\n{progress_bar} {completed}/{total} 阶段\n{icon_chain}\n⏱️ 已运行 {elapsed} · 预计剩余 {remaining}",
-    "completed": "✅ [{project_short}] {display_name} 完成\n{progress_bar} {total}/{total} 阶段\n⏱️ 总耗时 {elapsed}\n📄 {artifact_count} 个交付物",
+    "progress": "🟠 [{project_short}] {current_phase_name}\n{progress_bar} {completed}/{total} 阶段\n⏱️ 已运行 {elapsed} · 预计剩余 {remaining}",
+    "completed": "✅ [{project_short}] {display_name} 完成\n\n{progress_bar} {total}/{total} 阶段\n⏱️ 总耗时 {elapsed}\n📄 {artifact_count} 个交付物",
     "failed": "⚠️ {display_name}失败\n已完成: {completed}/{total}\n原因: {error}",
     "timeout": "⚠️ {display_name}运行超时（>{pipeline.timeout_min}分钟）\norchestrator 可能已崩溃。",
     "circuit_break": "⚠️ 连续{pipeline.failures}次巡检无输出\norchestrator 可能已停止。",
@@ -245,9 +245,11 @@ class MessageFormatter:
         return ctx
     def _elapsed(self, run_start_at: str) -> str:
         s = parse_timestamp(run_start_at)
-        if not s: return "未知"
-        m = int((datetime.now(timezone.utc) - s).total_seconds() / 60)
-        return f"{m}分钟" if m < 60 else f"{m // 60}时{m % 60}分"
+        if not s: return "—"
+        m = max(0, int((datetime.now(timezone.utc) - s).total_seconds() / 60))
+        if m >= 60:
+            return f"{m // 60}h{m % 60}m"
+        return f"{m}m"
     def _stage_lines(self, new_stages: List[Dict]) -> str:
         done = {s["name"] for s in self.stages}
         lines = [f"  {self.sym['done']} {n}" for n in sorted(done)]
