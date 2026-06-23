@@ -27,6 +27,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import logging
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # 常量
 # ---------------------------------------------------------------------------
@@ -205,7 +208,7 @@ def _check_subagent_health(session_path: Path) -> list[str]:
                 if "error" in content.lower() or "exception" in content.lower():
                     issues.append(f"日志文件 {log_file.name} 包含错误")
             except Exception:
-                pass
+                logger.debug(f"monitoring check: {e}")
     
     return issues
 
@@ -426,7 +429,7 @@ def detect_changes(session_result: dict) -> list[str]:
                 old = json.load(f)
             old_stages = set(old.get("stages", {}).keys())
         except (json.JSONDecodeError, OSError):
-            pass
+            logger.debug(f"data read: {e}")
 
     new_stages = set(session_result["stages"].keys())
     added = new_stages - old_stages

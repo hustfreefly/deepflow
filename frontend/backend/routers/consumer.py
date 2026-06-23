@@ -78,7 +78,7 @@ def _get_pending_tasks():
                 task = json.load(f)
             if task.get("status") == "queued":
                 tasks.append(task)
-        except Exception as e:
+        except (json.JSONDecodeError, OSError, ValueError) as e:
             print(f"[Consumer] Error reading {task_file}: {e}")
     
     # SQLite queue (v2) - only pending, not waiting_agent
@@ -94,7 +94,7 @@ def _get_pending_tasks():
                 "source": "sqlite"
             }
             tasks.append(task)
-    except Exception as e:
+    except (ImportError, OSError) as e:
         print(f"[Consumer] Error reading SQLite queue: {e}")
     
     return tasks
@@ -119,7 +119,7 @@ def _mark_task_waiting_agent(session_id: str, source: str = "file"):
         db = get_db()
         db.update_task_status(session_id, "waiting_agent", None)
         print(f"[Consumer] Marked SQLite task {session_id[:30]} as waiting_agent")
-    except Exception as e:
+    except (ImportError, OSError) as e:
         print(f"[Consumer] Error marking SQLite task waiting_agent: {e}")
 
 
@@ -173,7 +173,7 @@ def _spawn_deepflow_task(task: dict) -> bool:
         
         return True
         
-    except Exception as e:
+    except (OSError, json.JSONDecodeError, ConnectionError, TimeoutError) as e:
         print(f"[Consumer] Error spawning DeepFlow: {e}")
         _update_status(session_id, {
             "status": "failed",
@@ -184,7 +184,7 @@ def _spawn_deepflow_task(task: dict) -> bool:
                 from database import get_db
                 db = get_db()
                 db.update_task_status(session_id, "failed", str(e))
-            except Exception as e:
+            except (ImportError, OSError) as e:
                 logger.warning(f"spawn task failed: {e}")
         return False
 
@@ -229,7 +229,7 @@ def _send_webhook(session_id: str, domain: str, params: dict) -> bool:
         else:
             print(f"[Consumer] Webhook failed: HTTP {response.status_code}")
             return False
-    except Exception as e:
+    except (ConnectionError, TimeoutError, OSError) as e:
         print(f"[Consumer] Webhook error: {e}")
         return False
 
@@ -252,7 +252,7 @@ def _notify_agent_for_execution(session_id: str, domain: str, params: dict) -> b
         # The actual execution happens when the Agent processes pending tasks
         # via webhook_task_processor.py or HEARTBEAT.md task queue check
         return True
-    except Exception as e:
+    except (ImportError, OSError) as e:
         print(f"[Consumer] Error notifying agent: {e}")
         return False
 
@@ -299,7 +299,7 @@ def _consumer_loop():
             # Sleep before next poll
             time.sleep(5)
             
-        except Exception as e:
+        except Exception as e:  # TODO: 待细化 — 顶层循环保留 Exception 安全网
             print(f"[Consumer] Error in loop: {e}")
             time.sleep(5)
     

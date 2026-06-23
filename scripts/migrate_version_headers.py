@@ -15,6 +15,9 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 
+import logging
+logger = logging.getLogger(__name__)
+
 DEEPFLOW_BASE = Path(__file__).resolve().parent.parent
 TODAY = datetime.now().strftime("%Y-%m-%d")
 
@@ -122,7 +125,7 @@ def migrate_cage():
                     if meta and ("cage_version" in meta or "version" in meta):
                         continue
             except Exception:
-                pass
+                logger.debug(f"migration step: {e}")
         
         # 从文件名推断版本
         m = re.search(r'_v(\d+\.\d+)', filepath.stem)
@@ -209,7 +212,7 @@ def migrate_domains():
                     if meta and "component_version" in meta:
                         continue
             except Exception:
-                pass
+                logger.debug(f"migration step: {e}")
         
         # 从内容中推断
         data = yaml.safe_load(content) or {}
@@ -254,7 +257,7 @@ def migrate_domains():
                         if meta and ("component_version" in meta or "version" in meta):
                             continue
                 except Exception:
-                    pass
+                    logger.debug(f"migration step: {e}")
             
             data = yaml.safe_load(content) or {}
             domain_name = sub.name

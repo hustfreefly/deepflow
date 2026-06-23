@@ -136,12 +136,12 @@ class BlackboardManager:
 
             os.replace(tmp_path, file_path)
             return True
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             logger.warning(f"write_stage failed for '{stage_name}': {e}")
             # 清理临时文件
             try:
                 Path(tmp_path).unlink(missing_ok=True)
-            except Exception as e:
+            except OSError as e:
                 logger.debug(f"write_stage cleanup failed: {e}")
             return False
 
@@ -162,7 +162,7 @@ class BlackboardManager:
                 return default
             with open(file_path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"read_stage failed for '{stage_name}': {e}")
             return default
 
@@ -226,7 +226,7 @@ class BlackboardManager:
             if file_path.exists():
                 file_path.unlink()
             return True
-        except Exception as e:
+        except OSError as e:
             logger.warning(f"delete_stage failed for '{stage_name}': {e}")
             return False
 
@@ -245,7 +245,7 @@ class BlackboardManager:
             existing = self.read_stage(stage_name, default={})
             existing.update(updates)
             return self.write_stage(stage_name, existing)
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             logger.warning(f"append_stage failed for '{stage_name}': {e}")
             return False
 
@@ -265,7 +265,7 @@ class BlackboardManager:
                 if file_path.exists():
                     return file_path.read_text(encoding='utf-8')
             return None
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.warning(f"read_stage_raw failed for '{stage_name}': {e}")
             return None
 
@@ -310,11 +310,11 @@ class BlackboardManager:
 
             os.replace(tmp_path, dst_path)
             return True
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             logger.warning(f"copy_stage failed: '{from_name}' -> '{to_name}': {e}")
             try:
                 Path(tmp_path).unlink(missing_ok=True)
-            except Exception as e:
+            except OSError as e:
                 logger.debug(f"copy_stage cleanup failed: {e}")
             return False
 

@@ -12,12 +12,15 @@ import os
 import sys
 import json
 import time
+import logging
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from core.config.path_config import PathConfig
+
+logger = logging.getLogger(__name__)
 
 sys.path.insert(0, str(PathConfig.resolve().base_dir))
 
@@ -182,8 +185,8 @@ class CageCheckpointManager:
             print(f"[CageCheckpoint] Saved checkpoint: {checkpoint_id}")
             return checkpoint_id
             
-        except Exception as e:
-            print(f"[CageCheckpoint] ERROR: Failed to save checkpoint: {e}")
+        except (OSError, TypeError, ValueError) as e:
+            logger.error(f"[CageCheckpoint] Failed to save checkpoint: {e}")
             return None
     
     def load_checkpoint(self, session_id: str, checkpoint_id: str) -> Optional[CheckpointData]:
@@ -210,8 +213,8 @@ class CageCheckpointManager:
             print(f"[CageCheckpoint] Loaded checkpoint: {checkpoint_id}")
             return checkpoint_data
             
-        except Exception as e:
-            print(f"[CageCheckpoint] ERROR: Failed to load checkpoint: {e}")
+        except (OSError, json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.error(f"[CageCheckpoint] Failed to load checkpoint: {e}")
             return None
     
     def get_latest_checkpoint(self, session_id: str) -> Optional[CheckpointData]:
@@ -245,8 +248,8 @@ class CageCheckpointManager:
             
             return self.load_checkpoint(session_id, checkpoint_id)
             
-        except Exception as e:
-            print(f"[CageCheckpoint] ERROR: Failed to get latest checkpoint: {e}")
+        except OSError as e:
+            logger.error(f"[CageCheckpoint] Failed to get latest checkpoint: {e}")
             return None
     
     def list_checkpoints(self, session_id: str) -> List[Dict[str, Any]]:
@@ -270,13 +273,13 @@ class CageCheckpointManager:
                     with open(checkpoint_file, 'r', encoding='utf-8') as f:
                         data = json.load(f)
                     checkpoints.append(data.get("metadata", {}))
-                except Exception as e:
-                    print(f"[CageCheckpoint] WARNING: Failed to read {checkpoint_file}: {e}")
+                except (OSError, json.JSONDecodeError, KeyError, ValueError) as e:
+                    logger.warning(f"[CageCheckpoint] Failed to read {checkpoint_file}: {e}")
             
             return checkpoints
             
-        except Exception as e:
-            print(f"[CageCheckpoint] ERROR: Failed to list checkpoints: {e}")
+        except OSError as e:
+            logger.error(f"[CageCheckpoint] Failed to list checkpoints: {e}")
             return []
     
     def delete_checkpoint(self, session_id: str, checkpoint_id: str) -> bool:
@@ -299,8 +302,8 @@ class CageCheckpointManager:
             else:
                 print(f"[CageCheckpoint] WARNING: Checkpoint not found: {checkpoint_id}")
                 return False
-        except Exception as e:
-            print(f"[CageCheckpoint] ERROR: Failed to delete checkpoint: {e}")
+        except OSError as e:
+            logger.error(f"[CageCheckpoint] Failed to delete checkpoint: {e}")
             return False
     
     def cleanup_old_checkpoints(self, session_id: str, retention_days: int = 7) -> int:
@@ -334,8 +337,8 @@ class CageCheckpointManager:
             
             return deleted_count
             
-        except Exception as e:
-            print(f"[CageCheckpoint] ERROR: Failed to cleanup checkpoints: {e}")
+        except OSError as e:
+            logger.error(f"[CageCheckpoint] Failed to cleanup checkpoints: {e}")
             return 0
     
     def validate_checkpoint_schema(self, checkpoint_data: Dict[str, Any]) -> List[str]:

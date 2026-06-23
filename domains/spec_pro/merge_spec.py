@@ -400,13 +400,13 @@ def merge_spec_v6(base_path: str, stage_name: str) -> dict:
     # 通过 ResponseNormalizer 规范化输入
     try:
         response, migration_warnings = normalize_response(response)
-    except Exception as e:
+    except (KeyError, TypeError, ValueError) as e:
         return {"status": "error", "message": f"Response format error: {e}"}
 
     if migration_warnings:
         try:
             log_format_migration(base_path, migration_warnings, base_path)
-        except Exception as e:
+        except OSError as e:
             logger.warning(f"merge_spec_v6 failed: {e}")
 
     parsed_updates = response.get("parsed_updates", {})
@@ -466,14 +466,14 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
     # 不再假设 response 有 parsed_updates 字段，normalizer 会自动适配格式版本
     try:
         response, migration_warnings = normalize_response(response)
-    except Exception as e:
+    except (KeyError, TypeError, ValueError) as e:
         return {"status": "error", "message": f"Response format error: {e}"}
 
     # 记录格式迁移事件（如果有）
     if migration_warnings:
         try:
             log_format_migration(response_path, migration_warnings, os.path.dirname(os.path.dirname(living_spec_path)))
-        except Exception as e:
+        except OSError as e:
             logger.warning(f"merge_spec failed: {e}")
 
     parsed_updates = response.get("parsed_updates", {})

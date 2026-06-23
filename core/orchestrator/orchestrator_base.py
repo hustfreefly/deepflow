@@ -252,7 +252,7 @@ class PromptLoader:
             ref_path = self.base_path / "reference" / f"{name}.md"
             if ref_path.exists():
                 return ref_path.read_text(encoding="utf-8")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.debug(f"load_reference failed: {e}")
         return ""
     
@@ -269,7 +269,7 @@ class PromptLoader:
                 content = file_path.read_text(encoding="utf-8")
                 if self._validate_metadata(content):
                     return content
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             print(f"⚠️ 读取 {file_path} 失败: {e}")
         
         # 第2层：备份文件
@@ -277,7 +277,7 @@ class PromptLoader:
         try:
             if bak_path.exists():
                 return bak_path.read_text(encoding="utf-8")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.debug(f"_load_with_fallback failed: {e}")
         
         # 第3层：内存默认
@@ -378,7 +378,7 @@ class ModelChain:
                         "model_used": model,
                         "fallback_count": round_num
                     }
-                except Exception as e:
+                except Exception as e:  # TODO: 待细化 — 模型 API 可能抛出多种异常，需根据实际 SDK 细化
                     last_error = e
                     error_msg = str(e).lower()
                     
@@ -612,7 +612,7 @@ class BaseOrchestrator(ABC):
         except asyncio.TimeoutError:
             self.state = PipelineState.TIMEOUT
             return self._build_result(error="Pipeline timeout")
-        except Exception as e:
+        except Exception as e:  # TODO: 待细化 — 顶层安全网，CircuitBreakerOpen/TimeoutError 已单独处理
             self.state = PipelineState.FAILED
             import traceback
             traceback.print_exc()

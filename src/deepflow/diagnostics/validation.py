@@ -17,6 +17,9 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import logging
+logger = logging.getLogger(__name__)
+
 # ============================================================================
 # Validation Results Structure
 # ============================================================================
@@ -256,7 +259,7 @@ def validate_tokens_field() -> ValidationResult:
                 source_paths=[found_field],
             )
     except (IndexError, KeyError, TypeError):
-        pass
+        logger.debug(f"validation extract: {e}")
 
     return ValidationResult(
         id="V-002",
@@ -549,7 +552,7 @@ def validate_historical_consistency() -> ValidationResult:
                 ],
             )
         except (json.JSONDecodeError, IOError):
-            pass
+            logger.debug(f"validation read: {e}")
 
     return ValidationResult(
         id="V-007",
