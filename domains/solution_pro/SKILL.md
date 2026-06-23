@@ -91,62 +91,65 @@ sessions_spawn(**result["spawn_params"])
 💬 期间你可以继续问我其他问题，完成后我会通知你
 ```
 
-### Step 4: 创建 Cron 巡检 Agent
+### Step 4: 创建 Cron 巡检 Agent（V2 契约笼子）
+
+使用 `pipeline_watcher.py` 确定性脚本 + 薄 wrapper prompt，禁止 LLM 自行判断。
 
 ```python
 from datetime import datetime
+from contracts.shared.watcher_config import render_wrapper_prompt, DeliveryConfig
 
-# 生成运行启动时间（用于时间戳校验）
+# 1. 生成运行启动时间
 run_start_at = datetime.now().isoformat()
 
-# 创建 cron job
+# 2. 渲染 wrapper prompt（~10行，禁止 LLM 自行判断）
+wrapper_prompt = render_wrapper_prompt(
+    config_path=f"{deepflow_root}/domains/solution_pro/config/watcher_config.json",
+    base_path=base_path,
+    run_start_at=run_start_at,
+    cron_job_id="{cron_job_id}",  # 创建后回填
+    deepflow_root=deepflow_root,
+)
+
+# 3. 构建 delivery 配置（通过契约验证，不硬编码 open_id）
+delivery = DeliveryConfig(mode="announce")  # 不指定 channel/to → 使用当前会话 channel
+delivery_dict = delivery.to_cron_dict()
+
+# 4. 创建 cron job
 cron_result = cron(
     action="add",
     job={
-        "name": f"deepflow_progress_{session_id[:8]}",
+        "name": f"deepflow_watcher_{session_id[:8]}",
         "schedule": {"kind": "every", "everyMs": 180000},
         "sessionTarget": "isolated",
         "payload": {
             "kind": "agentTurn",
-            "message": "<cron_watcher_prompt，替换 {base_path}, {session_id}, {cron_job_id}, {run_start_at}>",
-            "timeoutSeconds": 120,
+            "message": wrapper_prompt,
+            "timeoutSeconds": 60,
             "lightContext": True
         },
-        "delivery": {"mode": "announce", "channel": "feishu", "to": "{FEISHU_TARGET}"},
+        "delivery": delivery_dict,
         "enabled": True
     }
 )
 
-# 记录 cron job ID 和 run_start_at
+# 5. 回填 cron_job_id + 记录
 cron_job_id = cron_result["id"]
-with open(f"{base_path}/.cron_job_id", "w") as f:
-    f.write(cron_job_id)
-with open(f"{base_path}/.run_start_at", "w") as f:
-    f.write(run_start_at)
+# 回填 wrapper prompt 中的 {cron_job_id} 占位符
+wrapper_prompt = wrapper_prompt.replace("{cron_job_id}", cron_job_id)
+cron(action="update", jobId=cron_job_id, patch={"payload": {"message": wrapper_prompt}})
+
+# 写入状态文件
+Path(f"{base_path}/.cron_job_id").write_text(cron_job_id)
+Path(f"{base_path}/.run_start_at").write_text(run_start_at)
 ```
 
-**关键点**：
-- `run_start_at` 是本次运行的启动时间，Cron Watcher 用它来校验 `.completed` 文件是否属于本次运行（防止旧文件残留导致误判）
-- 🔴 **delivery 必须包含 channel 和 to**：多 channel 环境下（如 feishu + imessage），缺少 `to` 会导致 delivery 失败。标准模板见下方。
-
-**🔴 Cron Delivery 标准模板**：
-```json
-{
-  "delivery": {
-    "mode": "announce",
-    "channel": "feishu",
-    "to": "<USER_OPEN_ID>",
-    "accountId": "default"
-  }
-}
-```
-如果当前会话是 webchat，改用：
-```json
-{
-  "delivery": {"mode": "announce"}
-}
-```
-（webchat 不需要 channel/to）
+**🔴 契约约束**（违反即 FAIL）：
+- ✅ wrapper prompt 必须来自 `render_wrapper_prompt()`，禁止自行编写
+- ✅ delivery 必须通过 `DeliveryConfig` 验证，禁止硬编码 open_id
+- ✅ 不指定 channel/to → OpenClaw 自动路由到发起会话的 channel
+- ❌ 禁止在 prompt 中让 LLM 调用 `message` tool
+- ❌ 禁止使用旧的 `cron_watcher.md` prompt（已 deprecated）
 
 ### Step 6: yield 等待 orchestrator 完成
 
@@ -169,25 +172,43 @@ orchestrator 完成后会自动 announce 回来。
 
 ---
 
-## 🔄 Cron 巡检 Agent 行为
+## 🔄 Cron 巡检 Agent 行为（V2 契约笼子）
 
-### Prompt 模板
+### 架构
 
-见 `domains/solution_pro/prompts/cron_watcher.md`
+```
+Cron (isolated, 每 3 分钟)
+  ↓ exec
+pipeline_watcher.py (确定性 Python, <1s)
+  ↓ stdout JSON
+薄 wrapper prompt (10行)
+  ↓ delivery announce
+用户收到通知
+```
 
-### 核心逻辑
+**关键**: 所有逻辑在 `pipeline_watcher.py` 中，LLM 只负责调 exec + 转发。禁止 LLM 自行判断。
 
-1. **更新运行计数** → 超过 20 次（60 分钟）→ 超时退出
-2. **检查 .completed + 时间戳校验** → 存在且时间戳晚于 run_start_at → 发最终报告 → 自删
-   （如果 .completed 早于 run_start_at → 旧文件残留，忽略，继续巡检）
-3. **扫描 stages/** → 有新文件 → 发进度消息 → 更新 .notified_stages.json
-4. **没有新文件** → NO_REPLY
+### 契约约束
+
+| 约束 | 验证 |
+|------|------|
+| watcher_config.json 格式 | `WatcherConfig` Pydantic 模型 |
+| delivery 配置 | `DeliveryConfig` Pydantic 模型 |
+| wrapper prompt 内容 | 必须来自 `render_wrapper_prompt()` |
+
+### 核心逻辑（在 pipeline_watcher.py 中实现）
+
+1. **更新运行计数** → 超过 20 次（60 分钟）→ timeout 输出
+2. **检查 .completed + 时间戳校验** → 存在且时间戳晚于 run_start_at → completed 输出 + should_remove_cron=true
+3. **扫描 stages/** → 有新文件 → progress 输出
+4. **没有新文件** → noop 输出 → LLM 回复 NO_REPLY
+5. **连续无输出** → circuit_break 输出
 
 ### 消息策略
 
 - **智能通知**：只在有新阶段完成时发消息（最多 11 条，非 20 条）
 - **并行合并**：同一轮次发现的多个并行阶段合并为 1 条消息
-- **空消息不发**：没有新进度时回复 NO_REPLY
+- **空消息不发**：action=noop → NO_REPLY
 
 ### 状态文件
 

@@ -1,7 +1,7 @@
 {
   "$schema": "deepflow/pipeline_watcher_config/v2",
   "pipeline_id": "solution_pro",
-  "display_name": "方案设计",
+  "display_name": "Solution Pro",
 
   "limits": {
     "max_runs": 20,
@@ -17,31 +17,101 @@
         "path": "stages",
         "pattern": "*.json",
         "stage_files": {
-          "planning.json": {"name": "Planning", "seq": 2, "icon": "📝"},
-          "reviewer_technical.json": {"name": "Reviewers", "seq": 3, "merge_group": "reviewers", "icon": "👁️"},
-          "reviewer_business.json": {"name": "Reviewers", "seq": 3, "merge_group": "reviewers", "icon": "👁️"},
-          "reviewer_risk.json": {"name": "Reviewers", "seq": 3, "merge_group": "reviewers", "icon": "👁️"},
-          "research_expert_1.json": {"name": "Research", "seq": 4, "merge_group": "research", "icon": "🔬"},
-          "research_expert_2.json": {"name": "Research", "seq": 4, "merge_group": "research", "icon": "🔬"},
-          "research_expert_3.json": {"name": "Research", "seq": 4, "merge_group": "research", "icon": "🔬"},
-          "consolidator.json": {"name": "Consolidator", "seq": 5, "icon": "🧩"},
-          "audit.json": {"name": "Audit", "seq": 6, "icon": "🔍"},
-          "fix.json": {"name": "Fix", "seq": 7, "icon": "🔧"},
-          "fixer_expert.json": {"name": "Fixer Expert", "seq": 8, "icon": "🛠️"},
-          "harness_final.json": {"name": "Harness Final", "seq": 9, "icon": "✅"},
-          "final_result.json": {"name": "Summarizer", "seq": 10, "icon": "📋"}
+          "planning.json": {
+            "name": "Planning",
+            "seq": 2,
+            "icon": "📋"
+          },
+          "reviewer_technical.json": {
+            "name": "Reviewers",
+            "seq": 3,
+            "icon": "👥",
+            "merge_group": "reviewers"
+          },
+          "reviewer_business.json": {
+            "name": "Reviewers",
+            "seq": 3,
+            "icon": "👥",
+            "merge_group": "reviewers"
+          },
+          "reviewer_risk.json": {
+            "name": "Reviewers",
+            "seq": 3,
+            "icon": "👥",
+            "merge_group": "reviewers"
+          },
+          "research_expert_1.json": {
+            "name": "Research",
+            "seq": 4,
+            "icon": "🔍",
+            "merge_group": "research"
+          },
+          "research_expert_2.json": {
+            "name": "Research",
+            "seq": 4,
+            "icon": "🔍",
+            "merge_group": "research"
+          },
+          "research_expert_3.json": {
+            "name": "Research",
+            "seq": 4,
+            "icon": "🔍",
+            "merge_group": "research"
+          },
+          "consolidator.json": {
+            "name": "Consolidator",
+            "seq": 5,
+            "icon": "🧩"
+          },
+          "audit.json": {
+            "name": "Audit",
+            "seq": 6,
+            "icon": "🔎"
+          },
+          "fix.json": {
+            "name": "Fix",
+            "seq": 7,
+            "icon": "🔧"
+          },
+          "fixer_expert.json": {
+            "name": "Fixer Expert",
+            "seq": 8,
+            "icon": "⚙️"
+          },
+          "harness_final.json": {
+            "name": "Harness Final",
+            "seq": 9,
+            "icon": "🏆"
+          },
+          "summarizer.json": {
+            "name": "Summarizer",
+            "seq": 10,
+            "icon": "📝"
+          }
         }
       },
       {
         "path": "data",
         "pattern": "*.json",
         "stage_files": {
-          "collection.json": {"name": "Data Collection", "seq": 1, "icon": "📊"}
+          "collection.json": {
+            "name": "Data Collection",
+            "seq": 1,
+            "icon": "📊"
+          }
         }
       }
     ],
     "total_stages": 10,
-    "final_artifact": "final_solution.md"
+    "final_artifact": "final_result.json"
+  },
+
+  "templates": {
+    "progress": "📊 {display_name}进度 ({completed}/{total})\n━━━━━━━━━━━━━━━━━━━━\n{stage_lines}\n\n已耗时: {elapsed_time}",
+    "completed": "✅ {display_name}完成！\n\n📊 {completed}/{total} 阶段完成 | 耗时 {elapsed_time}\n📄 方案: {final_artifact}\n\n🔗 自动触发下游管线: ship_pro\n请执行: `cd ~/.openclaw/workspace/.deepflow && python3 domains/ship_pro/scripts/run_pipeline.py prepare {base_path}/final_result.json {base_path}/ship_output`\n然后依次执行 task/gate 命令完成 Ship Pro 管线。",
+    "failed": "⚠️ {display_name}失败\n\n已完成: {completed}/{total} 阶段\n失败原因: {error}",
+    "timeout": "⚠️ {display_name}运行超时（已运行 {timeout_minutes} 分钟）\n\norchestrator 可能已崩溃。已完成的阶段结果仍在目录中。\n建议查看已有结果或重新启动。",
+    "circuit_break": "⚠️ Cron 巡检连续 {failures} 次无输出\n\n可能 orchestrator 已停止或管线异常。\n请检查 {base_path}/.stage_progress.json"
   },
 
   "stage_symbols": {
