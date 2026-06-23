@@ -61,8 +61,8 @@
   },
 
   "auto_chain": {
-    "enabled": false,
-    "next_pipeline": null,
+    "enabled": true,
+    "next_pipeline": "solution_pro",
     "trigger_on": "completed",
     "trigger_file": ".auto_chain_trigger"
   }

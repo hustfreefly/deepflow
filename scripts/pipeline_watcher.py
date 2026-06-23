@@ -408,7 +408,14 @@ def _run_pipeline(cfg: Dict, base: Path, state: Path, args: Any, fmt: str) -> No
         if status == "completed":
             msg = fm.completed(comp, args.run_start_at)
             next_pl = write_auto_chain(cfg, base, comp)
-            if next_pl: msg += f"\n\n🔗 已触发下游管线: {next_pl}"
+            if next_pl:
+                msg += f"\n\n🔗 自动触发下游管线: {next_pl}"
+                if next_pl == "ship_pro":
+                    msg += f"\n请执行: `cd ~/.openclaw/workspace/.deepflow && python3 domains/ship_pro/scripts/run_pipeline.py prepare {base}/final_result.json {base}/ship_output`"
+                    msg += f"\n然后依次执行 task/gate 命令完成 Ship Pro 管线。"
+                elif next_pl == "solution_pro":
+                    msg += f"\n请执行: `cd ~/.openclaw/workspace/.deepflow && python3 scripts/start_solution_pro.py '{base}'`"
+                    msg += f"\n然后创建 cron job 巡检并 yield 等待完成。"
             _mark_remove(state, "completed", cron_id)
             emit("completed", msg, should_remove=True, fmt=fmt)
         elif status == "failed":

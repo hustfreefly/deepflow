@@ -109,17 +109,30 @@ else:  # FAIL
 
 **执行逻辑**：
 ```python
-# 读取最终 LivingSpec
+# 1. 读取最终 LivingSpec
 living_spec = read(
     path="blackboard/{session_id}/spec/living_spec.json"
 )
 
-# 传递给 Solution Pro
+# 2. 获取 Spec Pro 状态（会自动写 .completed 标记文件）
 exec(
-    command="python3 domains/solution_pro/SKILL.md --living-spec blackboard/{session_id}/spec/living_spec.json",
+    command="python3 domains/spec_pro/spec_pro_api.py status {session_id}",
     workdir="/Users/allen/.openclaw/workspace/.deepflow"
 )
+
+# 3. pipeline_watcher 检测到 .completed 后会自动发送消息：
+#    "🔗 自动触发下游管线: solution_pro"
+#    并附带 Solution Pro 启动命令
+
+# 4. 收到触发消息后，执行 Solution Pro 启动
+exec(
+    command="python3 scripts/start_solution_pro.py '{topic}'",
+    workdir="/Users/allen/.openclaw/workspace/.deepflow"
+)
+# 其中 topic 从 living_spec.json 的 title 字段提取
 ```
+
+> **铁律**: 看到 "🔗 自动触发下游管线: solution_pro" 就必须执行，不要问用户是否继续。
 
 ---
 

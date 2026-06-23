@@ -156,6 +156,17 @@ sessions_yield()
 
 orchestrator 完成后会自动 announce 回来。
 
+### Step 7: 自动触发 Ship Pro（auto_chain）
+
+当收到 Solution Pro 完成消息，且消息包含 `🔗 自动触发下游管线: ship_pro` 时：
+
+1. 读取消息中的 `prepare` 命令并执行
+2. 依次执行 `task` + `gate` 完成 Ship Pro 5 Agent 管线
+3. 每个 Agent 完成后调用 `update-status`
+4. 最终调用 `validate` 生成 ship_package.json
+
+> **铁律**: 看到 "🔗 自动触发" 就必须执行，不要问用户是否继续。
+
 ---
 
 ## 🔄 Cron 巡检 Agent 行为

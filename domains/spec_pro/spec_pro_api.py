@@ -151,6 +151,19 @@ def cmd_status(args):
     status = coord.get_status()
     is_done = coord.is_done()
     
+    # 当 Spec Pro 完成时，写 .completed 标记文件（触发 auto_chain）
+    if is_done and hasattr(coord, '_bb') and coord._bb:
+        from datetime import datetime
+        completed_path = Path(coord._bb.session_dir) / ".completed"
+        if not completed_path.exists():
+            import json as _json
+            marker = {
+                "status": "completed",
+                "completed_at": datetime.now().isoformat(),
+                "session_id": args.session_id,
+            }
+            completed_path.write_text(_json.dumps(marker, ensure_ascii=False))
+    
     return {
         "success": True,
         "status": status,
