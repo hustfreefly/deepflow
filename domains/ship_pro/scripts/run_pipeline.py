@@ -654,9 +654,15 @@ def validate_pipeline(output_dir: str) -> dict:
             schema_result = check_schema_compliance(package_data)
             dep_result = check_dependency_graph(package_data)
 
+            # Defensive: ensure results are dicts, not strings
+            def _ensure_dict(val):
+                if isinstance(val, dict):
+                    return val
+                return {"raw": str(val)}
+
             packager_eval = {
-                "schema_compliance": schema_result,
-                "dependency_graph": dep_result,
+                "schema_compliance": _ensure_dict(schema_result),
+                "dependency_graph": _ensure_dict(dep_result),
             }
         except Exception as e:
             packager_eval = {"error": str(e)}
@@ -693,7 +699,26 @@ def validate_pipeline(output_dir: str) -> dict:
     with open(report_path, "w") as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
 
+    # ── Finalize: set pipeline status + completed_at ──
+    _finalize_pipeline(output_p, overall_pass=all_pass)
+
     return report
+
+
+def _finalize_pipeline(output_dir: Path, overall_pass: bool) -> None:
+    """
+    Finalize pipeline state: set status + completed_at.
+
+    Called automatically by validate_pipeline() after all checks complete.
+    This is the ONLY place that transitions status from 'running' to 'completed'/'failed'.
+    """
+    status = _load_status(output_dir)
+    if not status:
+        return
+
+    status["status"] = "completed" if overall_pass else "failed"
+    status["completed_at"] = datetime.now().isoformat()
+    _save_status(output_dir, status)
 
 
 def get_pipeline_status(output_dir: str) -> dict:
@@ -841,9 +866,17 @@ def _cli_main() -> None:
         _save_status(output_dir, status)
         print(json.dumps({"ok": True, "agent": agent_name, "decision": decision, "next_agent": status.get("current_agent")}, indent=2))
 
+    elif cmd == "finalize":
+        if len(sys.argv) < 4:
+            print("用法: python3 run_pipeline.py finalize <output_dir> <pass|fail>")
+            sys.exit(1)
+        _finalize_pipeline(Path(sys.argv[2]), overall_pass=sys.argv[3].lower() in ("pass", "true", "1"))
+        status = _load_status(Path(sys.argv[2]))
+        print(json.dumps({"ok": True, "status": status.get("status"), "completed_at": status.get("completed_at")}, indent=2))
+
     else:
         print(f"未知命令: {cmd}")
-        print("可用命令: prepare, task, gate, feedback, validate, status, update-status")
+        print("可用命令: prepare, task, gate, feedback, validate, status, update-status, finalize")
         sys.exit(1)
 
 

@@ -164,51 +164,22 @@ def _extract_result_text(content: Any) -> str:
 
 
 def _extract_error(result_text: str, is_error: bool) -> str | None:
-    """从 tool result 中检测错误。"""
+    """
+    从 tool result 中检测错误。
+
+    原则：只信任 isError 标志（由 OpenClaw 设置），不用正则扫文本。
+    原因：正则扫文本会产生 ~90% 误报率（Agent 读文件内容含 "timeout" 等词被误判为错误）。
+    """
     if is_error:
         return result_text[:300]
 
-    # 常见错误模式（扩展版）
-    error_patterns = [
-        # Python 错误
-        (r'(?i)traceback \(most recent call last\)', 'Python Traceback'),
-        (r'(?i)module ?not ?found ?error', 'ModuleNotFoundError'),
-        (r'(?i)importerror', 'ImportError'),
-        (r'(?i)file ?not ?found', 'FileNotFoundError'),
-        (r'(?i)json.?decode.?error', 'JSONDecodeError'),
-        (r'(?i)key ?error', 'KeyError'),
-        (r'(?i)attribute ?error', 'AttributeError'),
-        (r'(?i)syntaxerror', 'SyntaxError'),
-        (r'(?i)nameerror', 'NameError'),
-        (r'(?i)typeerror', 'TypeError'),
-        (r'(?i)valueerror', 'ValueError'),
-        (r'(?i)indexerror', 'IndexError'),
-        (r'(?i)validation ?error', 'ValidationError'),
-        (r'(?i)pydantic.*error', 'Pydantic Error'),
-        # 系统错误
-        (r'(?i)ENOENT', 'ENOENT (file not found)'),
-        (r'(?i)permission denied', 'Permission denied'),
-        (r'(?i)command not found', 'Command not found'),
-        (r'(?i)not found', 'Not found'),
-        (r'(?i)connection refused', 'Connection refused'),
-        (r'(?i)timed?\s*out', 'Timeout'),
-        (r'(?i)exit code [1-9]', 'Non-zero exit code'),
-        # 工具特定错误
-        (r'(?i)could not find', 'Edit mismatch'),
-        (r'(?i)status.*error', 'Tool error status'),
-        (r'(?i)未知命令', 'Unknown command'),
-        (r'(?i)invalid.*param', 'Invalid parameter'),
-        (r'(?i)no such file', 'No such file'),
-        (r'(?i)does not exist', 'Path not exist'),
-        (r'(?i)not a git repository', 'Not git repo'),
-        # OpenClaw 特定
-        (r'(?i)cross.?app', 'Feishu cross-app'),
-        (r'(?i)no active session', 'No active session'),
-        (r'(?i)not found.*cron', 'Cron not found'),
-    ]
+    # 仅检测明确的结构化错误信号（不扫描普通文本）
+    # 1. exec 返回非零退出码（stderr 有内容）
+    if re.search(r'^---\n\n\(Command exited with code [1-9]\d*\)', result_text, re.MULTILINE):
+        return result_text[:300]
 
-    for pattern, label in error_patterns:
-        if re.search(pattern, result_text):
-            return f"{label}: {result_text[:200]}"
+    # 2. 工具返回的 JSON 错误包装
+    if result_text.startswith('{"status": "error"'):
+        return result_text[:300]
 
     return None

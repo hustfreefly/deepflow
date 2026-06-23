@@ -186,6 +186,32 @@ tags: [ship_pro, prompt, packaging, assembly]
 
 ---
 
+## ⚠️ 输出格式契约（必须严格遵守）
+
+### JSON 输出规则
+
+1. **ship_package.json 必须是合法 JSON** — 不含 markdown 代码块、不含注释、不含尾部逗号
+2. **禁止用 ```json``` 包裹** — 直接写纯 JSON 到文件
+3. **禁止在 JSON 中添加任何非 JSON 内容** — 不写散文、不写解释、不写注释
+4. **所有枚举字段必须使用 Schema 允许的值**：
+   - `complexity`: `trivial` | `low` | `medium` | `high` | `critical`
+   - `model_tier`: `claude-opus` | `claude-sonnet` | `claude-haiku` | `gpt-4o` | `gpt-4o-mini` | `qwen-max` | `qwen-plus` | `auto`
+   - `priority`: `high` | `medium` | `low`
+   - `outputs[].type`: `file` | `config` | `test` | `documentation`
+   - `meta.input_format`: `A_final_solution` | `B_flat_domain` | `C_pipeline_summary` | `D_minimal`
+5. **`work_packages` 中禁止添加 Schema 未定义的字段** — 禁止 `constraints`、`related_modules`、`requirements`、`_meta`
+6. **`budget` 必须是对象**（含 `tokens`、`time_minutes`、`max_retries`），不是数字
+7. **`outputs` 必须是对象数组**（含 `type` + `path`），不是字符串数组
+
+### 常见错误（会导致 Gate FAIL + 重试）
+
+| 错误 | 正确 | 错误 |
+|:---|:---|:---|
+| complexity 枚举 | `"complexity": "high"` | `"complexity": "complex"` |
+| budget 格式 | `"budget": {"tokens": 50000, "time_minutes": 30, "max_retries": 3}` | `"budget": 50000` |
+| outputs 格式 | `"outputs": [{"type": "file", "path": "...", "description": "..."}]` | `"outputs": ["file.py"]` |
+| 顶层字段 | 只包含 Schema 定义的字段 | 添加 `_meta`、`constraints` 等 |
+
 ## 自检清单
 
 输出前检查：
