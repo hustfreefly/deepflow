@@ -22,7 +22,8 @@ from typing import Any, Optional
 # 1. JSON Schema Compliance
 # ---------------------------------------------------------------------------
 
-# Expected schema definition (manual, no jsonschema dependency required)
+# Expected schema definition — synced with Pydantic contract (packager.py)
+# Source of truth: domains/ship_pro/contracts/packager.py
 SHIP_PACKAGE_SCHEMA = {
     "type": "object",
     "required": ["work_packages"],
@@ -40,21 +41,22 @@ SHIP_PACKAGE_SCHEMA = {
                     "id": {"type": "string", "pattern": r"^WP-\d{3}$"},
                     "title": {"type": "string", "minLength": 1},
                     "objective": {"type": "string", "minLength": 1},
-                    "budget": {"type": ["string", "number"]},
-                    "complexity": {"type": "string", "enum": ["low", "medium", "high"]},
+                    "budget": {"type": "object"},  # Budget object: {tokens, time_minutes, max_retries}
+                    "complexity": {"type": "string", "enum": ["trivial", "low", "medium", "high", "critical"]},
                     "dependencies": {"type": "array"},
-                    "priority": {"type": ["string", "number"]},
+                    "priority": {"type": "string", "enum": ["high", "medium", "low"]},
                     "acceptance_criteria": {
                         "type": "array",
                         "minItems": 1,
                         "items": {"type": "string"}
                     },
                     # Optional fields
-                    "model_tier": {"type": "string"},
+                    "model_tier": {"type": "string", "enum": ["claude-opus", "claude-sonnet", "claude-haiku", "gpt-4o", "gpt-4o-mini", "qwen-max", "qwen-plus", "auto"]},
                     "context_files": {"type": "array"},
-                    "outputs": {"type": "array"},
+                    "outputs": {"type": "array", "items": {"type": "object"}},  # [{type, path, description}]
                     "acceptance_tests": {"type": "array"},
                     "retry_policy": {"type": "object"},
+                    "tags": {"type": "array"},
                 }
             }
         }

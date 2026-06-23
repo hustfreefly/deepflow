@@ -652,7 +652,7 @@ def validate_pipeline(output_dir: str) -> dict:
                 package_data = json.load(f)
 
             schema_result = check_schema_compliance(package_data)
-            dep_result = check_dependency_graph(package_data)
+            dep_result = check_dependency_graph(package_data.get("work_packages", []))
 
             # Defensive: ensure results are dicts, not strings
             def _ensure_dict(val):
