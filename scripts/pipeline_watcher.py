@@ -174,7 +174,7 @@ class MessageFormatter:
         return self.tpl["completed"].format_map(self._ctx(elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at), score=data.get("score", "N/A")))
     def failed(self, data: Dict, run_start_at: str) -> str:
         return self.tpl["failed"].format_map(self._ctx(elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at), error=data.get("error", "未知")))
-    def timeout(self) -> str: return self.tpl["timeout"].format_map(self._ctx(timeout_min=self.cfg["limits"].get("timeout_minutes", 60)))
+    def timeout(self) -> str: return self.tpl["timeout"].format_map(self._ctx(timeout_min=self.cfg["limits"].get("timeout_minutes", 60), timeout_minutes=self.cfg["limits"].get("timeout_minutes", 60)))
     def circuit_break(self, failures: int) -> str: return self.tpl["circuit_break"].format_map(self._ctx(failures=failures))
 
 WRAPPER_PROMPT = """你是 DeepFlow 管线巡检执行器。严格按以下步骤执行：
