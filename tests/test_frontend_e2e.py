@@ -6,7 +6,12 @@ import subprocess
 import sys
 import time
 import json
-import requests
+import pytest
+try:
+    import requests
+except ImportError:
+    pytestmark = pytest.mark.skip(reason="requests module not installed")
+    requests = None  # type: ignore
 from pathlib import Path
 
 BASE_URL = "http://127.0.0.1:17789"

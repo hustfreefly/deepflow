@@ -14,7 +14,26 @@ from unittest.mock import Mock
 
 # ⚠️ Coordinator 已删除，AgentResult/SessionStatus 不再可用
 # from coordinator import AgentResult, SessionStatus
-from core.quality.quality_gate import QualityReport, GateDecision
+try:
+    from core.quality.quality_gate import QualityReport, GateDecision
+except ImportError:
+    from enum import Enum
+    class GateDecision(Enum):
+        PASS = "pass"
+        FAIL = "fail"
+        WARN = "warn"
+    class QualityReport:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+# Stub types for removed coordinator classes
+class AgentResult:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+SessionStatus = Mock
 
 # =============================================================================
 # 模拟数据生成器
@@ -265,7 +284,6 @@ class MockFileSystem:
     def teardown(self):
         """清理临时目录."""
         import shutil
-import core.bootstrap
         if self.temp_dir:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
     

@@ -691,7 +691,6 @@ def t6_normalize_v1(suite: TestSuite, r: TestResult):
 def t6_normalize_empty(suite: TestSuite, r: TestResult):
     """T6.3: normalize_response 空/无效输入 → 抛出异常（预期行为）"""
     from domains.spec_pro.response_normalizer import ResponseFormatError
-import core.bootstrap
     try:
         normalized, warnings = normalize_response({})
         r.fail("Empty dict should raise ResponseFormatError")

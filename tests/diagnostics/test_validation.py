@@ -368,7 +368,6 @@ class TestFieldMapping:
     def test_fallback_strategies(self):
         """Test that fallback strategies are defined."""
         from pathlib import Path
-import core.bootstrap
 
         mapping_path = Path(__file__).parent.parent.parent / "src" / "deepflow" / "diagnostics" / "diagnostics_mapping.json"
 

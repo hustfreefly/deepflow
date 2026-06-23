@@ -273,7 +273,6 @@ if __name__ == "__main__":
     
     # 运行 pytest
     import subprocess
-import core.bootstrap
     result = subprocess.run(
         ["pytest", __file__, "-v", "--tb=short"],
         capture_output=False,

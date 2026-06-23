@@ -16,7 +16,6 @@ from core.config.path_config import PathConfig
 import asyncio
 import json
 import time
-import core.bootstrap
 
 # ── 计数器 ──
 issues = []

@@ -81,7 +81,6 @@ async def main():
     except Exception as e:
         print(f"\n❌ Pipeline 启动失败: {e}")
         import traceback
-import core.bootstrap
         traceback.print_exc()
 
         # 输出失败状态
