@@ -85,8 +85,9 @@ async def notify_webhook_with_retry(session_id: str, max_retries: int = 3, retry
     
     # WH-003: Webhook payload must instruct Agent to process pending task queue
     # The Agent receives this as a user message and must execute Python to spawn DeepFlow
+    _deepflow_base = os.environ.get("DEEPFLOW_BASE", str(Path(__file__).resolve().parent.parent.parent))
     payload = {
-        "text": f"[DeepFlow AUTO] 新任务已入队: {session_id}。请在当前 Agent 环境执行以下 Python 代码处理任务:\n\n```python\nimport sys; sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')\nfrom core.agents.webhook_task_processor import process_pending_tasks\nprocessed = process_pending_tasks(max_tasks=1)\nprint(f'Processed: {{processed}}')\n```\n\n处理完成后请回复用户任务状态。",
+        "text": f"[DeepFlow AUTO] 新任务已入队: {session_id}。请在当前 Agent 环境执行以下 Python 代码处理任务:\n\n```python\nimport sys; sys.path.insert(0, '{_deepflow_base}')\nfrom core.agents.webhook_task_processor import process_pending_tasks\nprocessed = process_pending_tasks(max_tasks=1)\nprint(f'Processed: {{processed}}')\n```\n\n处理完成后请回复用户任务状态。",
         "mode": "now"  # Trigger immediately
     }
     

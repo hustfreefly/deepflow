@@ -13,6 +13,7 @@ DeepFlow Prompt注册表管理器 V2.0 (修复版)
 日期: 2026-05-01
 """
 
+import logging
 import os
 import threading
 from pathlib import Path
@@ -20,6 +21,8 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
 import yaml
+
+logger = logging.getLogger(__name__)
 from packaging import version
 
 from core.config.path_config import PathConfig
@@ -270,8 +273,8 @@ def read_prompt(prompt_id: str) -> str:
             parts = content.split('---', 2)
             if len(parts) >= 3:
                 return parts[2].strip()
-        except Exception:
-            pass  # 解析失败时返回原始内容
+        except Exception as e:
+            logger.debug(f"read_prompt failed: {e}")
     
     return content
 

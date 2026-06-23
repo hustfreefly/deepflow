@@ -12,7 +12,7 @@ class CagePromptLoader:
     
     def __init__(self, domain: str):
         self.domain = domain
-        self.base_path = Path(f"/Users/allen/.openclaw/workspace/.deepflow")
+        self.base_path = Path(__file__).resolve().parent.parent
         self.contract = self._load_contract()
         self.core_cache = None  # Core Layer缓存
     

@@ -4,9 +4,10 @@ Solution Pro 任务执行脚本
 """
 import json
 import os
+from pathlib import Path
 
 # 添加 deepflow 到路径
-DEEPFLOW_BASE = "/Users/allen/.openclaw/workspace/.deepflow"
+DEEPFLOW_BASE = os.environ.get("DEEPFLOW_BASE", str(Path(__file__).resolve().parent.parent))
 
 from domains.solution_pro.orchestrator_agent import SolutionOrchestratorV21
 import core.bootstrap

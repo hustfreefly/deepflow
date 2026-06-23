@@ -66,17 +66,17 @@ STANDARD_CASES: list[dict[str, str]] = [
     {
         "name": "case1_ai_customer_service",
         "description": "Format B, 12 components — Enterprise AI customer service system",
-        "input": "~/.openclaw/workspace/.deepflow/blackboard/设计一个企业级AI智能客服系统_支持多轮_architecture_87d026ce/final_result.json",
+        "input": str(Path.home() / ".openclaw/workspace/.deepflow/blackboard/设计一个企业级AI智能客服系统_支持多轮_architecture_87d026ce/final_result.json"),
     },
     {
         "name": "case2_smart_resume",
         "description": "Format A, 8 components — Smart resume generation system",
-        "input": "~/.openclaw/workspace/.deepflow/blackboard/智能简历生成系统_architecture_d99f733a/final_result.json",
+        "input": str(Path.home() / ".openclaw/workspace/.deepflow/blackboard/智能简历生成系统_architecture_d99f733a/final_result.json"),
     },
     {
         "name": "case3_single_module",
         "description": "Format A, 1 component — Simple TODO app (boundary case)",
-        "input": "~/.openclaw/workspace/.deepflow/blackboard/TC09_单模块TODO应用_architecture_simple/final_result.json",
+        "input": str(Path.home() / ".openclaw/workspace/.deepflow/blackboard/TC09_单模块TODO应用_architecture_simple/final_result.json"),
     },
 ]
 

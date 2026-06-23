@@ -29,11 +29,14 @@ Step 3: 子 Agent 自动完成 confirm → execute → report
 """
 
 import json
+import logging
 import os
 import time
 from pathlib import Path
 
 from core.blackboard.blackboard_manager import BlackboardManager
+
+logger = logging.getLogger(__name__)
 
 try:
     from domains.research_pro.orchestrator import ResearchProOrchestrator
@@ -302,8 +305,8 @@ def run_research_pro(
     for old_file in [".completed", ".cron_run_count", ".notified_stages.json"]:
         try:
             bm._resolve(old_file).unlink(missing_ok=True)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"research_pro cleanup failed: {e}")
 
     # Step 4: 初始化通知状态文件
     bm.write(".notified_stages.json", json.dumps({"notified": [], "total_messages_sent": 0}))

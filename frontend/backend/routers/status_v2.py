@@ -239,7 +239,7 @@ def list_sessions(limit: int = 50) -> list:
         if v is None: return 0
         if isinstance(v, (int, float)): return v
         try: return float(v)
-        except: return 0
+        except (ValueError, TypeError): return 0
     sessions.sort(key=lambda s: _parse_ts(s.get("created_at")), reverse=True)
     return sessions[:limit]
 
@@ -593,7 +593,7 @@ def get_system_info() -> dict:
     try:
         result = subprocess.run(["openclaw", "--version"], capture_output=True, text=True, timeout=5)
         oc_version = result.stdout.strip() or "unknown"
-    except:
+    except (subprocess.SubprocessError, OSError):
         oc_version = "unknown"
     
     # Session count
@@ -631,7 +631,7 @@ def get_system_info() -> dict:
     try:
         result = subprocess.run(["openclaw", "--version"], capture_output=True, text=True, timeout=5)
         oc_version = result.stdout.strip() or "unknown"
-    except:
+    except (subprocess.SubprocessError, OSError):
         oc_version = "unknown"
     
     # Session count

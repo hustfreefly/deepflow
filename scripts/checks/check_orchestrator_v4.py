@@ -5,13 +5,16 @@ Orchestrator V4.0 契约验证脚本
 
 import os
 import json
+from pathlib import Path
+
+DEEPFLOW_BASE = os.environ.get("DEEPFLOW_BASE", str(Path(__file__).resolve().parent.parent.parent))
 
 def check_python_syntax():
     """检查 Python 语法"""
     print("\n[Check 1] Python 语法检查")
     try:
         import py_compile
-        py_compile.compile('/Users/allen/.openclaw/workspace/.deepflow/orchestrator_agent.py', doraise=True)
+        py_compile.compile(os.path.join(DEEPFLOW_BASE, 'orchestrator_agent.py'), doraise=True)
         print("  ✅ 语法正确")
         return True
     except Exception as e:
@@ -114,7 +117,7 @@ def check_tool_call_instructions():
     """检查是否包含工具调用说明"""
     print("\n[Check 5] 工具调用说明检查")
     try:
-        with open('/Users/allen/.openclaw/workspace/.deepflow/orchestrator_agent.py', 'r') as f:
+        with open(os.path.join(DEEPFLOW_BASE, 'orchestrator_agent.py'), 'r') as f:
             content = f.read()
         
         required_markers = [

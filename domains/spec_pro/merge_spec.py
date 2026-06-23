@@ -11,12 +11,15 @@ Usage:
 """
 
 import json
+import logging
 import os
 import sys
 from datetime import datetime
 
 # Response Normalizer: 将任意格式的 ResponseWorker 输出转换为标准 v2 格式
 from domains.spec_pro.response_normalizer import normalize_response, log_format_migration
+
+logger = logging.getLogger(__name__)
 
 
 def _char_bigrams(s: str) -> set:
@@ -403,8 +406,8 @@ def merge_spec_v6(base_path: str, stage_name: str) -> dict:
     if migration_warnings:
         try:
             log_format_migration(base_path, migration_warnings, base_path)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"merge_spec_v6 failed: {e}")
 
     parsed_updates = response.get("parsed_updates", {})
 
@@ -470,8 +473,8 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
     if migration_warnings:
         try:
             log_format_migration(response_path, migration_warnings, os.path.dirname(os.path.dirname(living_spec_path)))
-        except Exception:
-            pass  # audit log 失败不阻塞合并
+        except Exception as e:
+            logger.warning(f"merge_spec failed: {e}")
 
     parsed_updates = response.get("parsed_updates", {})
 

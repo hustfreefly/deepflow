@@ -76,7 +76,6 @@ def find_deepflow_workspace() -> Path:
     workspace_paths = [
         home / ".openclaw" / "workspace" / ".deepflow",
         Path.cwd() / ".deepflow",
-        Path("/Users/allen/.openclaw/workspace/.deepflow"),  # Default path
     ]
     for path in workspace_paths:
         if path.exists():

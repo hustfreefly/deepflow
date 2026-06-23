@@ -11,10 +11,13 @@ import uuid
 import time
 import asyncio
 import copy
+import logging
 import yaml
 from pathlib import Path
 
 from core.config.path_config import PathConfig
+
+logger = logging.getLogger(__name__)
 
 # 从 PathConfig 获取基础目录（支持环境变量覆盖）
 _DEEPFLOW_BASE = PathConfig.resolve().base_dir
@@ -249,8 +252,8 @@ class PromptLoader:
             ref_path = self.base_path / "reference" / f"{name}.md"
             if ref_path.exists():
                 return ref_path.read_text(encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"load_reference failed: {e}")
         return ""
     
     def _load_with_fallback(self, file_path: Path, default_key: str) -> str:
@@ -274,8 +277,8 @@ class PromptLoader:
         try:
             if bak_path.exists():
                 return bak_path.read_text(encoding="utf-8")
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"_load_with_fallback failed: {e}")
         
         # 第3层：内存默认
         print(f"🚨 使用默认兜底Prompt: {default_key}")

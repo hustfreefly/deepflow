@@ -7,6 +7,7 @@ Consumer thread provides redundant fallback (polls every 5s).
 """
 import asyncio
 import json
+import logging
 import os
 import socket
 import subprocess
@@ -14,6 +15,8 @@ import time
 from pathlib import Path
 from typing import Optional
 import threading
+
+logger = logging.getLogger(__name__)
 
 # ── Configuration (from config.json, no hardcoded values) ──
 _DEEPFLOW_ROOT = Path(__file__).resolve().parent.parent.parent.parent  # .deepflow/
@@ -181,8 +184,8 @@ def _spawn_deepflow_task(task: dict) -> bool:
                 from database import get_db
                 db = get_db()
                 db.update_task_status(session_id, "failed", str(e))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"spawn task failed: {e}")
         return False
 
 
@@ -207,8 +210,9 @@ def _send_webhook(session_id: str, domain: str, params: dict) -> bool:
         print(f"[Consumer] No webhook token configured, skipping webhook for {session_id}")
         return False
     
+    _deepflow_base = os.environ.get("DEEPFLOW_BASE", str(Path(__file__).resolve().parent.parent.parent))
     payload = {
-        "text": f"[DeepFlow] 新任务已入队: {session_id}。请在终端执行:\n\ncd /Users/allen/.openclaw/workspace/.deepflow && python3 -c \"import sys; sys.path.insert(0,'.'); from core.agents.webhook_task_processor import process_pending_tasks; process_pending_tasks(max_tasks=1)\"\n\n处理完成后请回复任务状态。",
+        "text": f"[DeepFlow] 新任务已入队: {session_id}。请在终端执行:\n\ncd {_deepflow_base} && python3 -c \"import sys; sys.path.insert(0,'.'); from core.agents.webhook_task_processor import process_pending_tasks; process_pending_tasks(max_tasks=1)\"\n\n处理完成后请回复任务状态。",
         "mode": "now"
     }
     

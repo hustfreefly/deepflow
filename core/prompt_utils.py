@@ -9,7 +9,11 @@ Prompt工具函数 - 契约笼子合规版
 日期: 2026-05-01
 """
 
+import logging
+
 from core.config.path_config import PathConfig
+
+logger = logging.getLogger(__name__)
 
 
 def read_prompt(domain: str, filename: str) -> str:
@@ -51,8 +55,8 @@ def read_prompt(domain: str, filename: str) -> str:
             if len(parts) >= 3:
                 # 返回第三部分（正文），去掉开头的换行
                 return parts[2].strip()
-        except Exception:
-            pass  # 解析失败时返回原始内容
+        except Exception as e:
+            logger.debug(f"read_prompt failed: {e}")
     
     return content
 
@@ -82,8 +86,8 @@ def read_prompt_with_meta(domain: str, filename: str) -> dict:
                 import yaml
                 meta = yaml.safe_load(parts[1])
                 content = parts[2].strip()
-        except Exception:
-            pass  # 解析失败时返回空meta
+        except Exception as e:
+            logger.debug(f"read_prompt_with_meta failed: {e}")
     
     return {
         "content": content,

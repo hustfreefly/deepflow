@@ -138,7 +138,7 @@ class DataManagerContractVerifier:
                         found.append(search_name)
                     else:
                         missing.append(f"{search_name}(内容太短)")
-                except:
+                except (json.JSONDecodeError, OSError):
                     missing.append(f"{search_name}(解析失败)")
             else:
                 missing.append(search_name)

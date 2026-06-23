@@ -141,8 +141,8 @@ class BlackboardManager:
             # 清理临时文件
             try:
                 Path(tmp_path).unlink(missing_ok=True)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"write_stage cleanup failed: {e}")
             return False
 
     def read_stage(self, stage_name: str, default: Optional[Dict] = None) -> Optional[Dict]:
@@ -314,8 +314,8 @@ class BlackboardManager:
             logger.warning(f"copy_stage failed: '{from_name}' -> '{to_name}': {e}")
             try:
                 Path(tmp_path).unlink(missing_ok=True)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"copy_stage cleanup failed: {e}")
             return False
 
     # ── Registry 集成方法（向后兼容，逐步废弃）──
@@ -405,8 +405,8 @@ class BlackboardManager:
         except BaseException:
             try:
                 os.close(fd)
-            except OSError:
-                pass
+            except OSError as e:
+                logger.debug(f"write cleanup fd close failed: {e}")
             Path(tmp).unlink(missing_ok=True)
             raise
         return target
@@ -485,7 +485,7 @@ class BlackboardManager:
         except BaseException:
             try:
                 os.close(tmp_fd)
-            except OSError:
-                pass
+            except OSError as e:
+                logger.debug(f"_write_json cleanup fd close failed: {e}")
             Path(tmp_path).unlink(missing_ok=True)
             raise

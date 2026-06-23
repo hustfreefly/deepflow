@@ -16,9 +16,10 @@ DeepFlow 统一入口脚本
 import os
 import json
 import argparse
+from pathlib import Path
 
 # DeepFlow 基础路径
-DEEPFLOW_BASE = "/Users/allen/.openclaw/workspace/.deepflow"
+DEEPFLOW_BASE = str(Path(__file__).resolve().parent.parent)
 
 # 复用 master_agent 的函数
 from core.orchestrator.master_agent import (

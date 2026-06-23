@@ -8,7 +8,7 @@ from pathlib import Path
 from datetime import datetime
 
 # 配置
-WORKSPACE = Path("/Users/allen/.openclaw/workspace")
+WORKSPACE = Path.home() / ".openclaw" / "workspace"
 OUTPUT_FILE = WORKSPACE / ".deepflow/cage/review_v3_v4_identification.json"
 
 # V3 标识

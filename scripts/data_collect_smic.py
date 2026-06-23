@@ -7,8 +7,10 @@
 """
 
 import sys, os, json, subprocess
+from pathlib import Path
 
 # 添加项目根目录到路径
+DEEPFLOW_BASE = os.environ.get("DEEPFLOW_BASE", str(Path(__file__).resolve().parent.parent))
 
 def step1_bootstrap():
     """Step 1: 执行 bootstrap 数据采集"""
@@ -26,7 +28,7 @@ def step1_bootstrap():
         register_providers()
         
         # 初始化采集器
-        config_path = "/Users/allen/.openclaw/workspace/.deepflow/domains/investment/config/investment.yaml"
+        config_path = os.path.join(DEEPFLOW_BASE, "domains", "investment", "config", "investment.yaml")
         collector = ConfigDrivenCollector(config_path)
         
         # 初始化 Blackboard
@@ -39,7 +41,7 @@ def step1_bootstrap():
         print("✅ Bootstrap 完成")
         
         # 验证数据
-        index_path = "/Users/allen/.openclaw/workspace/.deepflow/blackboard/中芯国际_688981_87478313/data/INDEX.json"
+        index_path = os.path.join(DEEPFLOW_BASE, "blackboard", "中芯国际_688981_87478313", "data", "INDEX.json")
         if os.path.exists(index_path):
             with open(index_path) as f:
                 index = json.load(f)
@@ -99,7 +101,7 @@ def step2_supplement_search():
         ("风险因素", "中芯国际 风险 挑战"),
     ]
     
-    supplement_dir = "/Users/allen/.openclaw/workspace/.deepflow/blackboard/中芯国际_688981_87478313/data/05_supplement"
+    supplement_dir = os.path.join(DEEPFLOW_BASE, "blackboard", "中芯国际_688981_87478313", "data", "05_supplement")
     os.makedirs(supplement_dir, exist_ok=True)
     
     success_count = 0
@@ -123,7 +125,7 @@ def step3_ensure_key_metrics():
     print("Step 3: 确保 key_metrics.json 完整性")
     print("=" * 60)
     
-    km_path = "/Users/allen/.openclaw/workspace/.deepflow/blackboard/中芯国际_688981_87478313/data/key_metrics.json"
+    km_path = os.path.join(DEEPFLOW_BASE, "blackboard", "中芯国际_688981_87478313", "data", "key_metrics.json")
     
     # 如果已存在，检查字段完整性
     if os.path.exists(km_path):
@@ -204,7 +206,7 @@ def main():
     print(f"key_metrics.json: ✅ 已确保完整性")
     
     # 验证最终输出
-    blackboard_dir = "/Users/allen/.openclaw/workspace/.deepflow/blackboard/中芯国际_688981_87478313/data"
+    blackboard_dir = os.path.join(DEEPFLOW_BASE, "blackboard", "中芯国际_688981_87478313", "data")
     if os.path.exists(blackboard_dir):
         files = os.listdir(blackboard_dir)
         print(f"\n📁 Blackboard 数据目录内容:")
