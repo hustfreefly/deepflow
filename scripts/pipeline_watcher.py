@@ -127,7 +127,7 @@ class CircuitBreaker:
 
 # ── Default templates — UI v3 (ported from pipeline_progress_notify.py) ──
 _TPL = {
-    "progress": "🟠 [{project_short}] {current_phase_name}\n{progress_bar} {completed}/{total} 阶段\n⏱️ 已运行 {elapsed} · 预计剩余 {remaining}",
+    "progress": "🟠 [{project_short}] {current_phase_name}\n{progress_bar} {completed}/{total} 阶段\n⏱️ 已运行 {elapsed} · 预计剩余 {remaining}\n\n{detail_list}",
     "completed": "✅ [{project_short}] {display_name} 完成\n\n{progress_bar} {total}/{total} 阶段\n⏱️ 总耗时 {elapsed}\n📄 {artifact_count} 个交付物",
     "failed": "⚠️ {display_name}失败\n已完成: {completed}/{total}\n原因: {error}",
     "timeout": "⚠️ {display_name}运行超时（>{pipeline.timeout_min}分钟）\norchestrator 可能已崩溃。",
@@ -200,6 +200,34 @@ class MessageFormatter:
             else:
                 parts.append(f"{icon}○")
         return " ".join(parts)
+
+    def _build_phase_detail_list(self, completed_seqs: set, failed_seqs: set, current_seq: int) -> str:
+        """Build detailed phase list with status icons (V3 detailed mode).
+
+        Example:
+          📊 数据收集     ✅ 完成
+          📝 规划         ✅ 完成
+          👁️ 评审 (×3)   ✅ 完成
+          🔬 研究 (×3)   ⏳ 进行中
+          🧩 整合         ○ 待开始
+        """
+        phase_defs = self._phase_defs()
+        if not phase_defs:
+            return ""
+        max_name_len = max(len(name) for name, _seq, _icon in phase_defs)
+        lines = []
+        for name, seq, icon in phase_defs:
+            if seq in failed_seqs:
+                status = "❌ 失败"
+            elif seq in completed_seqs:
+                status = "✅ 完成"
+            elif seq == current_seq:
+                status = "⏳ 进行中"
+            else:
+                status = "○ 待开始"
+            padded_name = name.ljust(max_name_len)
+            lines.append(f"  {icon} {padded_name}  {status}")
+        return "\n".join(lines)
 
     def _project_short(self) -> str:
         """Extract short project name from base_path."""
@@ -277,6 +305,8 @@ class MessageFormatter:
         bar = self._progress_bar(completed_count, total)
         chain = self._build_icon_chain(completed_seqs, current_seq)
         remaining = self._estimate_remaining(elapsed_min, completed_count, total)
+        failed_seqs = set()  # V2 watcher doesn't track failures in stages
+        detail_list = self._build_phase_detail_list(completed_seqs, failed_seqs, current_seq)
         return self.tpl["progress"].format_map(self._ctx(
             stage_lines=self._stage_lines(new_stages),
             elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at),
@@ -284,6 +314,7 @@ class MessageFormatter:
             progress_bar=bar, icon_chain=chain, remaining=remaining,
             project_short=self._project_short(), current_phase_name=current_name,
             artifact_count=len(self.stages),
+            detail_list=detail_list,
         ))
     def completed(self, data: Dict, run_start_at: str) -> str:
         total = self.cfg["detection"]["total_stages"]

@@ -185,11 +185,44 @@ def list_stage_files(ws, config):
     return count
 
 
+def build_phase_detail_list(config, completed_set, failed_set, current):
+    """Build detailed phase list with status icons.
+    
+    Output example:
+      📊 数据收集     ✅ 完成
+      📝 规划         ✅ 完成
+      👁️ 评审 (×3)   ✅ 完成
+      🔬 研究 (×3)   ⏳ 进行中
+      🧩 整合         ○ 待开始
+    """
+    lines = []
+    # Find max name length for alignment
+    max_name_len = max(len(name) for _, name, _ in config["phases"])
+    
+    for i, (key, name, icon) in enumerate(config["phases"], 1):
+        if i in failed_set:
+            status = "❌ 失败"
+        elif i in completed_set:
+            status = "✅ 完成"
+        elif i == current:
+            status = "⏳ 进行中"
+        else:
+            status = "○ 待开始"
+        
+        # Pad name for alignment
+        padded_name = name.ljust(max_name_len)
+        lines.append(f"  {icon} {padded_name}  {status}")
+    
+    return "\n".join(lines)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True)
     parser.add_argument("--pipeline", default="solution",
                        choices=list(PIPELINE_CONFIGS.keys()))
+    parser.add_argument("--detail", action="store_true",
+                       help="显示详细阶段列表（每行一个阶段 + 状态图标）")
     args = parser.parse_args()
 
     ws = args.workspace
@@ -279,7 +312,7 @@ def main():
     if current == 0:
         sys.exit(3)
 
-    # ── 正常进度更新（紧凑版）──
+    # ── 正常进度更新 ──
     _, current_name, current_icon = get_phase_info(config, current)
     elapsed_min, duration = format_duration(started_at)
     remaining = estimate_remaining(elapsed_min, completed_count, total)
@@ -288,6 +321,11 @@ def main():
     print(f"🟠 [{project_short}] {current_name}")
     print(f"{bar} {completed_count}/{total} 阶段")
     print(f"⏱️ 已运行 {duration} · 预计剩余 {remaining}")
+
+    # ── 详细模式：逐阶段状态列表 ──
+    if args.detail:
+        print()
+        print(build_phase_detail_list(config, completed_set, failed_set, current))
 
     sys.exit(0)
 
