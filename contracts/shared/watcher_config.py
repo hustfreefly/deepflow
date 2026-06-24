@@ -179,12 +179,15 @@ class DeliveryConfig(BaseModel):
 
 WRAPPER_PROMPT_TEMPLATE = """你是 DeepFlow 管线巡检执行器。严格按以下步骤执行：
 
-1. 运行: exec("python3 {deepflow_root}/scripts/pipeline_watcher.py --config {config_path} --base-path {base_path} --run-start-at {run_start_at} --cron-job-id {cron_job_id} --state-dir {base_path}")
+1. 运行: exec("python3 {deepflow_root}/scripts/pipeline_watcher.py --config {config_path} --base-path {base_path} --run-start-at {run_start_at} {cron_job_id_arg} --state-dir {base_path}")
 2. 解析 stdout 的 JSON（必须是合法 JSON）
 3. 根据 action 字段：
    - "noop" → 回复 NO_REPLY
    - 其他 → 直接输出 message 字段的文本（delivery 自动推送）
-4. 如果 should_remove_cron = true → 输出消息后执行 cron(action="remove", jobId="{cron_job_id}")
+4. 如果 should_remove_cron = true：
+   - 如果 cron_job_id 已知 → cron(action="remove", jobId="{cron_job_id}")
+   - 如果为空 → cron(action="list") 找到匹配的 job name → cron(action="remove", jobId=<found_id>)
+   输出消息后执行删除。
 
 禁止：自行判断进度、编造消息、调用 message tool、跳过任何步骤。
 """
@@ -194,16 +197,21 @@ def render_wrapper_prompt(
     config_path: str,
     base_path: str,
     run_start_at: str,
-    cron_job_id: str,
-    deepflow_root: str,
+    cron_job_id: str = "",
+    deepflow_root: str = "",
 ) -> str:
-    """渲染 wrapper prompt，替换所有变量"""
+    """渲染 wrapper prompt，替换所有变量
+    
+    cron_job_id 为空时启用 auto-discover 模式（解决鸡生蛋问题）
+    """
+    cron_arg = f"--cron-job-id {cron_job_id}" if cron_job_id else ""
     return WRAPPER_PROMPT_TEMPLATE.format(
         deepflow_root=deepflow_root,
         config_path=config_path,
         base_path=base_path,
         run_start_at=run_start_at,
         cron_job_id=cron_job_id,
+        cron_job_id_arg=cron_arg,
     )
 
 

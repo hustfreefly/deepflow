@@ -93,6 +93,8 @@ sessions_spawn(**result["spawn_params"])
 
 ### Step 4: 创建 Cron 巡检 Agent（V2 契约笼子）
 
+> 🔴 **铁律**: 必须从 `start_solution_pro.py --print-watcher-prompt` 输出的 `watcher_wrapper_prompt_prefilled` 字段获取 prompt，原样用于 cron payload.message。禁止手动编写 prompt。
+
 使用 `pipeline_watcher.py` 确定性脚本 + 薄 wrapper prompt，禁止 LLM 自行判断。
 
 ```python

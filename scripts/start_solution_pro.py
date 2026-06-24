@@ -128,7 +128,7 @@ def main():
 
         # Watcher wrapper prompt (for main Agent to create cron)
         if args.print_watcher_prompt:
-            from scripts.pipeline_watcher import render_wrapper_prompt, WRAPPER_PROMPT_TEMPLATE
+            from contracts.shared.watcher_config import render_wrapper_prompt, WRAPPER_PROMPT_TEMPLATE as WRAPPER_PROMPT_TEMPLATE
             result['watcher_wrapper_prompt_template'] = WRAPPER_PROMPT_TEMPLATE
             # Render with all values; cron_job_id="" enables auto-discover mode
             result['watcher_wrapper_prompt_prefilled'] = render_wrapper_prompt(

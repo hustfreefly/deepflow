@@ -349,7 +349,8 @@ class MessageFormatter:
     def timeout(self) -> str: return self.tpl["timeout"].format_map(self._ctx(timeout_min=self.cfg["limits"].get("timeout_minutes", 60), timeout_minutes=self.cfg["limits"].get("timeout_minutes", 60)))
     def circuit_break(self, failures: int) -> str: return self.tpl["circuit_break"].format_map(self._ctx(failures=failures))
 
-WRAPPER_PROMPT_TEMPLATE = """你是 DeepFlow 管线巡检执行器。严格按以下步骤执行：
+# DEPRECATED: 使用 contracts/shared/watcher_config.py 的标准模板
+WRAPPER_PROMPT_TEMPLATE_OLD = """你是 DeepFlow 管线巡检执行器。严格按以下步骤执行：
 
 1. 运行: exec("python3 __DEEPFLOW_ROOT__/scripts/pipeline_watcher.py --config __CONFIG_PATH__ --base-path __BASE_PATH__ --run-start-at __RUN_START_AT__ __CRON_JOB_ID_ARG__")
 2. 验证 stdout 是合法 JSON（先尝试 json.loads 解析）

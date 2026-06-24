@@ -369,6 +369,21 @@ print(f"  - Acceptance Contract: {len(sp['acceptance_contract'])}")
 
 ---
 
+## 🔍 Watcher 巡检（必须伴随启动）
+
+> 🔴 **铁律**: 启动 Ship Pro 管线时，**必须同步创建 Watcher Cron**。
+> 必须从 `start_ship_pro.py --print-watcher-prompt` 输出的 `watcher_wrapper_prompt_prefilled` 字段获取 prompt，原样用于 cron payload.message。禁止手动编写 prompt。
+
+**流程**:
+1. 运行 `start_ship_pro.py --print-watcher-prompt`
+2. spawn orchestrator
+3. 创建 Watcher Cron（直接用 `watcher_wrapper_prompt_prefilled`，无需回填 cron_job_id）
+4. yield
+
+**禁止**: 启动管线但不创建 Watcher = 违规
+
+---
+
 ## 🔄 状态流转
 
 ```
