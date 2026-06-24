@@ -44,22 +44,22 @@ Solution Pro 管线完成时，`completion_handler.py` 会自动编译 Ship Pack
 
 ```bash
 # 1. 准备管线
-python3 scripts/run_pipeline.py prepare <input_path> <output_dir>
+PYTHONPATH=. python3 scripts/run_pipeline.py prepare <input_path> <output_dir>
 
 # 2. 获取某个 Agent 的任务 prompt
-python3 scripts/run_pipeline.py task <agent_name> <output_dir>
+PYTHONPATH=. python3 scripts/run_pipeline.py task <agent_name> <output_dir>
 
 # 3. 运行质量门禁
-python3 scripts/run_pipeline.py gate <agent_name> <output_dir>
+PYTHONPATH=. python3 scripts/run_pipeline.py gate <agent_name> <output_dir>
 
 # 4. 更新状态（每个 Agent 完成后必须调用）
-python3 scripts/run_pipeline.py update-status <output_dir> <agent_name> <PASS|CONDITIONAL|FAIL> [feedback]
+PYTHONPATH=. python3 scripts/run_pipeline.py update-status <output_dir> <agent_name> <PASS|CONDITIONAL|FAIL> [feedback]
 
 # 5. 查看管线状态
-python3 scripts/run_pipeline.py status <output_dir>
+PYTHONPATH=. python3 scripts/run_pipeline.py status <output_dir>
 
 # 6. 最终验证
-python3 scripts/run_pipeline.py validate <output_dir>
+PYTHONPATH=. python3 scripts/run_pipeline.py validate <output_dir>
 ```
 
 ### 执行顺序
@@ -81,7 +81,7 @@ prepare → [architect: task→spawn→gate→update-status]
 ### 契约笼子
 
 输出格式由 Pydantic 模型定义（`contracts/` 目录），Gate 使用 Pydantic 验证。
-CI 检查: `python3 -m domains.ship_pro.contracts.generator --check`
+CI 检查: `PYTHONPATH=. python3 -m domains.ship_pro.contracts.generator --check`
 
 ---
 
@@ -134,7 +134,7 @@ else:
 ### Step 1: 提取模块 ID
 
 ```bash
-cd "$HOME/.openclaw/workspace/.deepflow" && python3 scripts/extract_module_ids.py \
+cd "$HOME/.openclaw/workspace/.deepflow" && PYTHONPATH=. python3 scripts/extract_module_ids.py \
   --session-id "{SESSION_ID}"
 ```
 
@@ -170,7 +170,7 @@ Pre-Scanner 输出: `blackboard/{SESSION_ID}/domain_config.json`
 #### 2b. 验证 Pre-Scanner 输出
 
 ```bash
-cd "$HOME/.openclaw/workspace/.deepflow" && python3 scripts/validate_domain_config.py \
+cd "$HOME/.openclaw/workspace/.deepflow" && PYTHONPATH=. python3 scripts/validate_domain_config.py \
   --session-id "{SESSION_ID}"
 ```
 
@@ -196,7 +196,7 @@ Level 3: 回退 V1 模式匹配
 ### Step 3: 编译 Ship Package（Phase 2）
 
 ```bash
-cd "$HOME/.openclaw/workspace/.deepflow" && python3 scripts/start_ship_pro.py \
+cd "$HOME/.openclaw/workspace/.deepflow" && PYTHONPATH=. python3 scripts/start_ship_pro.py \
   --session-id "{SESSION_ID}" \
   --domain-config "{base_path}/domain_config.json"
 ```
@@ -211,7 +211,7 @@ cd "$HOME/.openclaw/workspace/.deepflow" && python3 scripts/start_ship_pro.py \
 ### Step 4: 提取审查数据
 
 ```bash
-cd "$HOME/.openclaw/workspace/.deepflow" && python3 scripts/extract_ship_review_data.py \
+cd "$HOME/.openclaw/workspace/.deepflow" && PYTHONPATH=. python3 scripts/extract_ship_review_data.py \
   --session-id "{SESSION_ID}"
 ```
 

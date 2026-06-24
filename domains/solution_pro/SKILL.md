@@ -47,7 +47,7 @@ with open(f"{base_path}/inferred_living_spec.json", "w") as f:
 ### Step 1: 生成执行计划
 
 ```bash
-cd ~/.openclaw/workspace/.deepflow && python3 -c "
+cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
 import json
 from domains.solution import run_solution_pro
 result = run_solution_pro(
@@ -167,7 +167,7 @@ orchestrator 完成后会自动 announce 回来。
 
 ```python
 # 运行启动脚本
-result = exec("python3 scripts/start_ship_pro.py --input blackboard/<session>/stages/final_result.json --output blackboard/<session>/ship_output --print-watcher-prompt")
+result = exec("PYTHONPATH=. python3 scripts/start_ship_pro.py --input blackboard/<session>/stages/final_result.json --output blackboard/<session>/ship_output --print-watcher-prompt")
 
 # 解析 JSON 输出
 spawn_params = result["spawn_params"]
@@ -338,7 +338,7 @@ for f in [".cron_job_id", ".cron_run_count", ".notified_stages.json", ".run_star
 
 1. 解析完成状态
 2. 执行兜底清理（删除 cron + 清理状态文件）
-3. 执行 `python3 domains/solution_pro/completion_handler.py <session_id>` 验证
+3. 执行 `PYTHONPATH=. python3 domains/solution_pro/completion_handler.py <session_id>` 验证
 4. 更新 tasks 数据库为 `completed`
 5. 向用户报告最终结果
 

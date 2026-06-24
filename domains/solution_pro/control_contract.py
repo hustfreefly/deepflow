@@ -7,6 +7,7 @@ the fixed 10-stage worker prompts.
 
 from __future__ import annotations
 
+import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 import json
 import re
 from datetime import datetime

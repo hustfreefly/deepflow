@@ -16,7 +16,7 @@
 ```python
 # 主 Agent 调用 spec_pro_api.py
 exec(
-    command="python3 domains/spec_pro/spec_pro_api.py init '{user_input}' --mode standard --scenario genesis",
+    command="PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py init '{user_input}' --mode standard --scenario genesis",
     workdir="/Users/allen/.openclaw/workspace/.deepflow"
 )
 ```
@@ -45,19 +45,19 @@ exec(
 ```python
 # 1. 提交用户回复
 exec(
-    command="python3 domains/spec_pro/spec_pro_api.py next_round {session_id} '{user_response}'",
+    command="PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py next_round {session_id} '{user_response}'",
     workdir="/Users/allen/.openclaw/workspace/.deepflow"
 )
 
 # 2. 读取 Orchestrator 生成的下一个问题
 exec(
-    command="python3 domains/spec_pro/spec_pro_api.py read_output {session_id}",
+    command="PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py read_output {session_id}",
     workdir="/Users/allen/.openclaw/workspace/.deepflow"
 )
 
 # 3. 检查状态
 exec(
-    command="python3 domains/spec_pro/spec_pro_api.py status {session_id}",
+    command="PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py status {session_id}",
     workdir="/Users/allen/.openclaw/workspace/.deepflow"
 )
 ```
@@ -77,7 +77,7 @@ exec(
 ```python
 # 运行 Harness 评估
 exec(
-    command="python3 domains/spec_pro/eval/harness.py {session_id}",
+    command="PYTHONPATH=. python3 domains/spec_pro/eval/harness.py {session_id}",
     workdir="/Users/allen/.openclaw/workspace/.deepflow"
 )
 
@@ -116,7 +116,7 @@ living_spec = read(
 
 # 2. 获取 Spec Pro 状态（会自动写 .completed 标记文件）
 exec(
-    command="python3 domains/spec_pro/spec_pro_api.py status {session_id}",
+    command="PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py status {session_id}",
     workdir="/Users/allen/.openclaw/workspace/.deepflow"
 )
 
@@ -126,7 +126,7 @@ exec(
 
 # 4. 收到触发消息后，执行 Solution Pro 启动
 exec(
-    command="python3 scripts/start_solution_pro.py '{topic}'",
+    command="PYTHONPATH=. python3 scripts/start_solution_pro.py '{topic}'",
     workdir="/Users/allen/.openclaw/workspace/.deepflow"
 )
 # 其中 topic 从 living_spec.json 的 title 字段提取
@@ -234,7 +234,7 @@ exec(
 
 **Agent**: 
 ```python
-exec("python3 domains/spec_pro/spec_pro_api.py init '电商订单自动通知系统'")
+exec("PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py init '电商订单自动通知系统'")
 # 返回 session_id = "spec_spec_abc123"
 ```
 
@@ -244,8 +244,8 @@ exec("python3 domains/spec_pro/spec_pro_api.py init '电商订单自动通知系
 
 **Agent**:
 ```python
-exec("python3 domains/spec_pro/spec_pro_api.py next_round spec_spec_abc123 '现在每天50个订单，手动发邮件通知，经常漏发，客户投诉3次了'")
-exec("python3 domains/spec_pro/spec_pro_api.py read_output spec_spec_abc123")
+exec("PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py next_round spec_spec_abc123 '现在每天50个订单，手动发邮件通知，经常漏发，客户投诉3次了'")
+exec("PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py read_output spec_spec_abc123")
 # 返回下一个问题
 ```
 
@@ -257,10 +257,10 @@ exec("python3 domains/spec_pro/spec_pro_api.py read_output spec_spec_abc123")
 
 **最终**：
 ```python
-exec("python3 domains/spec_pro/spec_pro_api.py status spec_spec_abc123")
+exec("PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py status spec_spec_abc123")
 # 返回 status = "done"
 
-exec("python3 domains/spec_pro/eval/harness.py spec_spec_abc123")
+exec("PYTHONPATH=. python3 domains/spec_pro/eval/harness.py spec_spec_abc123")
 # 返回 decision = "PASS"
 
 # LivingSpec 已就绪，可以进入 Solution Pro

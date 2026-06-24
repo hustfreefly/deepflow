@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 # Import STAGE_PATH_REGISTRY for path resolution
-import core.bootstrap
+import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 from domains.ship_pro.blackboard import STAGE_PATH_REGISTRY, BlackboardManager
 
 # ---------------------------------------------------------------------------
