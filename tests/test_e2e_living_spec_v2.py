@@ -13,6 +13,7 @@ E2E Test: Living Spec V2 全链路闭环测试
 
 import json
 import os
+import sys
 import tempfile
 import shutil
 

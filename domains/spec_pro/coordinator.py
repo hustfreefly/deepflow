@@ -29,6 +29,10 @@ from typing import Any, Dict, Optional
 
 from core.config.path_config import PathConfig
 from domains.spec_pro.blackboard import BlackboardManager
+from domains.spec_pro.schemas import (
+    EMPTY_CONVERSATION_LOG,
+    EMPTY_QUALITY_TRAJECTORY,
+)
 from domains.spec_pro.models import (
     DialogState,
     LivingSpec,
@@ -162,11 +166,11 @@ class SpecProCoordinator:
             "mode": self.mode,
         })
 
-        # Initialize quality trajectory
-        self._bb.write("spec/quality_trajectory.json", json.dumps([]))
+        # Initialize quality trajectory (schemas.py 定义的格式)
+        self._bb.write("spec/quality_trajectory.json", json.dumps(EMPTY_QUALITY_TRAJECTORY))
 
-        # Initialize conversation log
-        self._bb.write("spec/conversation_log.json", json.dumps([]))
+        # Initialize conversation log (schemas.py 定义的格式)
+        self._bb.write("spec/conversation_log.json", json.dumps(EMPTY_CONVERSATION_LOG))
 
         # Build first round task (v3 flat or v2 nested)
         self.current_round = 1
@@ -288,6 +292,12 @@ class SpecProCoordinator:
         data = self._bb.read_json("spec/round_result.json")
         if data is None:
             return {"action": "error", "message": "round_result.json not found"}
+
+        # 契约笼子：Pydantic 门控
+        from domains.spec_pro.contracts.gate import gate_round_result
+        validated, errors = gate_round_result(data)
+        if errors:
+            return {"action": "error", "message": f"RoundResult 格式错误: {errors}"}
 
         # Update internal state based on action
         action = data.get("action", "error")
@@ -495,7 +505,14 @@ class SpecProCoordinator:
         if self._bb is None:
             return base
 
-        trajectory = self._bb.read_json("spec/quality_trajectory.json", default=[])
+        raw_trajectory = self._bb.read_json("spec/quality_trajectory.json", default={})
+        # quality_trajectory.json is a dict with {"scores": [], "trajectory": []}
+        if isinstance(raw_trajectory, dict):
+            trajectory = raw_trajectory.get("trajectory", [])
+        elif isinstance(raw_trajectory, list):
+            trajectory = raw_trajectory
+        else:
+            trajectory = []
         trajectory = trajectory or []
 
         if len(trajectory) < 2:

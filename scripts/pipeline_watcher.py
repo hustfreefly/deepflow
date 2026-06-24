@@ -410,10 +410,49 @@ def render_wrapper_prompt(deepflow_root: str, config_path: str, base_path: str,
 WRAPPER_PROMPT = WRAPPER_PROMPT_TEMPLATE
 
 def write_auto_chain(config: Dict, base_path: Path, completion: Dict) -> Optional[str]:
-    """Write .auto_chain_trigger if configured. Returns next pipeline name or None."""
+    """Write .auto_chain_trigger if configured. Returns next pipeline name or None.
+    
+    V3 增强：添加 transition_prompt 数据，供主 Agent 渲染用户引导词。
+    """
     ac, next_pl = config.get("auto_chain", {}), config.get("auto_chain", {}).get("next_pipeline")
     if not next_pl: return None
-    trigger = {"source_pipeline": config["pipeline_id"], "completed_at": completion.get("completed_at", ""), "base_path": str(base_path)}
+    
+    # 构建基础 trigger 数据
+    trigger = {
+        "source_pipeline": config["pipeline_id"],
+        "completed_at": completion.get("completed_at", ""),
+        "base_path": str(base_path)
+    }
+    
+    # V3: 生成 transition_prompt 数据
+    if next_pl == "ship_pro":
+        # Solution Pro → Ship Pro 过渡
+        harness_path = base_path / "stages" / "harness_final.json"
+        final_result_path = base_path / "stages" / "final_result.json"
+        
+        harness_data = load_json(harness_path)
+        final_result_data = load_json(final_result_path)
+        
+        harness_score = 0
+        num_reqs = 0
+        num_modules = 0
+        
+        if harness_data and isinstance(harness_data, dict):
+            harness_score = harness_data.get("overall_score", 0)
+        
+        if final_result_data and isinstance(final_result_data, dict):
+            num_reqs = len(final_result_data.get("requirements", []))
+            num_modules = len(final_result_data.get("modules", []))
+        
+        trigger["transition_prompt"] = {
+            "template": "solution_to_ship",
+            "variables": {
+                "harness_score": harness_score,
+                "num_reqs": num_reqs,
+                "num_modules": num_modules
+            }
+        }
+    
     atomic_write(base_path / ac.get("trigger_file", ".auto_chain_trigger"), json.dumps(trigger, ensure_ascii=False))
     return next_pl
 

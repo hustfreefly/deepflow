@@ -122,7 +122,12 @@ def test_read_output_persists_reconstructed_state(tmp_path, monkeypatch):
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(spec_pro_api, "DEEPFLOW_BASE", str(tmp_path))
+    # Patch BlackboardManager to use tmp_path/blackboard as base_dir
+    from domains.spec_pro.blackboard import BlackboardManager as _BM
+    _orig_init = _BM.__init__
+    def _patched_init(self, sid, base_dir=None, **kw):
+        _orig_init(self, sid, base_dir=str(tmp_path / "blackboard"), **kw)
+    monkeypatch.setattr(_BM, "__init__", _patched_init)
 
     result = spec_pro_api.cmd_read_output(SimpleNamespace(session_id=session_id))
 

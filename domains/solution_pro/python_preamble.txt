@@ -1,0 +1,23 @@
+
+## 🔴 Python 执行环境要求
+
+你执行的所有 Python 命令都必须在正确的工作目录下运行。否则 `from core.blackboard.blackboard_manager import BlackboardManager` 会报 `ModuleNotFoundError`。
+
+**每次 exec 调用必须这样写**：
+```python
+exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c \"...\"")
+```
+
+或者先设置环境变量：
+```python
+exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c \"
+import sys; sys.path.insert(0, '.')
+from core.blackboard.blackboard_manager import BlackboardManager
+...\"")
+```
+
+**绝对禁止**：
+- ❌ 直接 `python3 -c "from core..."` （没有 PYTHONPATH）
+- ❌ 在其他目录下执行 Python 命令
+- ❌ 使用 `import core` 而不是完整路径
+

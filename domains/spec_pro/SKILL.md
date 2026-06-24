@@ -8,9 +8,26 @@
 
 ## 🚀 主 Agent 执行步骤
 
+### Step 0: 入口守卫（防偏检查）🔴
+
+**当用户输入包含以下任一条件时，必须进入 Spec Pro 流程**：
+- 明确说"Spec Pro"、"帮我分析需求"、"做一个XXX系统"
+- 提供了背景材料/调研文档，且隐含"基于这个做一个项目"
+
+**🔴 防偏规则（绝对禁止）**：
+- ❌ 禁止自己出方案/写代码/设计架构
+- ❌ 禁止跳过对话直接生成 LivingSpec
+- ❌ 禁止自己解读用户意图（必须由 Spec Pro 对话流程提取）
+
+**✅ 正确行为**：
+- 必须：调用 `spec_pro_api.py init` → 走多轮对话流程
+- 如果用户提供了调研材料，作为 init 的输入传入（不要自己解析）
+
+---
+
 ### Step 1: 初始化 Spec Pro 会话
 
-**触发条件**：用户说"帮我分析需求"、"做一个XXX系统"、"Spec Pro"
+**触发条件**：Step 0 判定需要进入 Spec Pro
 
 **执行逻辑**：
 ```python
@@ -75,13 +92,19 @@ exec(
 
 **执行逻辑**：
 ```python
-# 运行 Harness 评估
+# 运行 Harness 评估（使用 session_id，自动通过 BlackboardManager API 读取）
 exec(
     command="PYTHONPATH=. python3 domains/spec_pro/eval/harness.py {session_id}",
     workdir="/Users/allen/.openclaw/workspace/.deepflow"
 )
 
-# 读取评估报告
+# 读取评估报告（Harness 已自动写入 Blackboard）
+# 方式 1: 通过 BlackboardManager API（推荐）
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager(session_id="{session_id}")
+report = bb.read_stage("spec/harness_report")
+
+# 方式 2: 直接读文件（兼容）
 read(
     path="blackboard/{session_id}/spec/harness_report.json"
 )

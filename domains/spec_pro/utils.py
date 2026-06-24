@@ -136,25 +136,43 @@ def append_trajectory(
     """
     追加质量轨迹记录。
 
+    写入格式: schemas.QUALITY_TRAJECTORY_SCHEMA {"scores": [...], "trajectory": [...]}
+    兼容旧格式: 如果读到纯数组，自动迁移为 {"scores": [...], "trajectory": [...]}
+
     Returns:
         本轮轨迹点
     """
+    # 读取现有数据（兼容旧格式: 纯数组 → 自动迁移）
+    scores = []
     trajectory = []
     if os.path.exists(trajectory_path):
         try:
             with open(trajectory_path, "r", encoding="utf-8") as f:
-                trajectory = json.load(f)
+                data = json.load(f)
+            if isinstance(data, list):
+                # 旧格式: 纯数组 → 迁移
+                trajectory = data
+                scores = [p.get("overall_score", 0) for p in data]
+            elif isinstance(data, dict):
+                # 新格式: {"scores": [...], "trajectory": [...]}
+                scores = data.get("scores", [])
+                trajectory = data.get("trajectory", [])
         except (json.JSONDecodeError, OSError) as e:
             logger.debug(f"trajectory read: {e}")
 
     overall_score = quality_report.get("overall_score", 0)
     level = quality_report.get("level", "C")
 
-    # 计算维度分数映射
+    # 计算维度分数映射（兼容 list 和 dict 两种 dimensions 格式）
     dimension_scores = {}
-    for dim in quality_report.get("dimensions", []):
-        dim_key = dim.get("dimension", "")
-        dimension_scores[dim_key] = dim.get("score", 0)
+    dims = quality_report.get("dimensions", [])
+    if isinstance(dims, list):
+        for dim in dims:
+            dim_key = dim.get("dimension", "")
+            dimension_scores[dim_key] = dim.get("score", 0)
+    elif isinstance(dims, dict):
+        for dim_key, dim_data in dims.items():
+            dimension_scores[dim_key] = dim_data.get("score", 0) if isinstance(dim_data, dict) else 0
 
     # 计算 delta
     prev_score = trajectory[-1]["overall_score"] if trajectory else 0
@@ -170,10 +188,20 @@ def append_trajectory(
         "inferences_validated": inferences_validated,
     }
     trajectory.append(point)
+    scores.append(overall_score)
 
+    # 写入新格式: {"scores": [...], "trajectory": [...]}
+    output = {"scores": scores, "trajectory": trajectory}
+    
+    # 契约笼子：Pydantic 门控
+    from domains.spec_pro.contracts.gate import gate_quality_trajectory
+    validated, errors = gate_quality_trajectory(output)
+    if errors:
+        raise ValueError(f"QualityTrajectory 格式错误: {errors}")
+    
     os.makedirs(os.path.dirname(trajectory_path), exist_ok=True)
     with open(trajectory_path, "w", encoding="utf-8") as f:
-        json.dump(trajectory, f, ensure_ascii=False, indent=2)
+        json.dump(output, f, ensure_ascii=False, indent=2)
 
     return point
 
@@ -195,12 +223,23 @@ def append_conversation_log(
     inferences_confirmed: int = 0,
     inferences_rejected: int = 0,
 ) -> None:
-    """追加对话日志记录。"""
-    log = []
+    """追加对话日志记录。
+
+    写入格式: schemas.CONVERSATION_LOG_SCHEMA {"rounds": [...]}
+    兼容旧格式: 如果读到纯数组，自动迁移为 {"rounds": [...]}
+    """
+    # 读取现有数据（兼容旧格式: 纯数组 → 自动迁移）
+    rounds = []
     if os.path.exists(log_path):
         try:
             with open(log_path, "r", encoding="utf-8") as f:
-                log = json.load(f)
+                data = json.load(f)
+            if isinstance(data, list):
+                # 旧格式: 纯数组 → 迁移
+                rounds = data
+            elif isinstance(data, dict):
+                # 新格式: {"rounds": [...]}
+                rounds = data.get("rounds", [])
         except (json.JSONDecodeError, OSError) as e:
             logger.debug(f"conversation log read: {e}")
 
@@ -220,11 +259,20 @@ def append_conversation_log(
         "inferences_confirmed": inferences_confirmed,
         "inferences_rejected": inferences_rejected,
     }
-    log.append(entry)
+    rounds.append(entry)
 
+    # 写入新格式: {"rounds": [...]}
+    output = {"rounds": rounds}
+    
+    # 契约笼子：Pydantic 门控
+    from domains.spec_pro.contracts.gate import gate_conversation_log
+    validated, errors = gate_conversation_log(output)
+    if errors:
+        raise ValueError(f"ConversationLog 格式错误: {errors}")
+    
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, "w", encoding="utf-8") as f:
-        json.dump(log, f, ensure_ascii=False, indent=2)
+        json.dump(output, f, ensure_ascii=False, indent=2)
 
 
 # ============================================================================

@@ -14,6 +14,7 @@ Spec Pro 完整自动化测试套件
 
 import json
 import os
+import sys
 import tempfile
 import shutil
 

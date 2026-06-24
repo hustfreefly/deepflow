@@ -216,11 +216,33 @@ updated: "2026-05-23"
     "layer2_hints": {...},
     "anti_patterns": [...]
   },
+  "transition_prompt": {
+    "template": "spec_to_solution",
+    "variables": {
+      "quality_score": 82,
+      "quality_level": "A",
+      "num_users": 3,
+      "num_capabilities": 8,
+      "num_constraints": 5
+    }
+  },
   "inferred_pending": [
     {"id": "INF-003", "content": "...", "confidence": 0.6}
   ]
 }
 ```
+
+#### transition_prompt 生成规则
+
+当 `action = "done"` 时，必须生成 `transition_prompt` 字段，用于主 Agent 渲染用户引导词。
+
+**生成逻辑**：
+1. `template` 固定为 `"spec_to_solution"`
+2. `variables.quality_score` 来自 `quality.overall_score`
+3. `variables.quality_level` 来自 `quality.level`（S/A/B/C）
+4. `variables.num_users` 统计 `living_spec.confirmed.users` 数组长度
+5. `variables.num_capabilities` 统计 `living_spec.confirmed.capabilities.always_do` 数组长度
+6. `variables.num_constraints` 统计 `living_spec.confirmed.constraints` 对象中的字段数量
 
 ### 更新 spec/living_spec.json
 

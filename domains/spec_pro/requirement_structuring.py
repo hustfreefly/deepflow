@@ -115,11 +115,14 @@ def _build_annotation_prompt(confirmed: Dict[str, Any]) -> str:
         else:
             req_texts.append(f"质量属性: {qa}")
     
-    # constraints
+    # constraints - 兼容 dict 和 list 格式
     constraints = confirmed.get("constraints", {})
     if isinstance(constraints, dict):
         for k, v in constraints.items():
             req_texts.append(f"约束: {k} - {v}")
+    elif isinstance(constraints, list):
+        for c in constraints:
+            req_texts.append(f"约束: {c}")
     
     # integration
     integration = confirmed.get("integration", {})
@@ -263,10 +266,14 @@ def _check_coverage(confirmed: Dict[str, Any], annotations: List[Dict[str, Any]]
         else:
             req_texts.add(f"质量属性: {qa}")
     
+    # constraints - 兼容 dict 和 list 格式
     constraints = confirmed.get("constraints", {})
     if isinstance(constraints, dict):
         for k, v in constraints.items():
             req_texts.add(f"约束: {k} - {v}")
+    elif isinstance(constraints, list):
+        for c in constraints:
+            req_texts.add(f"约束: {c}")
     
     integration = confirmed.get("integration", {})
     for req in integration.get("requirements", []):

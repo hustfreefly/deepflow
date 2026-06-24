@@ -38,6 +38,38 @@ from core.config.path_config import PathConfig
 from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY, BlackboardManager
 from domains.solution_pro.spec_context import build_worker_context_section
 
+
+def _extract_constraints(confirmed: dict) -> dict:
+    """
+    兼容两种 constraints 格式：
+    - 旧格式（dict）: {"budget": "...", "timeline": "...", "tech_stack": [...]}
+    - 新格式（list）: ["一步到位", "全LLM控制", ...]
+    
+    返回标准化的 dict: {"budget": str, "timeline": str, "tech_stack": str, "constraints_text": str}
+    """
+    _constraints = confirmed.get("constraints", [])
+    
+    if isinstance(_constraints, list):
+        # 新格式：list of strings
+        constraints_text = "\n".join([f"- {c}" for c in _constraints]) if _constraints else "- 未指定"
+        return {
+            "budget": "未指定",
+            "timeline": "未指定",
+            "tech_stack": "未指定",
+            "constraints_text": constraints_text
+        }
+    else:
+        # 旧格式：dict with budget/timeline/tech_stack
+        budget = _constraints.get("budget", "未指定")
+        timeline = _constraints.get("timeline", "未指定")
+        tech_stack = ", ".join(_constraints.get("tech_stack", [])) or "未指定"
+        return {
+            "budget": budget,
+            "timeline": timeline,
+            "tech_stack": tech_stack,
+            "constraints_text": f"预算: {budget}\n时间: {timeline}\n技术栈: {tech_stack}"
+        }
+
 # ============================================================================
 # P0-3 契约修复: Layer 2 运行时读取指令模板
 # 追加到下游 Worker prompt 尾部,让 Worker 运行时读取 planning.json
@@ -65,6 +97,36 @@ planning_data = bb.read_stage("planning")
 在你的输出 JSON 中包含 `layer2_response` 字段来响应这些约束。
 
 ⚠️ 绝对禁止自己拼接路径。所有 stage 操作必须通过 BlackboardManager API。
+"""
+
+# ============================================================================
+# P0-4 Python 执行环境修复: 确保子 Agent 能导入 core 模块
+# 根因: 子 Agent exec 时没有 PYTHONPATH, 导致 ModuleNotFoundError
+# 修复: 在所有 worker prompt 中注入 PYTHONPATH 设置指令
+# ============================================================================
+PYTHON_EXECUTION_PREAMBLE = """
+## 🔴 Python 执行环境要求
+
+你执行的所有 Python 命令都必须在正确的工作目录下运行。否则 `from core.blackboard.blackboard_manager import BlackboardManager` 会报 `ModuleNotFoundError`。
+
+**每次 exec 调用必须这样写**：
+```python
+exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c \"...\"")
+```
+
+或者先设置环境变量：
+```python
+exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c \"
+import sys; sys.path.insert(0, '.')
+from core.blackboard.blackboard_manager import BlackboardManager
+...\"")
+```
+
+**绝对禁止**：
+- ❌ 直接 `python3 -c "from core..."` （没有 PYTHONPATH）
+- ❌ 在其他目录下执行 Python 命令
+- ❌ 使用 `import core` 而不是完整路径
+
 """
 
 REQ_TRACEABILITY_INSTRUCTION = """
@@ -540,9 +602,13 @@ def build_planner_task(session_id: str, topic: str, solution_type: str,
         should_do = "\n".join([f"- {c}" for c in confirmed.get("capabilities", {}).get("should_do", [])]) or "- 未指定"
         never_do = "\n".join([f"- {c}" for c in confirmed.get("capabilities", {}).get("never_do", [])]) or "- 未指定"
         qa_text = "\n".join([f"- {q.get('category','')}: {q.get('spec','')} (优先级: {q.get('priority','P1')})" for q in confirmed.get("quality_attributes", [])]) or "- 未指定"
-        budget = confirmed.get("constraints", {}).get("budget", "未指定")
-        timeline = confirmed.get("constraints", {}).get("timeline", "未指定")
-        tech_stack = ", ".join(confirmed.get("constraints", {}).get("tech_stack", [])) or "未指定"
+        
+        # 兼容两种 constraints 格式
+        _c = _extract_constraints(confirmed)
+        budget = _c["budget"]
+        timeline = _c["timeline"]
+        tech_stack = _c["tech_stack"]
+        constraints_text = _c["constraints_text"]
         _raw_systems = confirmed.get("integration", {}).get("existing_systems", [])
         existing_systems = "\n".join([f"- {s.get('name','')}: {s.get('role','')}" if isinstance(s, dict) else f"- {s}" for s in _raw_systems]) or "- 未指定"
         risks = "\n".join([f"- {r}" for r in confirmed.get("risks_and_assumptions", {}).get("risks", [])]) or "- 未指定"
@@ -1245,8 +1311,9 @@ def build_reviewer_task(session_id: str, topic: str, review_type: str,
         should_do = ", ".join(confirmed.get("capabilities", {}).get("should_do", [])) or "未指定"
         never_do = ", ".join(confirmed.get("capabilities", {}).get("never_do", [])) or "未指定"
         qa_text = "\n".join([f"- {q.get('category','')}: {q.get('spec','')}" for q in confirmed.get("quality_attributes", [])]) or "- 未指定"
-        budget = confirmed.get("constraints", {}).get("budget", "未指定")
-        timeline = confirmed.get("constraints", {}).get("timeline", "未指定")
+        _c = _extract_constraints(confirmed)
+        budget = _c["budget"]
+        timeline = _c["timeline"]
         living_spec_context += f"""
 ## 评审基准(来自 Spec Pro - 用户确认的需求)
 
@@ -1404,9 +1471,10 @@ def build_harness_final_task(session_id: str, topic: str, living_spec: dict = No
         # P4: 提取全局理解字段(why/for_whom/success_criteria)
         always_do = "\n".join([f"- {c}" for c in confirmed.get("capabilities", {}).get("always_do", [])]) or "- 无"
         qa_text = "\n".join([f"- {q.get('category','')}: {q.get('spec','')}" for q in confirmed.get("quality_attributes", [])]) or "- 无"
-        budget = confirmed.get("constraints", {}).get("budget", "未指定")
-        timeline = confirmed.get("constraints", {}).get("timeline", "未指定")
-        tech_stack = ", ".join(confirmed.get("constraints", {}).get("tech_stack", [])) or "未指定"
+        _c = _extract_constraints(confirmed)
+        budget = _c["budget"]
+        timeline = _c["timeline"]
+        tech_stack = _c["tech_stack"]
 
         why = "\n".join([f"- {p}" for p in confirmed.get("pain_points", [])]) or "- 未指定"
         for_whom = "\n".join([f"- {u.get('role','')}: {u.get('key_needs','')}" if isinstance(u, dict) else f"- {u}" for u in confirmed.get("users", [])]) or "- 未指定"
@@ -1824,14 +1892,15 @@ def build_summarizer_task(session_id: str, topic: str,
         success_metrics = confirmed.get("success_metrics", [])
         success_metrics_str = "\n".join([f"- {m.get('metric', '未知')}: {m.get('target', '未知')}" if isinstance(m, dict) else f"- {m}" for m in success_metrics]) if success_metrics else "- 未指定"
 
-        constraints = confirmed.get("constraints", {})
-        constraints_str = "\n".join([f"- {k}: {v}" for k, v in constraints.items()]) if constraints else "- 未指定"
+        _c = _extract_constraints(confirmed)
+        constraints_str = _c["constraints_text"]
 
         # 需求覆盖标注部分
         always_do = "\n".join([f"- {c}" for c in confirmed.get("capabilities", {}).get("always_do", [])]) or "- 无"
         qa_text = "\n".join([f"- {q.get('category','')}: {q.get('spec','')}" for q in confirmed.get("quality_attributes", [])]) or "- 无"
-        budget = confirmed.get("constraints", {}).get("budget", "未指定")
-        timeline = confirmed.get("constraints", {}).get("timeline", "未指定")
+        _c = _extract_constraints(confirmed)
+        budget = _c["budget"]
+        timeline = _c["timeline"]
 
         living_spec_context = f"""
 ## 全局理解(来自 executive_summary)

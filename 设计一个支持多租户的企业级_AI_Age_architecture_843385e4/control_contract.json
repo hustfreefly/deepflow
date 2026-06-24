@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-06-24T19:01:10.082019",
+  "source": {
+    "planner_output_path": "stages/planning.json",
+    "execution_plan_path": "execution_plan.json"
+  },
+  "research_workers": [
+    {
+      "id": "expert_1",
+      "name": "技术架构专家",
+      "angle": "高并发系统架构与性能优化",
+      "reason": "分析技术架构、性能、吞吐量和稳定性要求",
+      "expected_output_path": "stages/research_expert_1.json",
+      "worker_role": "researcher_expert_1"
+    },
+    {
+      "id": "expert_2",
+      "name": "最佳实践专家",
+      "angle": "行业最佳实践与标杆案例分析",
+      "reason": "参考成熟方案，避免重复造轮子",
+      "expected_output_path": "stages/research_expert_2.json",
+      "worker_role": "researcher_expert_2"
+    },
+    {
+      "id": "expert_3",
+      "name": "风险评估专家",
+      "angle": "系统风险识别与容错设计",
+      "reason": "识别关键风险、单点故障和缓解方案",
+      "expected_output_path": "stages/research_expert_3.json",
+      "worker_role": "researcher_expert_3"
+    }
+  ],
+  "layer2_constraints": {},
+  "audit_strategy": "standard",
+  "frozen_spec_path": "data/frozen_spec.json",
+  "traceability_matrix_path": "requirements_traceability_matrix.json",
+  "acceptance_criteria": [],
+  "warnings": [
+    "planning.json missing or invalid; using fallback control contract"
+  ]
+}

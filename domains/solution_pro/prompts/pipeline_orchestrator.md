@@ -130,7 +130,8 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="sol_{stage}_{worker_id}",
-    task=prompt
+    task=preamble + prompt,
+    cwd="/Users/allen/.openclaw/workspace/.deepflow"
 )
 sessions_yield()  # 等待完成事件
 ```
@@ -139,10 +140,21 @@ sessions_yield()  # 等待完成事件
 ```python
 # 连续 spawn 所有 worker（不 yield）
 for worker in phase.workers:
-    sessions_spawn(...)
+    sessions_spawn(..., cwd="/Users/allen/.openclaw/workspace/.deepflow")
 # 全部 spawn 后，一次性 yield
 sessions_yield()
 ```
+
+🔴 **Python 执行环境修复（必须）**：
+每个 worker 的 task 前面必须加上 `preamble`，内容为：
+```
+你执行的所有 Python 命令必须以 `cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.` 开头。
+否则 `from core.blackboard.blackboard_manager import BlackboardManager` 会报 ModuleNotFoundError。
+
+正确示例：exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c \"...\"")
+```
+
+同时，sessions_spawn 必须传 `cwd="/Users/allen/.openclaw/workspace/.deepflow"`。
 
 #### 3d. 🔴 验证输出（yield 返回后立即执行，不可跳过）
 

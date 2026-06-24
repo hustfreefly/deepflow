@@ -29,6 +29,8 @@ from pathlib import Path
 import core.bootstrap
 from core.config.path_config import PathConfig
 
+DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
+
 from domains.spec_pro import SpecProCoordinator
 from domains.spec_pro.blackboard import BlackboardManager
 
@@ -64,13 +66,18 @@ def reconstruct_coord(state: dict) -> SpecProCoordinator:
     然后恢复被序列化的状态字段。
     """
     from domains.spec_pro.models import DialogState
+    from pathlib import Path as _Path
 
     coord = SpecProCoordinator(
         scenario=state["scenario"],
         mode=state["mode"],  # __init__ 会正确设置 self._config = MODE_CONFIG[mode]
     )
     coord.session_id = state["session_id"]
-    coord.base_path = state["base_path"]
+    # Reconstruct BlackboardManager with correct base_dir from persisted base_path
+    persisted_base = state.get("base_path")
+    if persisted_base:
+        base_dir = _Path(persisted_base).parent  # session_dir's parent is blackboard_dir
+        coord._bb = BlackboardManager(coord.session_id, base_dir=str(base_dir))
     coord.current_round = state["current_round"]
     # v3: 恢复 architecture_version
     coord.architecture_version = state.get("architecture_version", "v2_nested")

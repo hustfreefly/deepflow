@@ -24,10 +24,22 @@ Date: 2026-06-20
 - 可执行度 < 40 → 至少 WARN
 """
 
+import os
 from typing import Dict, Literal, Optional, List, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
 import json
+
+import sys as _sys
+_p = __import__('pathlib').Path(__file__).resolve()
+_r = next((d for d in _p.parents if (d / 'domains' / 'spec_pro').is_dir()), None)
+if _r and str(_r) not in _sys.path:
+    _sys.path.insert(0, str(_r))
+
+from domains.spec_pro.schemas import (
+    INFERENCE_AUDIT_THRESHOLD,
+    QUALITY_DIMENSION_WEIGHTS,
+)
 
 
 # 权重配置
@@ -269,9 +281,10 @@ class SemanticGate:
         """
         检查完整度
         
-        直接使用 quality_report.json 中的 7 维度评分，取加权平均
+        直接使用 quality_report.json 中的 7 维度评分，取加权平均。
+        兼容 schemas.py 定义的 list 格式和旧 dict 格式。
         """
-        dimensions = quality_report.get("dimensions", {})
+        dimensions = quality_report.get("dimensions")
         
         if not dimensions:
             return DimensionScore(
@@ -281,13 +294,36 @@ class SemanticGate:
                 issues=["无法获取完整度评分"]
             )
         
+        # 统一为 list 格式（schemas.py 定义的格式）
+        dim_list = []
+        if isinstance(dimensions, list):
+            dim_list = dimensions
+        elif isinstance(dimensions, dict):
+            # 旧格式兼容: {"dim_name": {"score": x, "weight": y}}
+            for dim_name, dim_data in dimensions.items():
+                if isinstance(dim_data, dict):
+                    dim_list.append({
+                        "dimension": dim_name,
+                        "score": dim_data.get("score", 0),
+                        "weight": dim_data.get("weight", QUALITY_DIMENSION_WEIGHTS.get(dim_name, 1.0 / 7)),
+                    })
+        
+        if not dim_list:
+            return DimensionScore(
+                score=50,
+                weight=WEIGHT_COMPLETENESS,
+                reasoning="dimensions 格式无法解析",
+                issues=["无法获取完整度评分"]
+            )
+        
         # 计算加权平均
         total_weight = 0
         weighted_sum = 0
         
-        for dim_name, dim_data in dimensions.items():
-            score = dim_data.get("score", 0)
-            weight = dim_data.get("weight", 1.0 / len(dimensions))
+        for dim in dim_list:
+            score = dim.get("score", 0)
+            dim_name = dim.get("dimension", "")
+            weight = dim.get("weight", QUALITY_DIMENSION_WEIGHTS.get(dim_name, 1.0 / 7))
             weighted_sum += score * weight
             total_weight += weight
         
@@ -296,7 +332,7 @@ class SemanticGate:
         return DimensionScore(
             score=round(avg_score, 1),
             weight=WEIGHT_COMPLETENESS,
-            reasoning=f"7维度加权平均: {avg_score:.1f}",
+            reasoning=f"{len(dim_list)}维度加权平均: {avg_score:.1f}",
             issues=[]
         )
     
@@ -340,10 +376,14 @@ class SemanticGate:
         else:
             issues.append("缺少 quality_attributes")
         
-        # constraints 具体值 (+30)
+        # constraints 具体值 (+30) - 兼容 dict 和 list 格式
         constraints = confirmed.get("constraints", {})
         if constraints:
-            has_values = any(constraints.values())
+            if isinstance(constraints, dict):
+                has_values = any(constraints.values())
+            else:  # list 格式
+                has_values = len(constraints) > 0
+            
             if has_values:
                 score += 30
             else:
@@ -371,7 +411,7 @@ class SemanticGate:
         
         confirmed = living_spec.get("confirmed", {})
         
-        # 检查约束与功能的兼容性
+        # 检查约束与功能的兼容性 - 兼容 dict 和 list 格式
         constraints = confirmed.get("constraints", {})
         capabilities = confirmed.get("capabilities", {})
         
@@ -385,8 +425,16 @@ class SemanticGate:
                 score -= 30
                 issues.append(f"矛盾: {item} 同时出现在 always_do 和 never_do")
         
-        # 检查约束是否过于严格
-        platform = constraints.get("platform", "")
+        # 检查约束是否过于严格 - 兼容 list 格式
+        if isinstance(constraints, dict):
+            platform = constraints.get("platform", "")
+        else:  # list 格式
+            # 在 list 中搜索包含 "platform" 或 "免费"/"开源" 的项
+            platform = ""
+            for c in constraints:
+                if isinstance(c, str) and ("platform" in c.lower() or "免费" in c or "开源" in c):
+                    platform = c
+                    break
         if "免费" in str(platform) or "开源" in str(platform):
             # 检查是否有高成本需求
             quality_attrs = confirmed.get("quality_attributes", {})
@@ -467,13 +515,13 @@ class InferenceAuditGate:
             pending = inferred.get("pending", [])
             rejected = inferred.get("rejected", [])
         
-        # PASS 条件: pending 推断 ≤ 3
-        if len(pending) <= 3:
+        # PASS 条件: pending 推断 ≤ 阈值（来自 schemas.py 常量）
+        if len(pending) <= INFERENCE_AUDIT_THRESHOLD:
             decision = "PASS"
             notes = f"{len(pending)}个推断待确认"
         else:
             decision = "WARN"
-            notes = f"{len(pending)}个推断待确认（超过3个）"
+            notes = f"{len(pending)}个推断待确认（超过{INFERENCE_AUDIT_THRESHOLD}个）"
         
         # 检查拒绝的推断是否覆盖关键维度
         confirmed = living_spec.get("confirmed", {})
@@ -706,60 +754,108 @@ def run_harness_v2(spec_path: str) -> dict:
     }
 
 
-def load_and_evaluate(blackboard_path: str) -> HarnessReport:
+def load_and_evaluate(blackboard_path: str = None, session_id: str = None) -> HarnessReport:
     """
     从 blackboard 加载数据并评估
     
     Args:
-        blackboard_path: blackboard 目录路径
+        blackboard_path: (已废弃) blackboard 目录路径
+        session_id: 会话 ID（推荐使用，通过 BlackboardManager 读取）
     
     Returns:
         HarnessReport 对象
+    
+    优先使用 session_id（通过 BlackboardManager API）
+    如果只提供 blackboard_path，使用旧的路径拼接方式（兼容旧代码）
     """
-    import os
+    # 优先使用 BlackboardManager API（推荐方式）
+    if session_id:
+        try:
+            from core.blackboard.blackboard_manager import BlackboardManager
+            bb = BlackboardManager(session_id=session_id)
+            
+            # 读取 stage 文件（BlackboardManager 自动处理路径）
+            living_spec = bb.read_stage("spec/living_spec")
+            if living_spec is None:
+                raise FileNotFoundError(f"spec/living_spec not found for session {session_id}")
+            
+            quality_report = bb.read_stage("spec/quality_report")
+            if quality_report is None:
+                raise FileNotFoundError(f"spec/quality_report not found for session {session_id}")
+            
+            conversation_log = bb.read_stage("spec/conversation_log")
+            quality_trajectory = bb.read_stage("spec/quality_trajectory")
+            
+            return evaluate_living_spec(
+                living_spec,
+                quality_report,
+                conversation_log,
+                quality_trajectory
+            )
+        except Exception as e:
+            # BlackboardManager 失败，回退到旧方式
+            import logging
+            logging.warning(f"BlackboardManager API failed: {e}, falling back to path-based loading")
     
-    # 加载文件
-    living_spec_path = os.path.join(blackboard_path, "spec/living_spec.json")
-    quality_report_path = os.path.join(blackboard_path, "spec/quality_report.json")
-    conversation_log_path = os.path.join(blackboard_path, "spec/conversation_log.json")
-    quality_trajectory_path = os.path.join(blackboard_path, "spec/quality_trajectory.json")
+    # 旧方式：路径拼接（兼容旧代码）
+    if blackboard_path:
+        import os
+        
+        living_spec_path = os.path.join(blackboard_path, "spec/living_spec.json")
+        quality_report_path = os.path.join(blackboard_path, "spec/quality_report.json")
+        conversation_log_path = os.path.join(blackboard_path, "spec/conversation_log.json")
+        quality_trajectory_path = os.path.join(blackboard_path, "spec/quality_trajectory.json")
+        
+        with open(living_spec_path, 'r', encoding='utf-8') as f:
+            living_spec = json.load(f)
+        
+        with open(quality_report_path, 'r', encoding='utf-8') as f:
+            quality_report = json.load(f)
+        
+        conversation_log = None
+        if os.path.exists(conversation_log_path):
+            with open(conversation_log_path, 'r', encoding='utf-8') as f:
+                conversation_log = json.load(f)
+        
+        quality_trajectory = None
+        if os.path.exists(quality_trajectory_path):
+            with open(quality_trajectory_path, 'r', encoding='utf-8') as f:
+                quality_trajectory = json.load(f)
+        
+        return evaluate_living_spec(
+            living_spec,
+            quality_report,
+            conversation_log,
+            quality_trajectory
+        )
     
-    with open(living_spec_path, 'r', encoding='utf-8') as f:
-        living_spec = json.load(f)
-    
-    with open(quality_report_path, 'r', encoding='utf-8') as f:
-        quality_report = json.load(f)
-    
-    conversation_log = None
-    if os.path.exists(conversation_log_path):
-        with open(conversation_log_path, 'r', encoding='utf-8') as f:
-            conversation_log = json.load(f)
-    
-    quality_trajectory = None
-    if os.path.exists(quality_trajectory_path):
-        with open(quality_trajectory_path, 'r', encoding='utf-8') as f:
-            quality_trajectory = json.load(f)
-    
-    return evaluate_living_spec(
-        living_spec,
-        quality_report,
-        conversation_log,
-        quality_trajectory
-    )
+    raise ValueError("必须提供 session_id 或 blackboard_path")
 
 
 if __name__ == "__main__":
     import sys
     
     if len(sys.argv) < 2:
-        print("用法: python harness.py <blackboard_path>")
-        print("示例: python harness.py blackboard/my_project/")
+        print("用法: python harness.py <session_id>")
+        print("      python harness.py --path <blackboard_path>  (兼容旧方式)")
+        print("示例: python harness.py spec_spec_abc123")
         sys.exit(1)
     
-    blackboard_path = sys.argv[1]
+    # 解析参数
+    if sys.argv[1] == "--path":
+        # 旧方式：python harness.py --path blackboard/my_project/
+        if len(sys.argv) < 3:
+            print("错误: --path 需要提供 blackboard_path")
+            sys.exit(1)
+        blackboard_path = sys.argv[2]
+        session_id = None
+    else:
+        # 新方式：python harness.py spec_spec_abc123
+        session_id = sys.argv[1]
+        blackboard_path = None
     
     try:
-        report = load_and_evaluate(blackboard_path)
+        report = load_and_evaluate(blackboard_path=blackboard_path, session_id=session_id)
         
         print("=" * 60)
         print("Spec Pro Harness 评估报告")
@@ -784,11 +880,21 @@ if __name__ == "__main__":
                 print(f"  - {imp}")
         
         # 输出 JSON
-        output_path = os.path.join(blackboard_path, "spec/harness_report.json")
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(report.to_dict(), f, indent=2, ensure_ascii=False)
-        
-        print(f"\n报告已保存到: {output_path}")
+        if session_id:
+            # 使用 BlackboardManager 写入
+            try:
+                from core.blackboard.blackboard_manager import BlackboardManager
+                bb = BlackboardManager(session_id=session_id)
+                bb.write_stage("spec/harness_report", report.to_dict())
+                print(f"\n报告已保存到 Blackboard: spec/harness_report")
+            except Exception as e:
+                print(f"\n警告: 无法写入 Blackboard: {e}")
+        else:
+            # 旧方式：直接写文件
+            output_path = os.path.join(blackboard_path, "spec/harness_report.json")
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(report.to_dict(), f, indent=2, ensure_ascii=False)
+            print(f"\n报告已保存到: {output_path}")
         
     except Exception as e:
         print(f"错误: {e}")

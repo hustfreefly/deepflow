@@ -19,6 +19,26 @@ from typing import Any, Dict, List, Tuple
 
 
 # ============================================================================
+# 常量 — 跨模块共享的确定性配置（禁止在其他地方硬编码）
+# ============================================================================
+
+INFERENCE_AUDIT_THRESHOLD = 5  # pending 推断超过此数 → WARN
+QUALITY_DIMENSIONS = [
+    "objective", "users", "capabilities", "quality_attributes",
+    "constraints", "integration", "risks",
+]
+QUALITY_DIMENSION_WEIGHTS = {
+    "objective": 0.20,
+    "users": 0.15,
+    "capabilities": 0.15,
+    "quality_attributes": 0.15,
+    "constraints": 0.15,
+    "integration": 0.10,
+    "risks": 0.10,
+}
+
+
+# ============================================================================
 # 1. LIVING_SPEC_SCHEMA — Living Spec 完整结构
 # ============================================================================
 
@@ -27,13 +47,14 @@ LIVING_SPEC_SCHEMA = {
     "properties": {
         "meta": {
             "type": "dict",
-            "required": ["version", "created_at", "updated_at", "rounds"],
+            "required": ["version", "created_at", "updated_at"],
             "properties": {
                 "version": {"type": "str"},
                 "created_at": {"type": "str"},
                 "updated_at": {"type": "str"},
                 "rounds": {"type": "int"},
-                "quality_score": {"type": "int"},
+                "conversation_rounds": {"type": "int"},
+                "quality_score": {"type": "any"},  # int or float
                 "quality_level": {"type": "str"},
                 "scenario": {"type": "str"},
                 "mode": {"type": "str"}
@@ -45,7 +66,6 @@ LIVING_SPEC_SCHEMA = {
                 "objective", "success_metrics", "pain_points", "users",
                 "key_scenarios", "capabilities", "quality_attributes",
                 "constraints", "risks_and_assumptions", "integration",
-                "user_directives"
             ],
             "properties": {
                 "objective": {"type": "str"},
@@ -71,10 +91,13 @@ LIVING_SPEC_SCHEMA = {
                     }
                 },
                 "integration": {"type": "dict"},
+                "terms": {"type": "list"},
                 "user_directives": {"type": "list"}
             }
         },
         "inferred": {"type": "list"},
+        "solution_pro_hints": {"type": "any"},  # None until StructureWorker fills it
+        "route_recommendation": {"type": "any"},  # None until StructureWorker fills it
         "guardrails": {
             "type": "dict",
             "properties": {
@@ -104,20 +127,19 @@ ROUND_RESULT_SCHEMA = {
             "type": "dict",
             "required": ["overall_score", "level", "dimension_scores"],
             "properties": {
-                "overall_score": {"type": "int"},
+                "overall_score": {"type": "any"},  # int or float
                 "level": {"type": "str"},
                 "dimension_scores": {
-                    "type": "list",  # 注意：数组格式，非字典
-                    "items": {
-                        "type": "dict",
-                        "required": ["dimension", "score", "weight"],
-                        "properties": {
-                            "dimension": {"type": "str"},
-                            "score": {"type": "int"},
-                            "weight": {"type": "any"},  # int or float
-                            "reasoning": {"type": "str"},
-                            "missing_items": {"type": "list"}
-                        }
+                    "type": "dict",  # key=维度名, value={score, delta, change}
+                    "description": "每个维度的分数和变化，key 为维度名",
+                    "properties": {
+                        "objective": {"type": "dict"},
+                        "users": {"type": "dict"},
+                        "capabilities": {"type": "dict"},
+                        "quality_attributes": {"type": "dict"},
+                        "constraints": {"type": "dict"},
+                        "integration": {"type": "dict"},
+                        "risks": {"type": "dict"}
                     }
                 },
                 "top_missing": {"type": "list"}
@@ -207,6 +229,79 @@ QUALITY_REPORT_SCHEMA = {
         "recommendation": {"type": "str"}
     }
 }
+
+
+# ============================================================================
+# 5. CONVERSATION_LOG_SCHEMA — 对话日志格式
+# ============================================================================
+
+CONVERSATION_LOG_SCHEMA = {
+    "type": "dict",
+    "required": ["rounds"],
+    "properties": {
+        "rounds": {
+            "type": "list",
+            "items": {
+                "type": "dict",
+                "required": ["round", "phase", "user_response"],
+                "properties": {
+                    "round": {"type": "int"},
+                    "timestamp": {"type": "str"},
+                    "phase": {"type": "str"},
+                    "questions": {"type": "list"},
+                    "user_response": {"type": "str"},
+                    "parsed_updates_summary": {"type": "str"},
+                    "quality_before": {"type": "any"},
+                    "quality_after": {"type": "any"},
+                    "quality_delta": {"type": "any"},
+                    "inferences_created": {"type": "int"},
+                    "inferences_confirmed": {"type": "int"},
+                    "inferences_rejected": {"type": "int"},
+                }
+            }
+        }
+    }
+}
+
+# 空对话日志初始值（coordinator 初始化时使用）
+EMPTY_CONVERSATION_LOG = {"rounds": []}
+
+
+# ============================================================================
+# 6. QUALITY_TRAJECTORY_SCHEMA — 质量轨迹格式
+# ============================================================================
+
+QUALITY_TRAJECTORY_SCHEMA = {
+    "type": "dict",
+    "required": ["scores"],
+    "properties": {
+        "scores": {
+            "type": "list",
+            "description": "每轮的 overall_score 列表（快速索引用）",
+            "items": {"type": "any"}  # int or float
+        },
+        "trajectory": {
+            "type": "list",
+            "description": "每轮详细轨迹点",
+            "items": {
+                "type": "dict",
+                "required": ["round", "overall_score"],
+                "properties": {
+                    "round": {"type": "int"},
+                    "overall_score": {"type": "any"},
+                    "level": {"type": "str"},
+                    "dimension_scores": {"type": "dict"},
+                    "delta": {"type": "any"},
+                    "questions_asked": {"type": "int"},
+                    "inferences_validated": {"type": "int"},
+                }
+            }
+        }
+    }
+}
+
+# 空质量轨迹初始值（coordinator 初始化时使用）
+EMPTY_QUALITY_TRAJECTORY = {"scores": [], "trajectory": []}
 
 
 # ============================================================================
@@ -303,6 +398,16 @@ def validate_response(response: Dict[str, Any]) -> Tuple[bool, List[str]]:
 def validate_quality_report(quality_report: Dict[str, Any]) -> Tuple[bool, List[str]]:
     """校验 Quality Report 是否符合 QUALITY_REPORT_SCHEMA"""
     return validate_against_schema(quality_report, QUALITY_REPORT_SCHEMA)
+
+
+def validate_conversation_log(conversation_log: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    """校验 Conversation Log 是否符合 CONVERSATION_LOG_SCHEMA"""
+    return validate_against_schema(conversation_log, CONVERSATION_LOG_SCHEMA)
+
+
+def validate_quality_trajectory(quality_trajectory: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    """校验 Quality Trajectory 是否符合 QUALITY_TRAJECTORY_SCHEMA"""
+    return validate_against_schema(quality_trajectory, QUALITY_TRAJECTORY_SCHEMA)
 
 
 # ============================================================================

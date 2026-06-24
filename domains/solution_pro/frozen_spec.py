@@ -84,7 +84,16 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
             measurable = ""
         _add_requirement(requirements, "quality_attribute", desc, priority, "living_spec.confirmed.quality_attributes", measurable)
 
-    confirmed_constraints = confirmed.get("constraints", {}) if isinstance(confirmed.get("constraints", {}), dict) else {}
+    # 兼容 dict 和 list 格式的 constraints
+    constraints_raw = confirmed.get("constraints", {})
+    if isinstance(constraints_raw, list):
+        # list 格式: ["一步到位", "全LLM控制", ...]
+        # 转换为: {"items": ["一步到位", "全LLM控制", ...]}
+        confirmed_constraints = {"items": constraints_raw} if constraints_raw else {}
+    else:
+        # dict 格式: {"budget": "...", "timeline": "...", ...}
+        confirmed_constraints = constraints_raw if constraints_raw else {}
+    
     for key, val in confirmed_constraints.items():
         if not val:
             continue
@@ -94,7 +103,16 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
         else:
             _add_requirement(requirements, "constraint", f"{key}: {val}", "P0", f"living_spec.confirmed.constraints.{key}")
 
-    integration = confirmed.get("integration", {}) if isinstance(confirmed.get("integration", {}), dict) else {}
+    # integration - 兼容 dict 和 list 格式
+    integration_raw = confirmed.get("integration", {})
+    if isinstance(integration_raw, dict):
+        integration = integration_raw
+    elif isinstance(integration_raw, list):
+        # list 格式: 转换为 {"requirements": [...]}
+        integration = {"requirements": integration_raw} if integration_raw else {}
+    else:
+        integration = {}
+    
     for item in integration.get("requirements", []) or []:
         _add_requirement(requirements, "integration", item, "P1", "living_spec.confirmed.integration.requirements")
 
@@ -279,10 +297,11 @@ def _build_executive_summary(
             elif isinstance(metric, str) and metric.strip():
                 success_criteria.append(metric)
 
-    # constraints: 从 confirmed.constraints 提取
+    # constraints: 从 confirmed.constraints 提取 - 兼容 dict 和 list 格式
     constraints_raw = confirmed.get("constraints", {}) if has_living_spec else {}
     constraints_dict = {}
     if isinstance(constraints_raw, dict):
+        # dict 格式: {"budget": "...", "timeline": "...", "tech_stack": [...]}
         budget = constraints_raw.get("budget", "")
         timeline = constraints_raw.get("timeline", "")
         tech_stack = constraints_raw.get("tech_stack", [])
@@ -292,6 +311,11 @@ def _build_executive_summary(
             constraints_dict["timeline"] = timeline
         if isinstance(tech_stack, list) and tech_stack:
             constraints_dict["tech_stack"] = tech_stack
+    elif isinstance(constraints_raw, list):
+        # list 格式: ["一步到位", "全LLM控制", ...]
+        # 转换为: {"items": ["一步到位", "全LLM控制", ...]}
+        if constraints_raw:
+            constraints_dict["items"] = constraints_raw
 
     # one_liner: 从 objective 截取（≤50字）
     objective_text = confirmed.get("objective", "") if has_living_spec else ""
