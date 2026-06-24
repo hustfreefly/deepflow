@@ -37,6 +37,7 @@ from transcript_parser import parse_transcript
 from pattern_detector import detect_issues, detect_pipeline_issues
 from causal_tracer import build_session_tree, get_session_family, trace_causal_chain, find_recent_pipeline_sessions
 from pipeline_scope import discover_pipeline_runs, filter_events_by_run, get_run_summary
+from prompt_auditor import audit_prompts, audit_bootstrap_coverage
 
 
 def main():
@@ -47,6 +48,7 @@ def main():
     parser.add_argument("--no-llm", action="store_true", help="跳过 L2 LLM 分析，只输出 L1 候选")
     parser.add_argument("--json", action="store_true", help="输出 JSON 格式")
     parser.add_argument("--quiet", action="store_true", help="只输出问题，不输出正常 session 信息")
+    parser.add_argument("--t5", action="store_true", help="同时运行 T5 Prompt 审计（文档教坏 LLM 检测）")
     # ── Scope 参数 ──
     parser.add_argument("--scope", choices=["pipeline", "agent", "time-range"], default="agent",
                         help="检查范围: pipeline=管线执行 | agent=整个会话(默认) | time-range=自定义时间窗口")
@@ -67,6 +69,8 @@ def main():
             print("没有发现管线运行。")
             print("提示: 使用 --hours 扩大搜索范围，或 --pipeline-dir 指定目录")
             return
+        if args.t5:
+            _append_t5_audit(session_reports, args)
         _output_reports(session_reports, args)
         return
 
@@ -196,11 +200,13 @@ def main():
 
         session_reports.append(report)
 
+    if args.t5:
+        _append_t5_audit(session_reports, args)
     _output_reports(session_reports, args)
 
 
 # ---------------------------------------------------------------------------
-# Pipeline scope implementation
+# T5 Prompt Audit
 # ---------------------------------------------------------------------------
 
 def _run_pipeline_scope(args) -> list[dict]:
@@ -402,6 +408,54 @@ def _filter_events_time_range(events: list[dict], time_from: str | None, time_to
         filtered.append(ev)
 
     return filtered
+
+
+def _append_t5_audit(session_reports: list[dict], args):
+    """Append T5 Prompt Audit results to session reports."""
+    deepflow_root = Path(__file__).resolve().parent.parent.parent
+
+    print("  🔍 T5: 审计 prompts/SKILL.md 是否教坏 LLM...", file=sys.stderr)
+
+    prompt_issues = audit_prompts(deepflow_root)
+    bootstrap_issues = audit_bootstrap_coverage(deepflow_root)
+    all_t5 = prompt_issues + bootstrap_issues
+
+    if not all_t5:
+        print(f"  ✅ T5: 文档审计通过，未发现教坏 LLM 的地方", file=sys.stderr)
+        return
+
+    print(f"  ⚠️ T5: 发现 {len(all_t5)} 个文档问题", file=sys.stderr)
+
+    # Append as a virtual report
+    t5_report = {
+        "root_key": "t5-prompt-audit",
+        "root_label": "T5 Prompt 审计（文档教坏 LLM 检测）",
+        "agents": 0,
+        "tokens": 0,
+        "runtime_ms": 0,
+        "candidates": all_t5,
+        "events_count": 0,
+        "scope": "t5",
+        "diagnosis": None,
+        "chains": [],
+    }
+
+    # L2 LLM analysis for T5
+    if not args.no_llm and all_t5:
+        try:
+            from llm_analyzer import analyze_candidates
+            print(f"  🔍 T5 L2: 分析 {len(all_t5)} 个候选问题...", file=sys.stderr)
+            diagnosis = analyze_candidates(
+                candidates=all_t5,
+                events=[],
+                session_label="T5 Prompt Audit",
+                pipeline_meta={"agent_count": 0, "runtime_seconds": 0, "tokens": 0},
+            )
+            t5_report["diagnosis"] = diagnosis
+        except Exception as e:
+            print(f"  ⚠️ T5 L2 分析失败: {e}", file=sys.stderr)
+
+    session_reports.append(t5_report)
 
 
 def _output_reports(session_reports: list[dict], args):

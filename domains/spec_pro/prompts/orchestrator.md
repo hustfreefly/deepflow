@@ -74,8 +74,7 @@ sessions_spawn(
 ## 文件路径
 - 读取: {blackboard_path}/{read_file}
 - 写入: {blackboard_path}/{write_file}
-""",
-    runTimeoutSeconds=180
+"""
 )
 ```
 
