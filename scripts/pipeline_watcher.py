@@ -18,14 +18,20 @@ def atomic_write(path: Path, content: str) -> None:
     os.replace(str(tmp), str(path))
 
 def parse_timestamp(ts: str) -> Optional[datetime]:
-    """Parse ISO timestamp with tolerance. None on failure."""
+    """Parse ISO timestamp with tolerance. None on failure.
+    
+    Uses LOCAL timezone when no timezone is specified (not UTC).
+    Pipeline runs locally, so run_start_at and file mtimes are both in local time.
+    """
     if not ts: return None
+    # Get local timezone offset
+    local_tz = datetime.now().astimezone().tzinfo
     try:
         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return dt if dt.tzinfo else dt.replace(tzinfo=local_tz)
     except (ValueError, TypeError): pass
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
-        try: return datetime.strptime(ts, fmt).replace(tzinfo=timezone.utc)
+        try: return datetime.strptime(ts, fmt).replace(tzinfo=local_tz)
         except ValueError: continue
     return None
 
