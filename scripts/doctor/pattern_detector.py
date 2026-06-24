@@ -34,6 +34,27 @@ def detect_issues(events: list[dict], session_label: str = "") -> list[dict]:
     return issues
 
 
+def detect_pipeline_issues(events: list[dict], run_info: dict | None = None) -> list[dict]:
+    """
+    管线专用检测：聚焦 gate 门控和 Agent 阶段，过滤探索/调试噪音。
+
+    与 detect_issues 的区别:
+      - T1: 只检测管线执行相关的工具错误（gate_fn、run_pipeline、schema 验证）
+      - T2: 门控检测增强（检查 gate_pass 但 retry_count > 0 的隐性成本）
+      - T3: 静默降级检测（输出文件异常小、字段缺失）
+      - T4: 跳过（管线范围内不存在范围失控）
+
+    参数:
+        events: 已经过 pipeline_scope 时间窗口过滤的事件列表
+        run_info: discover_pipeline_runs() 返回的 run dict（用于交叉验证）
+    """
+    issues = []
+    issues.extend(_detect_pipeline_tool_errors(events))
+    issues.extend(_detect_gate_health(events, run_info))
+    issues.extend(_detect_silent_degradation(events))  # 复用，事件已过滤
+    return issues
+
+
 # ---------------------------------------------------------------------------
 # T1: 工具调用错误但自动恢复
 # ---------------------------------------------------------------------------
@@ -126,6 +147,176 @@ def _detect_tool_error_recovery(events: list[dict]) -> list[dict]:
             "wasted_seconds": 3,
             "ts": ev.get("ts", 0),
         })
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
+# Pipeline-specific detection (used by --scope pipeline)
+# ---------------------------------------------------------------------------
+
+# Doctor 自身输出关键词（过滤自引用）
+_DOCTOR_SELF_KEYWORDS = [
+    "DeepFlow Doctor", "📋 发现", "scope=pipeline", "🩺 DeepFlow Doctor",
+    "L1 候选", "L2 LLM 分析", "doctor_main.py",
+]
+
+# 管线核心执行关键词（匹配到这些 = 管线行为，否则 = 探索/调试）
+_PIPELINE_KEYWORDS = [
+    "run_pipeline", "gate_arch", "gate_decomp", "gate_spec", "gate_review", "gate_pack",
+    "gate_fn", "pydantic", "schema", "validation", "ShipPackage", "ArchitectOutput",
+    "DecomposerOutput", "SpecifierOutput", "ReviewerOutput",
+    "spawn", "sessions_spawn", "sessions_yield",
+    "pipeline_state", "blackboard", "stages/",
+    "PASS", "FAIL", "gate_pass", "gate_fail",
+    "retry", "max_retries",
+]
+
+
+def _is_pipeline_event(ev: dict) -> bool:
+    """判断事件是否属于管线核心执行（排除 Doctor 自身输出）。"""
+    searchable = ""
+    if ev["type"] == "tool_call":
+        searchable = (ev.get("input_preview") or "") + (ev.get("tool") or "")
+    elif ev["type"] == "tool_result":
+        searchable = (ev.get("content_preview") or "") + (ev.get("error") or "")
+    elif ev["type"] == "text":
+        searchable = ev.get("content") or ""
+
+    # 排除 Doctor 自身的输出
+    for doc_kw in _DOCTOR_SELF_KEYWORDS:
+        if doc_kw in searchable:
+            return False
+
+    searchable_lower = searchable.lower()
+    return any(kw.lower() in searchable_lower for kw in _PIPELINE_KEYWORDS)
+
+
+def _detect_pipeline_tool_errors(events: list[dict]) -> list[dict]:
+    """管线专用 T1: 只检测管线执行中的工具错误，忽略探索/调试。"""
+    issues = []
+
+    # 只分析管线相关事件
+    pipeline_events = [ev for ev in events if _is_pipeline_event(ev)]
+
+    # 匹配 tool_call → tool_result 对（仅管线事件）
+    call_map = {}
+    for ev in pipeline_events:
+        if ev["type"] == "tool_call" and ev.get("tool_id"):
+            call_map[ev["tool_id"]] = ev
+
+    # 收集管线事件中的错误
+    recovered_ids = set()
+    prev_error = None
+
+    for ev in pipeline_events:
+        if ev["type"] != "tool_result":
+            continue
+
+        if not ev.get("success") and ev.get("error"):
+            prev_error = ev
+            continue
+
+        if prev_error is not None:
+            error_call = call_map.get(prev_error.get("tool_id", ""), {})
+            error_text = prev_error.get("error", "")
+
+            # 分类错误，判断是否真正影响管线
+            error_type = _classify_error(error_text)
+            is_gate_error = any(kw in error_text.lower() for kw in [
+                "gate", "schema", "pydantic", "validation", "spawn", "pipeline"
+            ])
+
+            if is_gate_error:
+                issues.append({
+                    "category": "T1",
+                    "severity": "red",
+                    "sub_type": "T1a_pipeline_recovered",
+                    "description": "管线门控错误后自动恢复",
+                    "evidence": f"错误: {error_text[:200]}",
+                    "error_type": error_type,
+                    "tool": error_call.get("tool", "unknown"),
+                    "wasted_tokens": _estimate_retry_tokens(error_text),
+                    "wasted_seconds": 10,
+                    "ts": prev_error.get("ts", 0),
+                })
+
+            recovered_ids.add(prev_error.get("tool_id", ""))
+            prev_error = None
+
+    # 未恢复的管线错误
+    for ev in pipeline_events:
+        if ev["type"] != "tool_result":
+            continue
+        if ev.get("success") or not ev.get("error"):
+            continue
+        tool_id = ev.get("tool_id", "")
+        if tool_id in recovered_ids:
+            continue
+
+        error_text = ev.get("error", ev.get("content_preview", ""))
+        error_call = call_map.get(tool_id, {})
+
+        issues.append({
+            "category": "T1",
+            "severity": "red",
+            "sub_type": "T1b_pipeline_standalone",
+            "description": "管线执行错误（未恢复）",
+            "evidence": f"错误: {error_text[:200]}",
+            "error_type": _classify_error(error_text),
+            "tool": error_call.get("tool", "unknown"),
+            "wasted_tokens": _estimate_retry_tokens(error_text),
+            "wasted_seconds": 5,
+            "ts": ev.get("ts", 0),
+        })
+
+    return issues
+
+
+def _detect_gate_health(events: list[dict], run_info: dict | None = None) -> list[dict]:
+    """
+    门控健康度检测（管线专用 T2 增强）:
+      - gate_pass 但 retry_count > 0 → 隐性成本（Agent 首次输出不合格）
+      - gate_fail → 严重问题
+      - retry_count == max_retries → 达到重试上限（可能质量妥协）
+    """
+    issues = []
+    if not run_info:
+        return issues
+
+    agents = run_info.get("agents", {})
+    for agent_name, agent_info in agents.items():
+        state = agent_info.get("state", "")
+        retry_count = agent_info.get("retry_count", 0)
+        max_retries = agent_info.get("max_retries", 0)
+        decision = agent_info.get("gate_decision", "")
+        feedback = agent_info.get("last_gate_feedback", "")
+
+        # gate_fail → 严重
+        if state == "gate_fail":
+            issues.append({
+                "category": "T2",
+                "severity": "red",
+                "description": f"门控失败: {agent_name} → {decision}",
+                "evidence": f"feedback: {feedback[:200]}",
+                "wasted_tokens": retry_count * 5000,
+                "wasted_seconds": retry_count * 60,
+                "ts": 0,
+            })
+
+        # gate_pass 但多次重试 → 隐性成本（≥2 次才算，1 次是正常门控行为）
+        elif state == "gate_pass" and retry_count >= 2:
+            hit_max = retry_count >= max_retries and max_retries > 0
+            desc_suffix = "，达到重试上限（质量可能妥协）" if hit_max else ""
+            issues.append({
+                "category": "T2",
+                "severity": "yellow",
+                "description": f"门控通过但多次重试: {agent_name} ({retry_count}/{max_retries}){desc_suffix}",
+                "evidence": f"feedback: {feedback[:200]}",
+                "wasted_tokens": retry_count * 5000,
+                "wasted_seconds": retry_count * 60,
+                "ts": 0,
+            })
 
     return issues
 

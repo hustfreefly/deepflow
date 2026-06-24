@@ -159,8 +159,7 @@ sessions_spawn(
   runtime="subagent",
   mode="run",
   label="ship_pre_scanner",
-  task=<ship_pre_scanner.md 内容，占位符已替换>,
-  runTimeoutSeconds=180
+  task=<ship_pre_scanner.md 内容，占位符已替换>
 )
 sessions_yield()
 ```
@@ -233,8 +232,7 @@ sessions_spawn(
   runtime="subagent",
   mode="run",
   label="ship_reviewer",
-  task=<ship_reviewer.md 内容，占位符已替换>,
-  runTimeoutSeconds=180
+  task=<ship_reviewer.md 内容，占位符已替换>
 )
 sessions_yield()
 ```
@@ -263,8 +261,7 @@ sessions_spawn(
   runtime="subagent",
   mode="run",
   label="ship_fixer",
-  task=<ship_fixer.md 内容，占位符已替换>,
-  runTimeoutSeconds=180
+  task=<ship_fixer.md 内容，占位符已替换>
 )
 sessions_yield()
 ```
@@ -288,8 +285,7 @@ sessions_spawn(
   runtime="subagent",
   mode="run",
   label="ship_harness",
-  task=<ship_harness.md 内容，占位符已替换>,
-  runTimeoutSeconds=120
+  task=<ship_harness.md 内容，占位符已替换>
 )
 sessions_yield()
 ```

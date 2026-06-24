@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "generated_at": "2026-06-24T08:43:17.761483",
+  "generated_at": "2026-06-24T08:53:53.416397",
   "source": {
     "planner_output_path": "stages/planning.json",
     "execution_plan_path": "execution_plan.json"

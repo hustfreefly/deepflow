@@ -5,6 +5,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Import WRAPPER_PROMPT_TEMPLATE from shared contracts
+_shared_dir = str(Path(__file__).resolve().parent.parent / "contracts" / "shared")
+if _shared_dir not in sys.path:
+    sys.path.insert(0, _shared_dir)
+from watcher_config import WRAPPER_PROMPT_TEMPLATE
+
 def atomic_write(path: Path, content: str) -> None:
     """Atomic write via tmp + os.replace."""
     tmp = path.with_name(path.name + ".tmp")

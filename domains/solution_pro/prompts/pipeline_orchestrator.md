@@ -130,8 +130,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="sol_{stage}_{worker_id}",
-    task=prompt,
-    runTimeoutSeconds=timeout
+    task=prompt
 )
 sessions_yield()  # 等待完成事件
 ```
