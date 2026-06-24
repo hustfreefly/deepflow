@@ -150,14 +150,10 @@ class CircuitBreaker:
     def reset(self) -> None: atomic_write(self.path, json.dumps({"count": 0}))
     def should_break(self) -> bool: return self._read() >= self.threshold
 
-# ── Default templates — UI v3 (ported from pipeline_progress_notify.py) ──
-_TPL = {
-    "progress": "🟠 [{project_short}] {current_phase_name}\n{progress_bar} {completed}/{total} 阶段\n⏱️ 已运行 {elapsed} · 预计剩余 {remaining}\n\n{detail_list}",
-    "completed": "✅ [{project_short}] {display_name} 完成\n\n{progress_bar} {total}/{total} 阶段\n⏱️ 总耗时 {elapsed}\n📄 {artifact_count} 个交付物",
-    "failed": "⚠️ {display_name}失败\n已完成: {completed}/{total}\n原因: {error}",
-    "timeout": "⚠️ {display_name}运行超时（>{pipeline.timeout_min}分钟）\norchestrator 可能已崩溃。",
-    "circuit_break": "⚠️ 连续{pipeline.failures}次巡检无输出\norchestrator 可能已停止。",
-}
+# ── 契约笼子：模板必须来自 watcher_config.json，禁止硬编码 ──
+# _TPL 已删除 (2026-06-24)。所有模板必须在 watcher_config.json 中定义。
+# 如果 config 缺少模板，报错退出，不使用 fallback。
+_REQUIRED_TPL_KEYS = {"progress", "completed", "failed", "timeout", "circuit_break"}
 _SYM = {"done": "✅", "running": "⏳", "pending": "⬜"}
 
 class _AttrDict(dict):
@@ -177,7 +173,16 @@ class MessageFormatter:
     """
     def __init__(self, config: Dict, all_stages: List[Dict]):
         self.cfg, self.stages = config, all_stages
-        self.tpl, self.sym = {**_TPL, **config.get("templates", {})}, {**_SYM, **config.get("stage_symbols", {})}
+        # 契约笼子：模板必须来自 config，不使用硬编码 fallback
+        config_templates = config.get("templates", {})
+        missing = _REQUIRED_TPL_KEYS - set(config_templates.keys())
+        if missing:
+            raise ValueError(
+                f"watcher_config.json 缺少必需模板: {missing}。"
+                f"所有模板必须在 watcher_config.json 中定义，禁止硬编码 fallback。"
+            )
+        self.tpl = dict(config_templates)
+        self.sym = {**_SYM, **config.get("stage_symbols", {})}
 
     # ── UI v3 helpers (ported from pipeline_progress_notify.py) ──
 

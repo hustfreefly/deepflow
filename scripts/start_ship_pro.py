@@ -130,17 +130,31 @@ PYTHONPATH={DEEPFLOW_HOME} python3 domains/ship_pro/scripts/run_pipeline.py vali
         "startup_notification": f"✅ 已启动 DeepFlow Ship Pro 管线\n📦 输入: {args.input}\n📊 共 5 个阶段（Architect → Decomposer → Specifier → Reviewer → Packager）\n💬 期间你可以继续问我其他问题，完成后我会通知你"
     }
 
-    # Watcher wrapper prompt
-    if args.print_watcher_prompt:
-        from contracts.shared.watcher_config import render_wrapper_prompt, WRAPPER_PROMPT_TEMPLATE as WRAPPER_PROMPT_TEMPLATE
-        result['watcher_wrapper_prompt_template'] = WRAPPER_PROMPT_TEMPLATE
-        result['watcher_wrapper_prompt_prefilled'] = render_wrapper_prompt(
-            deepflow_root=DEEPFLOW_HOME,
-            config_path=watcher_config_abs,
-            base_path=output_path,
-            run_start_at=run_start_at,
-            cron_job_id="",  # empty = auto-discover (solves chicken-and-egg)
-        )
+    # ── Watcher wrapper prompt（始终输出，铁律固化 2026-06-24）──
+    # 主 Agent 创建 cron 时，必须使用 watcher_cron_payload。
+    # 禁止主 Agent 手写 watcher prompt。
+    from contracts.shared.watcher_config import render_wrapper_prompt, WRAPPER_PROMPT_TEMPLATE as WRAPPER_PROMPT_TEMPLATE
+    result['watcher_wrapper_prompt_template'] = WRAPPER_PROMPT_TEMPLATE
+    result['watcher_wrapper_prompt_prefilled'] = render_wrapper_prompt(
+        deepflow_root=DEEPFLOW_HOME,
+        config_path=watcher_config_abs,
+        base_path=output_path,
+        run_start_at=run_start_at,
+        cron_job_id="",  # empty = auto-discover (solves chicken-and-egg)
+    )
+    result['watcher_cron_payload'] = {
+        "name": f"deepflow_watcher_{run_id[:30]}",
+        "schedule": {"kind": "every", "everyMs": 180000},
+        "sessionTarget": "isolated",
+        "payload": {
+            "kind": "agentTurn",
+            "message": result['watcher_wrapper_prompt_prefilled'],
+            "timeoutSeconds": 60,
+            "lightContext": True,
+        },
+        "delivery": {"mode": "announce"},
+        "enabled": True,
+    }
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
