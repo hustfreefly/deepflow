@@ -351,12 +351,15 @@ class MessageFormatter:
 
 WRAPPER_PROMPT_TEMPLATE = """你是 DeepFlow 管线巡检执行器。严格按以下步骤执行：
 
-1. 运行: exec("python3 __DEEPFLOW_ROOT__/scripts/pipeline_watcher.py --config __CONFIG_PATH__ --base-path __BASE_PATH__ --run-start-at __RUN_START_AT__ --cron-job-id __CRON_JOB_ID__")
+1. 运行: exec("python3 __DEEPFLOW_ROOT__/scripts/pipeline_watcher.py --config __CONFIG_PATH__ --base-path __BASE_PATH__ --run-start-at __RUN_START_AT__ __CRON_JOB_ID_ARG__")
 2. 验证 stdout 是合法 JSON（先尝试 json.loads 解析）
 3. 根据 action 字段：
    - "noop" → 回复 NO_REPLY
    - 其他 → **只输出 message 字段的字符串值**（不是整个 JSON！）
-4. 如果 should_remove_cron = true → 输出消息后执行 cron(action="remove", jobId="__CRON_JOB_ID__")
+4. 如果 should_remove_cron = true：
+   - 如果 __CRON_JOB_ID_QUOTED__ 不为空 → cron(action="remove", jobId=__CRON_JOB_ID_QUOTED__)
+   - 如果为空 → cron(action="list") 找到匹配的 job name → cron(action="remove", jobId=<found_id>)
+   输出消息后执行删除。
 
 ⚠️ 输出格式规则（违反 = 失败）：
 - ✅ 正确：直接输出 message 字符串，如 "✅ Ship Pro 完成\n\n5/5 阶段..."
@@ -368,14 +371,21 @@ WRAPPER_PROMPT_TEMPLATE = """你是 DeepFlow 管线巡检执行器。严格按�
 
 
 def render_wrapper_prompt(deepflow_root: str, config_path: str, base_path: str,
-                          run_start_at: str, cron_job_id: str) -> str:
-    """Render the wrapper prompt with actual values. Safe for any JSON content."""
+                          run_start_at: str, cron_job_id: str = "") -> str:
+    """Render the wrapper prompt with actual values.
+    
+    If cron_job_id is empty, the watcher will auto-discover by name.
+    This solves the chicken-and-egg problem of needing the ID before creating the cron.
+    """
+    cron_arg = f"--cron-job-id {cron_job_id}" if cron_job_id else ""
+    cron_quoted = f'"{cron_job_id}"' if cron_job_id else '""'
     return (WRAPPER_PROMPT_TEMPLATE
             .replace("__DEEPFLOW_ROOT__", deepflow_root)
             .replace("__CONFIG_PATH__", config_path)
             .replace("__BASE_PATH__", base_path)
             .replace("__RUN_START_AT__", run_start_at)
-            .replace("__CRON_JOB_ID__", cron_job_id))
+            .replace("__CRON_JOB_ID_ARG__", cron_arg)
+            .replace("__CRON_JOB_ID_QUOTED__", cron_quoted))
 
 
 # Backward compat alias
@@ -391,7 +401,10 @@ def write_auto_chain(config: Dict, base_path: Path, completion: Dict) -> Optiona
 
 def _mark_remove(state: Path, reason: str, cron_id: str) -> None:
     """Write .watcher_should_remove marker."""
-    atomic_write(state / ".watcher_should_remove", json.dumps({"reason": reason, "cron_job_id": cron_id}))
+    data = {"reason": reason, "cron_job_id": cron_id}
+    if not cron_id:
+        data["auto_discover"] = True
+    atomic_write(state / ".watcher_should_remove", json.dumps(data))
 
 def _run_pipeline(cfg: Dict, base: Path, state: Path, args: Any, fmt: str) -> None:
     """Core pipeline watch logic."""
@@ -440,7 +453,7 @@ def main() -> None:
     ap.add_argument("--config", required=True)
     ap.add_argument("--base-path", required=True)
     ap.add_argument("--run-start-at", required=True)
-    ap.add_argument("--cron-job-id", required=True)
+    ap.add_argument("--cron-job-id", default="", help="Cron job ID for self-removal. Empty=auto-discover by name.")
     ap.add_argument("--state-dir", default=None)
     ap.add_argument("--format", choices=["json", "plain"], default="json")
     ap.add_argument("--print-wrapper", action="store_true")

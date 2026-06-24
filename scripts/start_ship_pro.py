@@ -132,14 +132,14 @@ PYTHONPATH={DEEPFLOW_HOME} python3 domains/ship_pro/scripts/run_pipeline.py vali
 
     # Watcher wrapper prompt
     if args.print_watcher_prompt:
-        from scripts.pipeline_watcher import WRAPPER_PROMPT
-        result['watcher_wrapper_prompt_template'] = WRAPPER_PROMPT
-        result['watcher_wrapper_prompt_prefilled'] = WRAPPER_PROMPT.format(
+        from scripts.pipeline_watcher import render_wrapper_prompt, WRAPPER_PROMPT_TEMPLATE
+        result['watcher_wrapper_prompt_template'] = WRAPPER_PROMPT_TEMPLATE
+        result['watcher_wrapper_prompt_prefilled'] = render_wrapper_prompt(
             deepflow_root=DEEPFLOW_HOME,
             config_path=watcher_config_abs,
             base_path=output_path,
             run_start_at=run_start_at,
-            cron_job_id='{cron_job_id}',
+            cron_job_id="",  # empty = auto-discover (solves chicken-and-egg)
         )
 
     print(json.dumps(result, ensure_ascii=False, indent=2))

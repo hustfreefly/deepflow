@@ -128,15 +128,15 @@ def main():
 
         # Watcher wrapper prompt (for main Agent to create cron)
         if args.print_watcher_prompt:
-            from scripts.pipeline_watcher import WRAPPER_PROMPT
-            result['watcher_wrapper_prompt_template'] = WRAPPER_PROMPT
-            # Pre-fill all placeholders except {cron_job_id} (unknown until cron is created)
-            result['watcher_wrapper_prompt_prefilled'] = WRAPPER_PROMPT.format(
+            from scripts.pipeline_watcher import render_wrapper_prompt, WRAPPER_PROMPT_TEMPLATE
+            result['watcher_wrapper_prompt_template'] = WRAPPER_PROMPT_TEMPLATE
+            # Render with all values; cron_job_id="" enables auto-discover mode
+            result['watcher_wrapper_prompt_prefilled'] = render_wrapper_prompt(
                 deepflow_root=result.get('deepflow_root', DEEPFLOW_HOME),
                 config_path=result.get('watcher_config_abs', ''),
                 base_path=result.get('base_path', ''),
                 run_start_at=result.get('run_start_at', ''),
-                cron_job_id='{cron_job_id}',  # placeholder for main Agent
+                cron_job_id="",  # empty = auto-discover (solves chicken-and-egg)
             )
 
         # 输出结果（JSON 格式）
