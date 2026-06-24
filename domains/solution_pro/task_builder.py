@@ -1344,8 +1344,17 @@ def build_reviewer_task(session_id: str, topic: str, review_type: str,
 ## 输入计划
 {input_plan_json}
 {living_spec_context}
-## Blackboard路径
-BlackboardManager(session_id="{session_id}").get_blackboard_path()
+## BlackboardManager 使用（正确 API）
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager(session_id="{session_id}")
+# ✅ 读取: bb.read_stage("stage_name")
+# ✅ 写入: bb.write_stage("stage_name", {...})
+# ❌ 禁止: bb.get_blackboard_path() (方法不存在)
+# ❌ 禁止: bb.get_stage_path() (已 deprecated)
+```
+⚠️ 执行 python3 时必须加 PYTHONPATH:
+`exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c '...'")`
 """
     final_prompt = prompt + "\n" + ctx
 
@@ -1630,8 +1639,17 @@ def build_harness_task(session_id: str, topic: str, current_solution: dict,
 ## 当前方案
 {solution_json}
 
-## Blackboard路径
-BlackboardManager(session_id="{session_id}").get_blackboard_path()
+## BlackboardManager 使用（正确 API）
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager(session_id="{session_id}")
+# ✅ 读取: bb.read_stage("stage_name")
+# ✅ 写入: bb.write_stage("stage_name", {...})
+# ❌ 禁止: bb.get_blackboard_path() (方法不存在)
+# ❌ 禁止: bb.get_stage_path() (已 deprecated)
+```
+⚠️ 执行 python3 时必须加 PYTHONPATH:
+`exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c '...'")`
 """
     return prompt + "\n" + ctx
 
@@ -1718,8 +1736,17 @@ def build_consolidator_task(session_id: str, topic: str,
 
 读取失败时, 必须在 `data.missing_research_outputs` 中记录缺失路径, 并在 Harness 自评中降低完整性评分。
 
-## Blackboard路径
-BlackboardManager(session_id="{session_id}").get_blackboard_path()
+## BlackboardManager 使用（正确 API）
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager(session_id="{session_id}")
+# ✅ 读取: bb.read_stage("stage_name")
+# ✅ 写入: bb.write_stage("stage_name", {...})
+# ❌ 禁止: bb.get_blackboard_path() (方法不存在)
+# ❌ 禁止: bb.get_stage_path() (已 deprecated)
+```
+⚠️ 执行 python3 时必须加 PYTHONPATH:
+`exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c '...'")`
 {living_spec_context}
 """
     final_prompt = prompt + "\n" + ctx
@@ -1814,8 +1841,17 @@ def build_fixer_expert_task(session_id: str, topic: str,
 
 如果审计文件不存在、没有 P0/critical 问题, 或初步修复已经解决全部关键问题, 必须在输出 `data.summary.overall_assessment` 和 `harness_check.reasoning` 中说明依据。
 
-## Blackboard路径
-BlackboardManager(session_id="{session_id}").get_blackboard_path()
+## BlackboardManager 使用（正确 API）
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager(session_id="{session_id}")
+# ✅ 读取: bb.read_stage("stage_name")
+# ✅ 写入: bb.write_stage("stage_name", {...})
+# ❌ 禁止: bb.get_blackboard_path() (方法不存在)
+# ❌ 禁止: bb.get_stage_path() (已 deprecated)
+```
+⚠️ 执行 python3 时必须加 PYTHONPATH:
+`exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c '...'")`
 {living_spec_context}
 """
     final_prompt = prompt + "\n" + ctx
@@ -1943,8 +1979,17 @@ def build_summarizer_task(session_id: str, topic: str,
 ## 总结主题
 {topic}
 {living_spec_context}
-## Blackboard路径
-BlackboardManager(session_id="{session_id}").get_blackboard_path()
+## BlackboardManager 使用（正确 API）
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager(session_id="{session_id}")
+# ✅ 读取: bb.read_stage("stage_name")
+# ✅ 写入: bb.write_stage("stage_name", {...})
+# ❌ 禁止: bb.get_blackboard_path() (方法不存在)
+# ❌ 禁止: bb.get_stage_path() (已 deprecated)
+```
+⚠️ 执行 python3 时必须加 PYTHONPATH:
+`exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c '...'")`
 
 ## 输出文件要求
 1. final_result.json - 结构化最终结果(唯一输出文件,包含 covered_req_ids + 完整方案)
