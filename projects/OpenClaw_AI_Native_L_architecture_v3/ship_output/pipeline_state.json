@@ -1,0 +1,45 @@
+{
+  "run_id": "run_20260625_163737_a",
+  "started_at": "2026-06-25T16:37:37.985759",
+  "agents": {
+    "architect": {
+      "state": "gate_pass",
+      "retry_count": 1,
+      "max_retries": 2,
+      "gate_decision": "PASS",
+      "last_gate_feedback": "Minor notes: pydantic_schema_valid Architect output is structurally sound. (Pydantic validation warnings: 11 validation errors for ArchitectOutput\nrisks.0.severity\n  Input should be 'critical', 'high', 'medium' or 'low' [type=literal_error, input_value='HIGH', input_type=str]\n    For further information v)"
+    },
+    "decomposer": {
+      "state": "gate_pass",
+      "retry_count": 0,
+      "max_retries": 2,
+      "gate_decision": "PASS",
+      "last_gate_feedback": ""
+    },
+    "specifier": {
+      "state": "gate_pass",
+      "retry_count": 0,
+      "max_retries": 2,
+      "gate_decision": "PASS",
+      "last_gate_feedback": ""
+    },
+    "reviewer": {
+      "state": "gate_pass",
+      "retry_count": 0,
+      "max_retries": 5,
+      "gate_decision": "PASS",
+      "last_gate_feedback": ""
+    },
+    "packager": {
+      "state": "gate_pass",
+      "retry_count": 1,
+      "max_retries": 2,
+      "gate_decision": "PASS",
+      "last_gate_feedback": ""
+    }
+  },
+  "current_agent": null,
+  "skipped_agents": [],
+  "status": "completed",
+  "completed_at": "2026-06-25T18:06:50.940941"
+}

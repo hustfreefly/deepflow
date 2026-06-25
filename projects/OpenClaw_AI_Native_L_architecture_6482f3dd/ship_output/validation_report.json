@@ -1,0 +1,100 @@
+{
+  "run_id": "run_20260625_082511_a",
+  "validated_at": "2026-06-25T08:56:09.447014",
+  "overall_pass": true,
+  "missing_files": [],
+  "file_check": {
+    "input": {
+      "exists": true,
+      "path": "/Users/allen/.openclaw/workspace/.deepflow/projects/OpenClaw_AI_Native_L_architecture_6482f3dd/ship_output/blackboard/input"
+    },
+    "architect": {
+      "exists": true,
+      "path": "/Users/allen/.openclaw/workspace/.deepflow/projects/OpenClaw_AI_Native_L_architecture_6482f3dd/ship_output/blackboard/architect"
+    },
+    "decomposer": {
+      "exists": true,
+      "path": "/Users/allen/.openclaw/workspace/.deepflow/projects/OpenClaw_AI_Native_L_architecture_6482f3dd/ship_output/blackboard/decomposer"
+    },
+    "specifier": {
+      "exists": true,
+      "path": "/Users/allen/.openclaw/workspace/.deepflow/projects/OpenClaw_AI_Native_L_architecture_6482f3dd/ship_output/blackboard/specifier"
+    },
+    "reviewer": {
+      "exists": true,
+      "path": "/Users/allen/.openclaw/workspace/.deepflow/projects/OpenClaw_AI_Native_L_architecture_6482f3dd/ship_output/blackboard/reviewer"
+    },
+    "packager": {
+      "exists": true,
+      "path": "/Users/allen/.openclaw/workspace/.deepflow/projects/OpenClaw_AI_Native_L_architecture_6482f3dd/ship_output/blackboard/packager"
+    }
+  },
+  "agent_summary": {
+    "architect": {
+      "state": "gate_pass",
+      "retry_count": 0,
+      "gate_decision": "PASS"
+    },
+    "decomposer": {
+      "state": "gate_pass",
+      "retry_count": 0,
+      "gate_decision": "PASS"
+    },
+    "specifier": {
+      "state": "gate_conditional",
+      "retry_count": 0,
+      "gate_decision": "CONDITIONAL"
+    },
+    "reviewer": {
+      "state": "gate_pass",
+      "retry_count": 1,
+      "gate_decision": "PASS"
+    },
+    "packager": {
+      "state": "gate_pass",
+      "retry_count": 2,
+      "gate_decision": "PASS"
+    }
+  },
+  "skipped_agents": [
+    "packager"
+  ],
+  "packager_eval": {
+    "schema_compliance": {
+      "passed": false,
+      "errors": [
+        "$.work_packages[0].priority: value 'critical' not in ['high', 'medium', 'low']",
+        "$.work_packages[1].priority: value 'critical' not in ['high', 'medium', 'low']",
+        "$.work_packages[2].priority: value 'critical' not in ['high', 'medium', 'low']",
+        "$.work_packages[3].priority: value 'critical' not in ['high', 'medium', 'low']",
+        "$.work_packages[4].priority: value 'critical' not in ['high', 'medium', 'low']"
+      ],
+      "field_completeness": 1.0
+    },
+    "dependency_graph": {
+      "has_cycles": false,
+      "cycles": [],
+      "orphans": [],
+      "invalid_refs": [],
+      "topological_order": [
+        "WP-001",
+        "WP-002",
+        "WP-003",
+        "WP-004",
+        "WP-005",
+        "WP-006",
+        "WP-007",
+        "WP-008",
+        "WP-009",
+        "WP-010",
+        "WP-011",
+        "WP-012",
+        "WP-013",
+        "WP-014",
+        "WP-015",
+        "WP-016"
+      ],
+      "passed": true
+    }
+  }
+}

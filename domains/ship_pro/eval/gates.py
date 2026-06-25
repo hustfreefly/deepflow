@@ -586,6 +586,10 @@ def gate_reviewer(review_output: dict) -> dict:
             details.append("quality_metrics missing or empty")
         if not critical["pydantic_valid"]:
             details.append(f"Pydantic: {pydantic_errors[:200]}")
+        if not critical.get("no_principle_failures", True):
+            details.append("原则审计存在 FAIL 项")
+        if not critical.get("no_platform_failures", True):
+            details.append("平台审计存在 FAIL 项")
         feedback = (
             f"Reviewer Gate FAIL: Critical checks failed: {', '.join(critical_failures)}. "
             f"Details: {'; '.join(details)}. "

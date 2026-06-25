@@ -13,6 +13,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from .principles import PrincipleAuditEntry, PlatformAuditEntry
+
 
 class Issue(BaseModel):
     """Reviewer 发现的单个问题。"""
@@ -55,3 +57,12 @@ class ReviewerOutput(BaseModel):
     quality_metrics: QualityMetrics
     summary: str = Field(min_length=1)
     round: int = Field(ge=0, default=0)
+    # 新增字段（Phase 1: 原则对齐）
+    principle_audit: list[PrincipleAuditEntry] = Field(
+        default_factory=list,
+        description="原则审计结果。Gate Major 必检字段（如果输入包含 architecture_principles）。"
+    )
+    platform_audit: list[PlatformAuditEntry] = Field(
+        default_factory=list,
+        description="平台审计结果。Gate Major 必检字段（如果输入包含 platform_capabilities）。"
+    )

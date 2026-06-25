@@ -295,6 +295,7 @@ class MessageFormatter:
             "total": self.cfg["detection"]["total_stages"],
             "final_artifact": self.cfg["detection"].get("final_artifact", ""),
             "base_path": str(self.cfg.get("base_path", "")),
+            "project_short": self._project_short(),
             **kw,
         })
         # Support both {pipeline.xxx} (default _TPL) and {xxx} (config templates)
@@ -355,9 +356,11 @@ class MessageFormatter:
         return self.tpl["completed"].format_map(self._ctx(
             elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at),
             score=data.get("score", "N/A"),
+            # Override completed count to total (all phases done)
+            completed=total,
             # UI v3 variables
             progress_bar=bar, project_short=self._project_short(),
-            artifact_count=len(self.stages) if self.stages else 0,
+            artifact_count=len(self.stages) if self.stages else total,
             icon_chain=self._build_icon_chain(all_completed_seqs, 0),
             elapsed_v3=self._elapsed_v3(run_start_at),
         ))
@@ -463,6 +466,24 @@ def _mark_remove(state: Path, reason: str, cron_id: str) -> None:
         data["auto_discover"] = True
     atomic_write(state / ".watcher_should_remove", json.dumps(data))
 
+def _get_completed_seqs_from_progress(base: Path, fm: 'MessageFormatter') -> tuple:
+    """Read .stage_progress.json to get completed phase seqs + current seq.
+    
+    Returns: (completed_seqs: set, failed_seqs: set, current_seq: int)
+    Falls back to empty sets if file missing.
+    """
+    sp = load_json(base / "stages" / ".stage_progress.json")
+    if not sp:
+        return set(), set(), 0
+    completed_phases = sp.get("completed_phases", [])
+    failed_phases = sp.get("failed_phases", [])
+    current_phase = sp.get("current_phase", 0)
+    # phase numbers are 1-indexed; seq in config is also 1-indexed → direct mapping
+    completed_seqs = set(completed_phases)
+    failed_seqs = set(failed_phases)
+    return completed_seqs, failed_seqs, current_phase
+
+
 def _run_pipeline(cfg: Dict, base: Path, state: Path, args: Any, fmt: str) -> None:
     """Core pipeline watch logic."""
     cron_id = args.cron_job_id
@@ -496,11 +517,60 @@ def _run_pipeline(cfg: Dict, base: Path, state: Path, args: Any, fmt: str) -> No
     if new_stages:
         CircuitBreaker(state, cfg["limits"]).reset()
         fm = MessageFormatter(cfg, sd.all_stages())
-        prog = {"completed": len(sd.all_stages()), "total": cfg["detection"]["total_stages"], "new_stages": [s["name"] for s in new_stages]}
-        emit("progress", fm.progress(new_stages, args.run_start_at), progress=prog, fmt=fmt)
+        # 用 .stage_progress.json 获取完整的 completed_seqs（不被 stale 过滤影响）
+        completed_seqs, failed_seqs, current_seq = _get_completed_seqs_from_progress(base, fm)
+        # 回退：如果没有 stage_progress，用文件扫描结果
+        if not completed_seqs:
+            completed_seqs = {s.get("seq", 0) for s in sd.all_stages()}
+        prog = {"completed": len(completed_seqs), "total": cfg["detection"]["total_stages"],
+                "new_stages": [s["name"] for s in new_stages]}
+        # 渲染 v3 格式
+        total = cfg["detection"]["total_stages"]
+        bar = MessageFormatter._progress_bar(len(completed_seqs), total)
+        elapsed = fm._elapsed(args.run_start_at)
+        remaining = fm._estimate_remaining(
+            fm._elapsed_minutes(args.run_start_at), len(completed_seqs), total)
+        # 当前阶段名
+        current_name = "运行中"
+        for _name, seq, _icon in fm._phase_defs():
+            if seq not in completed_seqs:
+                current_name = _name
+                break
+        detail = fm._build_phase_detail_list(completed_seqs, failed_seqs, current_seq)
+        msg = (
+            f"🟠 [{fm._project_short()}] {current_name}\n"
+            f"{bar} {len(completed_seqs)}/{total} 阶段\n"
+            f"⏱️ 已运行 {elapsed} · 预计剩余 {remaining}\n"
+            f"\n{detail}"
+        )
+        emit("progress", msg, progress=prog, fmt=fmt)
     cb = CircuitBreaker(state, cfg["limits"])
     count = cb.record_no_output()
     if cb.should_break():
+        # ── 熔断前检查 orchestrator 是否仍在运行 ──
+        sp = load_json(base / "stages" / ".stage_progress.json")
+        if sp and sp.get("status") == "running":
+            cb.reset()
+            fm = MessageFormatter(cfg, sd.all_stages())
+            completed_seqs, failed_seqs, current_seq = _get_completed_seqs_from_progress(base, fm)
+            total = cfg["detection"]["total_stages"]
+            bar = MessageFormatter._progress_bar(len(completed_seqs), total)
+            elapsed = fm._elapsed(args.run_start_at)
+            remaining = fm._estimate_remaining(
+                fm._elapsed_minutes(args.run_start_at), len(completed_seqs), total)
+            current_name = "运行中"
+            for _name, seq, _icon in fm._phase_defs():
+                if seq not in completed_seqs:
+                    current_name = _name
+                    break
+            detail = fm._build_phase_detail_list(completed_seqs, failed_seqs, current_seq)
+            msg = (
+                f"🟡 [{fm._project_short()}] {current_name} (运行中)\n"
+                f"{bar} {len(completed_seqs)}/{total} 阶段\n"
+                f"⏱️ 已运行 {elapsed} · 预计剩余 {remaining}\n"
+                f"\n{detail}"
+            )
+            emit("still_running", msg, should_remove=False, fmt=fmt)
         _mark_remove(state, "circuit_break", cron_id)
         emit("circuit_break", MessageFormatter(cfg, []).circuit_break(count), should_remove=True, fmt=fmt)
     emit("noop", "", fmt=fmt)
@@ -519,6 +589,8 @@ def main() -> None:
     base, state = Path(args.base_path), Path(args.state_dir) if args.state_dir else Path(args.base_path)
     cfg = load_json(Path(args.config))
     if cfg is None: print(f"Error: cannot read config: {args.config}", file=sys.stderr); sys.exit(1)
+    # Inject base_path into config so _project_short() works
+    cfg["base_path"] = str(base)
     errs = validate_config(cfg)
     if errs: print("Config validation errors:\n" + "\n".join(f"  - {e}" for e in errs), file=sys.stderr); sys.exit(1)
     state.mkdir(parents=True, exist_ok=True)

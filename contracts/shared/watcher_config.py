@@ -247,6 +247,104 @@ def validate_delivery_config(delivery: dict) -> tuple[bool, list[str]]:
         return False, [str(e)]
 
 
+# ---------------------------------------------------------------------------
+# AI Native Watcher Prompt V3 — LLM 做判断，Python 只做文件扫描
+# ---------------------------------------------------------------------------
+
+WATCHER_V3_TEMPLATE = """你是 DeepFlow 管线巡检员。
+
+1. 运行: exec("python3 {deepflow_root}/scripts/watcher_scan.py {base_path} {config_path} --run-start-at {run_start_at}")
+2. 解析 stdout JSON。
+3. 根据数据决定动作：
+   - completed.exists=true 且 status="completed" → 用完成模板输出消息，然后 cron remove
+   - completed.exists=true 且 status="failed" → 用失败模板输出消息，然后 cron remove
+   - has_new=true → 用进度模板输出消息
+   - run_count > {max_runs} → 输出超时消息，然后 cron remove
+   - 其他 → NO_REPLY
+4. cron remove: cron(action="remove", jobId="{cron_job_id}")
+   如果 jobId 为空: cron(action="list") 找 name 含 "watcher" 的 job → remove
+
+## 输出模板（必须使用，不可自行编写）
+
+进度: 🟠 [{display_name}] {{current_phase}}
+{{progress_bar}} {{completed}}/{{total}} 阶段
+⏱️ {{elapsed}}min
+
+完成: ✅ {display_name} 完成！{{completed}}/{{total}} 阶段 | {{elapsed}}min
+
+失败: ⚠️ {display_name} 失败（{{completed}}/{{total}}）
+
+超时: ⚠️ {display_name} 超时（{{max_runs}} 次巡检）
+
+## 进度条
+completed/total → "█"×completed + "░"×(total-completed)
+
+## 规则
+- 只输出模板文本，不输出 JSON
+- NO_REPLY 时不输出任何文本
+- 先发模板消息，再 cron remove"""
+
+
+def render_v3_prompt(
+    config_path: str,
+    base_path: str,
+    run_start_at: str,
+    cron_job_id: str = "",
+    deepflow_root: str = "",
+    display_name: str = "Pipeline",
+    max_runs: int = 15,
+) -> str:
+    """Render AI Native Watcher V3 prompt.
+    
+    LLM does judgment + formatting, Python only scans files.
+    ~600 tokens per run (vs ~2000 for V2).
+    """
+    return WATCHER_V3_TEMPLATE.format(
+        deepflow_root=deepflow_root,
+        base_path=base_path,
+        config_path=config_path,
+        run_start_at=run_start_at,
+        cron_job_id=cron_job_id,
+        display_name=display_name,
+        max_runs=max_runs,
+    )
+
+
+def build_v3_cron_payload(
+    config_path: str,
+    base_path: str,
+    run_start_at: str,
+    cron_job_id: str = "",
+    deepflow_root: str = "",
+    display_name: str = "Pipeline",
+    max_runs: int = 15,
+    pipeline_id: str = "unknown",
+) -> dict:
+    """Build complete cron job payload for AI Native Watcher V3."""
+    prompt = render_v3_prompt(
+        config_path=config_path,
+        base_path=base_path,
+        run_start_at=run_start_at,
+        cron_job_id=cron_job_id,
+        deepflow_root=deepflow_root,
+        display_name=display_name,
+        max_runs=max_runs,
+    )
+    return {
+        "name": f"deepflow_watcher_{pipeline_id}_{run_start_at[:16].replace(':', '')}",
+        "schedule": {"kind": "every", "everyMs": 180000},
+        "sessionTarget": "current",
+        "payload": {
+            "kind": "agentTurn",
+            "message": prompt,
+            "timeoutSeconds": 60,
+            "lightContext": True,
+        },
+        "delivery": {"mode": "announce"},
+        "enabled": True,
+    }
+
+
 if __name__ == "__main__":
     import sys
 

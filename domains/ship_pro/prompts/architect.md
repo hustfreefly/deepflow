@@ -65,6 +65,73 @@ Orchestrator 会预先检测并告知你输入属于哪种格式：
 - 设置 overall_confidence: "low"，所有 data_sufficiency 标记 "insufficient"
 - 从 summary 中提取能提取的，其余标注 [数据不足]
 
+## 架构原则与平台约束（从 Spec Pro 继承）
+
+如果输入中包含 `architecture_principles` 和 `platform_capabilities`，你必须在输出中包含对应的映射。
+
+### 输出要求
+
+在你的 JSON 输出中，必须包含以下字段：
+
+```json
+{
+  "architecture_principles": [
+    {
+      "id": "PRINCIPLE-001",
+      "name": "全 LLM 控制",
+      "type": "must_do",
+      "description": "所有决策模块必须由 LLM 驱动，Python 仅做执行器",
+      "anti_patterns": ["硬编码 if/else 决策逻辑", "固定映射表替代 LLM 路由"],
+      "verification_method": "代码中不得出现非 LLM 的决策逻辑",
+      "severity": "BLOCKER"
+    }
+  ],
+  "platform_capabilities": [
+    {
+      "platform": "OpenClaw",
+      "capability": "子 Agent 调度",
+      "api": "sessions_spawn(runtime='subagent', mode='run')",
+      "replaces": ["自建 Worker Pool", "自建优先级队列"],
+      "must_use": true,
+      "rationale": "OpenClaw 已有完整的子Agent管理能力"
+    }
+  ],
+  "principle_coverage": [
+    {
+      "principle_id": "PRINCIPLE-001",
+      "covered_by_modules": ["COMP-001", "COMP-005"],
+      "coverage_method": "COMP-001 通过 LLM API 调用实现路由决策，COMP-005 通过 LLM 实现目标分解",
+      "gap_analysis": ""
+    }
+  ],
+  "platform_reuse_map": [
+    {
+      "platform_capability": "子 Agent 调度",
+      "reused_by_modules": ["COMP-001"],
+      "not_reused_rationale": ""
+    }
+  ]
+}
+```
+
+### 验证规则
+
+- 每条 `severity=BLOCKER` 的原则必须在 `principle_coverage` 中有对应条目
+- 每条 `must_use=true` 的平台能力必须在 `platform_reuse_map` 中有对应条目
+- 如果 `gap_analysis` 非空，说明存在覆盖缺口，需要在 `implementation_hints` 中说明如何填补
+
+## 架构完整性判断（AI Native）
+
+你必须判断这个架构是否完整。具体来说：
+
+1. **编排层**：如果这是一个多组件系统，必须有编排层（负责串联所有组件形成完整执行路径）。用你的理解判断是否需要编排层，如果需要，生成对应的模块。
+
+2. **全 LLM 控制**：如果架构原则要求"全 LLM 控制"，你需要判断每个模块的技术栈是否符合这个原则。如果你认为某个模块用确定性逻辑（如状态机、阈值、规则引擎）更合适，可以保留，但必须在 rationale 中解释为什么这个模块不适合用 LLM。
+
+3. **需求覆盖**：检查 requirements 字段，确保所有 P0 需求都被映射到模块。如果有 P0 需求未被映射，生成对应的模块。
+
+不要机械地套用规则，用你的理解判断什么是最合理的架构设计。
+
 ## 提取规则
 
 ### 1. 模块提取（modules）

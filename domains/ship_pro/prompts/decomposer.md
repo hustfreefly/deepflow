@@ -96,7 +96,39 @@ tags: [ship_pro, prompt, decomposition, work_package]
 }
 ```
 
+## 原则继承（从 Architect 继承）
+
+每个 WP 必须包含 `serving_principles` 字段，说明该 WP 服务于哪些架构原则。这些原则从上游 Architect 输出中继承。
+
+```json
+{
+  "id": "WP-001",
+  "title": "...",
+  "serving_principles": [
+    {
+      "principle_id": "PRINCIPLE-001",
+      "obligation": "必须通过 LLM API 实现路由决策，不得使用硬编码映射",
+      "anti_patterns_to_avoid": ["DEFAULT_ROUTES = {...}", "if 'simple' in ..."]
+    }
+  ]
+}
+```
+
+**字段说明**：
+- `obligation`：该原则对本 WP 的具体实现要求（自然语言描述）
+- `anti_patterns_to_avoid`：具体禁止的代码模式，帮助 Coding Agent 避免违反原则
+
 ---
+
+## WP 分配判断（AI Native）
+
+你必须判断是否需要为某些特殊需求创建独立的 WP，不是机械地套用规则。具体来说：
+
+1. **对等协作协议**：如果 Architect 输出中包含 Hermes 或其他对等协作伙伴的描述，你需要判断是否需要创建独立的 WP 来实现通信协议。用你的理解判断，不要机械地忽略。
+
+2. **SLA 约束传递**：如果 Architect 输出中包含 SLA 约束（如 HITL 超时、最大并发数），你需要判断是否需要将这些约束分配到具体的 WP。用你的理解判断哪些 WP 应该承接这些约束。
+
+3. **WP 粒度**：你需要判断 WP 的粒度是否合理。如果一个 WP 的职责过多（如涉及多个不同领域），应该拆分。但如果职责紧密相关，不需要拆分。用你的理解判断，不要机械地套用"职责 > 3 必须拆分"的规则。
 
 ## 拆分原则（必须遵守）
 

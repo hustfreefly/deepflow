@@ -139,10 +139,12 @@ def main():
             cron_job_id="",  # empty = auto-discover (solves chicken-and-egg)
         )
         # cron job 模板（主 Agent 直接传给 cron add）
+        # 🔴 sessionTarget="current"：Watcher 绑定到启动它的会话，消息直接出现在当前 channel
+        #   之前用 "isolated" + delivery feishu 总是失败（isolated 没有 last session 上下文）
         result['watcher_cron_payload'] = {
             "name": f"deepflow_watcher_{result.get('session_id', 'unknown')[:30]}",
             "schedule": {"kind": "every", "everyMs": 180000},
-            "sessionTarget": "isolated",
+            "sessionTarget": "current",
             "payload": {
                 "kind": "agentTurn",
                 "message": result['watcher_wrapper_prompt_prefilled'],

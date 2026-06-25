@@ -1,0 +1,29 @@
+{
+  "pipeline": "ship_pro",
+  "project": "OpenClaw_AI_Native_L_architecture_6482f3dd",
+  "status": "completed",
+  "completed_at": "2026-06-25T08:57:50.344205",
+  "agents_completed": [
+    "architect",
+    "decomposer",
+    "specifier",
+    "reviewer",
+    "packager"
+  ],
+  "summary": {
+    "total_wps": 16,
+    "total_acceptance_criteria": 53,
+    "dependency_edges": 17,
+    "critical_path": [
+      "WP-002",
+      "WP-004",
+      "WP-005",
+      "WP-011",
+      "WP-015",
+      "WP-016"
+    ],
+    "parallel_time_minutes": 300,
+    "total_token_budget": 1060000,
+    "quality_score": 79
+  }
+}

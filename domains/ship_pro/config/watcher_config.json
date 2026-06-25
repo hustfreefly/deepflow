@@ -12,30 +12,30 @@
     "completed_timestamp_field": "completed_at",
     "scan_dirs": [
       {
-        "path": ".",
-        "pattern": "*_output.json",
+        "path": "blackboard",
+        "pattern": "*",
         "stage_files": {
-          "architect_output.json": {
+          "architect": {
             "name": "Architect",
             "seq": 1,
             "icon": "🏗️"
           },
-          "decomposer_output.json": {
+          "decomposer": {
             "name": "Decomposer",
             "seq": 2,
             "icon": "🧩"
           },
-          "specifier_output.json": {
+          "specifier": {
             "name": "Specifier",
             "seq": 3,
             "icon": "📐"
           },
-          "reviewer_output.json": {
+          "reviewer": {
             "name": "Reviewer",
             "seq": 4,
             "icon": "👁️"
           },
-          "packager_output.json": {
+          "packager": {
             "name": "Packager",
             "seq": 5,
             "icon": "📦"
@@ -44,7 +44,7 @@
       }
     ],
     "total_stages": 5,
-    "final_artifact": "packager_output.json"
+    "final_artifact": "packager"
   },
   "stage_symbols": {
     "done": "✅",

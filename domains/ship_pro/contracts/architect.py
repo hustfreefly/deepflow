@@ -13,6 +13,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from .principles import (
+    ArchitecturePrinciple,
+    PlatformCapability,
+    PrincipleCoverage,
+    PlatformReuseEntry,
+)
+
 
 class DataSufficiency(BaseModel):
     """数据充分性标记，反映各维度提取情况。"""
@@ -130,6 +137,23 @@ class ArchitectOutput(BaseModel):
     wp_file_mapping: dict[str, str] = Field(
         default_factory=dict,
         description="需求到文件的映射。Gate Minor 必检字段。",
+    )
+    # 新增字段（Phase 1: 原则对齐）
+    architecture_principles: list[ArchitecturePrinciple] = Field(
+        default_factory=list,
+        description="架构原则列表（从 Spec Pro final_result 继承）。Gate Major 必检字段。"
+    )
+    platform_capabilities: list[PlatformCapability] = Field(
+        default_factory=list,
+        description="平台能力列表（从 Spec Pro final_result 继承）。Gate Major 必检字段。"
+    )
+    principle_coverage: list[PrincipleCoverage] = Field(
+        default_factory=list,
+        description="原则-组件映射。Gate Critical 必检字段（如果 architecture_principles 非空）。"
+    )
+    platform_reuse_map: list[PlatformReuseEntry] = Field(
+        default_factory=list,
+        description="平台能力-组件映射。Gate Critical 必检字段（如果 platform_capabilities 非空）。"
     )
 
 

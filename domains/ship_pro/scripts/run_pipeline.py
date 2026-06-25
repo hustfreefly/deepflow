@@ -514,6 +514,33 @@ def check_gate(agent_name: str, output_dir: str) -> dict:
     else:
         result = gate_fn(agent_output)
 
+    # Layer 2: LLM 语义检查（AI Native）
+    # 如果输入包含 architecture_principles 且提供了 semantic_result，合并结果
+    input_data = _load_blackboard_file(bb_dir, "input")
+    principles = input_data.get("architecture_principles", []) if input_data else []
+    
+    if principles and agent_name in ("architect", "decomposer", "specifier"):
+        # 检查是否有 orchestrator 提供的语义检查结果
+        semantic_result_file = output_p / f"semantic_{agent_name}.json"
+        if semantic_result_file.exists():
+            try:
+                with open(semantic_result_file) as f:
+                    semantic_result = json.load(f)
+                
+                from domains.ship_pro.eval.llm_gate_checks import merge_gate_results
+                result = merge_gate_results(result, semantic_result)
+                
+                # 清理临时文件
+                semantic_result_file.unlink()
+                
+            except Exception as e:
+                result.setdefault("feedback", "")
+                result["feedback"] += f" [语义结果合并失败: {str(e)[:100]}]"
+        else:
+            # 没有语义结果，标记需要语义检查
+            result["needs_semantic_check"] = True
+            result["semantic_task_available"] = True
+
     # Determine retry info
     status = _load_status(output_p)
     agent_status = status.get("agents", {}).get(agent_name, {})
@@ -537,10 +564,13 @@ def check_gate(agent_name: str, output_dir: str) -> dict:
         "retry_count": retry_count,
         "max_retries": max_retries,
         "skippable": should_skip,
+        "needs_semantic_check": result.get("needs_semantic_check", False),
+        "semantic_task_available": result.get("semantic_task_available", False),
         "gate_results": {
             "critical": result.get("critical_results", {}),
             "major": result.get("major_results", {}),
             "minor": result.get("minor_results", {}),
+            "llm_issues": result.get("llm_issues", []),
         },
     }
 
@@ -602,6 +632,131 @@ def get_feedback_task(agent_name: str, output_dir: str) -> dict:
         "retry_count": retry_count,
         "gate_decision": gate_decision,
     }
+
+
+def get_semantic_task(agent_name: str, output_dir: str) -> dict:
+    """
+    Generate a semantic evaluation task for the orchestrator agent.
+
+    The orchestrator (which IS an LLM) evaluates the worker's output
+    semantically against architecture principles.
+
+    Args:
+        agent_name: The agent whose output needs semantic evaluation
+        output_dir: Pipeline output directory
+
+    Returns:
+        dict with 'task' field containing the semantic evaluation prompt
+    """
+    output_p = Path(output_dir)
+    pipeline_config_path = output_p / "pipeline_config.json"
+    if not pipeline_config_path.exists():
+        raise FileNotFoundError(f"Pipeline not prepared: {pipeline_config_path}")
+
+    with open(pipeline_config_path) as f:
+        config = json.load(f)
+
+    bb_dir = config["blackboard_dir"]
+
+    # Load input data (contains principles)
+    input_data = _load_blackboard_file(bb_dir, "input")
+    if not input_data:
+        return {"agent": agent_name, "task": None, "reason": "输入数据不存在"}
+
+    principles = input_data.get("architecture_principles", [])
+    if not principles:
+        return {"agent": agent_name, "task": None, "reason": "无架构原则，跳过语义检查"}
+
+    # Load agent output
+    output_file = Path(bb_dir) / STAGE_PATH_REGISTRY[agent_name]
+    if output_file.is_dir():
+        fallback = output_file / "output.json"
+        if fallback.exists():
+            output_file = fallback
+    if not output_file.exists():
+        return {"agent": agent_name, "task": None, "reason": f"Agent 输出不存在: {output_file}"}
+
+    with open(output_file) as f:
+        agent_output = json.load(f)
+
+    # Build semantic evaluation prompt based on agent type
+    from domains.ship_pro.eval.llm_gate_checks import (
+        _build_architect_prompt,
+        _build_decomposer_prompt,
+        _build_specifier_prompt,
+    )
+
+    if agent_name == "architect":
+        prompt = _build_architect_prompt(agent_output, principles)
+    elif agent_name == "decomposer":
+        blueprint = _load_blackboard_file(bb_dir, "architect")
+        if not blueprint:
+            return {"agent": agent_name, "task": None, "reason": "Architect 输出不存在"}
+        prompt = _build_decomposer_prompt(agent_output, blueprint, principles)
+    elif agent_name == "specifier":
+        prompt = _build_specifier_prompt(agent_output, principles)
+    else:
+        return {"agent": agent_name, "task": None, "reason": f"不支持的 agent: {agent_name}"}
+
+    # Add output instructions
+    task = f"""## 语义评估任务
+
+你是 Ship Pro 管线的语义评审员。请评估以下 Agent 输出是否符合架构原则。
+
+{prompt}
+
+## 输出要求
+
+1. 输出必须是合法的 JSON（符合上述格式）
+2. 将 JSON 写入: `{output_p}/semantic_{agent_name}.json`
+3. 只输出 JSON，不要输出其他文本
+"""
+
+    return {
+        "agent": agent_name,
+        "task": task,
+        "output_file": str(output_p / f"semantic_{agent_name}.json"),
+        "principles_count": len(principles),
+    }
+
+
+def merge_semantic_result(agent_name: str, output_dir: str, semantic_result_path: str) -> dict:
+    """
+    Merge semantic evaluation result into gate decision.
+
+    Args:
+        agent_name: The agent name
+        output_dir: Pipeline output directory
+        semantic_result_path: Path to semantic result JSON (or inline JSON string)
+
+    Returns:
+        Updated gate result with merged semantic check
+    """
+    output_p = Path(output_dir)
+
+    # Load semantic result
+    if Path(semantic_result_path).exists():
+        with open(semantic_result_path) as f:
+            semantic_result = json.load(f)
+    else:
+        # Try parsing as inline JSON
+        try:
+            semantic_result = json.loads(semantic_result_path)
+        except json.JSONDecodeError:
+            return {
+                "agent": agent_name,
+                "error": f"无法加载语义结果: {semantic_result_path}"
+            }
+
+    # Write semantic result to expected location for check_gate to pick up
+    semantic_file = output_p / f"semantic_{agent_name}.json"
+    with open(semantic_file, "w") as f:
+        json.dump(semantic_result, f, indent=2, ensure_ascii=False)
+
+    # Re-run gate check (which will now merge semantic result)
+    result = check_gate(agent_name, output_dir)
+
+    return result
 
 
 def validate_pipeline(output_dir: str) -> dict:
@@ -874,9 +1029,23 @@ def _cli_main() -> None:
         status = _load_status(Path(sys.argv[2]))
         print(json.dumps({"ok": True, "status": status.get("status"), "completed_at": status.get("completed_at")}, indent=2))
 
+    elif cmd == "semantic-task":
+        if len(sys.argv) < 4:
+            print("用法: python3 run_pipeline.py semantic-task <agent_name> <output_dir>")
+            sys.exit(1)
+        result = get_semantic_task(sys.argv[2], sys.argv[3])
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+
+    elif cmd == "merge-semantic":
+        if len(sys.argv) < 5:
+            print("用法: python3 run_pipeline.py merge-semantic <agent_name> <output_dir> <semantic_result_json>")
+            sys.exit(1)
+        result = merge_semantic_result(sys.argv[2], sys.argv[3], sys.argv[4])
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+
     else:
         print(f"未知命令: {cmd}")
-        print("可用命令: prepare, task, gate, feedback, validate, status, update-status, finalize")
+        print("可用命令: prepare, task, gate, feedback, validate, status, update-status, finalize, semantic-task, merge-semantic")
         sys.exit(1)
 
 

@@ -107,8 +107,9 @@ def run_solution_pro(topic: str, **kwargs):
     bm = BlackboardManager(session_id, base_dir=Path(base_path).parent)
     bm.init_session()
 
-    # 清理旧文件
-    for old_file in [".completed", ".cron_run_count", ".notified_stages.json"]:
+    # 清理旧文件（含 watcher 状态，防止重跑时 circuit break 误报）
+    for old_file in [".completed", ".cron_run_count", ".notified_stages.json",
+                     ".watcher_no_output_count", ".watcher_should_remove", ".pipeline_watcher.lock"]:
         old_path = bm.session_dir / old_file
         if old_path.exists():
             old_path.unlink()

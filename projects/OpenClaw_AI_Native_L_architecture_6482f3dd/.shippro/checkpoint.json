@@ -1,0 +1,111 @@
+{
+  "package_id": "SP-001",
+  "started_at": "2026-06-25T10:02:12.023940",
+  "last_updated": "2026-06-25T10:56:50.113151",
+  "status": "in_progress",
+  "completed_modules": [
+    "WP-001",
+    "WP-002",
+    "WP-003",
+    "WP-004",
+    "WP-005",
+    "WP-006",
+    "WP-007",
+    "WP-008",
+    "WP-009",
+    "WP-010",
+    "WP-011",
+    "WP-012",
+    "WP-013",
+    "WP-014",
+    "WP-015",
+    "WP-016"
+  ],
+  "in_progress_module": null,
+  "pending_modules": [],
+  "failed_modules": [],
+  "phase": "integration",
+  "attempts": {},
+  "artifacts": {
+    "WP-001": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 0
+    },
+    "WP-002": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 38117
+    },
+    "WP-003": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 45061
+    },
+    "WP-004": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 59026
+    },
+    "WP-005": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 33967
+    },
+    "WP-006": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 23911
+    },
+    "WP-007": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 0
+    },
+    "WP-008": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 49484
+    },
+    "WP-009": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 35704
+    },
+    "WP-010": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 78158
+    },
+    "WP-011": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 61108
+    },
+    "WP-012": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 52026
+    },
+    "WP-013": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 38423
+    },
+    "WP-014": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 0
+    },
+    "WP-015": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 27387
+    },
+    "WP-016": {
+      "test_results": "passed",
+      "schema_valid": true,
+      "token_usage": 41830
+    }
+  }
+}

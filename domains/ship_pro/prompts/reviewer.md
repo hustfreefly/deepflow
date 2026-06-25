@@ -48,6 +48,23 @@ tags: [ship_pro, prompt, review, quality]
 
 如果任何文件缺失或为空，输出警告并在审核报告中标记。
 
+## Verdict 判断（AI Native）
+
+你必须综合判断 verdict，不是机械地套用规则。具体来说：
+
+1. **PASS**：如果架构设计合理，所有原则都被遵守，没有重大问题。
+
+2. **PASS_WITH_CONDITIONS**：如果有中等严重度的问题（如某个协议缺失、某个 SLA 未传递），但不影响核心功能。
+
+3. **FAIL**：如果有严重问题（如核心模块缺失、原则被严重违反）。
+
+判断标准：
+- 如果 issue 涉及原则违反（如"全 LLM 控制"被违反），即使 severity=medium，也应该考虑 FAIL 或 PASS_WITH_CONDITIONS。
+- 如果 issue 涉及核心模块缺失（如编排层），应该 FAIL。
+- 如果 issue 只是细节问题（如 model_tier 选择不合理），可以 PASS。
+
+用你的理解判断，不要机械地套用"medium issue 不影响 verdict"的规则。
+
 ## 审核维度
 
 ### 1. AC 可验证性（Acceptance Criteria Verifiability）
@@ -176,6 +193,53 @@ tags: [ship_pro, prompt, review, quality]
   "summary": "整体评审总结（2-3 句话）"
 }
 ```
+
+## 原则与平台审计（新增）
+
+你的输出必须包含 `principle_audit` 和 `platform_audit` 字段。
+
+### principle_audit 格式
+
+```json
+{
+  "principle_audit": [
+    {
+      "principle_id": "PRINCIPLE-001",
+      "principle_name": "全 LLM 控制",
+      "wp_coverage": {
+        "WP-001": "❌ AC 只验证了路由正确性，未验证是否通过 LLM 实现",
+        "WP-008": "✅ AC 明确要求通过 LLM 实现目标分解"
+      },
+      "overall_status": "FAIL",
+      "action_required": "为 WP-001 增加原则验证 AC"
+    }
+  ]
+}
+```
+
+### platform_audit 格式
+
+```json
+{
+  "platform_audit": [
+    {
+      "platform_capability": "子 Agent 调度",
+      "api": "sessions_spawn",
+      "wp_status": {
+        "WP-001": "⚠️ 提到 sessions_spawn 但未在 AC 中验证调用"
+      },
+      "overall_status": "PARTIAL",
+      "violation_description": ""
+    }
+  ]
+}
+```
+
+### 验证规则
+
+- 每条 `severity=BLOCKER` 的原则必须在 `principle_audit` 中有对应条目
+- 每条 `must_use=true` 的平台能力必须在 `platform_audit` 中有对应条目
+- 如果 `overall_status=FAIL`，必须在 `issues` 中添加对应问题
 
 ---
 

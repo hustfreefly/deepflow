@@ -1,0 +1,1158 @@
+{
+  "schema_version": "3.0.0",
+  "meta": {
+    "package_id": "SP-001",
+    "project_name": "OpenClaw AI Native Loop Engineering Framework",
+    "generated_at": "2026-06-25T20:22:00+08:00",
+    "generator": {
+      "agent": "ship-pro",
+      "model": "bailian/qwen3.7-plus",
+      "version": "3.0.0"
+    },
+    "source_session_id": "OpenClaw_AI_Native_L_architecture_6482f3dd",
+    "input_format": "A_final_solution"
+  },
+  "project_context": {
+    "problem_statement": "构建全LLM控制的自主循环执行框架，支持8+小时无人干预运行，通过Dream Loop/Meta-Loop实现持续自优化，解决长时间AI Agent运行中的质量漂移、死循环、状态丢失、成本失控等核心问题",
+    "solution_overview": "三层自主循环(Task Loop + Dream Loop + Meta-Loop) + Supervisor-Worker DAG并行执行 + 对等Hermes协作 + 分层质量门控 + 多维度死循环熔断 + Blackboard状态持久化 + 成本优化策略",
+    "architecture": {
+      "style": "三层自主循环 + Supervisor-Worker DAG并行执行",
+      "components": [
+        {
+          "id": "COMP-001",
+          "name": "LoopOrchestrator",
+          "priority": "P0",
+          "summary": "三层循环编排层，负责Task Loop/Dream Loop/Meta-Loop之间的状态转换触发与全局协调"
+        },
+        {
+          "id": "COMP-002",
+          "name": "LLMScheduler",
+          "priority": "P0",
+          "summary": "全局LLM请求调度：令牌桶限流+优先级队列+模型分层路由"
+        },
+        {
+          "id": "COMP-003",
+          "name": "BlackboardCheckpoint",
+          "priority": "P0",
+          "summary": "原子持久化+分级checkpoint+中断恢复+fcntl.flock并发锁"
+        },
+        {
+          "id": "COMP-004",
+          "name": "CircuitBreaker",
+          "priority": "P0",
+          "summary": "多维度死循环检测+三级熔断+进展感知重复检测"
+        },
+        {
+          "id": "COMP-005",
+          "name": "QualityHarness",
+          "priority": "P0",
+          "summary": "分层质量门控+偏离检测+Decision Quality Benchmark+上下文一致性守卫"
+        },
+        {
+          "id": "COMP-006",
+          "name": "DAGScheduler",
+          "priority": "P1",
+          "summary": "动态DAG分解+并行调度+依赖验证+文件级冲突检测+动态重规划"
+        },
+        {
+          "id": "COMP-007",
+          "name": "ContextCompressor",
+          "priority": "P1",
+          "summary": "层级摘要压缩+决策一致性摘要+核心指令重现"
+        },
+        {
+          "id": "COMP-008",
+          "name": "DreamLoopValidator",
+          "priority": "P1",
+          "summary": "三层反思验证+权重衰减(不删除)"
+        },
+        {
+          "id": "COMP-009",
+          "name": "NotificationManager",
+          "priority": "P1",
+          "summary": "进度通知管理：每小时进度推送+关键事件通知+成本摘要"
+        },
+        {
+          "id": "COMP-010",
+          "name": "DecisionBenchmark",
+          "priority": "P2",
+          "summary": "LLM决策质量基准测试+Bootstrap标注+持续校准"
+        },
+        {
+          "id": "COMP-011",
+          "name": "MetaLoopTuner",
+          "priority": "P2",
+          "summary": "Zone 2参数自动调优+测试驱动防回归"
+        }
+      ],
+      "layers": [
+        "编排层",
+        "调度层",
+        "质量与安全层",
+        "状态管理层",
+        "基础设施层"
+      ]
+    },
+    "requirements_coverage": {
+      "total": 1,
+      "covered": 1,
+      "coverage_rate": 1.0
+    },
+    "constraints": [
+      "PRINCIPLE-C-001: 一步到位，不分阶段交付 [WARNING]",
+      "PRINCIPLE-C-002: 全LLM控制，Python不做控制流 [BLOCKER]",
+      "PRINCIPLE-C-003: 基于当前OpenClaw平台能力，不引入外部框架 [BLOCKER]",
+      "PRINCIPLE-C-008: 必须有死循环熔断机制 [BLOCKER]"
+    ],
+    "known_gaps": [
+      "GAP-001: Hermes对等协作协议在blueprint中列为Phase 3交付物，但Architect未为其创建独立模块，缺少对应WP",
+      "GAP-002: WP-006 QualityHarness的input/tool/output三层门控细粒度阈值未明确定义",
+      "GAP-003: WP-001中SQLite升级路径的具体接口规范未指定"
+    ]
+  },
+  "work_packages": [
+    {
+      "id": "WP-001",
+      "title": "BlackboardCheckpoint — 原子持久化与中断恢复基础设施",
+      "objective": "实现基于OpenClaw workspace的原子写入+并发锁+分级checkpoint+中断恢复机制",
+      "budget": {
+        "tokens": 80000,
+        "time_minutes": 45,
+        "max_retries": 3
+      },
+      "complexity": "high",
+      "model_tier": "claude-opus",
+      "dependencies": [],
+      "priority": "high",
+      "outputs": [
+        {
+          "type": "file",
+          "path": "components/blackboard_checkpoint.py",
+          "description": "BlackboardCheckpoint核心实现"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_blackboard_checkpoint.py",
+          "description": "原子写入与checkpoint功能测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_concurrent_write.py",
+          "description": "并发写入压力测试"
+        }
+      ],
+      "acceptance_criteria": [
+        "L4: 运行 `pytest tests/test_blackboard_checkpoint.py -v`，所有用例通过：(1) write-to-temp+os.rename 原子写入在 SIGKILL 后文件完整（无半写状态）；(2) 分级 checkpoint（任务级/轮次级/步骤级）可正确创建和恢复；(3) 中断恢复从最近 checkpoint 恢复后状态与中断前一致（JSON diff 为空）",
+        "L4: 运行 `python tests/test_concurrent_write.py`，6 个并发进程同时写入不同 stage 文件，100 次迭代后所有文件内容完整（SHA256 校验一致），无数据丢失或损坏，fcntl.flock 锁获取/释放日志无冲突",
+        "L3: 原子写入延迟 < 50ms（单次 write-to-temp + os.rename），fcntl.flock 锁竞争下 6 并发写入总吞吐 > 100 ops/sec（APFS 文件系统）",
+        "L3: 给定原则 PRINCIPLE-C-003（OpenClaw平台），审查 WP-001 的实现代码，不存在自建 Blackboard 类或独立状态持久化框架，所有持久化操作通过 OpenClaw workspace 文件系统 + fcntl.flock 完成",
+        "L3: 给定原则 PRINCIPLE-C-001（一步到位），审查 WP-001 的实现代码，原子写入、并发锁、分级 checkpoint、中断恢复四项功能在同一交付中完整实现，不存在 TODO 或 placeholder 标记"
+      ],
+      "acceptance_tests": [
+        {
+          "command": "pytest tests/test_blackboard_checkpoint.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "python tests/test_concurrent_write.py --workers 6 --iterations 100",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "grep -r 'class Blackboard' components/ | grep -v 'BlackboardCheckpoint' | wc -l | xargs test 0 -eq",
+          "expected_exit_code": 0,
+          "description": ""
+        }
+      ],
+      "retry_policy": {
+        "on_failure": "retry"
+      },
+      "tags": [
+        "infrastructure",
+        "persistence",
+        "concurrency",
+        "P0"
+      ]
+    },
+    {
+      "id": "WP-002",
+      "title": "CircuitBreaker — 多维度死循环检测与三级熔断",
+      "objective": "实现多维度死循环信号检测+三级熔断(WARN→PAUSE→TERMINATE)+进展感知重复检测",
+      "budget": {
+        "tokens": 80000,
+        "time_minutes": 45,
+        "max_retries": 3
+      },
+      "complexity": "high",
+      "model_tier": "claude-opus",
+      "dependencies": [
+        "WP-001"
+      ],
+      "priority": "high",
+      "outputs": [
+        {
+          "type": "file",
+          "path": "components/circuit_breaker.py",
+          "description": "CircuitBreaker核心实现"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_circuit_breaker.py",
+          "description": "状态机与熔断功能测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_signal_detection.py",
+          "description": "多维度信号检测测试"
+        }
+      ],
+      "acceptance_criteria": [
+        "L4: 运行 `pytest tests/test_circuit_breaker.py -v`，所有用例通过：(1) 状态机 CLOSED→OPEN→HALF-OPEN→DEGRADED 转换正确（每个状态转换有对应测试）；(2) 三级熔断 WARN→PAUSE→TERMINATE 依次触发，每级有明确的执行器响应（日志+回调）；(3) 注入重复动作信号后，进展感知检测能区分'无进展重复'（触发熔断）和'有进展重复'（不触发）",
+        "L4: 运行 `pytest tests/test_signal_detection.py -v`，4 个维度信号检测全部验证通过：(1) 重复动作检测：连续 3 次相同动作触发信号；(2) token 异常检测：单轮 token 消耗 > 均值 3 倍触发信号；(3) 进度缺失检测：15 分钟无新节点触发信号；(4) 心跳超时检测：超过配置阈值无心跳触发信号",
+        "L3: 任务复杂度自适应阈值验证：简单任务（complexity=low）重复检测窗口 = 3 次，复杂任务（complexity=high）重复检测窗口 = 8 次，通过参数化测试确认阈值随复杂度动态调整",
+        "L3: 给定原则 PRINCIPLE-C-008（死循环熔断），审查 WP-002 的实现代码，SignalDetector 的输出有 CircuitBreakerExecutor 消费，执行 warn/pause/terminate 三级动作，不存在信号检测后无执行器响应的情况",
+        "L3: 给定原则 PRINCIPLE-C-002（全LLM控制），审查 WP-002 的实现代码，'进展感知'和'重复判断'通过 LLM API 调用完成语义理解，不存在硬编码的关键词匹配替代 LLM 语义判断",
+        "L3: 给定原则 PRINCIPLE-C-003（OpenClaw平台），审查 WP-002 的实现代码，心跳和进度信号从 OpenClaw workspace 文件系统读取，不自建心跳监控机制"
+      ],
+      "acceptance_tests": [
+        {
+          "command": "pytest tests/test_circuit_breaker.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_signal_detection.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "grep -rn 'keyword_match\\|regex_match\\|hardcoded_route' components/circuit_breaker.py | wc -l | xargs test 0 -eq",
+          "expected_exit_code": 0,
+          "description": ""
+        }
+      ],
+      "retry_policy": {
+        "on_failure": "retry"
+      },
+      "tags": [
+        "safety",
+        "circuit-breaker",
+        "state-machine",
+        "P0"
+      ]
+    },
+    {
+      "id": "WP-003",
+      "title": "LLMScheduler — 全局 LLM 请求调度与模型分层路由",
+      "objective": "实现LLM驱动的任务复杂度判断+模型分层路由(simple→flash/haiku, complex→opus)+优先级调度",
+      "budget": {
+        "tokens": 50000,
+        "time_minutes": 30,
+        "max_retries": 3
+      },
+      "complexity": "medium",
+      "model_tier": "claude-opus",
+      "dependencies": [],
+      "priority": "high",
+      "outputs": [
+        {
+          "type": "file",
+          "path": "components/llm_scheduler.py",
+          "description": "LLMScheduler核心实现"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_llm_scheduler.py",
+          "description": "调度器功能测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_model_routing.py",
+          "description": "模型路由准确率测试"
+        }
+      ],
+      "acceptance_criteria": [
+        "L4: 运行 `pytest tests/test_model_routing.py -v`，模型路由准确率验证：(1) 输入 20 个标注好复杂度的任务（simple/medium/complex 各若干），LLM 路由决策与标注一致率 >= 85%；(2) simple 任务路由到 flash/haiku 模型，complex 任务路由到 opus/gpt-4 模型，通过 sessions_spawn model 参数验证实际调用模型",
+        "L4: 运行 `pytest tests/test_llm_scheduler.py -v`，所有用例通过：(1) 优先级队列按优先级排序（high > medium > low）；(2) 路由执行通过 sessions_spawn(model=...) 完成，不存在硬编码路由映射表；(3) LLM 路由决策 prompt 包含任务描述、复杂度判断标准、模型能力描述",
+        "L3: 给定原则 PRINCIPLE-C-002（全LLM控制），审查 WP-003 的实现代码，模型路由决策由 LLM 判断任务复杂度完成，不存在 DEFAULT_ROUTES 等硬编码映射表或 if/else 关键词匹配逻辑",
+        "L3: 给定原则 PRINCIPLE-C-003（OpenClaw平台），审查 WP-003 的实现代码，路由执行通过 sessions_spawn(model=...) + model aliases 完成，不自建 Worker Pool 或令牌桶限流器"
+      ],
+      "acceptance_tests": [
+        {
+          "command": "pytest tests/test_model_routing.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_llm_scheduler.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "grep -rn 'DEFAULT_ROUTES\\|MODEL_MAP\\|hardcoded' components/llm_scheduler.py | wc -l | xargs test 0 -eq",
+          "expected_exit_code": 0,
+          "description": ""
+        }
+      ],
+      "retry_policy": {
+        "on_failure": "retry"
+      },
+      "tags": [
+        "scheduling",
+        "model-routing",
+        "cost-optimization",
+        "P0"
+      ]
+    },
+    {
+      "id": "WP-004",
+      "title": "LoopOrchestrator — 三层循环编排与全局协调",
+      "objective": "实现Task Loop/Dream Loop/Meta-Loop三层循环的LLM驱动状态转换触发与Scatter-Gather协调",
+      "budget": {
+        "tokens": 100000,
+        "time_minutes": 60,
+        "max_retries": 3
+      },
+      "complexity": "critical",
+      "model_tier": "claude-opus",
+      "dependencies": [
+        "WP-003",
+        "WP-005",
+        "WP-008",
+        "WP-011",
+        "WP-009"
+      ],
+      "priority": "high",
+      "outputs": [
+        {
+          "type": "file",
+          "path": "components/loop_orchestrator.py",
+          "description": "LoopOrchestrator核心实现"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_loop_orchestrator.py",
+          "description": "编排器功能测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_three_layer_loop.py",
+          "description": "三层循环状态转换测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_scatter_gather.py",
+          "description": "Scatter-Gather模式验证测试"
+        }
+      ],
+      "acceptance_criteria": [
+        "L4: 运行 `pytest tests/test_three_layer_loop.py -v`，三层循环状态转换验证：(1) Task Loop PRADO 循环（Perceive→Reason→Act→Observe）完整执行至少 5 轮；(2) 空闲检测触发 Dream Loop：模拟 3 轮无新节点 + 15 分钟无活动 + 无活跃子Agent 条件后，Dream Loop 在 30 秒内触发；(3) Meta-Loop 定期触发：配置 N=10 次迭代后 Meta-Loop 自动触发",
+        "L4: 运行 `pytest tests/test_scatter_gather.py -v`，Scatter-Gather 模式验证：(1) Supervisor LLM 分解目标为 DAG 后，Scatter 到最大 6 个并发子Agent（通过 sessions_spawn 验证）；(2) Gather 汇总所有子Agent 结果，缺失结果时触发重试或降级；(3) 端到端执行时间 < 单任务串行时间的 60%（并行加速比验证）",
+        "L3: 编排决策由 LLM 驱动状态机完成：状态转换日志中每个转换决策都有对应的 LLM 调用记录（包含 prompt 和 response），不存在硬编码的 if/else 状态转换逻辑",
+        "L3: 给定原则 PRINCIPLE-C-002（全LLM控制），审查 WP-004 的实现代码，编排决策（状态转换、空闲检测、触发时机）由 LLM 驱动状态机完成，不存在 Python 规则引擎替代 LLM 规划",
+        "L3: 给定原则 PRINCIPLE-C-003（OpenClaw平台），审查 WP-004 的实现代码，子Agent调度通过 sessions_spawn 完成，定时触发通过 cron 完成，不自建编排引擎或心跳机制",
+        "L3: 给定原则 PRINCIPLE-C-001（一步到位），审查 WP-004 的实现代码，Task Loop + Dream Loop + Meta-Loop 三层循环在同一交付中完整实现，不存在分阶段交付的 TODO 标记"
+      ],
+      "acceptance_tests": [
+        {
+          "command": "pytest tests/test_three_layer_loop.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_scatter_gather.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_loop_orchestrator.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "grep -rn 'if.*state.*==' components/loop_orchestrator.py | grep -v 'LLM\\|llm' | wc -l",
+          "expected_exit_code": 0,
+          "description": ""
+        }
+      ],
+      "retry_policy": {
+        "on_failure": "retry"
+      },
+      "tags": [
+        "orchestration",
+        "state-machine",
+        "three-layer-loop",
+        "P0"
+      ]
+    },
+    {
+      "id": "WP-005",
+      "title": "DAGScheduler — 动态 DAG 分解与并行调度",
+      "objective": "实现LLM驱动的目标→DAG分解+拓扑排序验证+最大6并发Scatter-Gather执行+文件冲突检测",
+      "budget": {
+        "tokens": 80000,
+        "time_minutes": 45,
+        "max_retries": 3
+      },
+      "complexity": "high",
+      "model_tier": "claude-opus",
+      "dependencies": [
+        "WP-003",
+        "WP-001"
+      ],
+      "priority": "medium",
+      "outputs": [
+        {
+          "type": "file",
+          "path": "components/dag_scheduler.py",
+          "description": "DAGScheduler核心实现"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_dag_scheduler.py",
+          "description": "DAG调度器功能测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_dag_decomposition.py",
+          "description": "DAG分解质量测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_conflict_detection.py",
+          "description": "文件冲突检测测试"
+        }
+      ],
+      "acceptance_criteria": [
+        "L4: 运行 `pytest tests/test_dag_decomposition.py -v`，DAG 分解质量验证：(1) 输入 5 个不同复杂度的目标描述，LLM 分解出的 DAG 节点数合理（2-15 个节点）；(2) 拓扑排序验证所有分解结果的依赖关系无环（topological_sort 返回成功）；(3) 分解结果包含每个节点的输入/输出文件声明",
+        "L4: 运行 `pytest tests/test_dag_scheduler.py -v`，并行调度验证：(1) 最大 6 并发子Agent 通过 sessions_spawn 调度，并发数不超过限制；(2) 依赖关系正确执行：有依赖的节点等待前置节点完成后才启动；(3) Scatter-Gather 结果汇总完整，所有节点输出合并到最终结果",
+        "L4: 运行 `pytest tests/test_conflict_detection.py -v`，文件级冲突检测验证：(1) 两个节点声明写同一文件时，冲突检测在调度前触发并报错；(2) 动态重规划：执行中某节点失败后，DAG 结构自动调整（跳过依赖节点或重新分解）",
+        "L3: 给定原则 PRINCIPLE-C-002（全LLM控制），审查 WP-005 的实现代码，DAG 分解由 LLM prompt 驱动完成，拓扑排序仅为确定性验证步骤（验证 LLM 输出的 DAG 结构合法），不存在硬编码的任务分解规则",
+        "L3: 给定原则 PRINCIPLE-C-003（OpenClaw平台），审查 WP-005 的实现代码，并发调度通过 sessions_spawn 实现，不自建优先级队列"
+      ],
+      "acceptance_tests": [
+        {
+          "command": "pytest tests/test_dag_decomposition.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_dag_scheduler.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_conflict_detection.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        }
+      ],
+      "retry_policy": {
+        "on_failure": "retry"
+      },
+      "tags": [
+        "dag",
+        "parallel-scheduling",
+        "task-decomposition",
+        "P1"
+      ]
+    },
+    {
+      "id": "WP-006",
+      "title": "QualityHarness — 分层质量门控与偏离检测",
+      "objective": "实现分层质量门控(input/tool/output)+LLM偏离检测+上下文一致性守卫+Evaluator-Optimizer分离",
+      "budget": {
+        "tokens": 80000,
+        "time_minutes": 45,
+        "max_retries": 3
+      },
+      "complexity": "high",
+      "model_tier": "claude-opus",
+      "dependencies": [
+        "WP-001"
+      ],
+      "priority": "medium",
+      "outputs": [
+        {
+          "type": "file",
+          "path": "components/quality_harness.py",
+          "description": "QualityHarness核心实现"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_quality_harness.py",
+          "description": "分层质量门控测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_deviation_detection.py",
+          "description": "偏离检测测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_context_consistency.py",
+          "description": "上下文一致性守卫测试"
+        }
+      ],
+      "acceptance_criteria": [
+        "L4: 运行 `pytest tests/test_quality_harness.py -v`，分层质量门控验证：(1) input 层：注入无效输入（缺失必填字段、格式错误），门控拦截率 100%；(2) tool 层：注入异常工具调用（超时、返回错误），门控拦截并记录；(3) output 层：注入低质量输出（与目标偏离 > 阈值），门控触发回退或重试",
+        "L4: 运行 `pytest tests/test_deviation_detection.py -v`，偏离检测验证：(1) 分层偏移阈值：input 偏移 > 0.3、tool 偏移 > 0.5、output 偏移 > 0.4 分别触发告警（阈值可配置）；(2) 核心指令重现：每 10 轮重新注入核心指令后，偏离检测准确率提升 >= 15%；(3) 决策快照对比：相邻 2 轮决策一致性 < 0.7 时触发告警",
+        "L3: 运行 `pytest tests/test_context_consistency.py -v`，上下文一致性守卫验证：模拟 8 小时长上下文（注入 50 轮历史），一致性守卫检测决策漂移（早期目标 vs 当前决策偏离 > 阈值），触发核心指令重现",
+        "L3: 给定原则 PRINCIPLE-C-002（全LLM控制），审查 WP-006 的实现代码，所有质量判断（偏离检测、质量评估、一致性守卫）均由 LLM 调用完成，Evaluator-Optimizer 分离模式确保评估者和执行者由不同 LLM 调用担任",
+        "L3: 给定原则 PRINCIPLE-C-001（一步到位），审查 WP-006 的实现代码，分层质量门控 + 偏离检测 + 上下文一致性守卫在同一交付中完整实现"
+      ],
+      "acceptance_tests": [
+        {
+          "command": "pytest tests/test_quality_harness.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_deviation_detection.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_context_consistency.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        }
+      ],
+      "retry_policy": {
+        "on_failure": "retry"
+      },
+      "tags": [
+        "quality",
+        "deviation-detection",
+        "quality-gates",
+        "P0"
+      ]
+    },
+    {
+      "id": "WP-007",
+      "title": "ContextCompressor — 层级摘要压缩与核心指令重现",
+      "objective": "实现LLM驱动的层级摘要压缩(每5轮)+决策一致性摘要+核心指令重现(每10轮)",
+      "budget": {
+        "tokens": 50000,
+        "time_minutes": 30,
+        "max_retries": 3
+      },
+      "complexity": "medium",
+      "model_tier": "claude-sonnet",
+      "dependencies": [
+        "WP-001"
+      ],
+      "priority": "medium",
+      "outputs": [
+        {
+          "type": "file",
+          "path": "components/context_compressor.py",
+          "description": "ContextCompressor核心实现"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_context_compressor.py",
+          "description": "层级摘要压缩与核心指令重现测试"
+        }
+      ],
+      "acceptance_criteria": [
+        "L4: 运行 `pytest tests/test_context_compressor.py -v`，层级摘要压缩验证：(1) 每 5 轮触发压缩，压缩后 token 数减少 50-80%（压缩前 10000 tokens → 压缩后 2000-5000 tokens）；(2) 压缩后关键决策点保留率 >= 90%（通过注入 20 轮对话并检查关键决策是否保留验证）；(3) 只增不删原则：压缩后信息量（关键决策+核心指令+最近 3 轮完整上下文）不减少",
+        "L3: 核心指令重现验证：每 10 轮重新注入核心指令后，后续 5 轮内 LLM 对核心指令的遵循度（通过 LLM 评估打分）>= 0.9，未重现时遵循度下降不超过 0.2",
+        "L3: 给定原则 PRINCIPLE-C-002（全LLM控制），审查 WP-007 的实现代码，压缩决策（保留什么、丢弃什么、如何摘要）由 LLM 完成，不存在硬编码的摘要规则或关键词提取逻辑",
+        "L3: 给定原则 PRINCIPLE-C-003（OpenClaw平台），审查 WP-007 的实现代码，复用 OpenClaw session 上下文管理能力，不自建上下文压缩器或 context window 管理器"
+      ],
+      "acceptance_tests": [
+        {
+          "command": "pytest tests/test_context_compressor.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "grep -rn 'summarize_rule\\|extract_keyword\\|hardcoded_summary' components/context_compressor.py | wc -l | xargs test 0 -eq",
+          "expected_exit_code": 0,
+          "description": ""
+        }
+      ],
+      "retry_policy": {
+        "on_failure": "retry"
+      },
+      "tags": [
+        "context-management",
+        "compression",
+        "consistency",
+        "P1"
+      ]
+    },
+    {
+      "id": "WP-008",
+      "title": "DreamLoopValidator — 三层反思验证与权重衰减",
+      "objective": "实现L1轨迹关联+L1.5交叉验证+L2应用效果追踪三层反思验证+权重衰减机制",
+      "budget": {
+        "tokens": 80000,
+        "time_minutes": 45,
+        "max_retries": 3
+      },
+      "complexity": "high",
+      "model_tier": "claude-opus",
+      "dependencies": [
+        "WP-001"
+      ],
+      "priority": "medium",
+      "outputs": [
+        {
+          "type": "file",
+          "path": "components/dream_loop_validator.py",
+          "description": "DreamLoopValidator核心实现"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_dream_loop_validator.py",
+          "description": "权重衰减机制测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_three_layer_validation.py",
+          "description": "三层反思验证测试"
+        }
+      ],
+      "acceptance_criteria": [
+        "L4: 运行 `pytest tests/test_three_layer_validation.py -v`，三层验证验证：(1) L1 轨迹关联：注入 10 条反思教训，每条都能追溯到具体执行轨迹（轨迹 ID 匹配率 100%）；(2) L1.5 交叉验证：通过反向搜索 prompt 验证教训一致性，不一致教训标记为 contested；(3) L2 应用效果追踪：教训在后续任务中应用后，效果追踪记录正面/负面结果",
+        "L4: 运行 `pytest tests/test_dream_loop_validator.py -v`，权重衰减机制验证：(1) 新教训初始权重 1.0；(2) 经过 L1.5 验证后未通过教训权重降为 0.5；(3) L2 追踪负面效果后权重降为 0.3；(4) 长期未应用教训权重降为 0.1；(5) 权重衰减只降不删：任何教训都不会从 memory 中删除（memory 条目数只增不减）",
+        "L3: 幻觉教训防护验证：注入 5 条与执行轨迹无关的幻觉教训，L1 轨迹关联验证拦截率 >= 80%（至少 4 条被识别为无关联）",
+        "L3: 给定原则 PRINCIPLE-C-002（全LLM控制），审查 WP-008 的实现代码，Dream Loop 反思和验证全部由 LLM 完成，不存在硬编码的关键词匹配或规则判断替代 LLM 语义理解",
+        "L3: 给定原则 PRINCIPLE-C-003（OpenClaw平台），审查 WP-008 的实现代码，教训存储通过 OpenClaw memory 系统完成，不自建 Blackboard"
+      ],
+      "acceptance_tests": [
+        {
+          "command": "pytest tests/test_three_layer_validation.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_dream_loop_validator.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "grep -rn 'keyword_match\\|regex_check' components/dream_loop_validator.py | wc -l | xargs test 0 -eq",
+          "expected_exit_code": 0,
+          "description": ""
+        }
+      ],
+      "retry_policy": {
+        "on_failure": "retry"
+      },
+      "tags": [
+        "dream-loop",
+        "validation",
+        "memory-management",
+        "P1"
+      ]
+    },
+    {
+      "id": "WP-009",
+      "title": "NotificationManager — 进度通知与 HITL 超时升级",
+      "objective": "实现每小时进度推送+关键事件实时通知+成本摘要+HITL 24小时超时升级",
+      "budget": {
+        "tokens": 10000,
+        "time_minutes": 15,
+        "max_retries": 2
+      },
+      "complexity": "trivial",
+      "model_tier": "qwen-max",
+      "dependencies": [],
+      "priority": "low",
+      "outputs": [
+        {
+          "type": "file",
+          "path": "components/notification_manager.py",
+          "description": "NotificationManager核心实现"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_notification_manager.py",
+          "description": "通知功能测试"
+        }
+      ],
+      "acceptance_criteria": [
+        "L4: 运行 `pytest tests/test_notification_manager.py -v`，所有用例通过：(1) 每小时进度通知：cron 触发后飞书消息发送成功（message action='send' channel='feishu' 调用记录存在）；(2) 关键事件通知：熔断触发/质量门控失败/任务完成事件在 30 秒内推送通知；(3) 成本摘要：通知包含 token 消耗、模型分布、优化效果三项信息",
+        "L3: HITL 超时升级验证：模拟 HITL 请求后 24 小时无响应，升级处理自动触发（升级通知发送到指定渠道），升级日志记录完整（请求时间、超时时间、升级时间）",
+        "L3: 给定原则 PRINCIPLE-C-003（OpenClaw平台），审查 WP-009 的实现代码，完全复用 OpenClaw message(action='send', channel='feishu') + cron，不自建通知系统或 HITL 通知机制"
+      ],
+      "acceptance_tests": [
+        {
+          "command": "pytest tests/test_notification_manager.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "grep -rn 'smtplib\\|SMTP\\|custom_notification' components/notification_manager.py | wc -l | xargs test 0 -eq",
+          "expected_exit_code": 0,
+          "description": ""
+        }
+      ],
+      "retry_policy": {
+        "on_failure": "skip"
+      },
+      "tags": [
+        "notification",
+        "hitl",
+        "progress-reporting",
+        "P1"
+      ]
+    },
+    {
+      "id": "WP-010",
+      "title": "DecisionBenchmark — LLM 决策质量基准测试与持续校准",
+      "objective": "实现双轨制基准集(历史+合成)+LLM决策质量评估+Bootstrap标注+Jaccard/Cohen's Kappa校准",
+      "budget": {
+        "tokens": 50000,
+        "time_minutes": 30,
+        "max_retries": 3
+      },
+      "complexity": "medium",
+      "model_tier": "claude-sonnet",
+      "dependencies": [
+        "WP-006"
+      ],
+      "priority": "low",
+      "outputs": [
+        {
+          "type": "file",
+          "path": "components/decision_benchmark.py",
+          "description": "DecisionBenchmark核心实现"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_decision_benchmark.py",
+          "description": "基准集功能测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_benchmark_calibration.py",
+          "description": "持续校准验证测试"
+        },
+        {
+          "type": "file",
+          "path": "benchmarks/track2_synthetic_cases.json",
+          "description": "Track 2合成案例集"
+        }
+      ],
+      "acceptance_criteria": [
+        "L4: 运行 `pytest tests/test_decision_benchmark.py -v`，双轨制基准集验证：(1) Track 2 合成案例冷启动：生成 >= 20 个合成案例（DAG分解/质量评估/偏离检测各若干），每个案例包含输入、期望输出、评估标准；(2) LLM 决策质量评估：对 20 个案例执行评估，输出 DAG 分解质量分、质量评估准确性分、偏离检测精度分（每项 0-1 分）",
+        "L4: 运行 `pytest tests/test_benchmark_calibration.py -v`，持续校准验证：(1) Jaccard 相似度计算：LLM 输出与期望输出的集合相似度 >= 0.6 为 PASS；(2) Cohen's Kappa 系数：LLM 评估与人工评估一致性 Kappa >= 0.5（moderate agreement）；(3) Bootstrap 标注：自动标注 10 个案例，标注准确率 >= 70%（与人工标注对比）",
+        "L3: 给定原则 PRINCIPLE-C-002（全LLM控制），审查 WP-010 的实现代码，基准测试的评估和校准由 LLM 完成，统计指标（Jaccard/Kappa）仅为度量工具，不存在硬编码的评分规则替代 LLM 评估"
+      ],
+      "acceptance_tests": [
+        {
+          "command": "pytest tests/test_decision_benchmark.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_benchmark_calibration.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "python -c \"import json; cases=json.load(open('benchmarks/track2_synthetic_cases.json')); assert len(cases) >= 20\"",
+          "expected_exit_code": 0,
+          "description": ""
+        }
+      ],
+      "retry_policy": {
+        "on_failure": "retry"
+      },
+      "tags": [
+        "benchmark",
+        "calibration",
+        "decision-quality",
+        "P2"
+      ]
+    },
+    {
+      "id": "WP-011",
+      "title": "MetaLoopTuner — Zone 2 参数自动调优与防回归",
+      "objective": "实现LLM驱动的Zone 2参数自动调优(模型路由阈值/压缩间隔/重试上限/并行度)+Self-Harness防回归",
+      "budget": {
+        "tokens": 80000,
+        "time_minutes": 45,
+        "max_retries": 3
+      },
+      "complexity": "high",
+      "model_tier": "claude-opus",
+      "dependencies": [
+        "WP-003",
+        "WP-007",
+        "WP-002",
+        "WP-005"
+      ],
+      "priority": "low",
+      "outputs": [
+        {
+          "type": "file",
+          "path": "components/meta_loop_tuner.py",
+          "description": "MetaLoopTuner核心实现"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_meta_loop_tuner.py",
+          "description": "MetaLoopTuner功能测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_self_harness.py",
+          "description": "Self-Harness防回归测试"
+        },
+        {
+          "type": "test",
+          "path": "tests/test_parameter_tuning.py",
+          "description": "Zone 2参数调优验证测试"
+        }
+      ],
+      "acceptance_criteria": [
+        "L4: 运行 `pytest tests/test_parameter_tuning.py -v`，Zone 2 参数调优验证：(1) 模型路由阈值调优：LLM 分析历史路由日志后输出新阈值，新阈值在合理范围内（simple 阈值 0.2-0.5，complex 阈值 0.7-0.9）；(2) 压缩间隔调优：LLM 根据上下文漂移数据调整压缩间隔（5-15 轮范围）；(3) 重试上限调优：LLM 根据失败率数据调整重试上限（1-5 次范围）；(4) 并行度调优：LLM 根据关键路径分析调整并行度（2-6 范围）",
+        "L4: 运行 `pytest tests/test_self_harness.py -v`，Self-Harness 防回归验证：(1) 失败轨迹→测试用例：注入 3 条失败轨迹，自动生成 3 个对应测试用例；(2) 修复→评估：修复后运行回归测试套件，所有测试通过（PASS rate 100%）；(3) 调优前后对比：调优后性能指标（成本/质量/速度）不劣于调优前（防回归）",
+        "L3: 给定原则 PRINCIPLE-C-002（全LLM控制），审查 WP-011 的实现代码，参数调优决策由 LLM 完成（Self-Harness 式），不存在硬编码的调优规则或 Python 规则引擎替代 LLM 规划",
+        "L3: 给定原则 PRINCIPLE-C-001（一步到位），审查 WP-011 的实现代码，参数调优 + 防回归测试完整闭环在同一交付中实现"
+      ],
+      "acceptance_tests": [
+        {
+          "command": "pytest tests/test_parameter_tuning.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_self_harness.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "pytest tests/test_meta_loop_tuner.py -v --tb=short",
+          "expected_exit_code": 0,
+          "description": ""
+        },
+        {
+          "command": "grep -rn 'tuning_rule\\|hardcoded_threshold\\|rule_engine' components/meta_loop_tuner.py | wc -l | xargs test 0 -eq",
+          "expected_exit_code": 0,
+          "description": ""
+        }
+      ],
+      "retry_policy": {
+        "on_failure": "retry"
+      },
+      "tags": [
+        "self-optimization",
+        "parameter-tuning",
+        "regression-prevention",
+        "P2"
+      ]
+    }
+  ],
+  "dependency_graph": {
+    "execution_order": [
+      "WP-001",
+      "WP-003",
+      "WP-009",
+      "WP-002",
+      "WP-005",
+      "WP-006",
+      "WP-007",
+      "WP-008",
+      "WP-010",
+      "WP-011",
+      "WP-004"
+    ],
+    "parallel_groups": [
+      [
+        "WP-001",
+        "WP-003",
+        "WP-009"
+      ],
+      [
+        "WP-002",
+        "WP-005",
+        "WP-006",
+        "WP-007",
+        "WP-008"
+      ],
+      [
+        "WP-010",
+        "WP-011"
+      ],
+      [
+        "WP-004"
+      ]
+    ],
+    "critical_path": [
+      "WP-001",
+      "WP-002",
+      "WP-011",
+      "WP-004"
+    ],
+    "edges": [
+      {
+        "from": "WP-002",
+        "to": "WP-001"
+      },
+      {
+        "from": "WP-005",
+        "to": "WP-003"
+      },
+      {
+        "from": "WP-005",
+        "to": "WP-001"
+      },
+      {
+        "from": "WP-006",
+        "to": "WP-001"
+      },
+      {
+        "from": "WP-007",
+        "to": "WP-001"
+      },
+      {
+        "from": "WP-008",
+        "to": "WP-001"
+      },
+      {
+        "from": "WP-010",
+        "to": "WP-006"
+      },
+      {
+        "from": "WP-011",
+        "to": "WP-003"
+      },
+      {
+        "from": "WP-011",
+        "to": "WP-007"
+      },
+      {
+        "from": "WP-011",
+        "to": "WP-002"
+      },
+      {
+        "from": "WP-011",
+        "to": "WP-005"
+      },
+      {
+        "from": "WP-004",
+        "to": "WP-003"
+      },
+      {
+        "from": "WP-004",
+        "to": "WP-005"
+      },
+      {
+        "from": "WP-004",
+        "to": "WP-008"
+      },
+      {
+        "from": "WP-004",
+        "to": "WP-011"
+      },
+      {
+        "from": "WP-004",
+        "to": "WP-009"
+      }
+    ]
+  },
+  "risk_register": [
+    {
+      "id": "RISK-001",
+      "title": "LLM长上下文决策一致性漂移",
+      "description": "8h运行中LLM可能丢失早期目标或产生决策漂移",
+      "severity": "high",
+      "likelihood": "likely",
+      "mitigation": "上下文一致性守卫(分层偏移阈值+核心指令重现+决策快照对比)+Dream Loop定期压缩上下文",
+      "owned_by_wp": "WP-006"
+    },
+    {
+      "id": "RISK-002",
+      "title": "LLM决策质量不稳定",
+      "description": "DAG分解/质量评估/偏离检测等关键决策可能不可靠",
+      "severity": "high",
+      "likelihood": "possible",
+      "mitigation": "Decision Quality Benchmark基准测试+多次采样投票回退+规则+LLM混合模式降级",
+      "owned_by_wp": "WP-010"
+    },
+    {
+      "id": "RISK-003",
+      "title": "Blackboard并发安全",
+      "description": "6子Agent高频写入可能导致数据丢失或不一致",
+      "severity": "high",
+      "likelihood": "possible",
+      "mitigation": "fcntl.flock文件锁(per-stage粒度)+原子写入+写入合并+读缓存+SQLite升级路径",
+      "owned_by_wp": "WP-001"
+    },
+    {
+      "id": "RISK-004",
+      "title": "Dream Loop幻觉教训污染长期记忆",
+      "description": "错误经验教训持续影响后续决策质量",
+      "severity": "medium",
+      "likelihood": "possible",
+      "mitigation": "三层验证协议(L1轨迹关联+L1.5交叉验证+L2效果追踪)+权重衰减(不删除)",
+      "owned_by_wp": "WP-008"
+    },
+    {
+      "id": "RISK-005",
+      "title": "子Agent失败级联",
+      "description": "关键路径子Agent失败导致整体任务停滞",
+      "severity": "medium",
+      "likelihood": "possible",
+      "mitigation": "指数退避重试+模型降级链+关键路径fallback+人工上报链路",
+      "owned_by_wp": "WP-004"
+    },
+    {
+      "id": "RISK-006",
+      "title": "Hermes对等协作协议未定义",
+      "description": "双向通信缺乏规范导致协作失败",
+      "severity": "medium",
+      "likelihood": "likely",
+      "mitigation": "基于Blackboard的消息通道+权限分离+通信协议设计",
+      "owned_by_wp": "WP-004"
+    },
+    {
+      "id": "RISK-007",
+      "title": "Dream Loop memory存储膨胀",
+      "description": "长期运行存储增长影响检索性能",
+      "severity": "low",
+      "likelihood": "unlikely",
+      "mitigation": "总结压缩+归档到cold storage+定期索引优化",
+      "owned_by_wp": "WP-008"
+    },
+    {
+      "id": "RISK-008",
+      "title": "平台锁定(OpenClaw)",
+      "description": "OpenClaw能力不足或方向调整导致重构",
+      "severity": "low",
+      "likelihood": "unlikely",
+      "mitigation": "抽象层设计+接口隔离+核心逻辑与平台解耦",
+      "owned_by_wp": "WP-004"
+    }
+  ],
+  "summary": {
+    "total_wps": 11,
+    "estimated_effort": "约7.25小时（串行）/ 约4小时（并行）",
+    "total_token_budget": 740000,
+    "total_time_minutes": 435,
+    "parallel_time_minutes": 240,
+    "complexity_distribution": {
+      "trivial": 1,
+      "low": 0,
+      "medium": 3,
+      "high": 6,
+      "critical": 1
+    },
+    "narrative": "本项目包含11个工作包，覆盖从基础设施（Blackboard、熔断器）到编排层（LoopOrchestrator）再到优化层（MetaLoopTuner、DecisionBenchmark）的完整三层自主循环架构。关键路径为WP-001→WP-002→WP-011→WP-004。建议优先完成P0基础设施组件，然后并行推进P1增强组件。",
+    "immediate_next_steps": [
+      "实现WP-001 BlackboardCheckpoint（原子写入+并发锁+分级checkpoint）",
+      "实现WP-003 LLMScheduler（模型分层路由+优先级调度）",
+      "实现WP-009 NotificationManager（进度通知+HITL升级）",
+      "三者无依赖，可并行启动"
+    ]
+  },
+  "quality_report": {
+    "verdict": "PASS_WITH_CONDITIONS",
+    "ac_verifiability_score": 67.3,
+    "coverage_rate": 1.0,
+    "dependency_sanity": "ok",
+    "module_coverage": {
+      "total_modules": 11,
+      "covered_modules": 11,
+      "coverage_percentage": 100
+    },
+    "requirements_coverage": {
+      "total_requirements": 1,
+      "covered_requirements": 1,
+      "coverage_percentage": 100
+    },
+    "issues": [
+      {
+        "target_agent": "specifier",
+        "severity": "medium",
+        "description": "WP-006 QualityHarness 存在自标注的 [CONSTRAINT_GAP]：blueprint SLA 约束中提到质量评分 >=0.8，但 Harness 内部各层（input/tool/output）的细粒度阈值未明确。",
+        "affected_wp": "WP-006"
+      },
+      {
+        "target_agent": "architect",
+        "severity": "medium",
+        "description": "Hermes 对等协作协议在 blueprint 中被明确列为 Phase 3 任务，但 Architect 未为其创建独立模块（COMP），Decomposer 和 Specifier 也未生成对应 WP。功能完整性存在缺口。",
+        "affected_wp": "WP-004"
+      },
+      {
+        "target_agent": "specifier",
+        "severity": "low",
+        "description": "多数 WP 的 acceptance_criteria 处于 L3 级别，仅 pytest 命令达到 L4 级别。整体 AC 可验证性平均分 67.3，未达到 PASS 阈值 80。",
+        "affected_wp": "WP-002,WP-003,WP-004,WP-005,WP-006,WP-007,WP-008,WP-009,WP-010,WP-011"
+      },
+      {
+        "target_agent": "decomposer",
+        "severity": "low",
+        "description": "WP-004 LoopOrchestrator 的依赖列表包含 WP-005/WP-008/WP-011/WP-009（被它编排的组件），形成强耦合，可能导致关键路径过长。",
+        "affected_wp": "WP-004"
+      },
+      {
+        "target_agent": "specifier",
+        "severity": "low",
+        "description": "WP-011 MetaLoopTuner 的 AC5 仅为 L2 级别，提及具体模块但无量化阈值。",
+        "affected_wp": "WP-011"
+      }
+    ],
+    "principle_audit": [
+      {
+        "principle_id": "PRINCIPLE-C-001",
+        "principle_name": "一步到位",
+        "overall_status": "PASS"
+      },
+      {
+        "principle_id": "PRINCIPLE-C-002",
+        "principle_name": "全LLM控制",
+        "overall_status": "PASS"
+      },
+      {
+        "principle_id": "PRINCIPLE-C-003",
+        "principle_name": "OpenClaw平台",
+        "overall_status": "PASS"
+      },
+      {
+        "principle_id": "PRINCIPLE-C-008",
+        "principle_name": "死循环熔断",
+        "overall_status": "PASS"
+      }
+    ],
+    "platform_audit": [
+      {
+        "platform_capability": "子Agent调度",
+        "api": "sessions_spawn",
+        "overall_status": "PASS"
+      },
+      {
+        "platform_capability": "模型路由",
+        "api": "sessions_spawn(model=...) + model aliases",
+        "overall_status": "PASS"
+      },
+      {
+        "platform_capability": "定时调度",
+        "api": "cron",
+        "overall_status": "PASS"
+      },
+      {
+        "platform_capability": "持久记忆",
+        "api": "memory_get/search + workspace 文件系统",
+        "overall_status": "PASS"
+      },
+      {
+        "platform_capability": "消息通知",
+        "api": "message(action='send', channel='feishu')",
+        "overall_status": "PASS"
+      },
+      {
+        "platform_capability": "会话上下文管理",
+        "api": "sessions_spawn 天然隔离 + context='fork'",
+        "overall_status": "PASS"
+      }
+    ]
+  }
+}
