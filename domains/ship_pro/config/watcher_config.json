@@ -39,11 +39,16 @@
             "name": "Packager",
             "seq": 5,
             "icon": "📦"
+          },
+          "judge": {
+            "name": "Judge",
+            "seq": 6,
+            "icon": "👨⚖️"
           }
         }
       }
     ],
-    "total_stages": 5,
+    "total_stages": 6,
     "final_artifact": "packager"
   },
   "stage_symbols": {

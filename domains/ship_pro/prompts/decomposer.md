@@ -213,6 +213,12 @@ tags: [ship_pro, prompt, decomposition, work_package]
 4. **优先级合理**：`high` 优先级的 WP 是否都是关键路径上的基础设施？
 5. **source_modules 合法**：每个 `source_modules` 中的 ID 是否都能在 blueprint.components 中找到？
 6. **WP 粒度**：是否有 WP 过大（包含 >3 个独立职责）？如果有，是否已拆分？
+7. **原则一致性检查**：对于每个 WP 的每个 serving_principle，检查 `obligation` 是否与该 principle 的 `anti_patterns` 矛盾。具体方法：
+   - 如果 PRINCIPLE-C-XXX 的 anti_patterns 包含"自建 YYY"
+   - 且 obligation 要求"YYY 必须在同一交付中实现"或包含 YYY 关键词
+   - **则必须修改 obligation**：改为"通过 OpenClaw 原生能力实现 YYY 相关功能，不自建"
+   - 如果 obligation 与 anti_patterns 完全矛盾，说明上游 Architect 输出有问题，在 risk_flags 中标注
+8. **优先级/复杂度一致性**：如果 WP 的 complexity 为 critical，则 priority 不能是 low。如果 complexity 为 critical 且 priority 为 medium，在 rationale 中解释原因。
 
 **不通过** → 在输出中设置 `"self_check": {"passed": false, "issues": ["<具体问题>"]}`，并尽力修复后再输出。
 

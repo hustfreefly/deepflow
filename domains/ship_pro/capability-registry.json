@@ -1,0 +1,300 @@
+{
+  "schema_version": "capability-registry-v4.1",
+  "capabilities": {
+    "architect": {
+      "id": "architect",
+      "category": "architecture",
+      "description": "从 Solution Pro 输出中提取统一架构描述，生成 blueprint.json",
+      "input_schema": {
+        "required": [
+          "input"
+        ],
+        "optional": []
+      },
+      "output_schema": {
+        "file": "architect",
+        "fields": [
+          "_meta",
+          "project_type",
+          "project",
+          "modules",
+          "dependencies",
+          "architecture_principles",
+          "platform_capabilities",
+          "principle_coverage",
+          "platform_reuse_map",
+          "domain_details",
+          "sla_constraints",
+          "requirements",
+          "risks",
+          "implementation_hints",
+          "wp_file_mapping"
+        ]
+      },
+      "max_retries": 2,
+      "timeout_minutes": 10,
+      "quality_dimensions": [
+        "completeness",
+        "consistency",
+        "feasibility"
+      ],
+      "gate_fn": "gate_architect",
+      "worker_prompt": "prompts/architect.md"
+    },
+    "decomposer": {
+      "id": "decomposer",
+      "category": "decomposition",
+      "description": "将架构蓝图分解为可执行工作包（DAG 结构）",
+      "input_schema": {
+        "required": [
+          "architect"
+        ],
+        "optional": [
+          "input"
+        ]
+      },
+      "output_schema": {
+        "file": "decomposer",
+        "fields": [
+          "_meta",
+          "work_packages",
+          "dependency_edges",
+          "integration_checkpoints",
+          "self_check",
+          "module_coverage_verification"
+        ]
+      },
+      "max_retries": 2,
+      "timeout_minutes": 10,
+      "quality_dimensions": [
+        "granularity",
+        "dependency_clarity",
+        "completeness"
+      ],
+      "gate_fn": "gate_decomposer",
+      "worker_prompt": "prompts/decomposer.md"
+    },
+    "specifier": {
+      "id": "specifier",
+      "category": "specification",
+      "description": "为工作包生成详细技术规格（含结构化 AC）",
+      "input_schema": {
+        "required": [
+          "architect",
+          "decomposer"
+        ],
+        "optional": [
+          "input"
+        ]
+      },
+      "output_schema": {
+        "file": "specifier",
+        "fields": [
+          "_meta",
+          "work_packages",
+          "self_check"
+        ]
+      },
+      "max_retries": 2,
+      "timeout_minutes": 10,
+      "quality_dimensions": [
+        "precision",
+        "testability",
+        "completeness"
+      ],
+      "gate_fn": "gate_specifier",
+      "worker_prompt": "prompts/specifier.md"
+    },
+    "reviewer": {
+      "id": "reviewer",
+      "category": "review",
+      "description": "独立评审所有产出物的质量（含原则审计 + 平台审计）",
+      "input_schema": {
+        "required": [
+          "architect",
+          "decomposer",
+          "specifier"
+        ],
+        "optional": [
+          "input"
+        ]
+      },
+      "output_schema": {
+        "file": "reviewer",
+        "fields": [
+          "_meta",
+          "verdict",
+          "round",
+          "issues",
+          "quality_metrics",
+          "principle_audit",
+          "platform_audit",
+          "summary"
+        ]
+      },
+      "max_retries": 5,
+      "timeout_minutes": 10,
+      "quality_dimensions": [
+        "thoroughness",
+        "actionability"
+      ],
+      "gate_fn": "gate_reviewer",
+      "worker_prompt": "prompts/reviewer.md"
+    },
+    "packager": {
+      "id": "packager",
+      "category": "package",
+      "description": "打包最终 Ship Package（三层质量报告 + 内置 Normalizer 格式修正）",
+      "input_schema": {
+        "required": [
+          "architect",
+          "specifier",
+          "reviewer",
+          "judge"
+        ],
+        "optional": [
+          "decomposer"
+        ]
+      },
+      "output_schema": {
+        "file": "packager",
+        "fields": [
+          "schema_version",
+          "meta",
+          "project_context",
+          "work_packages",
+          "dependency_graph",
+          "risk_register",
+          "summary",
+          "quality_report"
+        ]
+      },
+      "max_retries": 2,
+      "timeout_minutes": 5,
+      "quality_dimensions": [
+        "completeness",
+        "consistency",
+        "schema_compliance"
+      ],
+      "gate_fn": "gate_packager",
+      "worker_prompt": "prompts/packager.md"
+    },
+    "judge": {
+      "id": "judge",
+      "category": "judge",
+      "description": "独立 Judge Worker — 对抗性评审，找出 Top-3 风险",
+      "input_schema": {
+        "required": [
+          "architect",
+          "decomposer",
+          "specifier",
+          "reviewer"
+        ],
+        "optional": [
+          "input"
+        ]
+      },
+      "output_schema": {
+        "file": "judge",
+        "fields": [
+          "_meta",
+          "verdict",
+          "risks",
+          "cross_validation",
+          "downstream_consumability"
+        ]
+      },
+      "max_retries": 1,
+      "timeout_minutes": 10,
+      "quality_dimensions": [
+        "risk_detection",
+        "cross_validation"
+      ],
+      "gate_fn": "gate_judge",
+      "worker_prompt": "prompts/ship_judge.md"
+    },
+    "fixer": {
+      "id": "fixer",
+      "category": "fixer",
+      "description": "架构矛盾修复专家 — 分析 Judge 发现的 critical 矛盾并提出修复方案",
+      "input_schema": {
+        "required": [
+          "judge",
+          "packager"
+        ],
+        "optional": [
+          "architect",
+          "decomposer",
+          "specifier",
+          "reviewer"
+        ]
+      },
+      "output_schema": {
+        "file": "fixer",
+        "fields": [
+          "_meta",
+          "fixes",
+          "updated_package",
+          "remaining_issues"
+        ]
+      },
+      "max_retries": 2,
+      "timeout_minutes": 10,
+      "quality_dimensions": [
+        "fix_completeness",
+        "minimal_impact",
+        "traceability"
+      ],
+      "gate_fn": "gate_fixer",
+      "worker_prompt": "prompts/fixer.md"
+    }
+  },
+  "constraints": {
+    "required_coverage": [
+      "architecture",
+      "review",
+      "package",
+      "judge"
+    ],
+    "budget_minutes": 30,
+    "max_total_retries": 15,
+    "max_parallel_workers": 3
+  },
+  "reference_plans": {
+    "standard": {
+      "description": "标准管线（推荐路径，可偏离）",
+      "steps": [
+        "architect",
+        "decomposer",
+        "specifier",
+        "reviewer",
+        "judge",
+        "packager",
+        "fixer"
+      ],
+      "parallel_hints": [
+        {
+          "group": [
+            "decomposer",
+            "reviewer"
+          ],
+          "note": "两者输入不冲突，可并行"
+        }
+      ],
+      "skip_conditions": {
+        "specifier": "当 Living Spec 已包含详细规格时可跳过",
+        "decomposer": "当任务足够简单、无需分解时可跳过"
+      }
+    },
+    "quick_review": {
+      "description": "快速评审（仅适用于小改动）",
+      "steps": [
+        "reviewer",
+        "packager",
+        "judge"
+      ],
+      "parallel_hints": [],
+      "skip_conditions": {}
+    }
+  }
+}

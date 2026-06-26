@@ -11,7 +11,7 @@ Packager Agent 输出契约 (ShipPackage) — 唯一真相源
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -250,7 +250,7 @@ class ShipPackage(BaseModel):
     所有 Prompt 中的输出格式和 Gate 中的字段检查都应从此模型派生。
     """
 
-    schema_version: Literal["3.0.0"]
+    schema_version: Literal["3.0.0", "3.1.0"]
     meta: PackageMeta
     project_context: ProjectContext
     work_packages: list[WorkPackage] = Field(min_length=1)
@@ -258,6 +258,12 @@ class ShipPackage(BaseModel):
     risk_register: list[RiskRegisterItem] = Field(default_factory=list)
     summary: PackageSummary
     quality_report: QualityReport = Field(default_factory=QualityReport)
+
+    # V3 Extras (AI Native, from 3-expert review 2026-06-26)
+    api_conventions: Optional[dict[str, Any]] = None
+    integration_tests: Optional[list[dict[str, Any]]] = None
+    error_handling_principles: Optional[dict[str, Any]] = None
+    environment: Optional[dict[str, Any]] = None
 
     model_config = {"extra": "forbid"}
 

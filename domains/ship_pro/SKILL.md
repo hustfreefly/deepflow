@@ -1,9 +1,9 @@
-# Ship Pro V4 - Agent 执行指南
+# Ship Pro V4.0 — Agent 执行指南
 
-> **版本**: V4.0 | **最后更新**: 2026-06-25  
-> **架构**: Orchestrator 模式 + run_pipeline.py CLI + Cron Watcher  
-> **核心理念**: 主 Agent 只负责启动，Orchestrator 编排 5 Worker，Watcher 通知进度  
-> **CLI 引擎**: `run_pipeline.py`（prepare/task/gate/update-status/validate）
+> **版本**: V4.0.0 | **最后更新**: 2026-06-26  
+> **架构**: Generator + Judge 两阶段闭环 + Orchestrator 模式  
+> **CLI 引擎**: `run_pipeline.py`（prepare/task/gate/next/fix-context/validate/status/finalize）  
+> **替代**: V3.1 的 6-Agent 线性管线（Architect→Decomposer→Specifier→Packager→Reviewer）
 
 ---
 
@@ -17,14 +17,20 @@
   └── sessions_yield() → 等待完成通知
 
 orchestrator (sub-agent, depth=1)
-  ├── run_pipeline.py prepare → 初始化 blackboard
-  └── 对 5 个 agent 循环:
-      ├── run_pipeline.py task → 构建 worker prompt
-      ├── sessions_spawn(worker) → 启动 worker
-      ├── sessions_yield() → 等待 worker 完成
-      ├── run_pipeline.py gate → 质量门禁验证
-      ├── run_pipeline.py update-status → 更新状态
-      └── 继续下一个 agent
+  ├── exec: run_pipeline.py prepare → 初始化
+  └── 循环 (max 3 轮):
+      ├── exec: run_pipeline.py task generator → 构建 prompt
+      ├── sessions_spawn(generator_worker) → 启动 Generator
+      ├── sessions_yield() → 等待完成
+      ├── exec: run_pipeline.py gate generator → Pydantic 门控
+      ├── exec: run_pipeline.py task judge → 构建 prompt
+      ├── sessions_spawn(judge_worker) → 启动 Judge
+      ├── sessions_yield() → 等待完成
+      ├── exec: run_pipeline.py gate judge → Pydantic 门控
+      └── exec: run_pipeline.py next → 状态机决策:
+          ├── validate → 管线完成
+          ├── fix_and_rerun → fix-context → 下一轮
+          └── spawn → gate 失败需重试
   └── 写 .completed → 完成
 
 cron watcher (isolated, 每 3 分钟)
@@ -32,16 +38,16 @@ cron watcher (isolated, 每 3 分钟)
   └── 检测 .completed → 最终报告 → cron 自删
 ```
 
-### 与 Solution Pro 的一致性
+### V3.1 vs V4.0 对比
 
-| 设计要素 | Solution Pro | Ship Pro |
-|---------|-------------|----------|
-| 主 Agent 职责 | 启动 + yield | 启动 + yield |
-| 编排层 | Orchestrator sub-agent | Orchestrator sub-agent |
-| Worker 调度 | sessions_spawn + yield | sessions_spawn + yield |
-| CLI 工具 | `run_solution_pro()` | `run_pipeline.py` |
-| 进度通知 | Cron Watcher | Cron Watcher |
-| 退出机制 | 三层（正常/超时/兜底） | 三层（正常/超时/兜底） |
+| 维度 | V3.1 (6-Agent 线性) | V4.0 (2-Agent 闭环) |
+|------|---------------------|---------------------|
+| Agent 数量 | 5+1 (Architect, Decomposer, Specifier, Packager, Reviewer) | 2 (Generator, Judge) |
+| 单轮 LLM 调用 | 5 次 | 2 次 |
+| 3 轮总调用 | 15 次 | 6 次 |
+| 信息保真度 | 低（逐级衰减） | 高（Generator 直出全量） |
+| 修复精度 | 粗（回退到 Architect 重做） | 精（FixContext 定向修复） |
+| 收敛保障 | 隐式（依赖 Reviewer 判断） | 显式（fixable 标记 + max_rounds + 回归检测） |
 
 ---
 
@@ -61,30 +67,23 @@ cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 scripts/start_ship_pr
 ### Step 2: Spawn Orchestrator
 
 ```python
-# 从 Step 1 的 JSON 输出中获取 spawn_params
 sessions_spawn(**result["spawn_params"])
 ```
-
-**关键**: `spawn_params` 已包含完整的 orchestrator prompt（路径已烘焙），直接传给 `sessions_spawn`。
 
 ### Step 3: 创建 Watcher Cron
 
 ```python
-# 直接使用 start_ship_pro.py 输出的 watcher_cron_payload
 cron_payload = result["watcher_cron_payload"]
 cron_result = cron(action="add", job=cron_payload)
-
-# 回填 cron_job_id（用于兜底清理）
-cron_job_id = cron_result["id"]
 ```
 
 ### Step 4: 发送启动通知
 
 ```
-✅ 已启动 DeepFlow Ship Pro 管线
+✅ 已启动 Ship Pro V4.0 管线
 📦 输入: {input_path}
-📊 共 5 个阶段: Architect → Decomposer → Specifier → Reviewer → Packager
-💬 期间你可以继续问我其他问题，完成后我会通知你
+🔄 2 阶段闭环: Generator ←→ Judge (最多 3 轮)
+💬 完成后我会通知你
 ```
 
 ### Step 5: Yield 等待
@@ -93,27 +92,52 @@ cron_job_id = cron_result["id"]
 sessions_yield()
 ```
 
-orchestrator 完成后会 announce 回来。
-
 ---
 
-## 🔄 Orchestrator 行为（sub-agent depth=1）
+## 🔄 Orchestrator 行为
 
-Orchestrator 是 Ship Pro 的运行时调度器，由 `start_ship_pro.py` 生成的 prompt 驱动。
+Orchestrator 是 V4.0 管线的运行时调度器，执行 Generator → Judge 闭环。
 
-### 执行算法
+### 核心循环
 
 ```
-for agent in [architect, decomposer, specifier, reviewer, packager]:
-    1. exec: run_pipeline.py task <agent> <output_dir>  → 获取 task prompt
-    2. sessions_spawn(worker, task=task_prompt)          → 启动 worker
-    3. sessions_yield()                                  → 等待 worker 完成
-    4. exec: run_pipeline.py gate <agent> <output_dir>   → 质量门禁
-    5. 如果 gate FAIL → 重试（最多 max_retries 次，用 feedback 命令获取改进提示）
-    6. exec: run_pipeline.py update-status <output_dir> <agent> PASS|CONDITIONAL|FAIL
-    7. 继续下一个 agent
+exec: run_pipeline.py prepare <input> <output_dir>
 
-写 .completed 文件 → 完成
+while True:
+    # ── Generator 阶段 ──
+    exec: run_pipeline.py task generator <output_dir>    → 获取 prompt
+    sessions_spawn(generator_worker, task=prompt)         → 启动 Generator
+    sessions_yield()                                      → 等待完成
+    exec: run_pipeline.py gate generator <output_dir>     → Pydantic 门控
+    
+    if gate FAIL → increment-retry → 重试 generator（最多 2 次）
+    
+    # ── Judge 阶段 ──
+    exec: run_pipeline.py task judge <output_dir>         → 获取 prompt
+    sessions_spawn(judge_worker, task=prompt)              → 启动 Judge
+    sessions_yield()                                       → 等待完成
+    exec: run_pipeline.py gate judge <output_dir>          → Pydantic 门控
+    
+    if gate FAIL → increment-retry → 重试 judge（最多 2 次）
+    
+    # ── 状态机决策 ──
+    result = exec: run_pipeline.py next <output_dir>
+    
+    if result.action == "validate":
+        exec: run_pipeline.py validate <output_dir>
+        exec: run_pipeline.py finalize <output_dir> pass
+        写 .completed → 完成
+    
+    elif result.action == "fix_and_rerun":
+        exec: run_pipeline.py fix-context <output_dir>    → 构建 FixContext
+        继续循环（Generator 将收到 FixContext 进行定向修复）
+    
+    elif result.action == "fail":
+        exec: run_pipeline.py finalize <output_dir> fail
+        写 .completed → 失败退出
+    
+    elif result.action == "spawn":
+        继续循环（gate 重试）
 ```
 
 ### CLI 命令参考
@@ -121,56 +145,117 @@ for agent in [architect, decomposer, specifier, reviewer, packager]:
 | 命令 | 用途 | 示例 |
 |------|------|------|
 | `prepare` | 初始化管线 | `run_pipeline.py prepare <input> <output_dir>` |
-| `task` | 构建 worker prompt | `run_pipeline.py task architect <output_dir>` |
-| `gate` | 质量门禁检查 | `run_pipeline.py gate architect <output_dir>` |
-| `feedback` | 获取重试反馈 | `run_pipeline.py feedback architect <output_dir>` |
-| `update-status` | 更新状态 | `run_pipeline.py update-status <output_dir> architect PASS` |
+| `task` | 构建 worker prompt | `run_pipeline.py task generator <output_dir>` |
+| `gate` | Pydantic 门控 | `run_pipeline.py gate generator <output_dir>` |
+| `next` | 状态机决策 | `run_pipeline.py next <output_dir>` |
+| `fix-context` | 构建修复上下文 | `run_pipeline.py fix-context <output_dir>` |
 | `validate` | 最终验证 | `run_pipeline.py validate <output_dir>` |
+| `finalize` | 标记完成 | `run_pipeline.py finalize <output_dir> pass` |
 | `status` | 查看状态 | `run_pipeline.py status <output_dir>` |
+| `increment-retry` | 原子递增重试 | `run_pipeline.py increment-retry <output_dir> generator` |
 
-### Gate 重试机制
+### Gate 门控说明
 
-| Agent | max_retries | gate_fn |
-|-------|-------------|---------|
-| architect | 2 | gate_architect |
-| decomposer | 2 | gate_decomposer |
-| specifier | 2 | gate_specifier |
-| reviewer | 5 | gate_reviewer |
-| packager | 2 | gate_packager |
+| Agent | Pydantic 模型 | 检查项 |
+|-------|--------------|--------|
+| generator | GeneratorOutput | modules≥1, requirements≥1, work_packages≥1 |
+| judge | JudgeOutput | verdict 合法, risks 结构正确 |
 
-Gate FAIL 时：
-1. `run_pipeline.py feedback <agent> <output_dir>` → 获取改进建议
-2. 将 feedback 注入到新的 task prompt 中
-3. 重新 spawn worker
-4. 重新 gate
+Gate FAIL 时：`increment-retry` → 如果 retry_count < 2 → 重新 task + spawn；否则 → next 决定跳过或失败。
+
+---
+
+## 📦 Generator 输出结构
+
+Generator 一次性输出完整的架构蓝图 + WP 规格 + 打包信息（合并 V3.1 的 4 个 Agent 输出）：
+
+```json
+{
+  "_meta": {"agent": "generator", "model_id": "...", "round": 1},
+  "project_type": "...",
+  "project": {"name": "...", "objective": "...", "problem_statement": "..."},
+  "modules": [{"id": "...", "name": "...", "summary": "...", "responsibilities": [...]}],
+  "requirements": [{"req_id": "...", "description": "...", "priority": "P0|P1|P2", "coverage": "..."}],
+  "work_packages": [
+    {
+      "id": "WP-001", "title": "...", "objective": "...",
+      "source_modules": [...], "dependencies": [...], "priority": "high|medium|low",
+      "acceptance_criteria": ["..."], "serving_principles": [...]
+    }
+  ],
+  "dependency_graph": {"edges": [...], "execution_order": [...], "parallel_groups": [...]}
+}
+```
+
+**Pydantic 契约**: `contracts/ship_generator.py` (GeneratorOutput, WorkPackageSpec, DependencyGraph)
+
+---
+
+## ⚖️ Judge 输出结构
+
+Judge 替代 V3.1 的 Reviewer，增强 AC 质量检查 + 回归检测 + fixable 标记：
+
+```json
+{
+  "_meta": {"agent": "judge", "round": 1, "stance": "implementor"},
+  "verdict": "pass|fail|conditional",
+  "risks": [
+    {"id": "risk-1", "severity": "critical|major|minor", "description": "...",
+     "fix_suggestion": "...", "fixable": true}
+  ],
+  "ac_quality": {
+    "total_acs": 30, "executable_count": 25, "verifiable_count": 28,
+    "specific_count": 26, "complete_coverage": true,
+    "details": [{"wp_id": "WP-001", "issues": ["..."]}]
+  },
+  "regressions": [],
+  "consumability_score": 0.85,
+  "summary": "..."
+}
+```
+
+**决策逻辑**: critical→fail | major→conditional | minor→pass | regression→fail
+
+**Pydantic 契约**: `contracts/judge_v4.py` (JudgeOutput, JudgeRisk)
+
+---
+
+## 🔧 FixContext（定向修复）
+
+当 Judge 裁定 fail/conditional 时，`run_pipeline.py fix-context` 自动构建 FixContext：
+
+```json
+{
+  "original_verdict": "fail",
+  "current_round": 2,
+  "max_rounds": 3,
+  "instructions": [
+    {"risk_id": "risk-1", "severity": "major", "fix_suggestion": "...", "affected_stages": ["generator"]}
+  ],
+  "focus_areas": ["组件-原则一致性"],
+  "regression_warnings": ["上轮修复 WP-002 时引入了 WP-005 新问题"]
+}
+```
+
+Generator 在 Round 2+ 会收到 FixContext，**只修复指定问题，不改动其他部分**。
+
+**Pydantic 契约**: `contracts/fix_context.py` (FixContext, FixInstruction)
 
 ---
 
 ## 📡 Cron Watcher（进度巡检）
 
-### 架构
-
-```
-Cron (isolated, 每 3 分钟)
-  ↓ exec
-pipeline_watcher.py (确定性 Python, <1s)
-  ↓ stdout JSON
-薄 wrapper prompt (10行)
-  ↓ delivery announce
-用户收到通知
-```
+与 V3.x 相同，使用 `render_wrapper_prompt()` 契约化生成。
 
 ### 契约约束
 
-- ✅ wrapper prompt 必须来自 `render_wrapper_prompt()`（start_ship_pro.py 已生成）
-- ✅ delivery 通过 `DeliveryConfig` 验证
+- ✅ wrapper prompt 来自 `render_wrapper_prompt()`（start_ship_pro.py 已生成）
+- ✅ `sessionTarget` = `"isolated"`（避免 SessionTakeoverError）
 - ❌ 禁止主 Agent 手写 watcher prompt
-- ❌ 禁止使用旧的 `cron_watcher.md` prompt
 
 ### 通知策略
 
-- 有新阶段完成时才发消息（最多 5 条进度 + 1 条完成）
-- 空检测 → NO_REPLY
+- V4.0 阶段更少（Generator + Judge），最多 3 轮 × 2 阶段 = 6 条进度 + 1 条完成
 - 完成 → 发最终报告 → `cron remove` 自杀
 - 超时（30 分钟）→ 超时告警 → `cron remove` 自杀
 
@@ -197,57 +282,40 @@ cron 运行超过 15 次（30 分钟）→ 发超时告警 → `cron remove` 自
 
 | 文件 | 创建者 | 用途 |
 |------|--------|------|
-| `pipeline_state.json` | run_pipeline.py | 管线状态（CLI 管理） |
+| `pipeline_status.json` | run_pipeline.py | V4.0 管线状态（CLI 管理） |
 | `pipeline_config.json` | run_pipeline.py prepare | 管线配置 |
+| `blackboard/generator_output.json` | Generator Worker | Generator 输出 |
+| `blackboard/judge_output.json` | Judge Worker | Judge 输出 |
+| `blackboard/fix_context.json` | run_pipeline.py fix-context | 修复上下文 |
 | `.completed` | orchestrator | 完成标记 |
-| `.stage_progress.json` | orchestrator | 断点续接进度 |
-| `.notified_stages.json` | cron | 已通知的阶段列表 |
-| `.cron_run_count` | cron | 运行次数计数 |
-| `.cron_job_id` | 主 Agent | cron job ID |
 
 ---
 
 ## ⛔ 禁止
 
 - ❌ 主 Agent 直接 spawn Worker（必须通过 Orchestrator）
-- ❌ 主 Agent 直接调用 `run_pipeline.py task/gate`（Orchestrator 的职责）
-- ❌ Orchestrator 使用 `sessions_send`（sub-agent 没有此工具）
 - ❌ 手写 watcher prompt（必须用 `start_ship_pro.py` 生成的 `watcher_cron_payload`）
-- ❌ 直接写 `pipeline_state.json`（必须用 `update-status` CLI）
-- ❌ 修改 Pydantic 模型不同步 Schema（必须跑 `generator --check`）
+- ❌ 直接写 `pipeline_status.json`（必须用 CLI 命令）
+- ❌ 修改 Pydantic 模型不同步更新 prompt 中的输出格式说明
+- ❌ Generator Round 2+ 忽略 FixContext（必须只修复 instructions 中的问题）
+- ❌ Judge 第 2+ 轮跳过回归检测（必须检查上轮修复是否回退）
 
 ---
 
 ## 🎯 记忆锚点
 
-> "主 Agent 启动 + yield，Orchestrator 编排 Worker，Watcher 通知进度"
-> "CLI 是工具层，Orchestrator 是调度层，主 Agent 是入口层"
-> "三层退出：正常自杀、超时自杀、主 Agent 兜底"
-> "run_pipeline.py task → sessions_spawn → run_pipeline.py gate"
+> "V4.0 = Generator + Judge 两阶段闭环"
+> "6 Agent → 2 Agent，15 次 LLM → 6 次，信息逐级衰减 → 直出全量"
+> "FixContext = 定向修复，不是回退重做"
+> "run_pipeline.py next = 状态机，fix-context = 闭环关键"
 
 ---
 
-## 📖 历史版本
+## 📖 版本历史
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| **V4.0** | **2026-06-25** | **恢复 Orchestrator 模式（与 Solution Pro 一致）** |
-| V3.2 | 2026-06-23 | Pydantic 契约笼子 + CLI 引擎（扁平 spawn，已废弃） |
+| **V4.0** | **2026-06-26** | **Generator + Judge 两阶段闭环，替代 6-Agent 线性管线** |
+| V3.2 | 2026-06-23 | Pydantic 契约笼子 + CLI 引擎 |
 | V3.1 | 2026-06-22 | STAGE_PATH_REGISTRY 统一路径 |
 | V3.0 | 2026-06-18 | 5 Agent LLM-native 管线 |
-| V2.0 | 2026-06-15 | LLM 引导 + 确定性编译（已废弃） |
-
-### V3.2 → V4.0 变更说明
-
-V3.2 的 CLI 加固（`run_pipeline.py` 命令）保留，但上层调度从"主 Agent 扁平 spawn"恢复为"Orchestrator 编排"。
-
-**保留的好东西**（CLI 加固成果）：
-- `run_pipeline.py` CLI 命令（prepare/task/gate/update-status/validate）
-- Pydantic 契约笼子（contracts/）
-- `pipeline_state.json` 状态管理
-- `STAGE_PATH_REGISTRY` 路径注册表
-
-**修复的问题**：
-- ~~主 Agent 被阻塞 30 分钟~~ → Orchestrator 接管，主 Agent yield
-- ~~丢失并行能力~~ → Orchestrator 支持 `parallel_groups`（future）
-- ~~违背核心设计原则~~ → 恢复"主 Agent 只负责启动"

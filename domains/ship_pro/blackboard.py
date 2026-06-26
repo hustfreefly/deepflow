@@ -26,6 +26,8 @@ STAGE_PATH_REGISTRY = {
     "specifier":    "specifier",
     "reviewer":     "reviewer",
     "packager":     "packager",
+    "judge":        "judge",
+    "fixer":        "fixer",
 
     # 交付物
     "ship_package": "ship_package",

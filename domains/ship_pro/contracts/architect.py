@@ -9,7 +9,7 @@ Architect Agent 输出契约 — 唯一真相源
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -77,14 +77,25 @@ class Dependency(BaseModel):
 class Requirement(BaseModel):
     """需求条目。mapped_components 是 Gate Major 必检字段。"""
 
-    req_id: str
+    req_id: str = Field(alias="id")  # 接受 LLM 常用的 "id" 字段名
     description: str
-    priority: Literal["P0", "P1", "P2"]
-    coverage: Literal["covered", "partial", "missing"]
+    priority: str = Field(default="P1", description="P0/P1/P2。LLM 变体(high/critical→P0, medium→P1, low→P2)自动归一化")
+    coverage: str = Field(default="covered", description="covered/partial/missing。LLM 变体自动归一化")
     mapped_components: list[str] = Field(
         default_factory=list,
         description="实现该需求的模块 ID 列表。Gate Major 必检字段。",
     )
+
+    class Config:
+        populate_by_name = True
+
+    def model_post_init(self, __context: Any) -> None:
+        _pri_map = {"high": "P0", "critical": "P0", "medium": "P1", "low": "P2"}
+        if self.priority not in ("P0", "P1", "P2"):
+            self.priority = _pri_map.get(self.priority.lower() if isinstance(self.priority, str) else "", "P1")
+        _cov_set = {"covered", "partial", "missing"}
+        if self.coverage not in _cov_set:
+            self.coverage = "covered" if self.mapped_components else "missing"
 
 
 class SLAConstraint(BaseModel):
@@ -98,9 +109,16 @@ class SLAConstraint(BaseModel):
 class Risk(BaseModel):
     """风险条目。"""
 
-    id: str
+    id: str = Field(alias="risk_id")  # 接受 LLM 常用的 "risk_id"
     description: str
-    severity: Literal["critical", "high", "medium", "low"]
+    severity: str = Field(default="medium", description="critical/major/high/medium/low")
+
+    class Config:
+        populate_by_name = True
+
+    def model_post_init(self, __context: Any) -> None:
+        _sev_map = {"HIGH": "high", "MEDIUM": "medium", "LOW": "low", "CRITICAL": "critical"}
+        self.severity = _sev_map.get(self.severity, self.severity)
 
 
 class ImplementationHint(BaseModel):

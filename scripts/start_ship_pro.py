@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Ship Pro 启动脚本
+Ship Pro V4.0 启动脚本
 
-用途：在 exec 工具中安全启动 Ship Pro 管线
+用途：在 exec 工具中安全启动 Ship Pro V4.0 管线
 位置：.deepflow/scripts/start_ship_pro.py
 
 使用方式：
@@ -13,7 +13,6 @@ Ship Pro 启动脚本
 参数说明：
     --input: Solution Pro 的 final_result.json 路径（必填，相对于 .deepflow）
     --output: Ship Pro 输出目录（必填，相对于 .deepflow）
-    --print-watcher-prompt: 打印 watcher wrapper prompt
 """
 
 import argparse
@@ -37,12 +36,121 @@ if DEEPFLOW_HOME not in sys.path:
 import core.bootstrap
 
 
+def _build_v4_orchestrator_prompt(input_path: str, output_dir: str, deepflow_root: str, run_id: str) -> str:
+    """Build V4.0 orchestrator prompt for Generator + Judge loop."""
+    return f"""# Ship Pro V4.0 Orchestrator
+
+你是 Ship Pro V4.0 的管线编排器。你的任务是执行 Generator → Judge 两阶段闭环。
+
+## 运行信息
+
+- DeepFlow 根目录: `{deepflow_root}`
+- 输入文件: `{input_path}`
+- 输出目录: `{output_dir}`
+- Run ID: `{run_id}`
+- CLI: `python3 {deepflow_root}/domains/ship_pro/scripts/run_pipeline.py`
+- Worker model: strong (Qwen 3.7 Max 或同等)
+- Generator timeout: 600s | Judge timeout: 300s
+
+## 执行算法
+
+### Phase 0: 初始化
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 domains/ship_pro/scripts/run_pipeline.py prepare {input_path} {output_dir}
+```
+
+### Phase 1: Generator → Judge 闭环（最多 3 轮）
+
+```
+while True:
+    # ── Generator 阶段 ──
+    1. exec: python3 run_pipeline.py task generator <output_dir>
+       → 获取 task prompt（Round 2+ 自动包含 FixContext）
+    2. sessions_spawn(worker, task=prompt, runTimeoutSeconds=600)
+       → label: "ship-pro-generator-r{{round}}"
+    3. sessions_yield()
+       → 等待 Generator 完成
+    4. exec: python3 run_pipeline.py gate generator <output_dir>
+       → Pydantic 门控（GeneratorOutput 验证）
+    
+    如果 gate FAIL:
+        exec: python3 run_pipeline.py increment-retry <output_dir> generator
+        如果 allowed=true → 回到步骤 1 重试
+        如果 allowed=false → exec: run_pipeline.py finalize <output_dir> fail → 写 .completed → 结束
+    
+    # ── Judge 阶段 ──
+    5. exec: python3 run_pipeline.py task judge <output_dir>
+       → 获取 task prompt（包含 Generator 输出引用）
+    6. sessions_spawn(worker, task=prompt, runTimeoutSeconds=300)
+       → label: "ship-pro-judge-r{{round}}"
+    7. sessions_yield()
+       → 等待 Judge 完成
+    8. exec: python3 run_pipeline.py gate judge <output_dir>
+       → Pydantic 门控（JudgeOutput 验证）
+    
+    如果 gate FAIL:
+        exec: python3 run_pipeline.py increment-retry <output_dir> judge
+        如果 allowed=true → 回到步骤 5 重试
+        如果 allowed=false → exec: run_pipeline.py finalize <output_dir> fail → 写 .completed → 结束
+    
+    # ── 状态机决策 ──
+    9. exec: python3 run_pipeline.py next <output_dir>
+       → 解析 action 字段:
+       
+       - "validate" → 执行 validate + finalize pass → 写 .completed → 完成 ✅
+       - "fix_and_rerun" → 执行 fix-context → 继续循环（下一轮 Generator 会收到修复指令）
+       - "fail" → 执行 finalize fail → 写 .completed → 失败退出 ❌
+       - "spawn" → gate 重试中，继续循环
+```
+
+### Phase 2: 完成
+
+```bash
+exec: python3 run_pipeline.py validate <output_dir>
+exec: python3 run_pipeline.py finalize <output_dir> pass
+```
+
+写 `.completed` 文件到 `<output_dir>/blackboard/.completed`:
+```json
+{{"completed_at": "<ISO timestamp>", "status": "passed"}}
+```
+
+## ⛔ 约束
+
+1. **不要跳过 gate** — 每个 Worker 完成后必须 gate 验证
+2. **不要忽略 FixContext** — Round 2+ 的 Generator 需要 FixContext 进行定向修复
+3. **不要修改 prompt** — task 命令输出的 prompt 直接使用
+4. **不要并发** — Generator 和 Judge 必须串行执行
+5. **每步 exec 后检查 JSON** — CLI 输出都是 JSON，解析 action/decision 字段做决策
+6. **🔴 label 必须带 round 号** — 每轮 spawn 必须用不同的 label（如 `ship-pro-generator-r1`、`ship-pro-judge-r2`），否则完成事件会认错人
+7. **🔴 禁止手动改文件** — gate FAIL 时必须 spawn 新 worker 重试，禁止自己用 exec 修改 JSON 输出文件
+8. **🔴 不要设置 runTimeoutSeconds** — sessions_spawn 不支持该参数，传了会报错
+
+## spawn Worker 模板
+
+```python
+# ⚠️ label 必须包含 round 号，如 r1, r2, r3，绝不能复用
+# ⚠️ 必须传 model="bailian2/qwen3.7-max"，否则 worker 会继承 orchestrator 的弱模型
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label="ship-pro-generator-r{{round}}",  # round 从 1 开始递增
+    task=task_prompt,  # 从 run_pipeline.py task 获取
+    model="bailian2/qwen3.7-max",  # Generator/Judge 必须用强模型
+    cwd="{deepflow_root}",
+)
+sessions_yield()
+```
+
+记住：你是编排器，不是执行器。所有实际工作通过 spawn worker 完成。
+"""
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Ship Pro 启动脚本')
+    parser = argparse.ArgumentParser(description='Ship Pro V4.0 启动脚本')
     parser.add_argument('--input', required=True, help='final_result.json 路径（相对于 .deepflow）')
     parser.add_argument('--output', required=True, help='Ship Pro 输出目录（相对于 .deepflow）')
-    parser.add_argument('--print-watcher-prompt', action='store_true',
-                        help='打印 watcher wrapper prompt（供主 Agent 创建 cron 使用）')
     args = parser.parse_args()
 
     input_path = os.path.join(DEEPFLOW_HOME, args.input)
@@ -60,158 +168,32 @@ def main():
     run_start_at = datetime.now(timezone.utc).isoformat()
 
     # 生成 run_id
-    run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_v4"
 
     # Watcher 配置
     watcher_config_rel = "domains/ship_pro/config/watcher_config.json"
     watcher_config_abs = os.path.join(DEEPFLOW_HOME, watcher_config_rel)
 
-    # ── 构建 Orchestrator task prompt ──
-    task = f"""你是 Ship Pro 管线编排器。
-
-## 你的任务
-运行完整的 Ship Pro 5 阶段管线，使用 run_pipeline.py CLI 驱动。
-
-## 运行信息
-- DeepFlow 根目录: `{DEEPFLOW_HOME}`
-- 输入文件: `{input_path}`
-- 输出目录: `{output_path}`
-- Run ID: `{run_id}`
-
-## 执行步骤
-
-### Phase -1: 原则提取（AI Native）
-
-读取输入文件 `{input_path}` 中的 `constraints` 字段。
-
-用你的 LLM 能力，从 constraints 中提取：
-1. `architecture_principles`: 架构原则列表（每条包含 id, name, type, description, severity）
-2. `platform_capabilities`: 平台能力列表（每条包含 platform, capability, api, must_use, replaces）
-
-判断标准（用你的理解判断，不是硬编码规则）：
-- 如果 constraint 描述的是"必须怎么做"或"禁止怎么做" → architecture_principle
-- 如果 constraint 描述的是"基于什么平台"或"用什么工具" → platform_capabilities
-- 其他 → 忽略
-
-severity 判断：
-- 如果违反会导致系统无法运行或严重偏离设计意图 → BLOCKER
-- 如果违反会影响质量但不阻塞 → WARNING
-
-把提取结果写入输入文件（读取原文件，增加这两个字段，写回）。
-
-如果输入文件没有 `constraints` 字段，跳过此阶段。
-
-### Phase 0: 准备管线
-```bash
-cd {DEEPFLOW_HOME} && PYTHONPATH={DEEPFLOW_HOME} python3 domains/ship_pro/scripts/run_pipeline.py prepare {args.input} {args.output}
-```
-
-### Phase 1-5: 依次运行 5 个 Agent
-
-对每个 agent（按顺序: architect, decomposer, specifier, reviewer, packager），执行以下循环：
-
-#### 1. 获取 Worker Task Prompt
-```bash
-cd {DEEPFLOW_HOME} && PYTHONPATH={DEEPFLOW_HOME} python3 domains/ship_pro/scripts/run_pipeline.py task <agent_name> {args.output}
-```
-输出 JSON 包含 `task` 字段（完整的 worker prompt）。
-
-#### 2. Spawn Worker
-```python
-sessions_spawn(
-    runtime="subagent",
-    mode="run",
-    label="ship-<agent_name>",
-    task=<从 Step 1 输出的 task 字段>
-)
-sessions_yield()
-```
-
-#### 3. 验证 Gate
-```bash
-cd {DEEPFLOW_HOME} && PYTHONPATH={DEEPFLOW_HOME} python3 domains/ship_pro/scripts/run_pipeline.py gate <agent_name> {args.output}
-```
-输出 JSON 包含 `decision` 字段（PASS/CONDITIONAL/FAIL）。
-
-#### 3.5 语义检查（AI Native，必须执行 architect/decomposer/specifier 三个阶段）
-
-如果 gate 输出包含 `"needs_semantic_check": true`，你必须执行语义检查。
-
-重要：语义检查必须覆盖 architect、decomposer、specifier 三个阶段，不能只跑 architect 就停止。
-
-```bash
-cd {DEEPFLOW_HOME} && PYTHONPATH={DEEPFLOW_HOME} python3 domains/ship_pro/scripts/run_pipeline.py semantic-task <agent_name> {args.output}
-```
-
-这会输出一个语义评估任务（`task` 字段）。你需要：
-1. 读取 `task` 字段中的评估 prompt
-2. 用你自己的 LLM 能力评估 Worker 输出是否符合架构原则
-3. 输出 JSON 结果（decision + issues + reasoning）
-4. 将结果写入 `semantic_<agent_name>.json` 文件
-5. 运行合并：
-
-```bash
-cd {DEEPFLOW_HOME} && PYTHONPATH={DEEPFLOW_HOME} python3 domains/ship_pro/scripts/run_pipeline.py merge-semantic <agent_name> {args.output} <semantic_result_json_or_path>
-```
-
-合并后的结果作为最终 gate 决策。
-
-语义检查的判断标准：
-- 用你的理解判断，不是硬编码规则
-- 如果问题严重（如原则被违反），输出 FAIL
-- 如果问题中等（如措辞歧义），输出 PASS_WITH_WARNING
-- 如果没有问题，输出 PASS
-
-#### 4. 如果 Gate FAIL，重试
-```bash
-cd {DEEPFLOW_HOME} && PYTHONPATH={DEEPFLOW_HOME} python3 domains/ship_pro/scripts/run_pipeline.py feedback <agent_name> {args.output}
-```
-将 feedback 注入到新的 task prompt 中，重新 spawn worker。
-最多重试 2 次（reviewer 最多 5 次）。
-
-#### 5. 更新状态
-```bash
-cd {DEEPFLOW_HOME} && PYTHONPATH={DEEPFLOW_HOME} python3 domains/ship_pro/scripts/run_pipeline.py update-status {args.output} <agent_name> <PASS|CONDITIONAL|FAIL>
-```
-
-### Phase 6: 最终验证
-```bash
-cd {DEEPFLOW_HOME} && PYTHONPATH={DEEPFLOW_HOME} python3 domains/ship_pro/scripts/run_pipeline.py validate {args.output}
-```
-
-### Phase 7: 写入完成标记
-用 write 工具写入 `{output_path}/.completed`：
-```json
-{{
-  "status": "completed",
-  "session_id": "{run_id}",
-  "completed_at": "<ISO时间>",
-  "stages_completed": 5,
-  "failed_stages": []
-}}
-```
-
-## 约束
-- 必须完整运行所有 5 个阶段
-- 每个 gate 必须 PASS 或 CONDITIONAL 才能继续下一阶段
-- 如果某个 gate 重试耗尽仍 FAIL，记录失败原因并继续（非 abort 级错误）
-- 每个阶段完成后必须 update-status
-- 禁止跳过验证
-
-## 输出
-完成后输出最终状态摘要。
-"""
+    # ── V4.0: Build orchestrator prompt ──
+    task = _build_v4_orchestrator_prompt(
+        input_path=input_path,
+        output_dir=output_path,
+        deepflow_root=DEEPFLOW_HOME,
+        run_id=run_id,
+    )
 
     # 构建 spawn_params
     spawn_params = {
         "runtime": "subagent",
         "mode": "run",
-        "label": "ship-pro-orchestrator",
+        "label": "ship-pro-v4-orchestrator",
         "task": task,
-        "runTimeoutSeconds": 1800
+        "runTimeoutSeconds": 1800,
+        "cwd": DEEPFLOW_HOME,
     }
 
     result = {
+        "version": "4.0.0",
         "input_path": input_path,
         "output_path": output_path,
         "run_id": run_id,
@@ -221,38 +203,43 @@ cd {DEEPFLOW_HOME} && PYTHONPATH={DEEPFLOW_HOME} python3 domains/ship_pro/script
         "watcher_config_abs": watcher_config_abs,
         "deepflow_root": DEEPFLOW_HOME,
         "startup_notification": (
-            f"✅ 已启动 DeepFlow Ship Pro 管线\n"
+            f"✅ 已启动 Ship Pro V4.0 管线\n"
             f"📦 输入: {args.input}\n"
-            f"📊 共 5 个阶段（Architect → Decomposer → Specifier → Reviewer → Packager）\n"
-            f"💬 期间你可以继续问我其他问题，完成后我会通知你"
+            f"🔄 2 阶段闭环: Generator ←→ Judge (最多 3 轮)\n"
+            f"💬 完成后我会通知你"
         )
     }
 
-    # ── Watcher V3 AI Native（铁律固化 2026-06-25）──
-    # 主 Agent 创建 cron 时，必须使用 watcher_cron_payload。
-    # 禁止主 Agent 手写 watcher prompt。
+    # ── Watcher V3 契约化 ──
     try:
         from contracts.shared.watcher_config import build_v3_cron_payload
         result['watcher_cron_payload'] = build_v3_cron_payload(
             config_path=watcher_config_abs,
             base_path=output_path,
             run_start_at=run_start_at,
-            cron_job_id="",  # empty = auto-discover (solves chicken-and-egg)
+            cron_job_id="",
             deepflow_root=DEEPFLOW_HOME,
-            display_name="Ship Pro",
+            display_name="Ship Pro V4",
             max_runs=15,
             pipeline_id="ship_pro",
         )
     except ImportError:
         result['watcher_cron_payload'] = None
 
-    # 清理旧的 watcher 状态文件（防止残留干扰）
-    import shutil
+    # 清理旧状态文件
     for f in [".watcher_seen.json", ".watcher_run_count", ".watcher_no_output_count",
-              ".watcher_should_remove", ".pipeline_watcher.lock"]:
+              ".watcher_should_remove", ".pipeline_watcher.lock", ".completed"]:
         p = os.path.join(output_path, f)
         if os.path.exists(p):
             os.remove(p)
+    # 清理 blackboard 子目录
+    bb_dir = os.path.join(output_path, "blackboard")
+    if os.path.isdir(bb_dir):
+        for f in [".completed", "pipeline_status.json", "fix_context.json",
+                  "generator_output.json", "judge_output.json"]:
+            p = os.path.join(bb_dir, f)
+            if os.path.exists(p):
+                os.remove(p)
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

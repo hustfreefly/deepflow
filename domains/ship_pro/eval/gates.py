@@ -208,6 +208,77 @@ def gate_architect(blueprint: dict) -> dict:
     # Add Pydantic validation status as informational check
     minor["pydantic_schema_valid"] = pydantic_valid
 
+    # --- NEW: Internal consistency check ---
+    # Check: component responsibilities vs principle anti_patterns
+    consistency_issues = []
+    principles = blueprint.get("architecture_principles", [])
+    bp_modules = blueprint.get("modules", [])
+
+    for module in bp_modules:
+        if not isinstance(module, dict):
+            continue
+        module_id = module.get("id", "unknown")
+        responsibilities = module.get("responsibilities", [])
+        resp_text = " ".join(str(r) for r in responsibilities).lower()
+
+        for principle in principles:
+            if not isinstance(principle, dict):
+                continue
+            anti_patterns = principle.get("anti_patterns", [])
+            principle_id = principle.get("id", "unknown")
+
+            for ap in anti_patterns:
+                if not isinstance(ap, str):
+                    continue
+                # Extract key terms from anti_pattern
+                ap_lower = ap.lower()
+                # Check for "自建 XXX" pattern
+                if "自建" in ap_lower:
+                    # Extract the thing that should not be self-built
+                    parts = ap_lower.split("自建")
+                    if len(parts) > 1:
+                        thing = parts[1].strip().rstrip("。，,.")
+                        # Remove parenthetical explanations
+                        thing = thing.split("（")[0].split("(")[0].strip()
+                        # Split by "/" to handle "令牌桶限流/优先级队列" style
+                        thing_alternatives = [t.strip() for t in thing.split("/") if t.strip()]
+                        for thing_alt in thing_alternatives:
+                            if len(thing_alt) >= 2 and thing_alt in resp_text:
+                                consistency_issues.append({
+                                    "module_id": module_id,
+                                    "principle_id": principle_id,
+                                    "conflict": f"Module responsibility contains '{thing_alt}' which contradicts principle anti_pattern '{ap}'"
+                                })
+                                break  # one match per anti_pattern per module is enough
+
+    major["internal_consistency"] = len(consistency_issues) == 0
+    if consistency_issues:
+        major["internal_consistency_details"] = consistency_issues
+
+    # --- NEW: Implementation phase vs principle consistency ---
+    # Check: if any principle has anti_pattern containing "分阶段", implementation_hints should not have multiple phases
+    phase_split = False
+    hints = blueprint.get("implementation_hints", [])
+    phases = set()
+    for h in hints:
+        if isinstance(h, dict):
+            phases.add(h.get("phase", ""))
+    
+    for principle in principles:
+        if not isinstance(principle, dict):
+            continue
+        anti_pats = principle.get("anti_patterns", [])
+        for ap in anti_pats:
+            if isinstance(ap, str) and "分阶段" in ap:
+                # Found a "一步到位" principle (anti-pattern mentions "分阶段")
+                if len(phases) > 1:
+                    phase_split = True
+                    break
+        if phase_split:
+            break
+    
+    major["implementation_phase_consistency"] = not phase_split
+
     # --- Decision ---
     critical_failures = [k for k, v in critical.items() if not v]
     major_failures = [k for k, v in major.items() if not v]
@@ -308,6 +379,77 @@ def gate_decomposer(wp_structure: dict, blueprint: dict) -> dict:
         major["all_wps_have_rationale"] = with_rationale == len(work_packages)
     else:
         major["all_wps_have_rationale"] = False
+
+    # --- NEW: Obligation-anti_pattern consistency ---
+    obligation_conflicts = []
+    principles = blueprint.get("architecture_principles", [])
+    principle_map = {p.get("id"): p for p in principles if isinstance(p, dict)}
+
+    for wp in work_packages:
+        if not isinstance(wp, dict):
+            continue
+        wp_id = wp.get("id", "unknown")
+        serving = wp.get("serving_principles", [])
+
+        for sp in serving:
+            if not isinstance(sp, dict):
+                continue
+            p_id = sp.get("principle_id", "")
+            obligation = str(sp.get("obligation", "")).lower()
+
+            # Get the principle's anti_patterns from blueprint
+            principle = principle_map.get(p_id, {})
+            anti_patterns = principle.get("anti_patterns", [])
+
+            for ap in anti_patterns:
+                if not isinstance(ap, str):
+                    continue
+                ap_lower = ap.lower()
+                if "自建" in ap_lower:
+                    parts = ap_lower.split("自建")
+                    if len(parts) > 1:
+                        thing = parts[1].strip().rstrip("。，,.")
+                        thing = thing.split("（")[0].split("(")[0].strip()
+                        # Split by "/" to handle "令牌桶限流/优先级队列" style
+                        thing_alternatives = [t.strip() for t in thing.split("/") if t.strip()]
+                        for thing_alt in thing_alternatives:
+                            if len(thing_alt) >= 2 and thing_alt in obligation:
+                                # Check if obligation says "must implement" this thing
+                                if any(kw in obligation for kw in ["必须", "实现", "交付", "包含"]):
+                                    obligation_conflicts.append({
+                                        "wp_id": wp_id,
+                                        "principle_id": p_id,
+                                        "obligation_snippet": obligation[:100],
+                                        "anti_pattern": ap
+                                    })
+                                    break  # one match per anti_pattern per WP is enough
+
+    major["obligation_anti_pattern_consistency"] = len(obligation_conflicts) == 0
+    if obligation_conflicts:
+        major["obligation_anti_pattern_details"] = obligation_conflicts
+
+    # --- NEW: Priority-complexity consistency ---
+    priority_complexity_mismatches = []
+    for wp in work_packages:
+        if not isinstance(wp, dict):
+            continue
+        wp_id = wp.get("id", "unknown")
+        priority = str(wp.get("priority", "")).lower()
+        complexity = str(wp.get("complexity", "")).lower()
+        
+        if complexity == "critical" and priority in ("low", "medium"):
+            # Only flag as issue if no rationale explains the mismatch
+            rationale = str(wp.get("rationale", "")).lower()
+            if not any(kw in rationale for kw in ["independent", "独立", "不依赖", "可并行"]):
+                priority_complexity_mismatches.append({
+                    "wp_id": wp_id,
+                    "priority": priority,
+                    "complexity": complexity,
+                })
+
+    major["priority_complexity_consistency"] = len(priority_complexity_mismatches) == 0
+    if priority_complexity_mismatches:
+        major["priority_complexity_details"] = priority_complexity_mismatches
 
     # --- Decision ---
     critical_failures = [k for k, v in critical.items() if not v]
@@ -616,18 +758,60 @@ def gate_reviewer(review_output: dict) -> dict:
 # Gate 5: Packager
 # ---------------------------------------------------------------------------
 
-def gate_packager(package: dict) -> dict:
+def check_dependency_consistency(packager_output: dict, decomposer_output: dict) -> dict:
+    """
+    检查 Packager 输出的 dependency_graph 是否与 Decomposer 的 dependencies 一致。
+
+    Packager 不应静默添加新的依赖边。如果发现新依赖，应该标记为 needs_reconciliation。
+    """
+    # 从 Decomposer 提取声明的依赖
+    decomposer_deps = set()
+    for wp in decomposer_output.get("work_packages", []):
+        wp_id = wp.get("id", "") or wp.get("wp_id", "")
+        for dep in wp.get("dependencies", []):
+            if isinstance(dep, str):
+                decomposer_deps.add((wp_id, dep))
+            elif isinstance(dep, dict):
+                # Handle object format: {"from": "WP-001", "to": "WP-002"}
+                dep_from = dep.get("from", "") or dep.get("id", "")
+                if dep_from:
+                    decomposer_deps.add((wp_id, dep_from))
+
+    # 从 Packager 提取实际的依赖边
+    packager_deps = set()
+    dep_graph = packager_output.get("dependency_graph", {})
+    for edge in dep_graph.get("edges", []):
+        if isinstance(edge, dict):
+            from_wp = edge.get("from", "")
+            to_wp = edge.get("to", "")
+            if from_wp and to_wp:
+                packager_deps.add((from_wp, to_wp))
+
+    # 找出 Packager 新增的依赖（Packager 有但 Decomposer 没有）
+    new_deps = packager_deps - decomposer_deps
+    # 找出 Decomposer 声明但 Packager 遗漏的依赖
+    missing_deps = decomposer_deps - packager_deps
+
+    return {
+        "consistent": len(new_deps) == 0 and len(missing_deps) == 0,
+        "new_dependencies": [{"from": f, "to": t} for f, t in sorted(new_deps)],
+        "missing_dependencies": [{"from": f, "to": t} for f, t in sorted(missing_deps)],
+    }
+
+
+def gate_packager(package: dict, decomposer_output: dict = None) -> dict:
     """
     Quality gate for Packager Agent output.
 
     Checks the final ship_package.json for schema compliance and structural integrity.
 
     - Critical: schema_compliant, ac_text_not_count, dependency_graph_acyclic
-    - Major: all_wps_present, summary_exists
+    - Major: all_wps_present, summary_exists, dependency_consistency
     - Minor: (none currently)
 
     Args:
         package: The packager output dict (ship_package)
+        decomposer_output: Optional decomposer output dict for dependency consistency check
 
     Returns:
         Gate result dict
@@ -719,6 +903,89 @@ def gate_packager(package: dict) -> dict:
     summary = package.get("summary", {})
     major["summary_exists"] = isinstance(summary, dict) and len(summary) > 0
 
+    # 3. dependency_consistency: Packager 不应静默添加/删除依赖边
+    if decomposer_output is not None:
+        dep_consistency = check_dependency_consistency(package, decomposer_output)
+        major["dependency_consistency"] = dep_consistency["consistent"]
+        if not dep_consistency["consistent"]:
+            major["dependency_consistency_details"] = {
+                "new_dependencies": dep_consistency["new_dependencies"],
+                "missing_dependencies": dep_consistency["missing_dependencies"],
+            }
+    # If decomposer_output not provided, skip this check (backward compatible)
+
+    # --- V3 Extras Validation (format + anchoring, not semantic) ---
+    wp_ids = {wp.get("id") for wp in work_packages}
+    wp_module_ids = set()
+    for wp in work_packages:
+        mid = wp.get("module_id") or wp.get("id")
+        if mid:
+            wp_module_ids.add(mid)
+    # Merge both sets for component anchoring
+    all_ref_ids = wp_ids | wp_module_ids
+
+    # api_conventions: format check
+    api_conv = package.get("api_conventions")
+    if api_conv is not None:
+        from domains.ship_pro.contracts.ship_package_extras import ApiConventions
+        try:
+            ApiConventions(**api_conv)
+            major["api_conventions_valid"] = True
+        except Exception:
+            major["api_conventions_valid"] = False
+        # Confidence check: low → degrade to null
+        if isinstance(api_conv, dict) and api_conv.get("confidence") == "low":
+            major["api_conventions_valid"] = True  # valid format, but degraded
+            # Caller should check confidence and treat as null
+    else:
+        major["api_conventions_valid"] = True  # optional field
+
+    # integration_tests: format + component anchoring
+    int_tests = package.get("integration_tests")
+    if int_tests is not None:
+        from domains.ship_pro.contracts.ship_package_extras import IntegrationTest
+        tests_valid = True
+        for test_data in int_tests:
+            try:
+                t = IntegrationTest(**test_data)
+                # Component anchoring: each component must exist in WPs
+                for comp in t.components:
+                    if comp not in all_ref_ids:
+                        tests_valid = False
+                        break
+            except Exception:
+                tests_valid = False
+                break
+        major["integration_tests_valid"] = tests_valid
+    else:
+        major["integration_tests_valid"] = True  # optional
+
+    # error_handling_principles: format check
+    eh = package.get("error_handling_principles")
+    if eh is not None:
+        from domains.ship_pro.contracts.ship_package_extras import ErrorHandlingPrinciples
+        try:
+            ehp = ErrorHandlingPrinciples(**eh)
+            # Category count <= WP count * 0.5
+            max_cats = max(1, int(len(work_packages) * 0.5))
+            major["error_handling_valid"] = len(ehp.exception_categories) <= max_cats
+        except Exception:
+            major["error_handling_valid"] = False
+    else:
+        major["error_handling_valid"] = True  # optional
+
+    # environment: format check
+    env = package.get("environment")
+    if env is not None:
+        from domains.ship_pro.contracts.ship_package_extras import EnvironmentSpec
+        try:
+            EnvironmentSpec(**env)
+            major["environment_valid"] = True
+        except Exception:
+            major["environment_valid"] = False
+    else:
+        major["environment_valid"] = True  # optional
+
     # --- Decision ---
     critical_failures = [k for k, v in critical.items() if not v]
     major_failures = [k for k, v in major.items() if not v]
@@ -749,6 +1016,146 @@ def gate_packager(package: dict) -> dict:
         decision = "PASS"
         passed = True
         feedback = "Packager output is structurally sound."
+
+    return _make_result(passed, decision, critical, major, minor, feedback)
+
+
+def gate_judge(judge_output: dict) -> dict:
+    """
+    Quality gate for Judge Worker output (V4.1).
+
+    **AI Native 职责边界**:
+    本函数只做格式/结构检查，不做语义判断。
+    - ✅ 检查: verdict 是否存在且为合法枚举值
+    - ✅ 检查: risks 是否非空数组
+    - ✅ 检查: cross_validation / downstream_consumability 是否存在
+    - ❌ 不判断: Judge 找出的 Top-3 风险是否真的最重要
+    - ❌ 不判断: Judge 的推理是否合理
+    - ❌ 不判断: downstream_consumability 评分是否准确
+    
+    Judge 的语义质量由 semantic-task (LLM) 评估，本 gate 不替代。
+
+    Checks:
+    - Critical: verdict_present, risks_present, cross_validation_present
+    - Major: downstream_consumability_present, risks_have_severity
+    """
+    critical = {}
+    major = {}
+    minor = {}
+
+    # Critical: verdict
+    verdict = judge_output.get("verdict")
+    critical["verdict_present"] = verdict in ("pass", "conditional", "fail")
+
+    # Critical: risks array
+    risks = judge_output.get("risks", [])
+    critical["risks_present"] = isinstance(risks, list) and len(risks) > 0
+
+    # Critical: cross_validation
+    cv = judge_output.get("cross_validation", {})
+    critical["cross_validation_present"] = isinstance(cv, dict) and len(cv) > 0
+
+    # Major: downstream_consumability
+    dc = judge_output.get("downstream_consumability", {})
+    major["downstream_consumability_present"] = isinstance(dc, dict) and len(dc) > 0
+
+    # Major: risks have severity
+    risks_have_severity = True
+    for r in risks:
+        if isinstance(r, dict) and r.get("severity") not in ("critical", "major", "minor"):
+            risks_have_severity = False
+            break
+    major["risks_have_severity"] = risks_have_severity and len(risks) > 0
+
+    # Decision
+    critical_failures = [k for k, v in critical.items() if not v]
+    major_failures = [k for k, v in major.items() if not v]
+
+    if critical_failures:
+        decision = "FAIL"
+        passed = False
+        feedback = f"Judge Gate FAIL: Critical checks failed: {', '.join(critical_failures)}"
+    elif major_failures:
+        decision = "CONDITIONAL"
+        passed = True
+        feedback = f"Judge Gate CONDITIONAL: Major checks failed: {', '.join(major_failures)}"
+    else:
+        decision = "PASS"
+        passed = True
+        feedback = "Judge output is structurally sound."
+
+    return _make_result(passed, decision, critical, major, minor, feedback)
+
+
+def gate_fixer(fixer_output: dict) -> dict:
+    """
+    Quality gate for Fixer Worker output (V4.1).
+
+    **AI Native 职责边界**:
+    本函数只做格式/结构检查，不做语义判断。
+    - ✅ 检查: fixes 是否存在且是数组
+    - ✅ 检查: updated_package 是否存在且是 dict
+    - ✅ 检查: 每个 fix 都有必要字段
+    - ❌ 不判断: 修复方案是否合理
+    - ❌ 不判断: remaining_issues 是否应该被修复
+    
+    Fixer 的语义质量由 Judge 重新评估，本 gate 不替代。
+
+    Checks:
+    - Critical: fixes_present, updated_package_present
+    - Major: fixes_have_required_fields, remaining_issues_valid
+    """
+    critical = {}
+    major = {}
+    minor = {}
+
+    # Critical: fixes array
+    fixes = fixer_output.get("fixes", [])
+    critical["fixes_present"] = isinstance(fixes, list)
+
+    # Critical: updated_package
+    updated_package = fixer_output.get("updated_package", {})
+    critical["updated_package_present"] = isinstance(updated_package, dict) and len(updated_package) > 0
+
+    # Major: fixes have required fields
+    fixes_have_fields = True
+    required_fields = ["issue_id", "category", "fixed", "rationale"]
+    for fix in fixes:
+        if isinstance(fix, dict):
+            if not all(field in fix for field in required_fields):
+                fixes_have_fields = False
+                break
+        else:
+            fixes_have_fields = False
+            break
+    major["fixes_have_required_fields"] = fixes_have_fields
+
+    # Major: remaining_issues format (optional but if present must be valid)
+    remaining = fixer_output.get("remaining_issues", [])
+    if remaining:
+        remaining_valid = isinstance(remaining, list) and all(
+            isinstance(r, dict) and "issue_id" in r for r in remaining
+        )
+        major["remaining_issues_valid"] = remaining_valid
+    else:
+        major["remaining_issues_valid"] = True
+
+    # Decision
+    critical_failures = [k for k, v in critical.items() if not v]
+    major_failures = [k for k, v in major.items() if not v]
+
+    if critical_failures:
+        decision = "FAIL"
+        passed = False
+        feedback = f"Fixer Gate FAIL: Critical checks failed: {', '.join(critical_failures)}"
+    elif major_failures:
+        decision = "CONDITIONAL"
+        passed = True
+        feedback = f"Fixer Gate CONDITIONAL: Major checks failed: {', '.join(major_failures)}"
+    else:
+        decision = "PASS"
+        passed = True
+        feedback = "Fixer output is structurally sound."
 
     return _make_result(passed, decision, critical, major, minor, feedback)
 
@@ -821,7 +1228,8 @@ def main() -> None:
 
     # Gate 5: Packager
     if "packager" in data:
-        result = gate_packager(data["packager"])
+        decomposer_data = data.get("decomposer")
+        result = gate_packager(data["packager"], decomposer_data)
         icon = "✅" if result["decision"] == "PASS" else ("⚠️" if result["decision"] == "CONDITIONAL" else "❌")
         print(f"  {icon} Packager Gate: {result['decision']}")
         print(f"     Critical: {result['critical_results']}")

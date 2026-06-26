@@ -67,6 +67,26 @@ from domains.ship_pro.contracts.packager import (
     QualityIssue,
 )
 
+# V4.0: Generator + Judge 两阶段闭环
+from domains.ship_pro.contracts.ship_generator import (
+    GeneratorOutput,
+    WorkPackageSpec,
+    DependencyGraph as GeneratorDependencyGraph,
+    DependencyEdge as GeneratorDependencyEdge,
+)
+
+from domains.ship_pro.contracts.judge_v4 import (
+    JudgeOutput,
+    JudgeRisk,
+    JudgeMeta,
+)
+
+from domains.ship_pro.contracts.fix_context import (
+    FixContext,
+    FixInstruction,
+    FixRoundResult,
+)
+
 __all__ = [
     # Architect
     "ArchitectOutput",
@@ -107,4 +127,15 @@ __all__ = [
     "Layer2Semantic",
     "Layer3Actionable",
     "QualityIssue",
+    # V4.0: Generator + Judge
+    "GeneratorOutput",
+    "WorkPackageSpec",
+    "GeneratorDependencyGraph",
+    "GeneratorDependencyEdge",
+    "JudgeOutput",
+    "JudgeRisk",
+    "JudgeMeta",
+    "FixContext",
+    "FixInstruction",
+    "FixRoundResult",
 ]

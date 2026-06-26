@@ -333,13 +333,15 @@ def build_v3_cron_payload(
     return {
         "name": f"deepflow_watcher_{pipeline_id}_{run_start_at[:16].replace(':', '')}",
         "schedule": {"kind": "every", "everyMs": 180000},
-        "sessionTarget": "current",
+        # 🔴 isolated 避免 SessionTakeoverError（current/session: 会和活跃会话冲突）
+        "sessionTarget": "isolated",
         "payload": {
             "kind": "agentTurn",
             "message": prompt,
             "timeoutSeconds": 60,
             "lightContext": True,
         },
+        # delivery 需要显式 channel + to，isolated 会话无法自动推断
         "delivery": {"mode": "announce"},
         "enabled": True,
     }

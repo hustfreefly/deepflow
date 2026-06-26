@@ -290,7 +290,14 @@ class TestGateArchitect:
         del good_blueprint["project_type"]
         for req in good_blueprint["requirements"]:
             del req["mapped_components"]
+        # Add a consistency issue to push failures over threshold
+        # (4 major checks now: requirements_mapped, project_type_exists, internal_consistency, implementation_phase_consistency)
+        good_blueprint["architecture_principles"] = [
+            {"id": "P1", "anti_patterns": ["自建测试模块"]}
+        ]
+        good_blueprint["modules"][0]["responsibilities"] = ["测试模块"]
         result = gate_architect(good_blueprint)
+        # 3 failures out of 4 (75%) → >50% → CONDITIONAL
         assert result["decision"] == "CONDITIONAL"
 
     def test_missing_minor_fields_still_passes(self, good_blueprint):
@@ -688,13 +695,21 @@ class TestTieredDecision:
     def test_major_failure_can_be_conditional(self):
         """Major failures > threshold → CONDITIONAL (not FAIL)."""
         blueprint = {
-            "modules": [{"id": "C1"}],
+            "modules": [{"id": "C1", "responsibilities": ["自建限流器"]}],
             "dependencies": [],
             "requirements": [{"req_id": "R1"}],  # No mapped_components
             # No project_type
+            "architecture_principles": [
+                {"id": "P1", "anti_patterns": ["自建限流器"]}
+            ],
+            "implementation_hints": [
+                {"phase": "Phase 1"},
+                {"phase": "Phase 2"}
+            ]
         }
         result = gate_architect(blueprint)
-        # 2 major failures out of 2 → >50% → CONDITIONAL
+        # 4 major failures out of 4 (100%) → >50% → CONDITIONAL
+        # (requirements_mapped, project_type_exists, internal_consistency, implementation_phase_consistency)
         assert result["decision"] == "CONDITIONAL"
         assert result["passed"] is True  # CONDITIONAL still passes
 

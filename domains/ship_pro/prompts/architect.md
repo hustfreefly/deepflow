@@ -132,6 +132,44 @@ Orchestrator 会预先检测并告知你输入属于哪种格式：
 
 不要机械地套用规则，用你的理解判断什么是最合理的架构设计。
 
+## 内部一致性检查（CRITICAL — 必须在输出前执行）
+
+在输出 blueprint.json 之前，必须执行以下一致性验证：
+
+### 1. 组件-原则一致性（Component-Principle Consistency）
+
+对于每个组件 COMP-XXX，检查其 `responsibilities` 是否与任何 `architecture_principles` 的 `anti_patterns` 矛盾：
+
+- 如果 PRINCIPLE-C-XXX 的 anti_patterns 包含"自建 YYY"
+- 且 COMP-XXX 的 responsibilities 包含"YYY"或语义等价描述
+- **则必须修改 COMP-XXX**：
+  - 选项 A：删除矛盾的 responsibility，改为"使用 OpenClaw 原生 YYY 能力"
+  - 选项 B：如果该 responsibility 确实需要自建，必须在 rationale 中详细说明为什么 OpenClaw 原生能力不足
+
+### 2. 组件-平台能力一致性（Component-Platform Consistency）
+
+对于每个组件 COMP-XXX，检查其 `responsibilities` 是否与任何 `platform_capabilities` 的 `replaces` 列表矛盾：
+
+- 如果 PlatformCapability 的 replaces 包含"自建 ZZZ"
+- 且 COMP-XXX 的 responsibilities 包含"ZZZ"或语义等价描述
+- **则必须修改 COMP-XXX**：将 responsibility 改为"通过 {platform.api} 实现 ZZZ"
+
+### 3. 实施阶段-原则一致性（Implementation Hints vs Principles）
+
+如果 PRINCIPLE-C-001（或任何原则）要求"一步到位，不分阶段交付"：
+- `implementation_hints` 中不得包含 Phase 1/Phase 2/Phase 3 分期
+- 所有模块必须在同一个交付阶段中
+- 如果确实需要分期，必须在 rationale 中解释为什么违反"一步到位"原则
+
+### 4. 自检清单（在现有自检规则中增加）
+
+在"自检（输出前必须执行）"段落中增加：
+- □ 每个 module 的 responsibilities 是否与任何 principle 的 anti_patterns 矛盾？
+- □ 每个 module 的 responsibilities 是否与任何 platform_capability 的 replaces 矛盾？
+- □ principle_coverage 中的 covered_by_modules 是否实际遵守了该原则？
+- □ implementation_hints 中的 phase 是否与任何 principle 的 anti_patterns 矛盾？
+- □ 如果有"一步到位"原则，implementation_hints 是否包含分期？
+
 ## 提取规则
 
 ### 1. 模块提取（modules）
@@ -283,6 +321,11 @@ modules 字段：尝试将阶段任务关联到具体模块 ID。无法关联则
 7. □ data_sufficiency 各项是否与实际情况一致？
 8. □ project_type 是否已填写？（Gate Major 必检字段）
 9. □ 每个 requirement 是否有 mapped_components？（Gate Major 必检字段，值为实现该需求的模块 ID 列表）
+10. □ 每个 module 的 responsibilities 是否与任何 principle 的 anti_patterns 矛盾？
+11. □ 每个 module 的 responsibilities 是否与任何 platform_capability 的 replaces 矛盾？
+12. □ principle_coverage 中的 covered_by_modules 是否实际遵守了该原则？
+13. □ implementation_hints 中的 phase 是否与任何 principle 的 anti_patterns 矛盾？
+14. □ 如果有"一步到位"原则，implementation_hints 是否包含分期？
 
 不通过任何一项 → 修正后再输出。如无法修正，在 _meta 中添加 self_check 字段说明问题。
 

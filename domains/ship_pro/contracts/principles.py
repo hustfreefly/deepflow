@@ -12,9 +12,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 
 
 class ArchitecturePrinciple(BaseModel):
@@ -26,7 +26,10 @@ class ArchitecturePrinciple(BaseModel):
     
     id: str = Field(description="原则ID，如 PRINCIPLE-001")
     name: str = Field(min_length=1, description="原则名称")
-    type: Literal["must_do", "must_not_do", "must_have", "invariant"]
+    type: str = Field(
+        default="must_do",
+        description="原则类型。LLM 常用变体自动归一化为 must_do/must_not_do/must_have/invariant"
+    )
     description: str = Field(min_length=1)
     anti_patterns: list[str] = Field(
         default_factory=list,
@@ -36,7 +39,26 @@ class ArchitecturePrinciple(BaseModel):
         default="",
         description="如何验证此原则被遵守"
     )
-    severity: Literal["BLOCKER", "WARNING"] = "BLOCKER"
+    severity: str = Field(
+        default="BLOCKER",
+        description="严重度。LLM 常用变体(HIGH/MEDIUM/LOW/critical)自动归一化为 BLOCKER/WARNING"
+    )
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema, handler):
+        schema = handler(core_schema)
+        return schema
+
+    def model_post_init(self, __context: Any) -> None:
+        # 归一化 type
+        _type_map = {"should_do": "must_do", "should_not_do": "must_not_do",
+                     "nice_to_have": "must_do", "optional": "must_do", "recommended": "must_do"}
+        self.type = _type_map.get(self.type, self.type)
+        # 归一化 severity
+        _sev_map = {"HIGH": "BLOCKER", "high": "BLOCKER", "CRITICAL": "BLOCKER",
+                   "critical": "BLOCKER", "MEDIUM": "WARNING", "medium": "WARNING",
+                   "LOW": "WARNING", "low": "WARNING"}
+        self.severity = _sev_map.get(self.severity, self.severity)
 
 
 class PlatformCapability(BaseModel):
