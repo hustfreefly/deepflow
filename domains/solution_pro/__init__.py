@@ -67,6 +67,7 @@ import json
 import os
 import pathlib
 from datetime import datetime, timezone
+from core.blackboard.context_injector import build_agent_context
 from pathlib import Path
 
 from .orchestrator_agent import _SolutionDispatcher
@@ -123,15 +124,25 @@ def run_solution_pro(topic: str, **kwargs):
     prompt_template = prompt_path.read_text(encoding="utf-8")
     session_dir = str(bm.session_dir)
     plan_path = f"{session_dir}/execution_plan.json"
+    # ── FIX-1/2/4/5: 注入上下文到 orchestrator prompt ──
+    deepflow_root = str(Path(__file__).resolve().parent.parent.parent)
+    agent_context = build_agent_context(
+        deepflow_root=Path(deepflow_root),
+        blackboard_id=session_id,
+        include_schema=False,
+        include_analysis_workflow=True,
+    )
+
     orchestrator_prompt = (
-        prompt_template
+        agent_context
+        + "\n\n---\n\n"
+        + prompt_template
         .replace("{base_path}", session_dir)
         .replace("{session_id}", session_id)
         .replace("{plan_path}", plan_path)
     )
 
     # Watcher integration: provide all info needed for main Agent to create cron
-    deepflow_root = str(Path(__file__).resolve().parent.parent.parent)
     watcher_config_rel = "domains/solution_pro/config/watcher_config.json"
     watcher_config_abs = os.path.join(deepflow_root, watcher_config_rel)
 

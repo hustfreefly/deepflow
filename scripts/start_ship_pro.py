@@ -34,6 +34,7 @@ if DEEPFLOW_HOME not in sys.path:
     sys.path.insert(0, DEEPFLOW_HOME)
 
 import core.bootstrap
+from core.blackboard.context_injector import build_agent_context
 
 
 def _build_v4_orchestrator_prompt(input_path: str, output_dir: str, deepflow_root: str, run_id: str) -> str:
@@ -175,11 +176,28 @@ def main():
     watcher_config_abs = os.path.join(DEEPFLOW_HOME, watcher_config_rel)
 
     # ── V4.0: Build orchestrator prompt ──
-    task = _build_v4_orchestrator_prompt(
-        input_path=input_path,
-        output_dir=output_path,
-        deepflow_root=DEEPFLOW_HOME,
-        run_id=run_id,
+    # ── FIX-1/2/3/4/5: 注入上下文到 orchestrator prompt ──
+    # 从 output_path 提取 blackboard_id (blackboard/<id>/ship_output)
+    _output_parts = Path(output_path).parts
+    _bb_idx = next((i for i, p in enumerate(_output_parts) if p == "blackboard"), None)
+    _blackboard_id = _output_parts[_bb_idx + 1] if _bb_idx is not None and _bb_idx + 1 < len(_output_parts) else "unknown"
+
+    agent_context = build_agent_context(
+        deepflow_root=Path(DEEPFLOW_HOME),
+        blackboard_id=_blackboard_id,
+        include_schema=True,   # Ship Pro Generator/Judge 需要 Schema 提示
+        include_analysis_workflow=True,
+    )
+
+    task = (
+        agent_context
+        + "\n\n---\n\n"
+        + _build_v4_orchestrator_prompt(
+            input_path=input_path,
+            output_dir=output_path,
+            deepflow_root=DEEPFLOW_HOME,
+            run_id=run_id,
+        )
     )
 
     # 构建 spawn_params

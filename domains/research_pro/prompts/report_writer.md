@@ -410,10 +410,17 @@ changelog: "v1.0.0: 从 blackboard V4.1/V4.2 运行报告中反向提取的 V4.3
 ```markdown
 ## 参考资料
 
-[1] {来源标题} — {发布机构/作者} ({发布日期})
-    URL: {完整 URL}
-    访问日期: {date}
-    质量等级: Tier 1/2/3
+**目标**：让读者一眼看出每条引用的可信度等级。
+
+**示例**（理解模式后自行输出）：
+
+[1] 🟢 arxiv.org — "Diamond/Copper Composites Research" — https://arxiv.org/...
+[2] 🟡 36kr.com — "算力狂飙下：金刚石铜迎来必选项时刻" — https://36kr.com/...
+[3] 🔵 zhihu.com — "如何看待金刚石散热" — https://zhihu.com/...
+
+🟢 = Tier-1（权威来源：论文/官方/标准）
+🟡 = Tier-2（主流媒体：财经/科技/行业）
+🔵 = Tier-3（社区/自媒体：需交叉验证）
 ```
 
 ---

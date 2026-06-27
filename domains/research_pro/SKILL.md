@@ -75,12 +75,36 @@ sessions_yield()
 
 ---
 
-### Step 3: 子 Agent 完成 → 推送结果（🔴 不可跳过）
+### Step 3: 子 Agent 完成 → 质量评估 → 推送结果（🔴 不可跳过）
 
-子 Agent 完成后，**必须在同一个 turn 内完成：**
+子 Agent 完成后，**必须在同一个 turn 内完成三步：**
 
-1. 读取报告：通过 BlackboardManager V6 API `bm.read("report/final.md")`
-2. **🔴 推送结果**：用 `message(action=send)` 把核心发现摘要推送给用户
+#### 3a. 读取报告
+通过 BlackboardManager V6 API `bm.read("report/final.md")`
+
+#### 3b. 质量评估（LLM-as-Judge）
+读取 `prompts/quality_reviewer.md` 中的评估维度，对报告进行语义评估：
+
+```
+核心问题：这份报告，你敢不敢拿给投资人看？
+
+5 个维度：
+1. 结构完整性 — 叙事结构是否清晰
+2. 来源可信度 — 是否有 Tier 标注（🟢🟡🔵）
+3. 数据支撑 — 关键结论是否有来源
+4. 风险披露 — 不确定性是否标注
+5. 可操作性 — 是否有具体建议
+
+输出：deliver / deliver_with_caveats / needs_revision
+```
+
+#### 3c. 根据评估结果推送
+
+| Verdict | 动作 |
+|---------|------|
+| `deliver` | 直接推送核心发现 + 完整报告 |
+| `deliver_with_caveats` | 推送 + 附带缺口说明（如"参考资料未标注 Tier"） |
+| `needs_revision` | 告知用户当前状态 + 启动补充研究 |
 
 **交付铁律**：推送是 turn 的最后一个动作，禁止 yield / 等待 / 什么都不做。
 

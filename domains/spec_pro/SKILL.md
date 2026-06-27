@@ -8,6 +8,21 @@
 
 ## 🚀 主 Agent 执行步骤
 
+### Step 0.0: 上下文注入（FIX-1/2/4/5）🔴
+
+**当 spawn 任何 Spec Pro 子 Agent 时，必须在 task prompt 前注入上下文**：
+
+```python
+# 在 spawn 前执行:
+exec(
+    command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c \"from core.blackboard.context_injector import build_agent_context; print(build_agent_context(deepflow_root=__import__('pathlib').Path('.'), blackboard_id='<session_id>'))\"",
+    workdir="/Users/allen/.openclaw/workspace/.deepflow"
+)
+# 将输出拼接到 spawn task 的前面
+```
+
+这提供: 目录树 + BM API 文档 + 环境能力 + 数据分析流程。
+
 ### Step 0: 入口守卫（防偏检查）🔴
 
 **当用户输入包含以下任一条件时，必须进入 Spec Pro 流程**：
