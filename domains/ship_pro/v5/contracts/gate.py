@@ -95,6 +95,22 @@ def gate_blueprint(blueprint: dict) -> Tuple[bool, List[Dict]]:
                 f"{wp.get('id')} 缺少 title",
                 "gate_blueprint"))
 
+    # 4b. 基础设施模块必须有人依赖
+    # 识别基础设施 WP (依赖为空 且 被其他 WP 依赖)
+    all_deps = set()
+    for wp in work_packages:
+        all_deps.update(wp.get("dependencies", []))
+    for wp in work_packages:
+        wp_id = wp.get("id")
+        is_infra = not wp.get("dependencies") and wp_id in all_deps
+        if is_infra:
+            # 检查是否真的有业务 WP 依赖它
+            dependents = [w.get("id") for w in work_packages if wp_id in w.get("dependencies", [])]
+            if not dependents:
+                issues.append(Issue("warning",
+                    f"{wp_id} 疑似基础设施 WP 但无业务 WP 依赖",
+                    "gate_blueprint", {"wp_id": wp_id}))
+
     # 5. 推理链检查
     reasoning_chain = blueprint.get("_reasoning_chain", {})
     if not reasoning_chain:

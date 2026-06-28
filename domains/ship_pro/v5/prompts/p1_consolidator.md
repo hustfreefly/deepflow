@@ -45,6 +45,12 @@
 - 每批修复后，必须重新汇总 3 个 Critic 的意见，进行回归检查
 - 回归检查发现引入新问题 → 回滚该批修复，记录回滚原因
 
+### 收敛停滞检测
+- 每轮修复后，比较当前轮 issue 集合与上一轮 issue 集合
+- 如果连续 2 轮的 issue ID 集合完全相同（无新增、无减少） → 触发收敛停滞退出
+- 收敛停滞退出时：输出 `status: "REJECTED"`，并在 `fix_rounds.json` 中标记 `stagnation_detected: true`
+- 停滞退出优先于 max_fix_rounds：即使未达最大轮次，也要提前退出
+
 ### 修复轮次限制
 - `max_fix_rounds: 2`
 - 2 轮后仍不通过 → 输出 `status: "REJECTED"`，附修复历史
@@ -99,6 +105,7 @@
 6. **输出最终交付物** — 输出 `blueprint.json` + `fix_rounds.json`
 
 ## 防御性指令
+- **最小变更原则**：修复模式下，只修复已识别的 issue，禁止添加新 WP、新模块或新功能。修复 = 修 bug，不是加 feature
 - **禁止自动修复**：未通过时，不自动修改 blueprint，仅输出 `suggested_fix` 供人工/子 Agent 确认
 - **回滚强制**：回归检查发现引入新问题 → 必须回滚，不得隐瞒
 - **Critic 权重不可变**：优先级顺序固定为 Coverage > Feasibility > Granularity，禁止调整

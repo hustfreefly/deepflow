@@ -126,35 +126,19 @@ def main():
                 print(f"⚠️ 读取执行计划失败，跳过 startup_notification: {e}", file=sys.stderr)
         result['startup_notification'] = startup_notification
 
-        # ── Watcher wrapper prompt（始终输出，铁律固化 2026-06-24）──
-        # 主 Agent 创建 cron 时，必须使用 watcher_wrapper_prompt_prefilled 的值。
-        # 禁止主 Agent 手写 watcher prompt。
-        from contracts.shared.watcher_config import render_wrapper_prompt, WRAPPER_PROMPT_TEMPLATE as WRAPPER_PROMPT_TEMPLATE
-        result['watcher_wrapper_prompt_template'] = WRAPPER_PROMPT_TEMPLATE
-        result['watcher_wrapper_prompt_prefilled'] = render_wrapper_prompt(
-            deepflow_root=result.get('deepflow_root', DEEPFLOW_HOME),
+        # ── Watcher V3 契约化（2026-06-28 升级）──
+        # Python 渲染消息，LLM 只做路由 + 失败诊断
+        from contracts.shared.watcher_config import build_v3_cron_payload
+        result['watcher_cron_payload'] = build_v3_cron_payload(
             config_path=result.get('watcher_config_abs', ''),
             base_path=result.get('base_path', ''),
             run_start_at=result.get('run_start_at', ''),
-            cron_job_id="",  # empty = auto-discover (solves chicken-and-egg)
+            cron_job_id="",  # empty = auto-discover (chicken-and-egg)
+            deepflow_root=result.get('deepflow_root', DEEPFLOW_HOME),
+            display_name="Solution Pro",
+            max_runs=15,
+            pipeline_id="solution_pro",
         )
-        # cron job 模板（主 Agent 直接传给 cron add）
-        # 🔴 sessionTarget="isolated"：避免 SessionTakeoverError
-        #   current/session: 绑定活跃会话，用户聊天时 cron 注入会冲突崩溃
-        #   isolated 每次创建临时会话，执行完即销毁，delivery announce 推送消息
-        result['watcher_cron_payload'] = {
-            "name": f"deepflow_watcher_{result.get('session_id', 'unknown')[:30]}",
-            "schedule": {"kind": "every", "everyMs": 180000},
-            "sessionTarget": "isolated",
-            "payload": {
-                "kind": "agentTurn",
-                "message": result['watcher_wrapper_prompt_prefilled'],
-                "timeoutSeconds": 60,
-                "lightContext": True,
-            },
-            "delivery": {"mode": "announce"},
-            "enabled": True,
-        }
 
         # 输出结果（JSON 格式）
         print(json.dumps(result, ensure_ascii=False, indent=2))

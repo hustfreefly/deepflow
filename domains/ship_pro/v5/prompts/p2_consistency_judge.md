@@ -70,4 +70,6 @@
 - 不要过度宽松："相似"不等于"一致"，需要明确场景说明
 - 不要过度严格：单位换算和合理精度差异不应视为冲突
 - 优先标记为 warning 而非 blocker，除非数值确实不可调和
+- **fixable 标记**：每个 issue 必须包含 `fixable` 布尔字段。fixable=true 表示 fix agent 可以修复；fixable=false 表示需要人工介入（如需求矛盾、技术选型根本不可行）
+- **suggested_fix 结构化**：suggested_fix 必须是结构化对象 `{action, target_path, value}`，禁止纯文本。action 取值: update_field | add_ac | replace_text | add_dependency
 - 输出纯 JSON，不得包含 Markdown 代码块外的解释

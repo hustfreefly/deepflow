@@ -1,0 +1,414 @@
+{
+  "_meta": {
+    "generated_at": "2026-06-28T18:32:00+08:00",
+    "analyzer": "v2-v5-comparison",
+    "v2_source": "projects/OpenClaw_AI_Native_L_architecture_v2/ship_output/blackboard/specifier/output.json",
+    "v5_source": "domains/ship_pro/v5/tests/e2e_loop_engineer/output/blackboard/ship_package.json",
+    "input_source": "domains/ship_pro/v5/tests/e2e_loop_engineer/output/blackboard/input.json"
+  },
+
+  "v2_analysis": {
+    "total_wps": 9,
+    "total_acs": 39,
+    "ac_level_distribution": {"L1": 0, "L2": 0, "L3": 18, "L4": 21},
+    "openclaw_api_references": 26,
+    "openclaw_platform_alignment": "65% — 每个WP的constraints和principle_verification显式引用OpenClaw API，但objective和outputs中存在大量传统实现模式，specs内在矛盾",
+    "traditional_impl_patterns": [
+      "fcntl.flock per-stage文件锁（WP-001，自建并发安全）",
+      "write-to-temp+os.rename原子写入（WP-001，自建持久化）",
+      "自建ModelRouter + LLM路由评估（WP-002，违反sessions_spawn model参数直用原则）",
+      "令牌桶限流概念（WP-002 objective提到，虽然constraint说复用Gateway）",
+      "优先级队列概念（WP-002 objective提到，虽然constraint说不自建）",
+      "自建SignalDetector + CircuitBreakerExecutor状态机（WP-003）",
+      "CLOSED→OPEN→HALF-OPEN→DEGRADED状态机（WP-003，传统熔断器模式）",
+      "threading.Timer风险（WP-003 constraint提到要禁止，但heartbeat_monitor.py输出暗示自建）",
+      "自建Evaluator-Optimizer分离模式（WP-004）",
+      "自建偏离检测器deviation_detector.py（WP-004）",
+      "自建上下文一致性守卫context_consistency_guard.py（WP-004）",
+      "自建拓扑排序验证器（WP-005）",
+      "自建文件级冲突检测conflict_detector.py（WP-005）",
+      "自建LLM驱动摘要压缩context_compressor.py（WP-006）",
+      "自建LLM验证器dream_loop_validator.py（WP-007）",
+      "自建基准测试套件decision_benchmark.py（WP-008）",
+      "Self-Harness框架自建（WP-009）"
+    ],
+    "per_wp": [
+      {
+        "id": "WP-001",
+        "title": "BlackboardCheckpoint — 原子持久化与并发安全基础设施",
+        "ac_count": 4,
+        "openclaw_api_used": true,
+        "api_examples": ["workspace文件系统", "memory_get", "memory_search"],
+        "traditional_impl": ["fcntl.flock per-stage文件锁", "write-to-temp+os.rename原子写入", "自建checkpoint管理器", "自建Blackboard存储引擎风险"],
+        "command_executable": "100% — 4/4 AC均有可执行的pytest/python命令",
+        "platform_alignment_notes": "constraint C-003明确要求基于workspace+memory_get/search，但outputs包含blackboard_checkpoint.py自建实现。fcntl.flock是纯Python文件锁机制，非OpenClaw平台能力。存在spec内在矛盾：constraint说'不自建Blackboard存储引擎'，但整个WP就是在建Blackboard存储引擎。"
+      },
+      {
+        "id": "WP-002",
+        "title": "LLMScheduler — 全局LLM请求调度与模型分层路由",
+        "ac_count": 4,
+        "openclaw_api_used": true,
+        "api_examples": ["sessions_spawn(model='...')", "model aliases", "Gateway maxConcurrent"],
+        "traditional_impl": ["自建ModelRouter（objective提到'令牌桶限流+优先级队列'）", "自建LLM路由评估器llm_eval_complexity", "自建cost计算逻辑"],
+        "command_executable": "100% — 4/4 AC均有可执行命令（pytest+grep静态分析）",
+        "platform_alignment_notes": "constraint C-003明确'不自建令牌桶/优先级队列'，但objective写着'令牌桶限流+优先级队列+模型分层路由'。AC-002-01用grep检查无硬编码路由，但整个llm_scheduler.py本身就是自建调度器。sessions_spawn(model=...)是正确的平台用法，但包装了一层LLM路由评估是不必要的自建。"
+      },
+      {
+        "id": "WP-003",
+        "title": "CircuitBreaker — 多维度死循环检测与三级熔断",
+        "ac_count": 5,
+        "openclaw_api_used": true,
+        "api_examples": ["cron(action='add')", "pipeline_watcher"],
+        "traditional_impl": ["自建SignalDetector类", "自建CircuitBreakerExecutor类", "CLOSED→OPEN→HALF-OPEN→DEGRADED状态机", "heartbeat_monitor.py自建心跳监控（虽然constraint说用cron）"],
+        "command_executable": "100% — 5/5 AC均有可执行命令",
+        "platform_alignment_notes": "constraint C-003说'不自建心跳机制'，但outputs包含heartbeat_monitor.py。信号检测和状态机完全是自建Python代码。cron用于触发是对的，但检测逻辑本身是传统实现。进展感知重复检测用LLM语义理解是正确的AI Native思路。"
+      },
+      {
+        "id": "WP-004",
+        "title": "QualityHarness — 分层质量门控与偏离检测",
+        "ac_count": 4,
+        "openclaw_api_used": true,
+        "api_examples": ["message(action='send', channel='feishu')"],
+        "traditional_impl": ["自建Evaluator-Optimizer分离模式", "自建deviation_detector.py偏离检测器", "自建context_consistency_guard.py上下文一致性守卫", "自建三层门控引擎"],
+        "command_executable": "100% — 4/4 AC均有可执行命令",
+        "platform_alignment_notes": "飞书通知用message工具是正确的。但整个质量门控引擎（三层独立评估+偏离检测+上下文守卫）都是自建Python模块。constraint C-002说'不用规则引擎'，但quality_harness.py本身就是一个规则+LLM混合引擎。"
+      },
+      {
+        "id": "WP-005",
+        "title": "DAGScheduler — 动态DAG分解与并行调度",
+        "ac_count": 5,
+        "openclaw_api_used": true,
+        "api_examples": ["sessions_spawn(runtime='subagent', mode='run')", "最大6并发限制"],
+        "traditional_impl": ["自建拓扑排序验证器test_topological_sort.py", "自建文件级冲突检测conflict_detector.py", "自建动态重规划逻辑"],
+        "command_executable": "100% — 5/5 AC均有可执行命令",
+        "platform_alignment_notes": "用sessions_spawn做并行调度是正确的平台用法。但拓扑排序、冲突检测、动态重规划全部是自建Python模块。DAG分解用LLM是AI Native的，但验证逻辑是传统的图算法。"
+      },
+      {
+        "id": "WP-006",
+        "title": "ContextCompressor — 层级摘要压缩与核心指令重现",
+        "ac_count": 5,
+        "openclaw_api_used": true,
+        "api_examples": ["sessions_spawn天然隔离", "context='fork'"],
+        "traditional_impl": ["自建context_compressor.py压缩引擎", "自建定时压缩触发器（每5轮）", "自建指令重现注入器"],
+        "command_executable": "100% — 5/5 AC均有可执行命令（pytest+grep静态分析）",
+        "platform_alignment_notes": "constraint C-003说'不自建上下文压缩器'，但outputs包含context_compressor.py。用sessions_spawn隔离是对的，但压缩引擎本身是自建。摘要用LLM生成是AI Native的，但触发机制和管理逻辑是传统Python。"
+      },
+      {
+        "id": "WP-007",
+        "title": "DreamLoopValidator — 三层反思验证与权重衰减",
+        "ac_count": 4,
+        "openclaw_api_used": true,
+        "api_examples": ["memory_get", "memory_search", "workspace文件系统"],
+        "traditional_impl": ["自建三层验证器dream_loop_validator.py", "自建权重衰减管理器", "自建幻觉检测逻辑"],
+        "command_executable": "100% — 4/4 AC均有可执行命令",
+        "platform_alignment_notes": "用memory_get/search存储教训是正确的。但三层验证逻辑（L1轨迹关联+L1.5交叉验证+L2效果追踪）完全是自建Python+LLM混合模块。权重衰减管理器是自建的状态管理。"
+      },
+      {
+        "id": "WP-008",
+        "title": "DecisionBenchmark — LLM决策质量基准测试",
+        "ac_count": 4,
+        "openclaw_api_used": true,
+        "api_examples": ["workspace文件系统存储基准集"],
+        "traditional_impl": ["自建基准测试套件decision_benchmark.py", "自建Bootstrap标注模块", "自建Cohen's Kappa/Jaccard计算器"],
+        "command_executable": "100% — 4/4 AC均有可执行命令",
+        "platform_alignment_notes": "用workspace存储基准数据是合理的。但整个基准测试框架（双轨制+Bootstrap+校准）都是自建Python模块。Cohen's Kappa和Jaccard计算是确定性代码，这部分用代码实现是合理的。"
+      },
+      {
+        "id": "WP-009",
+        "title": "MetaLoopTuner — Zone 2参数自动调优",
+        "ac_count": 4,
+        "openclaw_api_used": true,
+        "api_examples": ["cron(action='add')定期触发"],
+        "traditional_impl": ["Self-Harness框架自建", "自建调优决策引擎", "自建回归测试防护"],
+        "command_executable": "100% — 4/4 AC均有可执行命令",
+        "platform_alignment_notes": "用cron触发调优是对的。但Self-Harness框架和调优引擎完全是自建。调优决策用LLM是AI Native的，但整个框架是传统的自动调优pipeline。"
+      }
+    ]
+  },
+
+  "v5_analysis": {
+    "total_wps": 7,
+    "total_acs": 38,
+    "ac_level_distribution": {"L1": 0, "L2": 4, "L3": 27, "L4": 7},
+    "openclaw_api_references": 8,
+    "openclaw_platform_alignment": "50% — AC层面OpenClaw API显式引用较少，更多是抽象spec描述；但内部矛盾少于V2，对平台能力有认知",
+    "traditional_impl_patterns": [
+      "StorageBackend typing.Protocol抽象层（WP-001，暗示自建存储后端）",
+      "fcntl.flock文件锁（WP-001 AC#2）",
+      "write-to-temp+os.rename原子写入（WP-001 AC#1）",
+      "四维信号检测硬编码阈值（WP-002 AC#1: repeat_threshold/anomaly_multiplier等占位符）",
+      "CLOSED→OPEN→HALF-OPEN→DEGRADED状态机（WP-002 AC#2）",
+      "分段函数阈值: simple固定5轮/complex固定12轮（WP-002 AC#5，部分硬编码）",
+      "格式完整性检查+必填字段存在率（WP-004 AC#1，传统确定性检查）",
+      "JSON schema验证（WP-005 AC#6, WP-006 AC#5，传统格式验证）",
+      "命名空间隔离设计（WP-006 AC#4，自建数据隔离）"
+    ],
+    "per_wp": [
+      {
+        "id": "WP-001",
+        "title": "Blackboard持久化基础设施包",
+        "ac_count": 5,
+        "openclaw_api_used": false,
+        "api_examples": [],
+        "traditional_impl": ["fcntl.flock文件锁", "write-to-temp+os.rename", "StorageBackend typing.Protocol抽象层", "JSON文件实现+SQLite升级路径"],
+        "command_executable": "0% — AC为纯文字描述+评分，无可执行的verification_command字段",
+        "platform_alignment_notes": "AC中完全没有提到OpenClaw API（workspace/memory_get/memory_search）。技术栈是传统Python文件操作+fcntl锁+Protocol抽象。相比V2的WP-001，丢失了workspace+memory API的显式约束。StorageBackend Protocol暗示可能升级到SQLite，进一步偏离workspace文件系统原则。"
+      },
+      {
+        "id": "WP-002",
+        "title": "死循环熔断安全服务包",
+        "ac_count": 5,
+        "openclaw_api_used": true,
+        "api_examples": ["Blackboard事件通道（间接引用）", "Blackboard节点增量（间接引用）"],
+        "traditional_impl": ["四维信号检测硬编码阈值占位符", "CLOSED→OPEN→HALF-OPEN→DEGRADED状态机", "分段函数阈值（simple=5/medium=公式/complex=12）", "信号schema静态定义"],
+        "command_executable": "0% — AC为纯文字描述，无可执行命令",
+        "platform_alignment_notes": "引用Blackboard作为事件通道和节点数据来源（间接使用OpenClaw workspace），但没有显式提到cron/pipeline_watcher。V2中明确的'基于cron实现心跳'约束丢失。分段函数阈值（AC#5）虽然公式化了，但simple/complex固定值是半硬编码。"
+      },
+      {
+        "id": "WP-003",
+        "title": "LLM智能调度与自优化参数包",
+        "ac_count": 6,
+        "openclaw_api_used": true,
+        "api_examples": ["model alias（显式引用6个别名）", "sessions_spawn model参数（隐式通过路由）"],
+        "traditional_impl": ["LLM prompt驱动路由（正确AI Native，但路由正确性验证是传统的10样本检查）", "Zone 2参数调优（传统参数空间搜索概念）"],
+        "command_executable": "0% — AC为纯文字描述，无可执行命令",
+        "platform_alignment_notes": "model alias配置验证（AC#2）是V2没有的平台感知。路由决策由LLM prompt驱动是正确的AI Native方向。但AC#2提到'速率限制满足6并发需求'暗示自建限流概念。成本优化从hard gate降级为observability metric是务实的改进。"
+      },
+      {
+        "id": "WP-004",
+        "title": "质量门控与上下文一致性引擎包",
+        "ac_count": 7,
+        "openclaw_api_used": false,
+        "api_examples": [],
+        "traditional_impl": ["格式完整性检查+必填字段存在率（传统确定性gate）", "结构化对齐检查（传统关键词覆盖率）", "偏离信号schema定义（传统接口规范）", "COMP-006压缩引擎依赖（自建压缩）"],
+        "command_executable": "0% — AC为纯文字描述+评分",
+        "platform_alignment_notes": "完全没有提到OpenClaw message API（V2中明确用message发飞书告警）。LLM评估从hard gate降级为soft warning是务实的改进，但质量门控本身仍是传统确定性检查+LLM soft辅助。偏离信号通过Blackboard消息通道（workspace间接引用），但没有显式API调用。"
+      },
+      {
+        "id": "WP-005",
+        "title": "DAG任务编排服务包",
+        "ac_count": 6,
+        "openclaw_api_used": true,
+        "api_examples": ["Worker spawn（隐式sessions_spawn）", "DAGScheduler并发控制"],
+        "traditional_impl": ["拓扑排序验证（传统图算法）", "文件级冲突检测（传统文件锁概念）", "JSON schema序列化验证"],
+        "command_executable": "0% — AC为纯文字描述",
+        "platform_alignment_notes": "AC#2明确'DAGScheduler自身并发控制逻辑'而非测试OpenClaw平台限制，这是比V2更务实的思路（V2试图测试平台限制）。Worker spawn是隐式的sessions_spawn使用。但整体仍然是自建DAG编排引擎。"
+      },
+      {
+        "id": "WP-006",
+        "title": "Dream Loop反思学习服务包",
+        "ac_count": 5,
+        "openclaw_api_used": false,
+        "api_examples": [],
+        "traditional_impl": ["三层验证协议自建（L1+L1.5+L2）", "权重衰减分级管理（verified=1.0/applicable=0.5等）", "定时触发策略（事件驱动→定时模式切换）", "命名空间隔离设计"],
+        "command_executable": "0% — AC为纯文字描述",
+        "platform_alignment_notes": "完全没有提到memory_get/search（V2中明确引用）。持久层命名空间隔离（AC#4）是自建数据隔离方案。L2层'对比应用教训前后5轮质量分'是有意义的效果追踪设计，但实现方式未提及OpenClaw API。"
+      },
+      {
+        "id": "WP-007",
+        "title": "决策质量基准测试工具包",
+        "ac_count": 4,
+        "openclaw_api_used": false,
+        "api_examples": [],
+        "traditional_impl": ["双轨制基准集管理（传统数据集管理）", "Bootstrap标注流程（传统统计方法）", "Cohen's Kappa/Jaccard计算（确定性统计，合理用代码）", "校准版本号管理（传统版本控制）"],
+        "command_executable": "0% — AC为纯文字描述",
+        "platform_alignment_notes": "完全没有提到workspace文件系统（V2中提到存储基准集）。Cohen's Kappa和Jaccard用代码计算是合理的（确定性数学，不需要LLM）。Bootstrap标注流程描述较抽象，无具体实现指导。"
+      }
+    ]
+  },
+
+  "source_principles": {
+    "architecture_principles": [
+      {
+        "id": "PRINCIPLE-C-001",
+        "name": "一步到位",
+        "severity": "WARNING",
+        "summary": "不分阶段交付，所有P0/P1/P2组件在同一交付中包含"
+      },
+      {
+        "id": "PRINCIPLE-C-002",
+        "name": "全LLM控制",
+        "severity": "BLOCKER",
+        "summary": "Python仅做执行器，所有决策由LLM驱动。禁止硬编码if/else、固定映射表、规则引擎、关键词匹配"
+      },
+      {
+        "id": "PRINCIPLE-C-003",
+        "name": "OpenClaw平台",
+        "severity": "BLOCKER",
+        "summary": "基于OpenClaw平台能力，不引入外部框架。禁止自建Worker Pool/优先级队列/令牌桶/上下文压缩器/Blackboard/心跳监控"
+      },
+      {
+        "id": "PRINCIPLE-C-008",
+        "name": "死循环熔断",
+        "severity": "BLOCKER",
+        "summary": "必须有死循环熔断机制，SignalDetector输出必须有CircuitBreakerExecutor消费"
+      }
+    ],
+    "platform_capabilities": [
+      {
+        "capability": "子Agent调度",
+        "api": "sessions_spawn(runtime='subagent', mode='run', model='...')",
+        "replaces": ["自建Worker Pool", "自建优先级队列", "自建并发控制"]
+      },
+      {
+        "capability": "模型路由",
+        "api": "sessions_spawn(model='...') + model aliases",
+        "replaces": ["自建ModelRouter", "自建令牌桶限流"]
+      },
+      {
+        "capability": "定时调度",
+        "api": "cron(action='add', job={...})",
+        "replaces": ["自建心跳机制", "自建定时器", "自建间歇式循环"]
+      },
+      {
+        "capability": "持久记忆",
+        "api": "memory_get/search + workspace文件系统",
+        "replaces": ["自建Blackboard", "自建状态持久化"]
+      },
+      {
+        "capability": "消息通知",
+        "api": "message(action='send', channel='feishu')",
+        "replaces": ["自建通知系统", "自建HITL通知"]
+      },
+      {
+        "capability": "会话上下文管理",
+        "api": "sessions_spawn天然隔离 + context='fork'",
+        "replaces": ["自建上下文压缩器", "自建context window管理"]
+      }
+    ]
+  },
+
+  "comparison": {
+    "v2_platform_alignment_score": 65,
+    "v5_platform_alignment_score": 50,
+    "key_differences": [
+      {
+        "dimension": "OpenClaw API显式引用密度",
+        "v2": "26处显式引用 — constraints/principle_verification/objective中大量提到sessions_spawn/cron/memory/message/workspace",
+        "v5": "8处显式引用 — AC文本中仅偶尔提到model alias/Worker spawn/Blackboard",
+        "improvement": "V2远优于V5。V2的每个WP都有constraint强制要求使用特定OpenClaw API；V5的AC几乎不提平台API"
+      },
+      {
+        "dimension": "AC可执行性（command_template）",
+        "v2": "100%可执行 — 39/39 AC均有verification_command字段，包含pytest/grep/python具体命令",
+        "v5": "0%可执行 — 38/38 AC均为纯文字描述，无verification_command字段，仅有评分(0-100)",
+        "improvement": "V2远优于V5。V2的AC可以直接运行验证；V5的AC需要人工解读并编写测试"
+      },
+      {
+        "dimension": "Spec内在矛盾",
+        "v2": "严重矛盾 — constraint说'不自建X'但objective和outputs明确要建X。例：C-003'不自建Worker Pool'但WP-002 objective'令牌桶限流+优先级队列'",
+        "v5": "较少矛盾 — AC描述与约束基本一致，虽然平台引用少但不会自相矛盾",
+        "improvement": "V5优于V2。V2的spec会导致执行者困惑（到底建不建？）；V5虽然抽象但方向一致"
+      },
+      {
+        "dimension": "传统实现模式数量",
+        "v2": "17种传统实现模式 — fcntl.flock/原子写入/自建状态机/自建调度器/自建压缩器/自建验证器等",
+        "v5": "9种传统实现模式 — fcntl.flock/原子写入/状态机/分段函数阈值/格式检查等",
+        "improvement": "V5优于V2。V5的传统模式更少，且部分（如分段函数阈值）是务实的半AI Native折中"
+      },
+      {
+        "dimension": "AC Level分布",
+        "v2": "L3=18, L4=21（高level占比54%）",
+        "v5": "L2=4, L3=27, L4=7（高level占比18%）",
+        "improvement": "V2的L4占比更高意味着更多端到端集成验证；V5更多L3（单元/模块级），缺少端到端验证"
+      },
+      {
+        "dimension": "WP数量与粒度",
+        "v2": "9个WP，粒度更细（WP-006压缩和WP-007验证分离）",
+        "v5": "7个WP，粒度更粗（合并了部分功能，如WP-004包含质量门控+压缩+一致性）",
+        "improvement": "中性。V2粒度细利于并行但增加协调成本；V5粒度粗减少依赖但增加单WP复杂度"
+      },
+      {
+        "dimension": "非确定性处理",
+        "v2": "未处理 — AC假设LLM输出稳定，无降级/兜底机制",
+        "v5": "显式处理 — WP-003成本从hard gate降级为observability metric；WP-004 LLM评估降级为soft warning+确定性检查",
+        "improvement": "V5远优于V2。V5认识到LLM非确定性并做了务实降级；V2天真假设LLM可稳定通过pass/fail gate"
+      },
+      {
+        "dimension": "Fix/校准机制",
+        "v2": "无 — spec一次生成，无迭代修复",
+        "v5": "2轮fix，修复6个blocker+7个warning。建立全局参数表（13个占位符全部绑定值）",
+        "improvement": "V5远优于V2。V5通过quality/consistency/completeness三维judge发现问题并修复"
+      },
+      {
+        "dimension": "deliverable可落地性",
+        "v2": "高可落地性 — 有具体文件名、测试命令、约束验证方法，开发者可直接按spec实现",
+        "v5": "中等可落地性 — AC是抽象描述+评分，开发者需要自行解读如何实现和验证",
+        "improvement": "V2优于V2。V2的spec更像工程蓝图；V5更像需求文档"
+      }
+    ],
+
+    "v2_principle_violations": [
+      {
+        "principle": "PRINCIPLE-C-003 OpenClaw平台（BLOCKER）",
+        "violation": "WP-001: constraint说'不自建Blackboard存储引擎'，但outputs包含blackboard_checkpoint.py（自建存储引擎）。使用fcntl.flock（自建并发锁）而非依赖workspace的原子写入能力",
+        "severity": "HIGH"
+      },
+      {
+        "principle": "PRINCIPLE-C-003 OpenClaw平台（BLOCKER）",
+        "violation": "WP-002: objective写'令牌桶限流+优先级队列'，constraint说'不自建令牌桶/优先级队列'。spec内在矛盾，执行者无法判断",
+        "severity": "HIGH"
+      },
+      {
+        "principle": "PRINCIPLE-C-003 OpenClaw平台（BLOCKER）",
+        "violation": "WP-002: 自建ModelRouter（llm_scheduler.py），而platform_capabilities明确说sessions_spawn(model=...)+model aliases已覆盖模型路由需求",
+        "severity": "HIGH"
+      },
+      {
+        "principle": "PRINCIPLE-C-003 OpenClaw平台（BLOCKER）",
+        "violation": "WP-003: heartbeat_monitor.py自建心跳监控，constraint C-003说'不自建心跳机制'，应完全用cron+pipeline_watcher",
+        "severity": "MEDIUM"
+      },
+      {
+        "principle": "PRINCIPLE-C-003 OpenClaw平台（BLOCKER）",
+        "violation": "WP-006: constraint说'不自建上下文压缩器'，但outputs包含context_compressor.py（自建压缩引擎）",
+        "severity": "HIGH"
+      },
+      {
+        "principle": "PRINCIPLE-C-003 OpenClaw平台（BLOCKER）",
+        "violation": "WP-009: 自建Self-Harness框架，而非复用OpenClaw已有的pipeline_watcher/测试能力",
+        "severity": "MEDIUM"
+      },
+      {
+        "principle": "PRINCIPLE-C-002 全LLM控制（BLOCKER）",
+        "violation": "WP-001: fcntl.flock锁粒度控制是纯Python代码决策（判断哪个stage需要锁），非LLM驱动",
+        "severity": "LOW — 基础设施层的并发控制不适合LLM决策"
+      },
+      {
+        "principle": "PRINCIPLE-C-002 全LLM控制（BLOCKER）",
+        "violation": "WP-005: 拓扑排序验证是确定性图算法，非LLM驱动。但这是合理的——验证DAG无环不需要LLM",
+        "severity": "LOW — 验证逻辑用确定性代码是合理的"
+      },
+      {
+        "principle": "PRINCIPLE-C-003 OpenClaw平台（BLOCKER）",
+        "violation": "WP-004: 自建deviation_detector.py+context_consistency_guard.py+quality_harness.py三个独立模块，而非利用OpenClaw已有的session/agent能力",
+        "severity": "MEDIUM"
+      }
+    ],
+
+    "v5_principle_compliance": [
+      {
+        "principle": "PRINCIPLE-C-002 全LLM控制",
+        "compliance": "较好 — WP-003 AC#1明确'路由决策由LLM prompt驱动（非硬编码映射表）'。WP-002 AC#5的分段函数阈值是半硬编码（simple=5/complex=12固定值），但medium使用公式是改进",
+        "score": "70/100"
+      },
+      {
+        "principle": "PRINCIPLE-C-003 OpenClaw平台",
+        "compliance": "中等 — WP-001使用fcntl.flock+os.rename（传统Python）而非纯workspace API。WP-003提到model alias（好的平台感知）。但大部分WP的AC未提及任何OpenClaw API，是平台无关的抽象描述",
+        "score": "50/100"
+      },
+      {
+        "principle": "PRINCIPLE-C-008 死循环熔断",
+        "compliance": "好 — WP-002 AC#4明确'SignalDetector产生pause信号→Blackboard事件通道→消费端100ms内读取并执行暂停'。生产-消费链路有端到端集成验证",
+        "score": "85/100"
+      },
+      {
+        "principle": "PRINCIPLE-C-001 一步到位",
+        "compliance": "部分 — 7个WP覆盖了9个COMP（缺少NotificationManager），但WP-004 AC#7承认'COMP-006先行交付+COMP-004并行开发'是分阶段思路",
+        "score": "60/100"
+      }
+    ],
+
+    "summary_narrative": "V2是'高规格、高矛盾'的spec：OpenClaw API引用密度高（26处）、AC 100%可执行、deliverable可落地性强；但spec内部constraint与objective严重矛盾（说不建但实际建），且17种传统实现模式直接违反PRINCIPLE-C-003。V5是'低规格、低矛盾'的spec：OpenClaw API引用稀少（8处）、AC全部不可执行（纯文字描述）、deliverable需要大量解读；但内在矛盾少，非确定性处理务实（LLM评估降级为soft warning），fix机制修复了6个blocker。核心差异：V2知道要用OpenClaw但不知道怎么用（constraint说用API但实现自建）；V5更少提OpenClaw但矛盾更少（因为更抽象）。两者共同问题：都没有真正做到'基于OpenClaw平台能力不自建'——V2显式违反，V5隐式忽略。"
+  }
+}

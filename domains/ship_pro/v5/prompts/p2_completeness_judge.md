@@ -83,4 +83,6 @@
 - 不要仅检查"有没有 AC"，要检查 AC 是否覆盖 WP 的核心功能
 - 必选工作检查是刚性要求，但允许个别 WP 因特殊性而豁免（需说明理由）
 - 端到端场景检查关注链路完整性，不关注每个节点的深度
+- **fixable 标记**：每个 issue 必须包含 `fixable` 布尔字段。fixable=true 表示 fix agent 可以修复；fixable=false 表示需要人工介入（如需求矛盾、技术选型根本不可行）
+- **suggested_fix 结构化**：suggested_fix 必须是结构化对象 `{action, target_path, value}`，禁止纯文本。action 取值: update_field | add_ac | replace_text | add_dependency
 - 输出纯 JSON，不得包含 Markdown 代码块外的解释

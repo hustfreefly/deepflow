@@ -251,38 +251,31 @@ def validate_delivery_config(delivery: dict) -> tuple[bool, list[str]]:
 # AI Native Watcher Prompt V3 — LLM 做判断，Python 只做文件扫描
 # ---------------------------------------------------------------------------
 
-WATCHER_V3_TEMPLATE = """你是 DeepFlow 管线巡检员。
+WATCHER_V3_TEMPLATE = """你是 DeepFlow 管线巡检执行器。严格按以下步骤执行：
 
-1. 运行: exec("python3 {deepflow_root}/scripts/watcher_scan.py {base_path} {config_path} --run-start-at {run_start_at}")
-2. 解析 stdout JSON。
-3. 根据数据决定动作：
-   - completed.exists=true 且 status="completed" → 用完成模板输出消息，然后 cron remove
-   - completed.exists=true 且 status="failed" → 用失败模板输出消息，然后 cron remove
-   - has_new=true → 用进度模板输出消息
-   - run_count > {max_runs} → 输出超时消息，然后 cron remove
-   - 其他 → NO_REPLY
-4. cron remove: cron(action="remove", jobId="{cron_job_id}")
-   如果 jobId 为空: cron(action="list") 找 name 含 "watcher" 的 job → remove
+1. 运行: exec("python3 {deepflow_root}/scripts/watcher_scan.py {base_path} {config_path} --run-start-at {run_start_at} --cron-job-id {cron_job_id}")
+2. 解析 stdout JSON（必须是合法 JSON）。
+3. 根据 action 字段：
+   - "noop" → 回复 NO_REPLY
+   - "completed" 且 error 字段不为 null → 输出 message 字段值，然后执行步骤 4（失败诊断）
+   - "completed" → 输出 message 字段值，然后执行步骤 4
+   - "failed" → 输出 message 字段值，然后执行步骤 4（失败诊断）
+   - "timeout" / "circuit_break" → 输出 message 字段值，然后执行步骤 4
+   - "progress" / "still_running" → 输出 message 字段值
+4. cron remove（仅 should_remove_cron=true 时）：
+   - cron_job_id 不为空 → cron(action="remove", jobId="{cron_job_id}")
+   - cron_job_id 为空 → cron(action="list") 找 name 含 "deepflow_watcher" 的 job → remove
 
-## 输出模板（必须使用，不可自行编写）
-
-进度: 🟠 [{display_name}] {{current_phase}}
-{{progress_bar}} {{completed}}/{{total}} 阶段
-⏱️ {{elapsed}}min
-
-完成: ✅ {display_name} 完成！{{completed}}/{{total}} 阶段 | {{elapsed}}min
-
-失败: ⚠️ {display_name} 失败（{{completed}}/{{total}}）
-
-超时: ⚠️ {display_name} 超时（{{max_runs}} 次巡检）
-
-## 进度条
-completed/total → "█"×completed + "░"×(total-completed)
+## 失败诊断（仅 action="failed" 或 completed 带 error 时）
+读取 error 字段内容，分析失败根因，在 message 后附加一行恢复建议。
+示例：error="Module X failed: dependency not found" → 建议 "检查 requirements.txt 是否包含 package-y"
 
 ## 规则
-- 只输出模板文本，不输出 JSON
+- 直接输出 message 字段的值，不要自行格式化
 - NO_REPLY 时不输出任何文本
-- 先发模板消息，再 cron remove"""
+- JSON 解析失败 → 输出 "⚠️ Watcher 扫描输出异常，请检查 watcher_scan.py 日志"
+- 先发 message，再 cron remove
+- 禁止：自行判断进度、编造消息、调用 message tool"""
 
 
 def render_v3_prompt(
@@ -294,19 +287,17 @@ def render_v3_prompt(
     display_name: str = "Pipeline",
     max_runs: int = 15,
 ) -> str:
-    """Render AI Native Watcher V3 prompt.
+    """Render Watcher V3 prompt.
     
-    LLM does judgment + formatting, Python only scans files.
-    ~600 tokens per run (vs ~2000 for V2).
+    Python renders messages, LLM only routes + diagnoses failures.
+    ~180 tokens prompt + ~300 scan output = ~480 tokens per run.
     """
     return WATCHER_V3_TEMPLATE.format(
         deepflow_root=deepflow_root,
         base_path=base_path,
         config_path=config_path,
         run_start_at=run_start_at,
-        cron_job_id=cron_job_id,
-        display_name=display_name,
-        max_runs=max_runs,
+        cron_job_id=cron_job_id or "",
     )
 
 
@@ -320,7 +311,14 @@ def build_v3_cron_payload(
     max_runs: int = 15,
     pipeline_id: str = "unknown",
 ) -> dict:
-    """Build complete cron job payload for AI Native Watcher V3."""
+    """Build complete cron job payload for Watcher V3.
+    
+    V3 changes from V2:
+    - Python renders all messages (watcher_scan.py handles templates)
+    - LLM only routes pre-rendered messages + diagnoses failures
+    - sessionTarget="isolated" avoids SessionTakeoverError
+    - timeoutSeconds=120 for failure diagnosis headroom
+    """
     prompt = render_v3_prompt(
         config_path=config_path,
         base_path=base_path,
@@ -333,15 +331,13 @@ def build_v3_cron_payload(
     return {
         "name": f"deepflow_watcher_{pipeline_id}_{run_start_at[:16].replace(':', '')}",
         "schedule": {"kind": "every", "everyMs": 180000},
-        # 🔴 isolated 避免 SessionTakeoverError（current/session: 会和活跃会话冲突）
         "sessionTarget": "isolated",
         "payload": {
             "kind": "agentTurn",
             "message": prompt,
-            "timeoutSeconds": 60,
+            "timeoutSeconds": 120,
             "lightContext": True,
         },
-        # delivery 需要显式 channel + to，isolated 会话无法自动推断
         "delivery": {"mode": "announce"},
         "enabled": True,
     }

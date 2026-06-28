@@ -79,4 +79,6 @@
 - 不要因为是"最佳实践"就放过模糊描述
 - 数值必须有来源追溯，不能是"看起来合理"的数字
 - 对于 L4 级 AC，必须确认 command_template 中的占位符可以实际替换
+- **fixable 标记**：每个 issue 必须包含 `fixable` 布尔字段。fixable=true 表示 fix agent 可以修复；fixable=false 表示需要人工介入（如需求矛盾、技术选型根本不可行）
+- **suggested_fix 结构化**：suggested_fix 必须是结构化对象 `{action, target_path, value}`，禁止纯文本。action 取值: update_field | add_ac | replace_text | add_dependency
 - 输出纯 JSON，不得包含 Markdown 代码块外的解释

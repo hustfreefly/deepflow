@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
-"""Pipeline Watcher V2 — deterministic pipeline progress monitor."""
+"""
+DEPRECATED: Pipeline Watcher V2 — use watcher_scan.py (V3) instead.
+
+V2 (this file) is kept for backward compatibility only.
+V3 (watcher_scan.py) is the active implementation:
+- Python renders all messages (config templates + format_map + SafeDict)
+- LLM only routes pre-rendered messages + diagnoses failures
+- Unified .watcher_state.json + V2 state migration
+- Full defense: atomic_write + fcntl.flock + stale filter + merge_group
+
+See: .deepflow/contracts/shared/pipeline_watcher_v2_design.md (archived)
+"""
 import argparse, fcntl, json, os, sys
 from datetime import datetime, timezone
 from pathlib import Path

@@ -1,0 +1,10 @@
+{
+  "run_id": "run_20260628_173609_v5",
+  "version": "5.0.0",
+  "input_file": "/Users/allen/.openclaw/workspace/.deepflow/domains/ship_pro/v5/tests/e2e_loop_engineer/solution_pro_output.json",
+  "blackboard_dir": "/Users/allen/.openclaw/workspace/.deepflow/domains/ship_pro/v5/tests/e2e_loop_engineer/output/blackboard",
+  "output_dir": "/Users/allen/.openclaw/workspace/.deepflow/domains/ship_pro/v5/tests/e2e_loop_engineer/output",
+  "max_rounds": 3,
+  "deepflow_root": "/Users/allen/.openclaw/workspace/.deepflow",
+  "generated_at": "2026-06-28T17:36:09.521743"
+}

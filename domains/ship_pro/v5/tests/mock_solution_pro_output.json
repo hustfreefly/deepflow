@@ -1,0 +1,71 @@
+{
+  "architecture": {
+    "components": [
+      {
+        "name": "用户认证服务",
+        "responsibilities": ["用户注册", "登录验证", "Token 管理"],
+        "dependencies": ["数据库"]
+      },
+      {
+        "name": "订单处理服务",
+        "responsibilities": ["创建订单", "支付集成", "订单状态管理"],
+        "dependencies": ["用户认证服务", "支付网关"]
+      },
+      {
+        "name": "商品目录服务",
+        "responsibilities": ["商品查询", "库存管理", "价格计算"],
+        "dependencies": ["数据库"]
+      }
+    ],
+    "requirements": [
+      {
+        "text": "系统必须支持每秒 1000 次并发登录",
+        "priority": "high"
+      },
+      {
+        "text": "订单创建响应时间 < 500ms",
+        "priority": "high"
+      }
+    ],
+    "principles": [
+      {
+        "text": "微服务架构，每个服务独立部署"
+      },
+      {
+        "text": "事件驱动通信优先"
+      }
+    ],
+    "sla": [
+      {
+        "metric": "latency",
+        "target": "500ms"
+      },
+      {
+        "metric": "availability",
+        "target": "99.9%"
+      }
+    ],
+    "platform_capabilities": [
+      {
+        "name": "Kafka",
+        "description": "用于异步事件通知"
+      },
+      {
+        "name": "Redis",
+        "description": "用于缓存和会话存储"
+      }
+    ],
+    "data_flows": [
+      {
+        "from": "用户认证服务",
+        "to": "订单处理服务",
+        "data_type": "用户Token验证"
+      },
+      {
+        "from": "订单处理服务",
+        "to": "商品目录服务",
+        "data_type": "库存查询"
+      }
+    ]
+  }
+}

@@ -15,7 +15,7 @@ Solution Pro 输出（格式可能是 A/B/C/D），一个 JSON 文件，可能�
 ```json
 {
   "format": "A|B|C|D",
-  "quality_score": 0.0-1.0,
+  "quality_score": 0.85,
   "modules": [
     {
       "id": "COMP-001",

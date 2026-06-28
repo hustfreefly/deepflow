@@ -69,11 +69,40 @@ CI 一致性检查: `python3 -m domains.ship_pro.contracts.generator --check`
 - ❌ 调用 `orchestrator.py`（已废弃）
 - ❌ 手写 watcher prompt（必须用 start_ship_pro.py 生成的 watcher_cron_payload）
 
+## V5.0 (当前开发)
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| **V5.0** | **2026-06-28** | **双 Phase 多 Agent 管线（13 LLM + 3 代码模块）** |
+
+### V5 架构
+```
+Phase 1 (Blueprint): Parser → Explorer → Architect(2步) → 3 Critic(并行) → Consolidator
+Phase 2 (Delivery):  Code(propagator+depgraph+numeric) → AC Writer → 3 Judge(并行) → Consolidator
+```
+
+### V5 文件
+| 文件 | 职责 |
+|------|------|
+| `scripts/run_pipeline_v5.py` | **V5 CLI**（prepare/task/gate/run-code/next/fix-context/validate/finalize） |
+| `scripts/start_ship_pro_v5.py` | **V5 启动入口**（生成 orchestrator prompt + spawn_params） |
+| `v5/prompts/v5_orchestrator.md` | **V5 Orchestrator prompt** |
+| `v5/prompts/p1_*.md` (8个) | Phase 1 全部 Agent prompt |
+| `v5/prompts/p2_*.md` (5个) | Phase 2 全部 Agent prompt |
+| `v5/contracts/` (4个) | Pydantic 契约（Blueprint + ReasoningChain + ShipPackage + Gate） |
+| `v5/code/` (3个) | 确定性代码模块（propagator + depgraph + numeric_checker） |
+| `v5/runner/` | 本地 Mock 测试引擎（独立运行用） |
+
+### V4 vs V5 路由
+- **V4**: 轻量任务快速通道（1 Generator + 1 Judge，快）
+- **V5**: 重量任务深度通道（多管线多 Agent，慢但质量高）
+- **路由策略**: TODO（复杂度自动判定）
+
 ## 历史版本
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| **V4.0** | **2026-06-25** | **恢复 Orchestrator 模式（与 Solution Pro 一致）** |
+| **V4.0** | **2026-06-25** | **Generator + Judge 两阶段闭环（冻结）** |
 | V3.2 | 2026-06-23 | Pydantic 契约笼子 + 单一执行引擎（扁平 spawn，已废弃） |
 | V3.1 | 2026-06-22 | STAGE_PATH_REGISTRY 统一路径 |
 | V3.0 | 2026-06-18 | 5 Agent LLM-native 管线 |

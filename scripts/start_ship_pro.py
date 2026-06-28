@@ -228,7 +228,7 @@ def main():
         )
     }
 
-    # ── Watcher V3 契约化 ──
+    # ── Watcher V3 契约化（2026-06-28 升级）──
     try:
         from contracts.shared.watcher_config import build_v3_cron_payload
         result['watcher_cron_payload'] = build_v3_cron_payload(
@@ -237,11 +237,12 @@ def main():
             run_start_at=run_start_at,
             cron_job_id="",
             deepflow_root=DEEPFLOW_HOME,
-            display_name="Ship Pro V4",
+            display_name="Ship Pro",
             max_runs=15,
             pipeline_id="ship_pro",
         )
-    except ImportError:
+    except ImportError as e:
+        print(f"⚠️ Watcher V3 import failed: {e}", file=sys.stderr)
         result['watcher_cron_payload'] = None
 
     # 清理旧状态文件

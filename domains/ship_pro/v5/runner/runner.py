@@ -52,40 +52,104 @@ class ShipProV5Runner:
     # ────────────────────────────────
 
     def run_full_pipeline(self, input_path: Path) -> Dict[str, Any]:
-        """端到端执行 Pipeline: Phase 1 → Gate → Phase 2 → Gate"""
+        """端到端执行 Pipeline: Phase 1 → Gate → Phase 2 → Gate + 降级策略"""
         start_time = time.monotonic()
         logger.info("🚀 Ship Pro V5 Pipeline 启动 | input=%s", input_path)
 
-        # Phase 1: Blueprint
-        blueprint = self.run_phase1(input_path)
+        degradation_level = "full"  # full → simplified → fail
 
-        # Gate 1
-        gate1_passed, gate1_issues = self.gate_blueprint(blueprint)
-        if not gate1_passed:
-            logger.warning("🔴 Gate 1 未通过, issues=%d", len(gate1_issues))
-            blueprint = self.fix_cycle(blueprint, gate1_issues, phase=1)
-        else:
-            logger.info("🟢 Gate 1 通过")
+        try:
+            # Phase 1: Blueprint
+            blueprint = self.run_phase1(input_path)
 
-        # Phase 2: Delivery
-        ship_package = self.run_phase2(blueprint)
+            # Gate 1
+            gate1_passed, gate1_issues = self.gate_blueprint(blueprint)
+            if not gate1_passed:
+                logger.warning("🔴 Gate 1 未通过, issues=%d", len(gate1_issues))
+                blueprint = self.fix_cycle(blueprint, gate1_issues, phase=1)
 
-        # Gate 2
-        gate2_passed, gate2_issues = self.gate_ship_package(ship_package)
-        if not gate2_passed:
-            logger.warning("🔴 Gate 2 未通过, issues=%d", len(gate2_issues))
-            ship_package = self.fix_cycle(ship_package, gate2_issues, phase=2)
-        else:
-            logger.info("🟢 Gate 2 通过")
+                # 降级检查: fix 后仍未通过
+                gate1_passed, gate1_issues = self.gate_blueprint(blueprint)
+                if not gate1_passed:
+                    logger.warning("🟡 降级: Phase 1 fix 后仍未通过, 尝试简化模式")
+                    degradation_level = "simplified"
+                    blueprint = self._run_simplified_phase1(input_path)
+            else:
+                logger.info("🟢 Gate 1 通过")
+
+            # Phase 2: Delivery
+            ship_package = self.run_phase2(blueprint)
+
+            # Gate 2
+            gate2_passed, gate2_issues = self.gate_ship_package(ship_package)
+            if not gate2_passed:
+                logger.warning("🔴 Gate 2 未通过, issues=%d", len(gate2_issues))
+                ship_package = self.fix_cycle(ship_package, gate2_issues, phase=2)
+
+                # 降级检查: fix 后仍未通过
+                gate2_passed, gate2_issues = self.gate_ship_package(ship_package)
+                if not gate2_passed:
+                    logger.warning("🟡 降级: Phase 2 fix 后仍未通过, 标记为条件通过")
+                    ship_package["_degradation"] = {
+                        "level": "conditional",
+                        "reason": "phase2_fix_exhausted",
+                        "remaining_issues": len(gate2_issues),
+                    }
+            else:
+                logger.info("🟢 Gate 2 通过")
+
+        except Exception as exc:
+            logger.error("❌ Pipeline 异常: %s", exc)
+            degradation_level = "fail"
+            ship_package = {
+                "verdict": "fail",
+                "error": str(exc),
+                "degradation": {
+                    "level": "fail",
+                    "reason": "pipeline_exception",
+                },
+            }
 
         # 最终保存
+        ship_package["_degradation_level"] = degradation_level
         final_path = self.output_dir / "ship_package.json"
         self.save_json("ship_package", ship_package)
 
         elapsed = time.monotonic() - start_time
-        logger.info("✅ Pipeline 完成 | 耗时=%.2fs | 输出=%s", elapsed, final_path)
+        logger.info("✅ Pipeline 完成 | 耗时=%.2fs | 降级=%s | 输出=%s", elapsed, degradation_level, final_path)
 
         return ship_package
+
+    def _run_simplified_phase1(self, input_path: Path) -> Dict[str, Any]:
+        """简化版 Phase 1: 跳过 Explorer + 合并 Critic 为单次评审"""
+        logger.info("🟡 简化版 Phase 1: 跳过 Explorer, 合并 Critic")
+
+        # P1-1 Parser (保留)
+        parsed = self._call_agent("p1_parser", {"input_path": str(input_path)})
+        self.save_output("p1_parser", parsed)
+        self.parsed_input = parsed  # 保存到实例，供 Phase 2 AC Writer 消费平台约束
+
+        # P1-3 Architect (合并为单步, 跳过 Explorer)
+        blueprint_draft = self._call_agent(
+            "p1_architect",
+            {"parsed": parsed, "findings": {"findings": [], "hypotheses": []}},
+        )
+        self.save_output("p1_architect", blueprint_draft)
+
+        # 简化的 Coverage 检查 (代码级, 不 spawn LLM Critic)
+        modules = parsed.get("modules", [])
+        work_packages = blueprint_draft.get("work_packages", [])
+        all_module_ids = {m.get("id") for m in modules}
+        covered = set()
+        for wp in work_packages:
+            covered.update(wp.get("source_modules", []))
+        coverage = len(covered & all_module_ids) / max(len(all_module_ids), 1)
+
+        blueprint_draft["_simplified"] = True
+        blueprint_draft["_coverage"] = coverage
+        self.save_output("p1_consolidator", {"blueprint": blueprint_draft})
+
+        return blueprint_draft
 
     # ────────────────────────────────
     # Phase 1: Blueprint
@@ -99,6 +163,7 @@ class ShipProV5Runner:
         # P1-1 Parser
         parsed = self._call_agent("p1_parser", {"input_path": str(input_path)})
         self.save_output("p1_parser", parsed)
+        self.parsed_input = parsed  # 保存到实例，供 Phase 2 AC Writer 消费平台约束
 
         # P1-2 Explorer
         findings = self._call_agent("p1_explorer", {"parsed": parsed})
@@ -148,8 +213,16 @@ class ShipProV5Runner:
         logger.info("📗 Phase 2 启动: Delivery")
         phase_start = time.monotonic()
 
-        # P2-1 AC Writer
-        ac_drafts = self._call_agent("p2_ac_writer", {"blueprint": blueprint})
+        # P2-1 AC Writer（注入 parsed_input 的平台约束信息）
+        parsed_input = getattr(self, "parsed_input", {})
+        platform_context = {
+            "platform_capabilities": parsed_input.get("platform_capabilities", []),
+            "architecture_principles": parsed_input.get("architecture_principles", []),
+        }
+        ac_drafts = self._call_agent(
+            "p2_ac_writer",
+            {"blueprint": blueprint, "parsed_input": platform_context},
+        )
         self.save_output("p2_ac_writer", ac_drafts)
 
         # P2-2 Propagator (代码模块)
@@ -320,13 +393,15 @@ class ShipProV5Runner:
         max_rounds: int = 2,
         batch_size: int = 3,
     ) -> Dict[str, Any]:
-        """分批修复 + 回归检查
+        """分批修复 + 回归检查 + LLM 验证修复质量
 
         策略:
         1. 按 severity 排序 (blocker → warning → info)
         2. 分批处理, 每批最多 batch_size 个
         3. 修复后回归检查, 若 regression 更严重则回滚
-        4. 最多 max_rounds 轮
+        4. 每批修复后 LLM 验证修复质量 (独立视角, 非运动员=裁判)
+        5. 提前退出: 所有 issue 不可修复 / 连续 2 轮 risk 集合相同
+        6. 最多 max_rounds 轮
         """
         logger.info(
             "🔧 Fix Cycle 启动 | phase=%d | issues=%d | max_rounds=%d",
@@ -339,14 +414,33 @@ class ShipProV5Runner:
         sorted_issues = sorted(
             issues, key=lambda x: severity_order.get(x.get("severity", "info"), 2)
         )
+
+        # 提前退出: 所有 issue 标记为 fixable=False
+        unfixable = [i for i in sorted_issues if i.get("fixable") is False]
+        if len(unfixable) == len(sorted_issues) and sorted_issues:
+            logger.warning(
+                "⚠️ 所有 %d 个 issue 标记为不可修复 (fixable=False), 跳过 fix cycle",
+                len(unfixable),
+            )
+            current_data = dict(data)
+            current_data["_fix_meta"] = {
+                "skipped": True,
+                "reason": "all_issues_unfixable",
+                "unfixable_count": len(unfixable),
+            }
+            return current_data
+
+        # 过滤掉 fixable=False 的 issue，只修复可修复的
+        fixable_issues = [i for i in sorted_issues if i.get("fixable") is not False]
         batches = [
-            sorted_issues[i : i + batch_size]
-            for i in range(0, len(sorted_issues), batch_size)
+            fixable_issues[i : i + batch_size]
+            for i in range(0, len(fixable_issues), batch_size)
         ]
 
         original_data = data
         current_data = dict(data)
         original_score = self.severity_sum(issues)
+        prev_issue_ids: set = set()  # 用于检测连续同集合退出
 
         for round_num in range(1, max_rounds + 1):
             logger.info("🔧 Fix Round %d/%d", round_num, max_rounds)
@@ -364,7 +458,7 @@ class ShipProV5Runner:
                     {"data": current_data, "issues": batch},
                 )
 
-                # 回归检查
+                # Layer 1: 代码 gate 回归检查
                 if phase == 1:
                     _, new_issues = self.gate_blueprint(fixed)
                 else:
@@ -382,6 +476,23 @@ class ShipProV5Runner:
                     )
                     continue
 
+                # Layer 2: LLM 验证修复质量 (独立视角)
+                verify_result = self._call_agent(
+                    f"p{phase}_verify_agent",
+                    {
+                        "original_data": current_data,
+                        "fixed_data": fixed,
+                        "issues_addressed": batch,
+                        "remaining_issues": new_issues,
+                    },
+                )
+                if verify_result.get("verdict") == "reject":
+                    logger.warning(
+                        "  ⚠️ LLM 验证拒绝修复: %s",
+                        verify_result.get("reason", "unknown"),
+                    )
+                    continue
+
                 current_data = fixed
                 issues = new_issues
 
@@ -395,14 +506,28 @@ class ShipProV5Runner:
                 logger.info("🟢 Fix Cycle 收敛 | 所有 issues 已解决")
                 break
 
+            # 提前退出: 连续 2 轮风险集合相同 (振荡检测)
+            current_issue_ids = frozenset(
+                f"{i.get('severity', '')}:{i.get('message', '')}" for i in remaining
+            )
+            if current_issue_ids == prev_issue_ids:
+                logger.warning(
+                    "⚠️ 连续 2 轮风险集合相同, 判定为振荡, 提前退出"
+                )
+                break
+            prev_issue_ids = current_issue_ids
+
             # 更新批次用于下一轮
-            sorted_issues = sorted(
-                remaining,
+            fixable_remaining = [
+                i for i in remaining if i.get("fixable") is not False
+            ]
+            sorted_remaining = sorted(
+                fixable_remaining,
                 key=lambda x: severity_order.get(x.get("severity", "info"), 2),
             )
             batches = [
-                sorted_issues[i : i + batch_size]
-                for i in range(0, len(sorted_issues), batch_size)
+                sorted_remaining[i : i + batch_size]
+                for i in range(0, len(sorted_remaining), batch_size)
             ]
             if not batches:
                 break
@@ -530,12 +655,15 @@ class ShipProV5Runner:
     def save_json(
         self, name: str, data: Dict[str, Any], path: Path | None = None
     ) -> None:
-        """保存 JSON 文件"""
+        """原子写入 JSON 文件 (write-to-temp + rename)"""
         if path is None:
             path = self.output_dir / f"{name}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
+        # 原子写入: 先写临时文件，再 rename
+        tmp_path = path.with_suffix(".json.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+        tmp_path.rename(path)
         logger.debug("💾 保存: %s", path)
 
     def save_execution_log(self) -> Path:
