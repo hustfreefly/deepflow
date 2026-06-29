@@ -7,6 +7,12 @@ as an import-safe marker only; executable Solution Pro code lives in
 domains.solution_pro.orchestrator_agent and core.orchestrator.pipeline_orchestrator.
 """
 
+"""
+V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new V2 workflows.
+"""
+
 DEPRECATED = True
 
 

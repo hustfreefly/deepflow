@@ -1,0 +1,35 @@
+{
+  "case_id": "golden_case_001",
+  "name": "Backend API Architecture",
+  "description": "End-to-end test for a backend API solution architecture",
+  "input": {
+    "user_input": "Design a RESTful API for an e-commerce platform with user authentication, product catalog, order management, and payment integration",
+    "config": {
+      "topic": "E-commerce REST API",
+      "solution_type": "architecture",
+      "mode": "standard",
+      "domain": "backend_api",
+      "constraints": ["Must support 1000 RPS", "99.9% uptime SLA"]
+    }
+  },
+  "expected": {
+    "min_constraints": 3,
+    "min_experts": 2,
+    "pipeline_status": "COMPLETE",
+    "custom_assertions": [
+      {
+        "name": "planning_not_degraded",
+        "path": "planning.status",
+        "expected": null,
+        "operator": "not_eq",
+        "description": "Planning should not be degraded"
+      },
+      {
+        "name": "has_final_report",
+        "path": "final_report.topic",
+        "expected": "E-commerce REST API",
+        "operator": "eq"
+      }
+    ]
+  }
+}

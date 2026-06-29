@@ -28,6 +28,60 @@ class V2BaseSchema(BaseModel):
 
 
 # ============================================================================
+# Domain Categories & Expert Template Registry
+# ============================================================================
+
+DOMAIN_CATEGORIES = Literal[
+    "backend_api", "frontend_ui", "mobile", "data_migration",
+    "devops", "ml", "iac", "security", "performance",
+    "testing_qa", "accessibility",
+]
+
+EXPERT_TEMPLATE_REGISTRY: dict[str, list[dict[str, str]]] = {
+    "backend_api": [
+        {"name": "security_expert", "lens": "security vulnerabilities and OWASP compliance"},
+        {"name": "performance_expert", "lens": "latency, throughput, and resource optimization"},
+        {"name": "scalability_expert", "lens": "horizontal scaling and state management"},
+    ],
+    "frontend_ui": [
+        {"name": "ux_design", "lens": "user experience and interaction design"},
+        {"name": "mobile_platform", "lens": "iOS/Android platform constraints"},
+        {"name": "accessibility", "lens": "WCAG compliance and inclusive design"},
+    ],
+    "ml": [
+        {"name": "model_architecture", "lens": "model selection and training strategy"},
+        {"name": "inference_serving", "lens": "low-latency model serving and scaling"},
+        {"name": "feature_engineering", "lens": "feature pipeline and data quality"},
+    ],
+    "iac": [
+        {"name": "terraform", "lens": "infrastructure as code best practices"},
+        {"name": "k8s", "lens": "Kubernetes orchestration and scaling"},
+        {"name": "networking", "lens": "network security and load balancing"},
+    ],
+    "data_migration": [
+        {"name": "data_integrity", "lens": "data consistency and rollback strategies"},
+        {"name": "schema_evolution", "lens": "backward compatibility and migration paths"},
+    ],
+    "devops": [
+        {"name": "ci_cd", "lens": "deployment pipeline and rollback strategies"},
+        {"name": "observability", "lens": "monitoring, alerting, and incident response"},
+    ],
+    "security": [
+        {"name": "threat_modeling", "lens": "attack surface analysis and mitigation"},
+        {"name": "compliance", "lens": "regulatory requirements and audit trails"},
+    ],
+    "testing_qa": [
+        {"name": "test_strategy", "lens": "test pyramid and coverage strategy"},
+        {"name": "quality_gates", "lens": "quality metrics and acceptance criteria"},
+    ],
+    "accessibility": [
+        {"name": "wcag_compliance", "lens": "WCAG 2.1 AA compliance and screen reader support"},
+        {"name": "inclusive_design", "lens": "design for diverse user needs"},
+    ],
+}
+
+
+# ============================================================================
 # Module 1: Planning V2 三层架构
 # ============================================================================
 
@@ -146,12 +200,14 @@ class ExpertPlanSchema(V2BaseSchema):
     - risks: 风险项
     - acceptance_criteria: 验收标准
     - covered_req_ids: 覆盖的 P0 REQ ID（仅 P0）
+    - extensions: 领域特定扩展数据（可选）
     """
     expert_name: str = Field(description="专家名称")
     constraints: list[Constraint] = Field(min_length=1, description="约束集")
     risks: list[Risk] = Field(default_factory=list, description="风险项")
     acceptance_criteria: list[AcceptanceCriterion] = Field(min_length=1, description="验收标准")
     covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
+    extensions: Optional[dict] = Field(default=None, description="领域特定扩展数据（如 frontend 的 responsive breakpoints, ml 的 model_card）")
 
 
 class UnifiedConstraint(BaseModel):
@@ -396,6 +452,22 @@ class PlanningConvergenceSchema(V2BaseSchema):
     metadata: dict = Field(default_factory=dict, alias="_metadata", description="元数据")
 
 
+class GateAScoresSchema(BaseModel):
+    """Gate A 评分结构（收紧类型）"""
+    score: float = Field(ge=0.0, le=1.0, description="加权总分")
+    verdict: Literal["PASS", "WARNING", "CRITICAL_WARNING", "BLOCK_RECOMMENDATION"] = Field(description="判定结果")
+    scores: dict[str, float] = Field(default_factory=dict, description="各维度原始分")
+    reasoning: dict[str, str] = Field(default_factory=dict, description="各维度理由")
+
+
+class GateBResultsSchema(BaseModel):
+    """Gate B 结果结构（收紧类型）"""
+    pass_rate: float = Field(ge=0.0, le=1.0, description="通过率")
+    verdict: Literal["PASS", "FAIL"] = Field(description="判定结果")
+    checks: list[dict] = Field(default_factory=list, description="检查项结果")
+    failed_items: list[str] = Field(default_factory=list, description="失败项")
+
+
 class ResearchConvergenceSchema(V2BaseSchema):
     """
     收敛点 2: Research Convergence
@@ -419,8 +491,8 @@ class ResearchConvergenceSchema(V2BaseSchema):
     information_conservation: dict = Field(description="信息守恒检查")
     original_references: dict[str, OriginalReference] = Field(default_factory=dict, description="原始引用")
     semantic_verification: SemanticVerification = Field(description="语义等价性验证")
-    gate_a_scores: dict = Field(description="Gate A 评分")
-    gate_b_results: dict = Field(description="Gate B 结果")
+    gate_a_scores: GateAScoresSchema = Field(description="Gate A 评分")
+    gate_b_results: GateBResultsSchema = Field(description="Gate B 结果")
     gate_verdict: dict = Field(description="Gate 判定")
     metadata: dict = Field(default_factory=dict, alias="_metadata", description="元数据")
 
@@ -474,6 +546,56 @@ class InformationContractSchema(V2BaseSchema):
 
 
 # ============================================================================
+# V2 新增：Module Orchestrator State & Task Builder Output
+# ============================================================================
+
+class ModuleOrchestratorStateSchema(V2BaseSchema):
+    """Module Orchestrator state.json 验证 schema (P0-16)"""
+    module_name: str = Field(description="模块名称")
+    current_stage: Optional[str] = Field(default=None, description="当前执行阶段")
+    completed_stages: list[str] = Field(default_factory=list, description="已完成阶段列表")
+    failed_stages: list[str] = Field(default_factory=list, description="失败阶段列表")
+    retry_count: int = Field(default=0, ge=0, description="重试次数")
+    status: Literal["IDLE", "RUNNING", "COMPLETED", "FAILED", "CONVERGED"] = Field(default="IDLE", description="模块状态")
+    last_error: Optional[str] = Field(default=None, description="最后一次错误信息")
+    last_updated: str = Field(default_factory=lambda: datetime.now().isoformat(), description="最后更新时间（ISO timestamp）")
+
+
+class TaskBuilderOutputSchema(V2BaseSchema):
+    """V2 Task Builder 输出 schema (P0-16)"""
+    task_key: str = Field(description="任务唯一标识")
+    prompt: str = Field(description="Worker prompt内容")
+    system_prompt: Optional[str] = Field(default=None, description="系统提示词")
+    context: dict = Field(default_factory=dict, description="任务上下文")
+    output_path: Optional[str] = Field(default=None, description="输出文件路径")  # P0-16: Optional per spec
+    timeout: int = Field(default=300, ge=1, description="超时时间（秒）")
+
+
+# ============================================================================
+# [R1-A-P1-7/B-P1-5] Degraded Final Convergence Schema
+# ============================================================================
+
+class DegradedFinalConvergenceSchema(V2BaseSchema):
+    """
+    [R1-A-P1-7/B-P1-5] 降级模式下的 Final Convergence Schema
+    当 Fix Loop ABORT 时使用
+    """
+    schema_version: str = "degraded_final_v1"
+    status: str = "DEGRADED"
+    
+    # 必填字段
+    degradation_flag: bool = Field(default=True, description="降级标志，始终为 True")
+    degradation_reason: str = Field(description="降级原因")
+    partial_results: list[dict] = Field(default_factory=list, description="部分结果")
+    quality_scores: dict = Field(default_factory=dict, description="质量评分（降级）")
+    fix_loop_summary: dict = Field(default_factory=dict, description="Fix Loop 摘要")
+    
+    # 可选字段（降级时可能缺失）
+    final_solution: Optional[dict] = Field(default=None, description="最终方案（降级时可能缺失）")
+    information_conservation: Optional[dict] = Field(default=None, description="信息守恒（降级时可能缺失）")
+
+
+# ============================================================================
 # 统一验证函数
 # ============================================================================
 
@@ -504,6 +626,13 @@ STAGE_SCHEMA_MAP = {
     
     # 信息契约
     "information_contract": InformationContractSchema,
+    
+    # V2 新增 (P0-16)
+    "module_orchestrator_state": ModuleOrchestratorStateSchema,
+    "task_builder_output": TaskBuilderOutputSchema,
+    
+    # V2 Phase 2.2: Review/QC
+    "review_qc_convergence": DegradedFinalConvergenceSchema,
 }
 
 
@@ -555,10 +684,22 @@ __all__ = [
     "PlanningConvergenceSchema",
     "ResearchConvergenceSchema",
     "FinalConvergenceSchema",
+    # Gate 评分结构（P0-16 收紧）
+    "GateAScoresSchema",
+    "GateBResultsSchema",
+    # V2 新增
+    "ModuleOrchestratorStateSchema",
+    "TaskBuilderOutputSchema",
     # 信息契约
     "InformationContractSchema",
+    # Domain categories & templates
+    "DOMAIN_CATEGORIES",
+    "EXPERT_TEMPLATE_REGISTRY",
+    # V2 Phase 2.2: 降级 Schema
+    "DegradedFinalConvergenceSchema",
     # 验证函数
     "validate_stage_output",
     "get_stage_schema",
     "STAGE_SCHEMA_MAP",
 ]
+# [V2 Phase 0a] P0-16: 收紧 ResearchConvergenceSchema gate 类型 + 新增 ModuleOrchestratorStateSchema/TaskBuilderOutputSchema

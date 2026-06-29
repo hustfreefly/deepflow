@@ -11,6 +11,12 @@ Living Spec 数据归一化 + 渲染
                                                               ↑ 唯一的渲染入口
 """
 
+"""
+V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new V2 workflows.
+"""
+
 from typing import Any, Dict, List, Union
 
 

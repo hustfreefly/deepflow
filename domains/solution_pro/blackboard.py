@@ -169,3 +169,35 @@ class BlackboardManager(CoreBlackboardManager):
 
     def __init__(self, session_id: str, base_dir=None):
         super().__init__(session_id, base_dir=base_dir, registry=SolutionRegistry)
+
+    def write(self, filename: str, content, subdir=None):
+        """
+        重写 write() 以支持 list 类型（V2 增强）
+        
+        原 core 实现只支持 dict 和 str，这里扩展为 dict/list → JSON，str → 文本
+        """
+        import json
+        import os
+        import tempfile
+        from pathlib import Path
+        
+        target = self._resolve(filename, subdir)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=target.parent, suffix=".tmp")
+        try:
+            if isinstance(content, (dict, list)):
+                data = json.dumps(content, ensure_ascii=False, indent=2).encode()
+            else:
+                data = content.encode()
+            os.write(fd, data)
+            os.fsync(fd)
+            os.close(fd)
+            Path(tmp).rename(target)
+        except BaseException:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            Path(tmp).unlink(missing_ok=True)
+            raise
+        return target

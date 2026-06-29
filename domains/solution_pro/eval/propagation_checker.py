@@ -8,6 +8,12 @@ Propagation Checker - 验证 Solution Pro 输出中的需求传播完整性
 3. requirement_evidence 传播
 4. REQ-ID 一致性
 """
+
+"""
+V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new V2 workflows.
+"""
 import json
 import sys
 from pathlib import Path

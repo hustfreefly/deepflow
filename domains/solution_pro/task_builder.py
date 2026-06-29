@@ -2003,3 +2003,171 @@ bb = BlackboardManager(session_id="{session_id}")
             final_prompt += "\n\n" + spec_ctx
 
     return final_prompt
+
+
+# ============================================================
+# V2 Task Builder Functions (Phase 0b)
+# ============================================================
+
+def build_meta_planner_task(frozen_spec: dict, structured_requirements: dict, session_dir: str) -> dict:
+    """构建 Meta-Planner Task"""
+    from pathlib import Path
+    prompt_file = Path(__file__).parent / "prompts" / "meta_planner.md"
+    system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
+    prompt = f"""## 输入
+### Frozen Spec
+{json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:3000]}
+
+### Structured Requirements  
+{json.dumps(structured_requirements, ensure_ascii=False, indent=2)[:3000]}
+
+## 任务
+分析任务领域和复杂度，生成 expert_manifest.json。
+输出必须符合 ExpertManifestSchema。"""
+    return {
+        "task_key": "meta_planner",
+        "prompt": prompt,
+        "system_prompt": system_prompt,
+        "output_path": f"{session_dir}/stages/meta_planning.json",
+        "timeout": 300,
+    }
+
+def build_expert_planner_task(expert_config: dict, frozen_spec: dict, structured_requirements: dict, session_dir: str) -> dict:
+    """构建单个 Expert Planner Task"""
+    from pathlib import Path
+    prompt_file = Path(__file__).parent / "prompts" / "expert_planner_base.md"
+    system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
+    expert_name = expert_config["expert_name"]
+    prompt = f"""## 你的专业领域
+{expert_name}: {expert_config.get('domain', '')}
+
+## 你的评估视角
+{expert_config.get('evaluation_lens', '')}
+
+## 你的聚焦领域
+{expert_config.get('focus_areas', [])}
+
+## 输入
+### Frozen Spec
+{json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:2000]}
+
+### Structured Requirements
+{json.dumps(structured_requirements, ensure_ascii=False, indent=2)[:2000]}
+
+## 任务
+从你的专业视角生成 constraints、risks、acceptance_criteria。
+输出必须符合 ExpertPlanSchema。"""
+    return {
+        "task_key": f"expert_planner_{expert_name}",
+        "prompt": prompt,
+        "system_prompt": system_prompt,
+        "output_path": f"{session_dir}/stages/expert_plans/{expert_name}.json",
+        "timeout": 300,
+    }
+
+def build_convergence_planner_task(expert_plans: list, session_dir: str) -> dict:
+    """构建 Convergence Planner Task"""
+    from pathlib import Path
+    prompt_file = Path(__file__).parent / "prompts" / "convergence_planner.md"
+    system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
+    plans_text = json.dumps(expert_plans, ensure_ascii=False, indent=2)[:5000]
+    prompt = f"""## 输入：{len(expert_plans)} 个 Expert Plan
+{plans_text}
+
+## 任务
+将 N 个 Expert Plan 合并为 unified_constraints.json + verification_checklist.json。
+- 语义去重，冲突解决
+- 每条约束有 source_experts 追溯
+- covered_req_ids 只填 P0 REQ"""
+    return {
+        "task_key": "convergence_planner",
+        "prompt": prompt,
+        "system_prompt": system_prompt,
+        "output_path": f"{session_dir}/stages/convergence_planning.json",
+        "timeout": 300,
+    }
+
+def build_harness_agent_task(stage_name: str, stage_output: dict, gate_config: dict, frozen_spec: dict, session_dir: str) -> dict:
+    """构建 Harness Agent Task（对抗性评估）"""
+    from pathlib import Path
+    prompt_file = Path(__file__).parent / "prompts" / "harness_agent.md"
+    system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
+    prompt = f"""## 评估目标
+Stage: {stage_name}
+
+## 原始需求（Frozen Spec 摘要）
+{json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:2000]}
+
+## Stage 输出
+{json.dumps(stage_output, ensure_ascii=False, indent=2)[:3000]}
+
+## Gate 配置
+### Gate A 权重
+{json.dumps(gate_config.get('gate_a', {}).get('weights', {}), ensure_ascii=False)}
+
+### Gate B 检查项
+{json.dumps(gate_config.get('gate_b', {}).get('dynamic_checks', []), ensure_ascii=False)[:2000]}
+
+## 任务
+你是独立的、对抗性的评估者。只看输入和输出，不看中间推理。
+对 Gate A 四维度打分（0-1），对 Gate B 每项 check 判定 PASS/FAIL。
+输出 JSON，包含 gate_a_scores 和 gate_b_results。"""
+    return {
+        "task_key": "harness_agent",
+        "prompt": prompt,
+        "system_prompt": system_prompt,
+        "output_path": f"{session_dir}/stages/harness_report.json",
+        "timeout": 300,
+    }
+
+def build_reviewer_meta_task(expert_manifest: dict, frozen_spec: dict, session_dir: str) -> dict:
+    """构建 Reviewer_Meta Task"""
+    from pathlib import Path
+    prompt_file = Path(__file__).parent / "prompts" / "reviewer_meta.md"
+    system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
+    prompt = f"""## 输入
+### Expert Manifest
+{json.dumps(expert_manifest, ensure_ascii=False, indent=2)[:3000]}
+
+### Frozen Spec（摘要）
+{json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:1500]}
+
+## 任务
+评审 Meta-Planner 的专家组合是否覆盖任务的关键风险领域。
+输出 verdict（PASS/FAIL）+ reasoning。"""
+    return {
+        "task_key": "reviewer_meta",
+        "prompt": prompt,
+        "system_prompt": system_prompt,
+        "output_path": f"{session_dir}/stages/reviewer_meta.json",
+        "timeout": 300,
+    }
+
+def build_reviewer_convergence_task(unified_constraints: dict, verification_checklist: dict, expert_plans: list, session_dir: str) -> dict:
+    """构建 Reviewer_Convergence Task"""
+    from pathlib import Path
+    prompt_file = Path(__file__).parent / "prompts" / "reviewer_convergence.md"
+    system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
+    prompt = f"""## 输入
+### Unified Constraints
+{json.dumps(unified_constraints, ensure_ascii=False, indent=2)[:3000]}
+
+### Verification Checklist
+{json.dumps(verification_checklist, ensure_ascii=False, indent=2)[:2000]}
+
+### Expert Plans（摘要）
+{json.dumps([p.get('expert_name', '') for p in expert_plans], ensure_ascii=False)}
+
+## 任务
+评审 Convergence Planner 的合并结果：
+1. 是否遗漏了关键约束？
+2. 冲突解决是否合理？
+3. 验证清单是否可操作？
+输出 verdict（PASS/FAIL）+ reasoning。"""
+    return {
+        "task_key": "reviewer_convergence",
+        "prompt": prompt,
+        "system_prompt": system_prompt,
+        "output_path": f"{session_dir}/stages/reviewer_convergence.json",
+        "timeout": 300,
+    }

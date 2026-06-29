@@ -1,0 +1,23 @@
+[
+  {
+    "expert_name": "backend_api_expert",
+    "domain": "backend_api",
+    "focus_areas": [
+      "backend_api",
+      "best practices"
+    ],
+    "evaluation_lens": "从backend_api领域角度审视技术方案",
+    "iteration_queries": []
+  },
+  {
+    "expert_name": "generalist_expert",
+    "domain": "General Software Architecture",
+    "focus_areas": [
+      "cross-cutting concerns",
+      "integration patterns",
+      "trade-off analysis"
+    ],
+    "evaluation_lens": "从全局视角审视技术方案的可行性和一致性",
+    "iteration_queries": []
+  }
+]

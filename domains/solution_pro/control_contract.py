@@ -3,6 +3,10 @@
 This module is intentionally deterministic. The product runtime is the LLM
 orchestrator, but planner output should be normalized by code before it changes
 the fixed 10-stage worker prompts.
+
+V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new V2 workflows.
 """
 
 from __future__ import annotations

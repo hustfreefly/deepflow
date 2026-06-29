@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0.0",
+  "consolidated_findings": [
+    {
+      "description": "backend_api finding 1",
+      "tier": 3,
+      "source_experts": [
+        "backend_api_expert"
+      ],
+      "evidence": "Based on latest research"
+    },
+    {
+      "description": "General Software Architecture finding 1",
+      "tier": 3,
+      "source_experts": [
+        "generalist_expert"
+      ],
+      "evidence": "Based on latest research"
+    }
+  ],
+  "consensus_points": [],
+  "divergence_points": [],
+  "consolidated_risks": [
+    {
+      "description": "backend_api risk 1",
+      "tier": 3,
+      "mitigation": "Standard mitigation"
+    },
+    {
+      "description": "General Software Architecture risk 1",
+      "tier": 3,
+      "mitigation": "Standard mitigation"
+    }
+  ],
+  "consolidated_recommendations": [
+    {
+      "description": "backend_api recommendation 1",
+      "tier": 3,
+      "rationale": "Best practice"
+    },
+    {
+      "description": "General Software Architecture recommendation 1",
+      "tier": 3,
+      "rationale": "Best practice"
+    }
+  ],
+  "source_registry_summary": {
+    "total_experts": 2,
+    "total_sources": 1,
+    "expert_counts": {
+      "backend_api_expert": 1,
+      "generalist_expert": 0
+    }
+  },
+  "expert_count": 2,
+  "total_input_findings": 2,
+  "total_input_risks": 2,
+  "total_input_recommendations": 2,
+  "covered_req_ids": []
+}

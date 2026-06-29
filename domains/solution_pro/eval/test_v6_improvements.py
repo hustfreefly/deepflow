@@ -8,6 +8,12 @@ V6 改进测试脚本 - 验证 Solution Pro V6 的关键改进
 3. Schema 合规性（final_result_v3.schema.json）
 4. 数据传播一致性（stages/ → final_result.json）
 """
+
+"""
+V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new V2 workflows.
+"""
 import json
 import sys
 from pathlib import Path

@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0.0",
+  "module": "research",
+  "research_summary": "Research module completed successfully.\n\n## Research Scope\n- 2 domain experts conducted parallel research\n- Findings consolidated through batch deduplication and conflict detection\n\n## Key Metrics\n- Total findings: 2 (Tier 1: 0, Tier 2: 0, Tier 3: 2)\n- Risks identified: 2\n- Recommendations: 2\n- Consensus points: 0\n\n## Consolidation Results\n- Input findings: 2\n- Output findings: 2\n- Compression ratio: 1.00\n\n## Source Quality\n- Total sources: 1\n- Expert coverage: 2 experts contributed sources",
+  "key_findings": [
+    {
+      "description": "backend_api finding 1",
+      "tier": 3,
+      "source_experts": [
+        "backend_api_expert"
+      ],
+      "evidence": "Based on latest research"
+    },
+    {
+      "description": "General Software Architecture finding 1",
+      "tier": 3,
+      "source_experts": [
+        "generalist_expert"
+      ],
+      "evidence": "Based on latest research"
+    }
+  ],
+  "design_decisions": [
+    {
+      "decision": "backend_api recommendation 1",
+      "rationale": "Best practice",
+      "tier": 3,
+      "confidence": "medium"
+    },
+    {
+      "decision": "General Software Architecture recommendation 1",
+      "rationale": "Best practice",
+      "tier": 3,
+      "confidence": "medium"
+    }
+  ],
+  "open_questions": [],
+  "architecture": {
+    "status": "pending",
+    "reference": "stages/architecture.json"
+  },
+  "detailed_design": {
+    "status": "pending",
+    "reference": "stages/detailed_design.json"
+  },
+  "information_conservation": {
+    "input_expert_count": 2,
+    "input_findings": 2,
+    "output_findings": 2,
+    "compression_ratio": 1.0,
+    "consensus_points": 0,
+    "divergence_points": 0
+  },
+  "original_references": {
+    "backend_api_expert": {
+      "path": "stages/research_experts/backend_api_expert.json",
+      "hash": "sha256:67b1b8f1f888d9dd6dde53033e2a36969fca1f46757f22e1cac2f87feb3dbda5",
+      "size_bytes": 761
+    },
+    "generalist_expert": {
+      "path": "stages/research_experts/generalist_expert.json",
+      "hash": "sha256:7886850a5021e38450de8608e9bacf39c89381da8843afef1dd798eb50a02179",
+      "size_bytes": 847
+    }
+  },
+  "semantic_verification": {
+    "verdict": "EQUIVALENT",
+    "confidence": 0.9,
+    "divergences": []
+  },
+  "gate_a_scores": {
+    "score": 0.0,
+    "verdict": "PASS",
+    "scores": {},
+    "reasoning": {}
+  },
+  "gate_b_results": {
+    "pass_rate": 1.0,
+    "verdict": "PASS",
+    "checks": [],
+    "failed_items": []
+  },
+  "gate_verdict": {
+    "final_verdict": "PASS",
+    "gate_a": "PASS",
+    "gate_b": "PASS"
+  },
+  "_metadata": {
+    "produced_at": "2026-06-29T20:44:18.676914",
+    "schema_version": "1.0.0",
+    "module": "research",
+    "stage_count": 5,
+    "expert_count": 2,
+    "iteration_count": 1,
+    "source_registry": {
+      "total_experts": 2,
+      "total_sources": 1,
+      "expert_counts": {
+        "backend_api_expert": 1,
+        "generalist_expert": 0
+      }
+    }
+  }
+}

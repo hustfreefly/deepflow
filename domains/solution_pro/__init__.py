@@ -1,11 +1,23 @@
 """
-Solution Pro 模块入口，提供 run_solution_pro 公共 API
+Solution Pro 模块入口，提供 run_solution_pro 和 run_solution_pro_v2 公共 API
 
-Version: 2.2.0
+Version: 3.0.0
 Author: DeepFlow Solution Pro
-Date: 2026-06-23
+Date: 2026-06-28
 
+V3.0: 新增 V2 入口 run_solution_pro_v2()，使用 MasterOrchestrator 三模块架构
 V2.2: 迁移到 V6 BlackboardManager API
+
+## 版本选择说明
+
+- **V1 (run_solution_pro)**: 10 阶段单 Orchestrator 架构，向后兼容
+  - 适用于：已有 V1 流程、需要固定 10 阶段执行计划
+  - 入口：run_solution_pro(topic, **kwargs)
+
+- **V2 (run_solution_pro_v2)**: 3 模块编排架构（Planning → Research → ReviewQC）
+  - 适用于：新流程、需要模块化、断点续跑、降级策略
+  - 入口：run_solution_pro_v2(user_input, **kwargs)
+  - 核心：MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator
 """
 
 """
@@ -72,6 +84,7 @@ from pathlib import Path
 
 from .orchestrator_agent import _SolutionDispatcher
 from .blackboard import BlackboardManager
+from .master_orchestrator import MasterOrchestrator
 
 
 def run_solution_pro(topic: str, **kwargs):
@@ -164,4 +177,102 @@ def run_solution_pro(topic: str, **kwargs):
     }
 
 
-__all__ = ['run_solution_pro']
+def run_solution_pro_v2(user_input: str, **kwargs):
+    """
+    Solution Pro V2 入口（Agent-centric 架构）
+
+    初始化 Blackboard + frozen_spec，生成 V2 Orchestrator prompt，
+    返回 spawn_params 供主 Agent 调用 sessions_spawn 启动管线。
+
+    架构：
+      Main Agent (depth-0)
+        → sessions_spawn → V2 Orchestrator (depth-1)
+          → sessions_spawn → Module Agents (depth-2)
+            → sessions_spawn → Workers (depth-3)
+
+    Args:
+        user_input: 用户输入（需求描述）
+        **kwargs: topic, solution_type, mode, domain, constraints, stakeholders,
+                  living_spec（Spec Pro 桥接）
+
+    Returns:
+        {
+            "session_id": str,
+            "base_path": str,
+            "spawn_params": dict,  # 直接传给 sessions_spawn
+        }
+    """
+    # 1. 初始化 Blackboard session
+    topic = kwargs.get("topic", user_input[:50])
+    bm = BlackboardManager(topic, base_dir=Path(__file__).parent / "blackboard_sessions")
+    bm.init_session()
+    session_id = bm.session_id
+    session_dir = str(bm.session_dir)
+
+    # 2. 使用 frozen_spec.py 生成完整 Frozen Spec（含 REQ-IDs、executive_summary、requirement_groups）
+    from domains.solution_pro.frozen_spec import build_frozen_spec
+    living_spec = kwargs.get("living_spec")
+    frozen_spec = build_frozen_spec(
+        topic=topic,
+        constraints=kwargs.get("constraints", []),
+        living_spec=living_spec,
+    )
+    bm.write("data/frozen_spec.json", frozen_spec)
+
+    # 3. 初始化 master_state
+    bm.write("master_state.json", {
+        "session_id": session_id,
+        "status": "initialized",
+        "current_module": None,
+        "completed_modules": [],
+        "failed_modules": [],
+        "degraded_modules": [],
+    })
+
+    # 4. 清理旧文件（断点续跑时防止误判）
+    for old_file in [".completed"]:
+        old_path = bm.session_dir / old_file
+        if old_path.exists():
+            old_path.unlink()
+
+    # 5. 读取 V2 Orchestrator prompt 模板并填充变量
+    prompt_path = pathlib.Path(__file__).parent / "prompts" / "v2_orchestrator.md"
+    prompt_template = prompt_path.read_text(encoding="utf-8")
+
+    deepflow_root = str(Path(__file__).resolve().parent.parent.parent)
+
+    # 注入 Agent 上下文（Blackboard API 指南 + 路径信息）
+    agent_context = build_agent_context(
+        deepflow_root=Path(deepflow_root),
+        blackboard_id=session_id,
+        include_schema=False,
+        include_analysis_workflow=True,
+    )
+
+    import json as _json
+    config_json = _json.dumps(kwargs, ensure_ascii=False, indent=2)
+
+    orchestrator_prompt = (
+        agent_context
+        + "\n\n---\n\n"
+        + prompt_template
+        .replace("{session_id}", session_id)
+        .replace("{user_input}", user_input)
+        .replace("{config}", config_json)
+    )
+
+    # 6. 返回 spawn_params（主 Agent 用 sessions_spawn 启动）
+    return {
+        "session_id": session_id,
+        "base_path": session_dir,
+        "spawn_params": {
+            "runtime": "subagent",
+            "mode": "run",
+            "label": "v2_solution_orchestrator",
+            "task": orchestrator_prompt,
+            "cwd": deepflow_root,
+        },
+    }
+
+
+__all__ = ['run_solution_pro', 'run_solution_pro_v2']

@@ -9,6 +9,12 @@ REQ 去重验证脚本 - 代码做确定性执行
 4. REQ 覆盖完整性（所有原始 REQ-ID 都在 req_mapping 中）
 """
 
+"""
+V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new V2 workflows.
+"""
+
 import json
 import sys
 from pathlib import Path

@@ -1,0 +1,27 @@
+{
+  "pipeline_start": 1782737707.664143,
+  "modules": {
+    "planning": {
+      "status": "DEGRADED",
+      "degraded": true,
+      "timestamp": 1782737707.729066
+    },
+    "research": {
+      "status": "DEGRADED",
+      "degraded": true,
+      "timestamp": 1782737707.734953
+    },
+    "review_qc": {
+      "status": "COMPLETE",
+      "degraded": false,
+      "timestamp": 1782737707.7362618
+    }
+  },
+  "degraded_modules": [
+    "planning",
+    "research"
+  ],
+  "pipeline_end": 1782737707.736267,
+  "total_duration": 0.07212400436401367,
+  "status": "COMPLETE"
+}

@@ -8,6 +8,12 @@ Date: 2026-06-23
 V2.2: 迁移到 V6 BlackboardManager API
 """
 
+"""
+V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new V2 workflows.
+"""
+
 #!/usr/bin/env python3
 """
 Stage 7 专家修复后的Harness检查

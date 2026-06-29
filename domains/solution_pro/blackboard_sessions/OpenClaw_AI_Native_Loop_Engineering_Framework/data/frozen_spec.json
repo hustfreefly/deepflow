@@ -1,0 +1,92 @@
+{
+  "version": "2.0",
+  "generated_at": "2026-06-25T22:09:06.701012",
+  "topic": "OpenClaw AI Native Loop Engineering Framework",
+  "source": "living_spec.confirmed+topic+constraints",
+  "executive_summary": {
+    "one_liner": "OpenClaw AI Native Loop Engineering Framework",
+    "objective_req": "REQ-001",
+    "key_scenarios_reqs": [],
+    "why": [],
+    "for_whom": [],
+    "success_criteria": [],
+    "constraints": {},
+    "source": "auto_generated_from_topic"
+  },
+  "guardrails": {},
+  "solution_pro_hints": null,
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "category": "objective",
+      "description": "OpenClaw AI Native Loop Engineering Framework",
+      "priority": "P0",
+      "source": "topic",
+      "measurable": ""
+    },
+    {
+      "id": "REQ-002",
+      "category": "constraint",
+      "description": "全LLM控制",
+      "priority": "P1",
+      "source": "input.constraints",
+      "measurable": ""
+    },
+    {
+      "id": "REQ-003",
+      "category": "constraint",
+      "description": "8+小时无人干预运行",
+      "priority": "P1",
+      "source": "input.constraints",
+      "measurable": ""
+    },
+    {
+      "id": "REQ-004",
+      "category": "constraint",
+      "description": "Dream Loop/Meta-Loop持续自优化",
+      "priority": "P1",
+      "source": "input.constraints",
+      "measurable": ""
+    },
+    {
+      "id": "REQ-005",
+      "category": "constraint",
+      "description": "解决质量漂移/死循环/状态丢失/成本失控",
+      "priority": "P1",
+      "source": "input.constraints",
+      "measurable": ""
+    }
+  ],
+  "requirement_groups": {
+    "Core": {
+      "description": "核心目标、痛点、场景",
+      "categories": [
+        "objective",
+        "pain_point",
+        "scenario"
+      ],
+      "req_ids": [
+        "REQ-001"
+      ]
+    },
+    "NonFunctional": {
+      "description": "质量属性、约束条件、成功指标",
+      "categories": [
+        "quality_attribute",
+        "constraint",
+        "success_metric"
+      ],
+      "req_ids": [
+        "REQ-002",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005"
+      ]
+    }
+  },
+  "coverage_policy": {
+    "worker_field": "covered_req_ids",
+    "matrix_path": "requirements_traceability_matrix.json",
+    "harness_final_must_check_all_p0": true
+  }
+}

@@ -52,6 +52,13 @@ class MockBlackboard:
         
         raise FileNotFoundError(f"File not found: {path}")
     
+    def read_json(self, path: str, default=None) -> dict:
+        """兼容 _adapted_spawn 的 read_json 调用"""
+        try:
+            return self.read(path)
+        except FileNotFoundError:
+            return default or {}
+
     def write(self, path: str, data: dict):
         self.data[path] = data
         
@@ -75,7 +82,7 @@ class TestPlanningOrchestrator:
         
         original_bb_class = module_orchestrator_base.BlackboardManager
         
-        def mock_bb_factory(session_id):
+        def mock_bb_factory(session_id, base_dir=None):
             return mock_bb
         
         monkeypatch.setattr(module_orchestrator_base, "BlackboardManager", mock_bb_factory)
@@ -194,7 +201,7 @@ class TestPlanningOrchestrator:
                     "schema_version": "1.0.0",
                     "unified_constraints": {
                         "schema_version": "1.0.0",
-                        "constraints": [
+                        "unified_constraints": [
                             {
                                 "constraint_id": "UC-001",
                                 "description": "Unified constraint 1",
@@ -283,6 +290,7 @@ class TestPlanningOrchestrator:
             session_id="test_session",
             spawn_fn=mock_spawn_fn,
         )
+        orchestrator._use_adapter = False  # 测试模式
         
         expert_manifest = orchestrator._run_meta_planner()
         
@@ -301,6 +309,7 @@ class TestPlanningOrchestrator:
             session_id="test_session",
             spawn_fn=mock_spawn_fn,
         )
+        orchestrator._use_adapter = False  # 测试模式
         
         # First run Meta-Planner
         expert_manifest = orchestrator._run_meta_planner()
@@ -309,8 +318,8 @@ class TestPlanningOrchestrator:
         expert_plans = orchestrator._run_expert_planners(expert_manifest)
         
         assert len(expert_plans) == 2
-        assert expert_plans[0]["expert_name"] == "security_expert"
-        assert expert_plans[1]["expert_name"] == "performance_expert"
+        expert_names = {p["expert_name"] for p in expert_plans}
+        assert expert_names == {"security_expert", "performance_expert"}
         
         # Check blackboard
         saved_plan_1 = mock_blackboard.read("stages/expert_plans/security_expert.json")
@@ -322,6 +331,7 @@ class TestPlanningOrchestrator:
             session_id="test_session",
             spawn_fn=mock_spawn_fn,
         )
+        orchestrator._use_adapter = False  # 测试模式
         
         # First run Meta-Planner and Expert Planners
         expert_manifest = orchestrator._run_meta_planner()
@@ -332,7 +342,7 @@ class TestPlanningOrchestrator:
         
         assert "unified_constraints" in convergence_output
         assert "verification_checklist" in convergence_output
-        assert len(convergence_output["unified_constraints"]["constraints"]) == 1
+        assert len(convergence_output["unified_constraints"]["unified_constraints"]) == 1
         
         # Check blackboard
         saved_constraints = mock_blackboard.read("stages/unified_constraints.json")
@@ -344,6 +354,7 @@ class TestPlanningOrchestrator:
             session_id="test_session",
             spawn_fn=mock_spawn_fn,
         )
+        orchestrator._use_adapter = False  # 测试模式
         
         # First run Meta-Planner, Expert Planners, and Convergence Planner
         expert_manifest = orchestrator._run_meta_planner()
@@ -367,6 +378,7 @@ class TestPlanningOrchestrator:
             session_id="test_session",
             spawn_fn=mock_spawn_fn,
         )
+        orchestrator._use_adapter = False  # 测试模式
         
         # First run all steps
         expert_manifest = orchestrator._run_meta_planner()
@@ -396,6 +408,7 @@ class TestPlanningOrchestrator:
             session_id="test_session",
             spawn_fn=mock_spawn_fn,
         )
+        orchestrator._use_adapter = False  # 测试模式
         
         # Run full module
         planning_convergence = orchestrator.run()
@@ -422,6 +435,7 @@ class TestPlanningOrchestrator:
             session_id="test_session",
             spawn_fn=mock_spawn_fn,
         )
+        orchestrator._use_adapter = False  # 测试模式
         
         # First run
         planning_convergence_1 = orchestrator.run()
@@ -438,6 +452,7 @@ class TestPlanningOrchestrator:
             session_id="test_session",
             spawn_fn=mock_spawn_fn,
         )
+        orchestrator._use_adapter = False  # 测试模式
         
         # Test _count_priorities
         constraints = [

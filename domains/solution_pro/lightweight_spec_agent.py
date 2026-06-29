@@ -12,6 +12,12 @@ Lightweight Spec Agent (场景B优化)
 - 不依赖 Spec Pro 完整流程
 """
 
+"""
+V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new V2 workflows.
+"""
+
 import json
 import jsonschema
 from typing import Dict, Any, List, Optional, Callable

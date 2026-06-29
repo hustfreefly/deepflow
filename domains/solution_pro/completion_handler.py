@@ -12,6 +12,12 @@ Date: 2026-06-23
 """
 
 """
+V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new V2 workflows.
+"""
+
+"""
 Orchestrator 完成后处理工具
 
 当 orchestrator 子 Agent 完成任务后，主 Agent 调用此函数：

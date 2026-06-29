@@ -1,0 +1,30 @@
+{
+  "case_id": "golden_case_007",
+  "name": "Cross-Domain: Full Stack Migration",
+  "description": "Verify Meta-Planner handles composite domain (backend + frontend + data_migration)",
+  "input": {
+    "user_input": "Migrate a monolithic PHP application to a microservices architecture with React frontend, Node.js backend APIs, and PostgreSQL-to-MongoDB data migration",
+    "config": {
+      "topic": "Full Stack Microservices Migration",
+      "solution_type": "architecture",
+      "mode": "standard",
+      "domain": "composite",
+      "sub_domains": ["backend_api", "frontend", "data_migration"],
+      "constraints": ["Zero downtime migration", "Data consistency guarantee", "Team of 5 developers"]
+    }
+  },
+  "expected": {
+    "min_constraints": 5,
+    "min_experts": 3,
+    "pipeline_status": "COMPLETE",
+    "custom_assertions": [
+      {
+        "name": "multiple_experts_identified",
+        "path": "planning.experts",
+        "expected": 3,
+        "operator": "gte",
+        "description": "Should identify at least 3 domain experts"
+      }
+    ]
+  }
+}

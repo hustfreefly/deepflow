@@ -14,6 +14,12 @@ Spec Pro → Solution Pro 上下文适配器
 - 渐进增强:新增字段向后兼容,不影响现有流程
 """
 
+"""
+V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new V2 workflows.
+"""
+
 from typing import Dict, List, Any, Optional
 
 

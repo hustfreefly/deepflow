@@ -1,0 +1,11 @@
+{
+  "topic": "OpenClaw_AI_Native_Loop_Engineering_Framework",
+  "solution_type": "architecture",
+  "mode": "full",
+  "domain": "backend_api",
+  "constraints": {
+    "全LLM控制": true,
+    "8+小时运行": true,
+    "Dream Loop/Meta-Loop": true
+  }
+}

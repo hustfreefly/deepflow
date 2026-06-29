@@ -1,0 +1,54 @@
+{
+  "phase": "completed",
+  "started_at": "2026-06-29T12:00:00+08:00",
+  "completed_at": "2026-06-29T19:10:00+08:00",
+  "proposal_file": "refactor_llm_routing_v3.md",
+  "rounds": {
+    "round1": {
+      "status": "completed",
+      "experts": ["openclaw_platform", "ai_native_architect", "test_engineering"],
+      "scores": [5, 5, 5],
+      "p0_count": 5,
+      "p1_count": 8,
+      "p2_count": 5
+    },
+    "round2": {
+      "status": "completed",
+      "experts": ["spawn_contract_specialist", "test_integration_specialist"],
+      "scores": [4, 4],
+      "key_rulings": [
+        "spawn_fn returns string (visible reply), not dict",
+        "judge() must be sync, not async",
+        "injection via DI (constructor), not exec env var",
+        "need SpawnFnProtocol to unify mock/real",
+        "need explicit run_e2e(spawn_fn) entry point",
+        "dual-layer CI strategy (unit + integration)"
+      ]
+    },
+    "round3": {
+      "status": "completed",
+      "expert": "convergence",
+      "final_verdict": "pass",
+      "final_score": 8,
+      "rulings": {
+        "layer2_validation": "accept_defer",
+        "native_tool_integration": "accept_defer",
+        "prod_spawn_check": "accept_must_fix"
+      }
+    }
+  },
+  "total_experts_spawned": 6,
+  "total_rounds": 3,
+  "decisions": [
+    {"id": "D1", "issue": "spawn_fn返回值", "decision": "adopt", "reason": "V3已修正：返回字符串"},
+    {"id": "D2", "issue": "并发控制", "decision": "adopt", "reason": "V3已添加批量串行分批"},
+    {"id": "D3", "issue": "sync/async", "decision": "adopt", "reason": "V3已改为同步judge()"},
+    {"id": "D4", "issue": "深度约束", "decision": "adopt", "reason": "V3已文档化depth-0→1→2"},
+    {"id": "D5", "issue": "Layer2语义验证", "decision": "defer_P1", "reason": "合理但超出本次范围，2周内跟进"},
+    {"id": "D6", "issue": "原生工具集成", "decision": "defer", "reason": "与路由重构正交，独立feature"},
+    {"id": "D7", "issue": "prod spawn校验", "decision": "must_fix", "reason": "3行代码，防御性编程"},
+    {"id": "D8", "issue": "Phase顺序", "decision": "adopt", "reason": "V3已将契约定义前置到Phase 0/1"},
+    {"id": "D9", "issue": "mock接口统一", "decision": "adopt", "reason": "V3已添加SpawnFnProtocol"},
+    {"id": "D10", "issue": "CI/CD策略", "decision": "adopt", "reason": "V3已添加双层测试策略"}
+  ]
+}

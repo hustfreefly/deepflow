@@ -6,6 +6,12 @@ Author: DeepFlow Solution Pro
 Date: 2026-06-01
 """
 
+"""
+V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new V2 workflows.
+"""
+
 # domains/solution_pro/prefix_extractor.py
 """
 会话前缀提取器
