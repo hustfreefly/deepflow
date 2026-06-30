@@ -56,6 +56,44 @@ def _add_requirement(
     })
 
 
+def _auto_generate_hints(confirmed: Dict[str, Any]) -> List[str]:
+    """V4: 当 solution_pro_hints 为 null 时，从 confirmed 自动推导研究重点提示。"""
+    hints = []
+    
+    # 从 architecture 推导技术焦点
+    arch = confirmed.get("architecture", {})
+    if isinstance(arch, dict):
+        pattern = arch.get("pattern", "")
+        if pattern:
+            hints.append(f"架构模式: {pattern} — 方案应围绕此模式设计")
+        layers = arch.get("layers", [])
+        if layers and isinstance(layers, list):
+            layer_names = [l.get("name", "") for l in layers if isinstance(l, dict)]
+            if layer_names:
+                hints.append(f"架构层次: {', '.join(layer_names[:4])} — 方案应覆盖所有层次")
+    
+    # 从 innovation_mechanisms 推导创新点
+    innovations = confirmed.get("innovation_mechanisms", [])
+    if innovations and isinstance(innovations, list):
+        names = [i.get("name", "") for i in innovations if isinstance(i, dict)]
+        if names:
+            hints.append(f"创新机制: {', '.join(names[:5])} — 方案应包含这些机制的设计")
+    
+    # 从 tools 推导工具集成重点
+    tools = confirmed.get("tools", {})
+    if isinstance(tools, dict):
+        tool_names = [k for k in tools.keys() if k not in ("description",)]
+        if tool_names:
+            hints.append(f"工具集成: {', '.join(tool_names[:5])} — 方案应说明如何集成这些工具")
+    
+    # 从 core_insight 推导核心设计原则
+    insight = confirmed.get("core_insight", "")
+    if insight and isinstance(insight, str):
+        hints.append(f"核心洞察: {insight}")
+    
+    return hints
+
+
 def build_frozen_spec(topic: str, constraints: List[str] | None = None,
                       living_spec: Dict[str, Any] | None = None) -> Dict[str, Any]:
     """Build a stable requirements contract from confirmed user input."""
@@ -122,19 +160,45 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
 
     # Success metrics → 做对的标准
     for item in confirmed.get("success_metrics", []) or []:
-        measurable = item.get("target", "") if isinstance(item, dict) else ""
-        desc = item.get("metric", "") if isinstance(item, dict) else item
-        _add_requirement(requirements, "success_metric", desc, "P1",
+        if isinstance(item, dict):
+            metric_name = item.get("metric", "")
+            target = item.get("target", "")
+            priority = item.get("priority", "P1")
+            # V4 fix: 组合 metric + target 作为 description，避免过短
+            if metric_name and target:
+                desc = f"{metric_name}: {target}"
+            elif metric_name:
+                desc = metric_name
+            else:
+                desc = target or str(item)
+            measurable = target
+        else:
+            desc = str(item)
+            priority = "P1"
+            measurable = ""
+        _add_requirement(requirements, "success_metric", desc, priority,
                          "living_spec.confirmed.success_metrics", measurable)
 
     # Users → 用户画像
     for item in confirmed.get("users", []) or []:
         if isinstance(item, dict):
-            desc = item.get("role", "") or item.get("description", "")
+            role = item.get("role", "")
+            description = item.get("description", "")
+            key_needs = item.get("key_needs", [])
+            # V4 fix: 组合 role + key_needs 作为 description
+            if role and key_needs:
+                needs_str = "、".join(key_needs[:3]) if isinstance(key_needs, list) else str(key_needs)
+                desc = f"{role}（需求: {needs_str}）"
+            elif role:
+                desc = role
+            else:
+                desc = description or str(item)
+            measurable = f"tech_level={item.get('tech_level', 'unknown')}"
         else:
             desc = str(item)
+            measurable = ""
         if desc:
-            _add_requirement(requirements, "user", desc, "P1", "living_spec.confirmed.users")
+            _add_requirement(requirements, "user", desc, "P1", "living_spec.confirmed.users", measurable)
 
     # Key scenarios → 核心使用场景
     for item in confirmed.get("key_scenarios", []) or []:
@@ -143,22 +207,40 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
     # Risks and assumptions → 风险和假设
     ra = confirmed.get("risks_and_assumptions", {}) if isinstance(confirmed.get("risks_and_assumptions", {}), dict) else {}
     for item in ra.get("risks", []) or []:
-        desc = item.get("description", "") if isinstance(item, dict) else str(item)
+        if isinstance(item, dict):
+            desc = item.get("description", "")
+            severity = item.get("severity", "")
+            likelihood = item.get("likelihood", "")
+            # V4 fix: 组合 description + severity/likelihood
+            if desc and severity:
+                desc = f"[风险-{severity}/{likelihood}] {desc}"
+            measurable = f"severity={severity}, likelihood={likelihood}"
+        else:
+            desc = str(item)
+            measurable = ""
         if desc:
-            _add_requirement(requirements, "risk", desc, "P1", "living_spec.confirmed.risks_and_assumptions.risks")
+            _add_requirement(requirements, "risk", desc, "P1", "living_spec.confirmed.risks_and_assumptions.risks", measurable)
     for item in ra.get("assumptions", []) or []:
-        desc = item.get("description", "") if isinstance(item, dict) else str(item)
+        if isinstance(item, dict):
+            desc = item.get("description", "")
+            measurable = f"id={item.get('id', '')}"
+        else:
+            desc = str(item)
+            measurable = ""
         if desc:
-            _add_requirement(requirements, "assumption", desc, "P1", "living_spec.confirmed.risks_and_assumptions.assumptions")
+            _add_requirement(requirements, "assumption", desc, "P1", "living_spec.confirmed.risks_and_assumptions.assumptions", measurable)
 
     # Guardrails → 行为边界（guardrails 是顶层字段，不在 confirmed 下）
+    # V4 fix: 支持两种格式：
+    #   flat 格式: {always_do: [...], never_do: [...], resolved: [...]}
+    #   zone 格式: {zone_0_immutable: {rules: [...]}, zone_1_verified_change: {rules: [...]}, ...}
     guardrails = (living_spec or {}).get("guardrails", {}) if isinstance(living_spec, dict) else {}
     if isinstance(guardrails, dict):
+        # flat 格式
         for item in guardrails.get("always_do", []) or []:
             _add_requirement(requirements, "guardrail", item, "P0", "living_spec.guardrails.always_do")
         for item in guardrails.get("never_do", []) or []:
             _add_requirement(requirements, "guardrail_prohibition", item, "P0", "living_spec.guardrails.never_do")
-        # resolved → 用户确认的设计决策
         for item in guardrails.get("resolved", []) or []:
             if isinstance(item, dict):
                 question = item.get("question", "")
@@ -166,6 +248,29 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
                 if question or answer:
                     desc = f"决策: {question} → {answer}".strip()
                     _add_requirement(requirements, "design_decision", desc, "P1", "living_spec.guardrails.resolved")
+        
+        # zone 格式（V4 新增）
+        zone_map = {
+            "zone_0_immutable": ("guardrail_prohibition", "P0", "绝对不可修改"),
+            "zone_1_verified_change": ("guardrail", "P0", "需验证的变更"),
+            "zone_2_free_change": ("guardrail", "P1", "可自由调整"),
+        }
+        for zone_key, (category, priority, zone_label) in zone_map.items():
+            zone = guardrails.get(zone_key, {})
+            if isinstance(zone, dict):
+                rules = zone.get("rules", [])
+                if rules:
+                    for rule in rules:
+                        desc = f"[{zone_label}] {rule}" if isinstance(rule, str) else str(rule)
+                        _add_requirement(requirements, category, desc, priority, f"living_spec.guardrails.{zone_key}")
+        
+        # operational_boundaries（V4 新增）
+        op_bounds = guardrails.get("operational_boundaries", {})
+        if isinstance(op_bounds, dict):
+            for key, val in op_bounds.items():
+                if val is not None:
+                    desc = f"[操作边界] {key}: {val}"
+                    _add_requirement(requirements, "guardrail", desc, "P1", "living_spec.guardrails.operational_boundaries", f"{key}={val}")
 
     # Solution Pro hints → Spec Pro 给下游的提示
     hints = (living_spec or {}).get("solution_pro_hints", None) if isinstance(living_spec, dict) else None
@@ -175,6 +280,11 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
         elif isinstance(hints, dict):
             for key, value in hints.items():
                 _add_requirement(requirements, "hint", f"{key}: {value}", "P1", f"living_spec.solution_pro_hints.{key}")
+    elif confirmed:
+        # V4 fix: 当 solution_pro_hints 为 null 时，从 confirmed 自动推导
+        auto_hints = _auto_generate_hints(confirmed)
+        for hint_text in auto_hints:
+            _add_requirement(requirements, "hint", hint_text, "P1", "auto_generated_from_confirmed")
 
     # Inferred → AI 推断需求（顶层字段，不在 confirmed 下）
     inferred = (living_spec or {}).get("inferred", []) if isinstance(living_spec, dict) else []
@@ -213,6 +323,28 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
     # V2.0: 透传 guardrails 和 solution_pro_hints
     guardrails_raw = (living_spec or {}).get("guardrails", {}) if isinstance(living_spec, dict) else {}
     solution_pro_hints_raw = (living_spec or {}).get("solution_pro_hints", None) if isinstance(living_spec, dict) else None
+    
+    # V4 fix: 当 solution_pro_hints 为 null 时，从 confirmed 自动推导
+    if not solution_pro_hints_raw and confirmed:
+        arch = confirmed.get("architecture", {})
+        innovations = confirmed.get("innovation_mechanisms", [])
+        tools_conf = confirmed.get("tools", {})
+        insight = confirmed.get("core_insight", "")
+        
+        focus_areas = []
+        if isinstance(arch, dict) and arch.get("pattern"):
+            focus_areas.append({"area": arch["pattern"], "weight": 0.3, "reason": "核心架构模式"})
+        if isinstance(innovations, list):
+            for inn in innovations[:3]:
+                if isinstance(inn, dict):
+                    focus_areas.append({"area": inn.get("name", ""), "weight": 0.2, "reason": inn.get("description", "")[:80]})
+        
+        solution_pro_hints_raw = {
+            "focus_areas": focus_areas,
+            "core_insight": insight,
+            "tool_integrations": list(tools_conf.keys()) if isinstance(tools_conf, dict) else [],
+            "auto_generated": True,
+        }
 
     return {
         "version": "2.0",
