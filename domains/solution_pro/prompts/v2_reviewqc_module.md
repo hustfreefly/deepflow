@@ -184,6 +184,36 @@ for name, data in [('spec', spec), ('schema', schema), ('harness', harness), ('p
 
 2. 生成最终质量报告，给出 Go/No-Go 决策。
 
+## Go/No-Go 判定
+
+### 硬性底线（任一触发 → no_go）
+- schema_validation = fail
+- p0_req_coverage_pct < 0.5
+
+### 判定参考示例
+
+**示例 1 → go**
+输入: schema=pass, coverage=100%, harness=pass, critical_issues=[]
+判定: go
+理由: 全部通过，无阻塞。
+
+**示例 2 → conditional_go**
+输入: schema=pass, coverage=80% (缺 REQ-007/009), harness=conditional, critical_issues=["REQ-007 缺少加密方案"]
+判定: conditional_go
+理由: 有缺口但有补救路径，不阻塞当前交付。
+
+**示例 3 → no_go**
+输入: schema=pass, coverage=60%, harness=fail, critical_issues=["核心认证未设计", "DB schema 缺失"]
+判定: no_go
+理由: 覆盖率过低 + 核心功能缺失，需回退重做。
+
+**示例 4 → no_go**
+输入: schema=fail (planning_convergence 缺少 covered_req_ids)
+判定: no_go
+理由: 输出格式不合法，下游无法消费。
+
+请在 reasoning 中引用具体数据说明判定依据。
+
 3. 写入 Blackboard：
 cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager

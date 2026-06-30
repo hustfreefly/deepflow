@@ -15,6 +15,27 @@
 
 审核 Convergence Planner 输出的质量，确保：
 
+## 高质量 Review 输出示例
+
+注意 reasoning 的写法——引用具体 ID、数值、内容：
+
+```json
+{
+  "coverage": {
+    "verdict": "PASS",
+    "score": 0.90,
+    "reasoning": "merge_ratio = 0.67 (30/45)，在 0.5-0.8 范围内。抽查 UC-001(认证)、UC-015(加密)、UC-028(日志) 均有 source_experts 标注。"
+  },
+  "executability": {
+    "verdict": "PASS",
+    "score": 0.95,
+    "reasoning": "VC-001: method='curl -I https://api.example.com/health | grep Strict-Transport-Security'，具体可执行。VC-015: method='psql -c \"SELECT jsonb_path_query(...)\"'，包含具体 SQL。"
+  }
+}
+```
+
+reasoning 的关键：引用具体 ID、具体数值、具体内容。每个 verdict 都有数据支撑。
+
 ### 1. 统一约束质量
 
 #### 1.1 约束覆盖完整性
@@ -65,16 +86,12 @@
 
 #### 2.2 P0 REQ 对应约束
 - **检查**: 每个 P0 REQ 是否在 `unified_constraints` 中有对应约束？
-- **标准**:
-  - 每个 P0 REQ 至少有 1 个对应的 MUST 约束
-  - 对应关系必须明确（不能是模糊的"覆盖"）
+- **标准**: 每个 P0 REQ 至少有 1 个对应的 MUST 约束，对应关系须在 reasoning 中引用具体 constraint_id
 - **评分**: PASS / WARNING / FAIL
 
 #### 2.3 未覆盖 P0 REQ 说明
-- **检查**: 如果有 P0 REQ 未覆盖，是否在 `rejected_constraints` 中说明原因？
-- **标准**:
-  - 每个未覆盖的 P0 REQ 必须有明确的 `reason`
-  - `reason` 必须是合理的（不能是"不重要"）
+- **检查**: 未覆盖的 P0 REQ 是否在 `rejected_constraints` 中说明原因？
+- **标准**: 每个未覆盖的 P0 REQ 须在 reasoning 中说明具体原因
 - **评分**: PASS / FAIL
 
 ### 3. 验证清单质量
@@ -88,23 +105,12 @@
 
 #### 3.2 验证方法可执行性
 - **检查**: 每个验证项的 `verification_method` 是否可执行？
-- **标准**:
-  - 必须是具体的命令或测试
-  - 禁止模糊描述：
-    - ❌ "检查安全性"
-    - ✅ "运行 `curl -I https://api.example.com/health`，检查响应头包含 `Strict-Transport-Security`"
-  - 禁止主观判断：
-    - ❌ "代码质量好"
-    - ✅ "通过 ESLint 检查，无 error 级别警告"
+- **标准**: 必须是具体的命令或测试（如 curl 命令、SQL 查询、lint 工具命令），reasoning 中引用具体 VC-ID 和 method 内容
 - **评分**: PASS / WARNING / FAIL
 
 #### 3.3 预期结果明确性
 - **检查**: 每个验证项的 `expected_result` 是否明确？
-- **标准**:
-  - `expected_result` 必须是可验证的
-  - 禁止模糊描述：
-    - ❌ "正常工作"
-    - ✅ "响应状态码 200，包含 HSTS 头"
+- **标准**: `expected_result` 必须包含可量化/可验证的指标（如状态码、响应头、具体数值），reasoning 中引用具体内容
 - **评分**: PASS / WARNING / FAIL
 
 #### 3.4 验证项 ID 连续性
@@ -253,8 +259,7 @@
 ## 关键规则
 
 1. **审核必须基于证据**
-   - 每个审核项的 `reasoning` 必须基于实际文件内容
-   - 禁止主观判断，必须引用具体内容
+   - 每个审核项的 `reasoning` 必须引用具体 ID、数值或内容作为证据
 
 2. **评分标准**
    - PASS: 完全符合标准，无需修改

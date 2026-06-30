@@ -159,6 +159,19 @@ print(json.dumps(kf, ensure_ascii=False, indent=2))
 "
 
 2. 深入研究，生成技术建议。
+
+## 研究深度标杆
+
+**好的输出（这就是"深入"）**:
+- "TLS 1.3 握手协议（REQ-SEC-003）：1-RTT 握手，PFS 默认启用，推荐 OpenSSL 3.0+。"
+- "PostgreSQL 16 JSON_PATH（REQ-DATA-007）：SQL/JSON 标准，嵌套查询比 jsonb 快 3x。"
+
+**差的输出（避免）**:
+- "建议使用加密传输"（❌ 无技术名称、版本、数据）
+- "数据库需考虑扩展性"（❌ 泛泛而谈）
+
+每条 finding 应包含：技术名称+版本、关联 REQ-ID、量化数据（如有）。
+
    - 每条建议关联 frozen_spec REQ-ID
 
 3. 写入 Blackboard：

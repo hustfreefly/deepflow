@@ -24,7 +24,7 @@ updated: "2026-06-30"
    "
    ```
 2. 将 exec 返回的完整文本作为 `sessions_spawn` 的 `task` 参数
-3. **绝对禁止**修改、总结、简化、重写 prompt 内容
+3. **绝对禁止**修改、总结、简化、重写 prompt 的**实质内容**（`{session_id}` 等占位符替换除外）
 4. **绝对禁止**添加以下任何文字：
    - "Do NOT use sessions_spawn"
    - "you are a leaf module"
@@ -45,6 +45,10 @@ updated: "2026-06-30"
 ## 你的 Blackboard
 
 - session_id: `OpenClaw AI Native Loop Engineering Framework`
+
+---
+> 📍 以下是执行流程。如果你迷失了方向，回到这里重新定位。
+---
 
 ## 执行流程
 
@@ -127,7 +131,7 @@ if pc:
 ```
 
 6. PLANNING_OK → **立即继续 Step 2**。
-   PLANNING_MISSING → 降级（写默认 planning）。
+   PLANNING_MISSING → 降级：写入最小有效 planning_convergence（含空 unified_constraints 数组 + meta.total_output_constraints=0 + 空 covered_req_ids），并在 master_state.degraded_modules 中记录 `'planning'`。
 
 **⚠️ 验证后立即继续 Step 2，不能结束 turn。**
 
@@ -172,7 +176,10 @@ if rc:
     print('MASTER_STATE_UPDATED')
 "
 ```
-6. **⚠️ 验证后立即继续 Step 3，不能结束 turn。**
+6. RESEARCH_OK → **立即继续 Step 3**。
+   RESEARCH_MISSING → 降级：跳过研究阶段，在 master_state 中标记 `research_skipped=true`，并在 master_state.degraded_modules 中记录 `'research'`。方案将基于 Planning 阶段输出直接进入 QC。
+
+**⚠️ 验证后立即继续 Step 3，不能结束 turn。**
 
 ### Step 3: Spawn ReviewQC Module
 
@@ -210,6 +217,9 @@ if rqc:
     print('MASTER_STATE_UPDATED')
 "
 ```
+
+6. REVIEWQC_OK → 继续 Step 4。
+   REVIEWQC_MISSING → 降级：生成最小质量报告（schema_validation=pass, 各项 score=0.5, overall_verdict=conditional_go），标注为降级模式，并在 master_state.degraded_modules 中记录 `'review_qc'`。
 
 ### Step 4: 完成
 
