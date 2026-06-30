@@ -89,7 +89,7 @@ def _build_deepflow_task(task: Task) -> str:
     params = task.parameters
     session_id = task.session_id
     
-    if domain == "solution":
+    if domain == "solution_pro":
         topic = params.get("topic", "Unknown task")
         solution_type = params.get("solution_type", "architecture")
         constraints = params.get("constraints", [])
@@ -104,7 +104,7 @@ Stakeholders: {', '.join(stakeholders) if stakeholders else 'None'}
 Session ID: {session_id}
 
 Steps:
-1. Initialize EntryHarness with domain='solution'
+1. Initialize EntryHarness with domain='solution_pro'
 2. Call harness.validate_and_start() with context
 3. Run orchestrator.run_pipeline()
 4. Results will be written to blackboard/{session_id}/

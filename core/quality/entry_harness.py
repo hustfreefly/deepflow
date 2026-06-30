@@ -57,7 +57,7 @@ class EntryHarness:
         6. 返回 orchestrator
 
         Args:
-            domain: 领域标识（如 'solution', 'code', 'general'）
+            domain: 领域标识（如 'solution_pro', 'code', 'general'）
             context: 领域特定上下文（topic, constraints, code, name 等）
             spawn_fn: 注入的 spawn 函数（主Agent提供）
 
@@ -118,7 +118,7 @@ class EntryHarness:
         Raises:
             ValueError: domain 不支持
         """
-        supported_domains = ["solution", "code", "general"]
+        supported_domains = ["solution_pro", "code", "general"]
         if domain not in supported_domains:
             raise ValueError(
                 f"Unsupported domain: '{domain}'. "
@@ -161,7 +161,7 @@ class EntryHarness:
             bb.init_session()
             return existing_session_id
 
-        if domain == "solution":
+        if domain == "solution_pro":
             from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
 
             topic = context.get("topic", "")
@@ -169,7 +169,7 @@ class EntryHarness:
             session_prefix = context.get("session_prefix")
 
             if not topic:
-                raise ValueError("Domain 'solution' requires 'topic' in context")
+                raise ValueError("Domain 'solution_pro' requires 'topic' in context")
 
             orch = _SolutionDispatcher(
                 topic=topic,
@@ -220,7 +220,7 @@ class EntryHarness:
             raise ValueError("session_id must be set in context before _generate_execution_plan")
         session_dir = _DEEPFLOW_BASE / "blackboard" / session_id
 
-        if domain == "solution":
+        if domain == "solution_pro":
             # 使用 _SolutionDispatcher 生成任务和计划
             from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
 

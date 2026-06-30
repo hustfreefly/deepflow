@@ -10,7 +10,7 @@ Spec Pro 使用混合路径模式:
 - 动态路径: round_{NN}_parse.json 等（轮次号动态，在 s_dir 子目录下）
 """
 
-import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
+import core.bootstrap  # 契约笼子: 通过 bootstrap 自动加入 sys.path
 from core.blackboard.registry_base import DomainRegistry
 from core.blackboard.blackboard_manager import BlackboardManager as CoreBlackboardManager
 

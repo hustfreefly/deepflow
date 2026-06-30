@@ -84,7 +84,7 @@ import yaml
 with open(os.path.join(BASE, "prompts/registry.yaml")) as f:
     reg = yaml.safe_load(f)
 
-solution_ids = list(reg['domains']['solution']['prompts'].keys())
+solution_ids = list(reg['domains']['solution_pro']['prompts'].keys())
 versioned_ids = [pid for pid in solution_ids
                  if re.search(r'_v[0-9]', pid) or 'harness_final_v' in pid]
 check("registry 无版本号 prompt_id", len(versioned_ids) == 0,
@@ -93,7 +93,7 @@ check("registry 无版本号 prompt_id", len(versioned_ids) == 0,
 # === V5: registry 每个 filename 对应文件存在 ===
 print("\n--- V5: registry filename 全部存在 ---")
 missing_files = []
-for pid, pdata in reg['domains']['solution']['prompts'].items():
+for pid, pdata in reg['domains']['solution_pro']['prompts'].items():
     fn = pdata.get('filename', '')
     fpath = os.path.join(PROMPTS_DIR, fn)
     if not os.path.exists(fpath):

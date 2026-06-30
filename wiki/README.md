@@ -62,7 +62,7 @@ for path in tests:
 
 ### 恢复 Blackboard 数据
 ```bash
-python3 blackboard_recover_all.py
+python3 scripts/blackboard_recover_all.py
 ```
 
 ### 检查关键函数

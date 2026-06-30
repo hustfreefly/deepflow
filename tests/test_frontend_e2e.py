@@ -93,7 +93,7 @@ class E2ETest:
         try:
             r = requests.post(
                 f"{BASE_URL}/api/v2/tasks",
-                json={"domain": "solution", "topic": "E2E Test", "session_prefix": "e2e_"},
+                json={"domain": "solution_pro", "topic": "E2E Test", "session_prefix": "e2e_"},
                 timeout=TIMEOUT
             )
             self.check("Task creation", r.status_code == 200)

@@ -31,7 +31,7 @@ class UnifiedEntry:
     
     使用方式:
         entry = UnifiedEntry()
-        result = entry.run(domain="solution", topic="设计一个智能物流系统", solution_type="architecture")
+        result = entry.run(domain="solution_pro", topic="设计一个智能物流系统", solution_type="architecture")
     """
     
     def __init__(self):
@@ -43,7 +43,7 @@ class UnifiedEntry:
     def _register_domains(self) -> Dict[str, DomainRegistry]:
         """注册所有支持领域"""
         return {
-            "solution": DomainRegistry(
+            "solution_pro": DomainRegistry(
                 module="domains.solution_pro.orchestrator_agent",
                 class_name="_SolutionDispatcher",
                 required_context=["topic"]

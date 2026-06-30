@@ -48,12 +48,9 @@ def detect_format(data: dict) -> str:
         return "D"
 
 def load_prompt(agent_name: str) -> str:
-    """加载 Agent prompt 模板"""
-    prompt_dir = Path(__file__).parent.parent / "prompts"
-    prompt_file = prompt_dir / f"{agent_name}.md"
-    if not prompt_file.exists():
-        raise FileNotFoundError(f"Prompt not found: {prompt_file}")
-    return prompt_file.read_text()
+    """加载 Agent prompt 模板 via core.prompt_registry"""
+    from core.prompt_registry import read_prompt
+    return read_prompt(f"ship_pro/{agent_name}")
 
 def compute_prompt_sha(prompt_path: Path) -> str:
     """计算 prompt 文件的 SHA256"""

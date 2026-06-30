@@ -232,17 +232,16 @@ class OpenClawAgentCaller(AgentCaller):
     # ────────────────────────────────
 
     def _load_prompt(self, agent_name: str) -> str:
-        """从 prompts_dir 加载对应 Agent 的 system prompt"""
-        prompt_path = self.prompts_dir / f"{agent_name}.md"
-        if prompt_path.exists():
-            return prompt_path.read_text(encoding="utf-8")
-
-        # fallback: 查找通用 prompt
-        generic = self.prompts_dir / "generic_agent.md"
-        if generic.exists():
-            return generic.read_text(encoding="utf-8")
-
-        return f"# Agent: {agent_name}\n请根据输入数据完成分析并返回 JSON。"
+        """从 core.prompt_registry 加载对应 Agent 的 system prompt"""
+        from core.prompt_registry import read_prompt
+        try:
+            return read_prompt(f"ship_pro/{agent_name}")
+        except (KeyError, FileNotFoundError):
+            # fallback: 查找通用 prompt
+            try:
+                return read_prompt("ship_pro/generic_agent")
+            except (KeyError, FileNotFoundError):
+                return f"# Agent: {agent_name}\n请根据输入数据完成分析并返回 JSON。"
 
     # ────────────────────────────────
     # 单次调用

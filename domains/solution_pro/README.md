@@ -112,7 +112,7 @@ Stage 4: Convergence → final_convergence.json
 
 V1 架构（固定多阶段管线）仍可用于已有 session 续跑：
 - V1 入口：`from domains.solution import run_solution_pro`
-- V1 文档：`prompts/pipeline_orchestrator.md`
+- V1 文档：`prompts/v1/pipeline_orchestrator.md`
 - V1 Stage 路径：`STAGE_PATH_REGISTRY_V1`（在 `blackboard.py`）
 
 **判断方法**：检查 `blackboard/<session_id>/v2/master_state.json` 是否存在。存在 = V2 session。

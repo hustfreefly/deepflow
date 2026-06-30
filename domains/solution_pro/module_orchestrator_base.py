@@ -551,6 +551,24 @@ stages/harness_{stage_name}.json
                 pass
             raise
     
+    def validate_stage_output(self, module_name: str, stage_name: str, output: dict) -> bool:
+        """Validate stage output against V2 schema. Non-blocking on failure."""
+        try:
+            from .check_contract import check_v2_contract
+            result = check_v2_contract(module_name, stage_name, output)
+            if not result.get("valid"):
+                logger.warning("Schema validation failed for %s/%s: %s",
+                              module_name, stage_name, result.get("errors"))
+                return False
+            logger.info("Schema validation passed for %s/%s", module_name, stage_name)
+            return True
+        except ImportError:
+            logger.debug("check_v2_contract not available, skipping validation")
+            return True  # fallback: skip validation
+        except Exception as e:
+            logger.warning("Schema validation error for %s/%s: %s", module_name, stage_name, e)
+            return True  # fallback: skip validation on unexpected errors
+
     def _execute_parallel(
         self,
         tasks: list[dict],
@@ -646,6 +664,10 @@ stages/harness_{stage_name}.json
             try:
                 output = self.execute_stage(stage)
                 
+                # V2: Schema validation (non-blocking)
+                if output is not None:
+                    self.validate_stage_output(self.module_name, stage_name, output)
+
                 # Gate check（如果需要）
                 if stage.get("gate_check", False):
                     harness_output = self.run_harness_agent(stage_name, output)

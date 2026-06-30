@@ -119,14 +119,16 @@ def count_modules(data: dict, fmt: str) -> int:
 # ---------------------------------------------------------------------------
 
 def load_prompt(agent_name: str) -> str:
-    """Load Agent prompt template."""
-    prompt_file = PROMPTS_DIR / f"{agent_name}.md"
-    if not prompt_file.exists():
-        raise FileNotFoundError(f"Prompt not found: {prompt_file}")
-    return prompt_file.read_text()
+    """Load Agent prompt template via core.prompt_registry."""
+    from core.prompt_registry import read_prompt
+    return read_prompt(f"ship_pro/{agent_name}")
 
 
 def compute_prompt_sha(agent_name: str) -> str:
-    """Compute SHA256 of prompt file."""
-    prompt_file = PROMPTS_DIR / f"{agent_name}.md"
-    return hashlib.sha256(prompt_file.read_bytes()).hexdigest()
+    """Compute SHA256 of prompt file via core.prompt_registry."""
+    from core.prompt_registry import get_prompt_info
+    info = get_prompt_info(f"ship_pro/{agent_name}")
+    from core.config.path_config import PathConfig
+    base_path = PathConfig.resolve().base_dir
+    file_path = base_path / "prompts" / info.domain / info.filename
+    return hashlib.sha256(file_path.read_bytes()).hexdigest()

@@ -135,7 +135,7 @@ class PipelineOrchestrator:
         初始化 PipelineOrchestrator
 
         Args:
-            domain: 领域标识（如 'solution', 'investment'）
+            domain: 领域标识（如 'solution_pro', 'research_pro'）
             user_context: 用户提供的领域特定上下文
             spawn_fn: 注入的 sessions_spawn 函数（必须在主Agent环境中注入）
             execution_plan_path: execution_plan.json 文件路径
@@ -266,7 +266,7 @@ class PipelineOrchestrator:
                     subdir="stages",
                 )
 
-                if self.domain == "solution" and stage_name == "planning":
+                if self.domain == "solution_pro" and stage_name == "planning":
                     refresh = self._refresh_solution_contract_after_planning()
                     all_results[stage_name]["control_contract_refresh"] = refresh
 
@@ -713,7 +713,7 @@ class PipelineOrchestrator:
 
 def run_pipeline(
     execution_plan_path: str,
-    domain: str = "solution",
+    domain: str = "solution_pro",
     user_context: Optional[Dict[str, Any]] = None,
     spawn_fn=None,
 ) -> Dict[str, Any]:

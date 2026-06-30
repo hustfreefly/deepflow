@@ -117,7 +117,7 @@ domains:
         variables:
           required: []
           optional: []
-  solution:
+  solution_pro:
     version: 2.1.0
     prompts:
       planner:
@@ -181,7 +181,6 @@ domains:
           required:
           - name: TOPIC
           - name: SOLUTION_TYPE
-      
       planner_v2_harness:
         name: Solution Planner V2 Harness
         filename: planner_v2_harness.md
@@ -357,7 +356,6 @@ domains:
           - name: topic
           optional:
           - name: solution_path
-
       harness_v3:
         name: Solution Harness V3
         filename: harness_v3.md
@@ -385,7 +383,6 @@ domains:
           - name: alignment_items
           - name: global_impact_items
           - name: is_final
-
       harness_scoring:
         name: Solution Harness Scoring
         filename: harness_scoring.md
@@ -402,7 +399,6 @@ domains:
         variables:
           required: []
           optional: []
-      
       consolidator:
         name: Solution Consolidator
         filename: consolidator.md
@@ -423,7 +419,6 @@ domains:
           - name: integration_strategy
           optional:
           - name: quality_requirements
-      
       fixer_expert:
         name: Solution Fixer Expert
         filename: fixer_expert.md
@@ -445,7 +440,6 @@ domains:
           - name: fix_strategy
           optional:
           - name: previous_fixes
-      
       summarizer:
         name: Solution Summarizer
         filename: summarizer.md
@@ -765,3 +759,214 @@ domains:
           changes:
           - 添加YAML元数据
         variables: {}
+  ship_pro:
+    version: 2.0.0
+    prompts:
+      architect:
+        name: Architect
+        filename: architect.md
+        version: 1.0.0
+        role: architect
+      cron_watcher:
+        name: Cron Watcher
+        filename: cron_watcher.md
+        version: 1.0.0
+        role: watcher
+      decomposer:
+        name: Decomposer
+        filename: decomposer.md
+        version: 1.0.0
+        role: decomposer
+      fixer:
+        name: Fixer
+        filename: fixer.md
+        version: 1.0.0
+        role: fixer
+      generator:
+        name: Generator
+        filename: generator.md
+        version: 1.0.0
+        role: generator
+      judge:
+        name: Judge
+        filename: judge.md
+        version: 1.0.0
+        role: reviewer
+      normalizer:
+        name: Normalizer
+        filename: normalizer.md
+        version: 1.0.0
+        role: normalizer
+      p1_architect:
+        name: P1 Architect
+        filename: p1_architect.md
+        version: 1.0.0
+        role: architect
+      p1_architect_step1:
+        name: P1 Architect Step1
+        filename: p1_architect_step1.md
+        version: 1.0.0
+        role: architect
+      p1_architect_step2:
+        name: P1 Architect Step2
+        filename: p1_architect_step2.md
+        version: 1.0.0
+        role: architect
+      p1_consolidator:
+        name: P1 Consolidator
+        filename: p1_consolidator.md
+        version: 1.0.0
+        role: consolidator
+      p1_coverage_critic:
+        name: P1 Coverage Critic
+        filename: p1_coverage_critic.md
+        version: 1.0.0
+        role: critic
+      p1_explorer:
+        name: P1 Explorer
+        filename: p1_explorer.md
+        version: 1.0.0
+        role: explorer
+      p1_feasibility_critic:
+        name: P1 Feasibility Critic
+        filename: p1_feasibility_critic.md
+        version: 1.0.0
+        role: critic
+      p1_granularity_critic:
+        name: P1 Granularity Critic
+        filename: p1_granularity_critic.md
+        version: 1.0.0
+        role: critic
+      p1_parser:
+        name: P1 Parser
+        filename: p1_parser.md
+        version: 1.0.0
+        role: parser
+      p1_verify_agent:
+        name: P1 Verify Agent
+        filename: p1_verify_agent.md
+        version: 1.0.0
+        role: verifier
+      p2_ac_writer:
+        name: P2 Ac Writer
+        filename: p2_ac_writer.md
+        version: 1.0.0
+        role: writer
+      p2_completeness_judge:
+        name: P2 Completeness Judge
+        filename: p2_completeness_judge.md
+        version: 1.0.0
+        role: reviewer
+      p2_consistency_judge:
+        name: P2 Consistency Judge
+        filename: p2_consistency_judge.md
+        version: 1.0.0
+        role: reviewer
+      p2_consolidator:
+        name: P2 Consolidator
+        filename: p2_consolidator.md
+        version: 1.0.0
+        role: consolidator
+      p2_quality_judge:
+        name: P2 Quality Judge
+        filename: p2_quality_judge.md
+        version: 1.0.0
+        role: reviewer
+      p2_verify_agent:
+        name: P2 Verify Agent
+        filename: p2_verify_agent.md
+        version: 1.0.0
+        role: verifier
+      packager:
+        name: Packager
+        filename: packager.md
+        version: 1.0.0
+        role: packager
+      reviewer:
+        name: Reviewer
+        filename: reviewer.md
+        version: 1.0.0
+        role: reviewer
+      ship_fixer:
+        name: Ship Fixer
+        filename: ship_fixer.md
+        version: 1.0.0
+        role: fixer
+      ship_harness:
+        name: Ship Harness
+        filename: ship_harness.md
+        version: 1.0.0
+        role: harness
+      ship_judge:
+        name: Ship Judge
+        filename: ship_judge.md
+        version: 1.0.0
+        role: reviewer
+      ship_orchestrator:
+        name: Ship Orchestrator
+        filename: ship_orchestrator.md
+        version: 1.0.0
+        role: orchestrator
+      ship_pre_scanner:
+        name: Ship Pre Scanner
+        filename: ship_pre_scanner.md
+        version: 1.0.0
+        role: scanner
+      ship_reviewer:
+        name: Ship Reviewer
+        filename: ship_reviewer.md
+        version: 1.0.0
+        role: reviewer
+      specifier:
+        name: Specifier
+        filename: specifier.md
+        version: 1.0.0
+        role: specifier
+      v5_orchestrator:
+        name: V5 Orchestrator
+        filename: v5_orchestrator.md
+        version: 1.0.0
+        role: orchestrator
+  research_pro:
+    version: 1.0.0
+    prompts:
+      citation_verify:
+        name: Citation Verify
+        filename: citation_verify.md
+        version: 1.0.0
+        role: verifier
+      finance_analysis:
+        name: Finance Analysis
+        filename: finance_analysis.md
+        version: 1.0.0
+        role: analyst
+      planning:
+        name: Planning
+        filename: planning.md
+        version: 1.0.0
+        role: planner
+      quality_reviewer:
+        name: Quality Reviewer
+        filename: quality_reviewer.md
+        version: 1.0.0
+        role: reviewer
+      report_writer:
+        name: Report Writer
+        filename: report_writer.md
+        version: 1.0.0
+        role: writer
+      search:
+        name: Search
+        filename: search.md
+        version: 1.0.0
+        role: searcher
+      tech_analysis:
+        name: Tech Analysis
+        filename: tech_analysis.md
+        version: 1.0.0
+        role: analyst
+      orchestrator:
+        name: Research Pro Orchestrator
+        filename: orchestrator.md
+        version: 1.0.0
+        role: orchestrator

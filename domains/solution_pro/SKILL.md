@@ -482,6 +482,6 @@ except:
 - **V2 开发计划**: `blackboard/plan_pro_sp_v2_redesign/development_plan_v2.md`
 - **代码文件索引**: 见 [_overview.md](_overview.md)
 - **Schema 契约**: 见 `schemas/v2_schemas.py`
-- **V1 文档**: 见 `prompts/pipeline_orchestrator.md`（V1 Orchestrator 指令）
+- **V1 文档**: 见 `prompts/v1/pipeline_orchestrator.md`（V1 Orchestrator 指令）
 
 *V5.0 | 2026-06-29 | V2 三层架构（Planning + Research + ReviewQC）+ 断点续跑 + 超时降级*

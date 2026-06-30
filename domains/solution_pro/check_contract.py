@@ -88,7 +88,7 @@ def check_contract():
     # 5. 验证 prompts 文件
     prompt_dir = str(PathConfig.resolve().base_dir / "domains/solution_pro/prompts/")
     required_prompts = [
-        'data_collection.md',
+        'v1/data_collection.md',
         'planner_v2_harness.md',
         'reviewer_v2_harness.md',
         'researcher_v2_harness.md',
@@ -96,7 +96,7 @@ def check_contract():
         'auditor_v2_harness.md',
         'fixer_v2_harness.md',
         'fixer_expert_v2_harness.md',
-        'harness_v3.md',
+        'v1/harness_v3.md',
         'summarizer_v2_harness.md',
     ]
     for prompt in required_prompts:
@@ -176,3 +176,84 @@ if __name__ == "__main__":
     
     print(f"\n{'='*60}")
     print(json.dumps(result["summary"], indent=2))
+
+
+# ============================================================================
+# V2 Schema Validation Entry Point
+# ============================================================================
+
+# V2 schema mapping: (module_name, stage_name) → Schema class
+_V2_SCHEMA_MAP = {
+    ("planning", "meta_planning"): "ExpertManifestSchema",
+    ("planning", "expert_plans"): "ExpertPlanSchema",
+    ("planning", "unified_constraints"): "UnifiedConstraintsSchema",
+    ("planning", "verification_checklist"): "VerificationChecklistSchema",
+    ("planning", "planning_convergence"): "PlanningConvergenceSchema",
+    ("research", "research_experts"): "ResearchExpertSchema",
+    ("research", "research_consolidator"): "ResearchConsolidatorSchema",
+    ("research", "research_convergence"): "ResearchConvergenceSchema",
+}
+
+
+def check_v2_contract(module_name: str, stage_name: str, output: dict) -> dict:
+    """V2 schema validation entry point.
+
+    Args:
+        module_name: "planning" | "research" | "review_qc"
+        stage_name: stage identifier (e.g., "meta_planning", "knowledge_freshness")
+        output: stage output dict to validate
+
+    Returns:
+        {"valid": bool, "errors": list[str], "stage": str}
+    """
+    from domains.solution_pro.schemas.v2_schemas import (
+        ExpertManifestSchema,
+        ExpertPlanSchema,
+        UnifiedConstraintsSchema,
+        VerificationChecklistSchema,
+        PlanningConvergenceSchema,
+        ResearchExpertSchema,
+        ResearchConsolidatorSchema,
+        ResearchConvergenceSchema,
+    )
+
+    # Resolve schema class from mapping
+    schema_name = _V2_SCHEMA_MAP.get((module_name, stage_name))
+    if schema_name is None:
+        return {
+            "valid": False,
+            "errors": [f"Unknown V2 stage: module={module_name}, stage={stage_name}"],
+            "stage": stage_name,
+        }
+
+    # Map name → actual class
+    _class_map = {
+        "ExpertManifestSchema": ExpertManifestSchema,
+        "ExpertPlanSchema": ExpertPlanSchema,
+        "UnifiedConstraintsSchema": UnifiedConstraintsSchema,
+        "VerificationChecklistSchema": VerificationChecklistSchema,
+        "PlanningConvergenceSchema": PlanningConvergenceSchema,
+        "ResearchExpertSchema": ResearchExpertSchema,
+        "ResearchConsolidatorSchema": ResearchConsolidatorSchema,
+        "ResearchConvergenceSchema": ResearchConvergenceSchema,
+    }
+    schema_class = _class_map.get(schema_name)
+    if schema_class is None:
+        return {
+            "valid": False,
+            "errors": [f"Schema class not found: {schema_name}"],
+            "stage": stage_name,
+        }
+
+    # Validate
+    errors = []
+    try:
+        schema_class(**output)
+    except Exception as exc:
+        errors.append(str(exc))
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "stage": stage_name,
+    }

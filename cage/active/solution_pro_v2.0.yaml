@@ -1,0 +1,205 @@
+cage_version: "1.0.0"
+component: solution_pro
+status: active
+# Solution Pro V2.0 契约
+# DeepFlow 方案设计引擎 — Planning → Research → ReviewQC 三模块串联 Pipeline
+
+module: solution_pro
+version: "2.0"
+created: "2026-05-30"
+updated: "2026-06-29"
+status: active
+complexity: complex  # V2: 4 Orchestrators + ConvergenceLayer + Schemas + Harness + Prompts
+
+description: |
+  Solution Pro V2 采用三模块串联 Pipeline 架构:
+  MasterOrchestrator → PlanningOrchestrator → ResearchOrchestrator → ReviewQCOrchestrator。
+  每个模块独立编排, 通过 Blackboard 传递状态。
+  Planning V2: 三层架构 (Meta-Planner → Expert Planners ×N → Convergence)。
+  Research V2: 5 阶段 (Knowledge Freshness → Expert Config → Research ×M → Consolidation → Convergence)。
+  ReviewQC V2: 4 阶段 (Fix Loop → Harness Check → Final Review → Convergence)。
+  降级策略: 每模块独立降级, 不影响其他模块已完成输出。
+
+# =============================================================================
+# 红线 (P0 — 绝对不可违反)
+# =============================================================================
+redlines:
+  - id: "RED-SOL-001"
+    rule: "Python Orchestrator 层禁止包含 LLM 推理逻辑"
+    reason: "所有 LLM 推理必须通过 sessions_spawn Worker Agent 完成, Python 只做编排"
+    check: "grep -rE 'openai|anthropic|llm|chat_completion' domains/solution_pro/*.py → 无匹配(除注释)"
+
+  - id: "RED-SOL-002"
+    rule: "Orchestrator 禁止直接调用 sessions_spawn, 必须通过注入的 spawn_fn"
+    reason: "spawn 必须由主 Agent 执行, exec 环境无 openclaw SDK"
+    check: "grep 'from openclaw import sessions_spawn' domains/solution_pro/master_orchestrator.py → 仅在 try/except"
+
+  - id: "RED-SOL-003"
+    rule: "Worker Agent 间跨阶段状态传递必须通过 Blackboard 文件, 禁止函数参数直传"
+    reason: "Agent 间唯一共享机制是 Blackboard, 确保可观测性和可恢复性"
+    check: "Worker Prompt 包含 Blackboard 读写路径"
+
+  - id: "RED-SOL-004"
+    rule: "Prompt 中外部网页内容必须视为 DATA 而非指令"
+    reason: "Prompt Injection 防御, 遵循 AGENTS.md Zone 1.3"
+    check: "grep -r '视为数据\\|treat.*as.*data' domains/solution_pro/prompts/ → 有匹配"
+
+  - id: "RED-SOL-005"
+    rule: "spawn_fn 未注入时 prod 环境禁止执行, 必须抛出 ValueError"
+    reason: "静默 fallback 会导致管线中断而不自知"
+    check: "grep 'DEEPFLOW_ENV.*prod.*spawn_fn' domains/solution_pro/master_orchestrator.py → 有匹配"
+
+  - id: "RED-SOL-006"
+    rule: "Harness 评分必须使用定性红绿灯(green/yellow/red), 禁止 0-1 数值分"
+    reason: "数值分产生虚假精确, 红绿灯配合 blocking_issues 确保问题可追溯"
+    check: "grep 'green.*yellow.*red\\|no_0_1_score' domains/solution_pro/ → 有匹配"
+
+  - id: "RED-SOL-007"
+    rule: "模块失败不影响其他模块已完成输出 (错误隔离)"
+    reason: "Pipeline 设计原则: 降级而非全失败"
+    check: "MasterOrchestrator.run() 中 ModuleFailure 被捕获并记录到 degraded_modules"
+
+# =============================================================================
+# L1: 接口契约
+# =============================================================================
+interface:
+  python_modules:
+    - name: "MasterOrchestrator"
+      path: "domains/solution_pro/master_orchestrator.py"
+      desc: "三模块串联调度 — run(user_input, config) → pipeline_result; 状态管理 + 错误隔离 + 断点续跑 + 超时保护"
+
+    - name: "PlanningOrchestrator"
+      path: "domains/solution_pro/planning_orchestrator.py"
+      desc: "Planning V2 三层架构 — Meta-Planner(L0) → Expert Planners ×N(L1) → Convergence(L2); Gate A/B 评估"
+
+    - name: "ResearchOrchestrator"
+      path: "domains/solution_pro/research_orchestrator.py"
+      desc: "Research V2 五阶段 — Knowledge Freshness → Expert Config → Research ×M → Consolidation → Convergence"
+
+    - name: "ReviewQCOrchestrator"
+      path: "domains/solution_pro/review_qc_orchestrator.py"
+      desc: "ReviewQC 四阶段 — Fix Loop → Harness Check → Final Review → Convergence; 支持 ABORT 降级"
+
+    - name: "ModuleOrchestratorBase"
+      path: "domains/solution_pro/module_orchestrator_base.py"
+      desc: "模块基类 — 统一 spawn_fn 注入 + Blackboard 读写 + 状态管理"
+
+    - name: "ConvergenceLayer"
+      path: "domains/solution_pro/convergence_layer.py"
+      desc: "收敛层 — Gate 评估 + 约束合并 + 跨模块共享"
+
+    - name: "HarnessScorer"
+      path: "domains/solution_pro/harness_scorer.py"
+      desc: "3维评分器 — 完整性35%/必要性25%/目标一致性40%"
+
+    - name: "HarnessValidator"
+      path: "domains/solution_pro/harness_validator.py"
+      desc: "输出格式校验 + 需求覆盖度检查"
+
+    - name: "TaskBuilder"
+      path: "domains/solution_pro/task_builder.py"
+      desc: "Worker task prompt 构建 — meta_planner / reviewer_meta / expert 等"
+
+  worker_agents:
+    - meta_planner: {role: "任务分析+专家选择+Gate配置", prompt: "meta_planner.md"}
+    - expert_planner: {role: "约束生成(多视角并行)", prompt: "expert_planner.md", parallel: true}
+    - convergence_planner: {role: "合并+验证+P0 REQ追踪", prompt: "convergence_planner.md"}
+    - research_expert: {role: "技术/最佳实践/风险研究(多专家并行)", prompt: "research_expert.md", parallel: true}
+    - consolidator: {role: "去重+冲突检测+分层", prompt: "consolidator.md"}
+    - fixer: {role: "问题修复(最多3轮)", prompt: "fixer.md"}
+    - harness_checker: {role: "对抗性质量检查", prompt: "harness_checker.md"}
+    - final_reviewer: {role: "最终评审", prompt: "final_reviewer.md"}
+
+  execution_modes:
+    master_pipeline:
+      status: "V2 主入口"
+      entry: "MasterOrchestrator.run(user_input, config)"
+      module: "domains/solution_pro/master_orchestrator.py"
+      pipeline: "Planning → Research → ReviewQC"
+      advantages: "模块级超时 + 错误隔离 + 断点续跑 + 降级策略"
+      documentation: "domains/solution_pro/SKILL.md"
+
+# =============================================================================
+# L2: 行为契约
+# =============================================================================
+behavior:
+  MasterOrchestrator.__init__:
+    input: "blackboard, spawn_fn(callable|None), config(dict|None)"
+    output: "初始化实例"
+    success: "所有参数通过类型校验; prod 环境 spawn_fn=None → ValueError"
+    failure: "spawn_fn=None + DEEPFLOW_ENV=prod → ValueError"
+
+  MasterOrchestrator.run:
+    input: "user_input(str), config(dict)"
+    output: "pipeline_result dict {status, modules_completed, modules_degraded, blackboard_path}"
+    success: "三模块顺序执行完成; status=completed"
+    failure: "单模块失败 → ModuleFailure 捕获, 记录到 degraded_modules, 继续后续模块"
+
+  PlanningOrchestrator.run:
+    input: "user_input, config (含 planning_convergence 输出目标)"
+    output: "planning_convergence.json"
+    success: "L0 Meta → L1 Expert ×N(并行) → L2 Convergence; Gate A/B 通过"
+    failure: "Gate 不通过 → 降级为 default_expert_manifest (2 个通用 expert)"
+
+  ResearchOrchestrator.run:
+    input: "user_input, planning_output (risk_areas → expert config)"
+    output: "research_convergence.json"
+    success: "5 阶段顺序执行; SourceRegistry 线程安全; 三层超时保护"
+    failure: "超时 → skip_with_degraded_flag, 标记 degraded=true"
+
+  ReviewQCOrchestrator.run:
+    input: "frozen_spec, planning_output, research_output"
+    output: "review_qc_convergence.json"
+    success: "Fix Loop(≤3轮) → Harness → Final Review → Convergence"
+    failure: "不可修复 → ABORT 降级到 DegradedFinalConvergenceSchema"
+
+# =============================================================================
+# L3: 数据契约
+# =============================================================================
+data:
+  blackboard:
+    root: "blackboard/{session_id}/"
+    files:
+      "master_state.json": "Master 调度状态 (模块完成/降级/失败记录)"
+      "module_state.json": "模块内部状态 (断点续跑用)"
+      "data/user_input.json": "用户输入 + 结构化解析"
+      "stages/planning_convergence.json": "Planning 输出 (约束集 + P0 REQ + Gate 结果)"
+      "stages/research_convergence.json": "Research 输出 (知识整合 + 来源追踪 + 置信度)"
+      "stages/review_qc_convergence.json": "ReviewQC 输出 (修复记录 + 质量门禁 + 最终评审)"
+      "final_solution.md": "最终交付方案文档"
+
+  module_timeouts:
+    planning: 600    # 5 min
+    research: 900    # 15 min
+    review_qc: 600   # 10 min
+
+  degradation_strategies:
+    planning: "default_expert_manifest — 使用 2 个通用 expert 替代"
+    research: "skip_with_degraded_flag — 跳过, 标记 degraded=true"
+    review_qc: "degraded_final_convergence — 使用 DegradedFinalConvergenceSchema"
+
+  config:
+    path: "domains/solution_pro/config/"
+    solution_types: ["architecture(C4模型)", "business(问题→方案→路线)", "technical(架构决策+API+数据)"]
+    harness_weights: {completeness: 0.35, necessity: 0.25, alignment: 0.40}
+
+# =============================================================================
+# L4: 质量门禁
+# =============================================================================
+quality_gates:
+  p0:
+    - "spawn_fn 未注入时 prod 环境不得执行 (ValueError)"
+    - "Worker 间跨阶段数据传递必须通过 Blackboard 文件"
+    - "Python 层不得包含 LLM 推理/调用逻辑"
+    - "Harness 评分必须使用 green/yellow/red, 禁止 0-1 分"
+    - "模块失败必须被捕获并记录到 degraded_modules, 不影响后续模块"
+    - "Planning Gate A/B 必须通过或显式降级"
+  p1:
+    - "模块级超时: planning=600s, research=900s, review_qc=600s"
+    - "Research SourceRegistry 必须线程安全"
+    - "ReviewQC Fix Loop 最多 3 轮"
+    - "yellow/red 评分必须附带 blocking_issues"
+  p2:
+    - "Prompt 文件内容 >100chars"
+    - "final_solution.md 标注需求覆盖"
+    - "Worker 产出含 summary 字段便于下游整合"

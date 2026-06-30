@@ -234,14 +234,9 @@ def _get_prompt_dir() -> Path:
 
 
 def _load_prompt(agent_name: str) -> str:
-    prompt_dir = _get_prompt_dir()
-    registry = AGENT_REGISTRY.get(agent_name)
-    if not registry:
-        raise ValueError(f"Unknown agent: {agent_name}")
-    prompt_file = prompt_dir / registry["prompt_file"]
-    if not prompt_file.exists():
-        raise FileNotFoundError(f"Prompt not found: {prompt_file}")
-    return prompt_file.read_text()
+    """Load prompt via core.prompt_registry."""
+    from core.prompt_registry import read_prompt
+    return read_prompt(f"ship_pro/{agent_name}")
 
 
 def _compute_prompt_sha(agent_name: str) -> str:

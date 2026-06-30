@@ -65,7 +65,7 @@ def _init_status(session_id: str, domain: str) -> dict:
 @router.post("/tasks", response_model=TaskResponse)
 def create_task(request: dict):
     """Create a new analysis task and queue it for execution."""
-    domain = request.get("domain", "solution")
+    domain = request.get("domain", "solution_pro")
     session_prefix = request.get("session_prefix", "")
     
     # Generate session ID

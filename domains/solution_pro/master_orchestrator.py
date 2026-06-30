@@ -21,6 +21,8 @@ from domains.solution_pro.pipeline_exceptions import (
     PipelineError, ModuleFailureError, ModuleTimeoutError,
     ConvergenceFailureError, DegradedPipelineError,
 )
+from domains.solution_pro.pipeline_watcher import PipelineWatcher
+from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,13 @@ class MasterOrchestrator:
         
         # 降级模块记录
         self.degraded_modules = []
+        
+        # Pipeline Watcher — 运行时可观测性
+        try:
+            self.watcher = PipelineWatcher(output_dir=str(self.blackboard.session_dir))
+        except Exception as e:
+            logger.warning(f"Failed to initialize PipelineWatcher: {e}")
+            self.watcher = None
     
     def run(self, user_input: str, config: dict = None) -> dict:
         """
@@ -96,25 +105,31 @@ class MasterOrchestrator:
         
         try:
             # Module 1: Planning
+            logger.info("[Pipeline] === Module 1/3: Planning ===")
             planning_output = self._run_module(
                 "planning",
                 lambda: self._execute_planning(user_input, config),
             )
             metrics["modules"]["planning"] = self._module_metrics("planning", planning_output)
+            logger.info(f"[Pipeline] Planning done, completed_modules={self.state.get('completed_modules', [])}")
             
             # Module 2: Research
+            logger.info("[Pipeline] === Module 2/3: Research ===")
             research_output = self._run_module(
                 "research",
                 lambda: self._execute_research(planning_output, config),
             )
             metrics["modules"]["research"] = self._module_metrics("research", research_output)
+            logger.info(f"[Pipeline] Research done, completed_modules={self.state.get('completed_modules', [])}")
             
             # Module 3: ReviewQC
+            logger.info("[Pipeline] === Module 3/3: ReviewQC ===")
             review_qc_output = self._run_module(
                 "review_qc",
                 lambda: self._execute_review_qc(planning_output, research_output, config),
             )
             metrics["modules"]["review_qc"] = self._module_metrics("review_qc", review_qc_output)
+            logger.info(f"[Pipeline] ReviewQC done, completed_modules={self.state.get('completed_modules', [])}")
             
             # 生成最终报告
             final_report = self._generate_final_report(
@@ -128,6 +143,18 @@ class MasterOrchestrator:
             metrics["degraded_modules"] = self.degraded_modules
             
             self._save_pipeline_metrics(metrics)
+            
+            # Watcher: pipeline completed — write report to blackboard
+            try:
+                if self.watcher:
+                    watcher_report = self.watcher.generate_report()
+                    watcher_path = STAGE_PATH_REGISTRY.get(
+                        "pipeline_watcher_report", "v2/pipeline_watcher_report.json"
+                    )
+                    self.blackboard.write(watcher_path, watcher_report)
+                    logger.info(f"[Watcher] Pipeline report written to blackboard: {watcher_path}")
+            except Exception as e:
+                logger.warning(f"[Watcher] Failed to write pipeline report: {e}")
             
             logger.info(f"Pipeline completed in {metrics['total_duration']:.1f}s")
             
@@ -147,6 +174,18 @@ class MasterOrchestrator:
             metrics["error"] = str(e)
             metrics["pipeline_end"] = time.time()
             self._save_pipeline_metrics(metrics)
+            
+            # Watcher: pipeline failed — still save partial report
+            try:
+                if self.watcher:
+                    watcher_report = self.watcher.generate_report()
+                    watcher_path = STAGE_PATH_REGISTRY.get(
+                        "pipeline_watcher_report", "v2/pipeline_watcher_report.json"
+                    )
+                    self.blackboard.write(watcher_path, watcher_report)
+            except Exception as e:
+                logger.warning(f"[Watcher] Failed to write pipeline report on failure: {e}")
+            
             raise
     
     def _run_module(self, module_name: str, execute_fn: Callable) -> dict:
@@ -160,34 +199,88 @@ class MasterOrchestrator:
         """
         # 检查断点续跑（双层验证）
         if self._is_module_completed(module_name):
-            logger.info(f"Module '{module_name}' already completed (from checkpoint)")
+            logger.info(f"[Module:{module_name}] already completed (from checkpoint), skipping")
             return self._load_module_output(module_name)
         
         timeout = self.module_timeouts.get(module_name, 600)
+        logger.info(f"[Module:{module_name}] starting (timeout={timeout}s)")
+        
+        # Watcher: module started
+        try:
+            if self.watcher:
+                self.watcher.on_module_start(module_name)
+        except Exception as e:
+            logger.warning(f"[Watcher] on_module_start failed: {e}")
         
         try:
             # 超时保护
             result = self._execute_with_timeout(execute_fn, timeout, module_name)
+            logger.info(f"[Module:{module_name}] execution returned (type={type(result).__name__})")
             
-            # 保存输出（原子写入）
-            self._save_module_output(module_name, result)
+            # 保存输出（原子写入）— 保存失败不应阻塞状态更新
+            try:
+                self._save_module_output(module_name, result)
+                logger.info(f"[Module:{module_name}] output saved")
+            except Exception as save_err:
+                logger.error(f"[Module:{module_name}] failed to save output: {save_err}")
+                # 输出保存失败但模块已执行完成，仍标记为 completed
             
-            # 更新 state
+            # 更新 state — 无论输出保存是否成功，执行成功即标记完成
             self._mark_module_completed(module_name)
+            logger.info(f"[Module:{module_name}] marked as completed")
+            
+            # Watcher: module completed
+            try:
+                if self.watcher:
+                    self.watcher.on_module_complete(module_name, result)
+            except Exception as e:
+                logger.warning(f"[Watcher] on_module_complete failed: {e}")
             
             return result
             
         except ModuleTimeoutError:
+            # Watcher: module timeout
+            try:
+                if self.watcher:
+                    self.watcher.on_module_timeout(module_name, timeout)
+            except Exception as e:
+                logger.warning(f"[Watcher] on_module_timeout failed: {e}")
             # 超时 → 降级
-            logger.warning(f"Module '{module_name}' timed out, applying degradation")
-            return self._apply_degradation(module_name)
+            logger.warning(f"[Module:{module_name}] timed out after {timeout}s, applying degradation")
+            degraded = self._apply_degradation(module_name)
+            # Watcher: module degraded
+            try:
+                if self.watcher:
+                    self.watcher.on_module_degraded(module_name, f"timeout after {timeout}s")
+            except Exception as e:
+                logger.warning(f"[Watcher] on_module_degraded failed: {e}")
+            self._mark_module_completed(module_name)
+            logger.info(f"[Module:{module_name}] degradation applied and marked completed")
+            return degraded
             
         except Exception as e:
+            # Watcher: module failed
+            try:
+                if self.watcher:
+                    self.watcher.on_module_failed(module_name, e)
+            except Exception as w_err:
+                logger.warning(f"[Watcher] on_module_failed failed: {w_err}")
             # 其他错误 → 尝试降级
-            logger.error(f"Module '{module_name}' failed: {e}")
+            logger.error(f"[Module:{module_name}] failed with exception: {e}", exc_info=True)
             degradation = DEGRADATION_STRATEGIES.get(module_name)
             if degradation:
-                return self._apply_degradation(module_name)
+                logger.warning(f"[Module:{module_name}] applying degradation '{degradation}'")
+                degraded = self._apply_degradation(module_name)
+                # Watcher: module degraded (after exception)
+                try:
+                    if self.watcher:
+                        self.watcher.on_module_degraded(module_name, str(e))
+                except Exception as w_err:
+                    logger.warning(f"[Watcher] on_module_degraded failed: {w_err}")
+                self._mark_module_completed(module_name)
+                logger.info(f"[Module:{module_name}] degradation applied and marked completed")
+                return degraded
+            logger.error(f"[Module:{module_name}] no degradation strategy, raising ModuleFailureError")
             raise ModuleFailureError(module_name, "unknown", e)
     
     def _execute_planning(self, user_input: str, config: dict) -> dict:

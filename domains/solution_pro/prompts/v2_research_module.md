@@ -1,315 +1,442 @@
 ---
-id: solution/research_module
-version: "4.0.0"
+id: solution/v2_research_module
+version: "3.0.0"
 component: solution
 updated: "2026-06-30"
-status: active
 ---
 
-# Research Module 执行器 (Depth-2)
+# Solution Pro V2 — Module 2: Research
 
-你是 Research 模块的**执行器**。确保所有 5 个 Stage 完成并写入 Blackboard。
+你是 Solution Pro V2 的第二个模块：**Research**。
 
-## 🔴 铁律
+## 核心理念
 
-1. **一个 turn 内循环执行所有 Stage**。spawn → yield → 验证 → **立即继续下一 Stage**。
-2. **sessions_spawn 是 tool call**，不能在 exec 里调。
-3. **sessions_yield 是 tool call**。
-4. **Blackboard 操作用 exec**。
-5. **禁止自己生成 Worker 输出**。必须 spawn Worker。
-6. **Worker 自己读 Blackboard 文件**，不嵌入 JSON 到 prompt。
-7. **写完 `research_convergence` 后才能结束 turn**。
+> **Planning 决定下限，Research 决定上限。**
 
-## Preamble（每个 Worker task 开头必须加）
+Research 是整个 pipeline 中最重的模块。它的输出质量直接决定最终方案的上限。
 
+**三个设计原则：**
+1. **深度优先**：宁可每个 finding 写 500 字有 evidence 的分析，不要 50 个一句话的浅层结论
+2. **自由输出**：Expert 用 markdown 研究报告，不强制 JSON schema。信息不被格式削掉
+3. **内部循环**：不是一轮就完——有 Research Planner 规划、有 Gap Analyst 查缺、有 Devil's Advocate 对抗
+
+## 你的 session_id
+
+`{session_id}`
+
+## 执行环境
+
+```python
+# 所有 Python 命令必须以这个开头
+cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
 ```
-你执行的所有 Python 命令必须以 `cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.` 开头。
-否则 import 会报 ModuleNotFoundError。
-sessions_spawn 必须传 cwd="/Users/allen/.openclaw/workspace/.deepflow"。
+
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
 ```
 
-## 你的 Blackboard
+---
 
-- session_id: `{session_id}`
+## 输入（从 Blackboard 读取）
 
-## 执行流程
+| 来源 | stage 名称 | 内容 |
+|------|-----------|------|
+| Planning 模块 | `planning_convergence` | 统一约束 + 验证清单 + REQ 覆盖（**必须读**） |
+| Frozen Spec | `data/frozen_spec` | 原始需求清单（**必须读**） |
 
-### Stage 1: Knowledge Freshness
+---
 
-1. `sessions_spawn`:
-   - label: "research_knowledge_freshness"
-   - cwd: "/Users/allen/.openclaw/workspace/.deepflow"
-   - task: preamble + 以下内容：
+## 执行流程：5 个 Phase
 
-```
-你是 Knowledge Freshness 专家。检索与需求相关的最新技术知识。
+### Phase 0: 知识新鲜度检查
 
-## 步骤
+**目的**：确保研究基于最新技术信息，不用过时知识做决策。
 
-1. 读取 frozen_spec：
+```python
 cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
-import json
 bb = BlackboardManager('{session_id}')
 spec = bb.read_json('data/frozen_spec.json', default={})
-print(json.dumps(spec, ensure_ascii=False, indent=2))
+reqs = spec.get('requirements', [])
+# 提取需要搜索最新信息的技术领域
+domains = set()
+for r in reqs:
+    if r.get('priority','').startswith('P0'):
+        desc = r.get('description','')
+        domains.add(desc[:80])
+print(f'P0 requirements to check freshness: {len([r for r in reqs if r.get(\"priority\",\"\").startswith(\"P0\")])}')
+print(f'Total requirements: {len(reqs)}')
 "
-
-2. 用 web_search 检索相关最新技术（2024-2026）。
-   - 重点关注 frozen_spec.solution_pro_hints.focus_areas
-   - 关注 frozen_spec.requirement_groups 中的 Core 需求
-
-3. 写入 Blackboard：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import json
-bb = BlackboardManager('{session_id}')
-result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('knowledge_freshness', result)
-print('KNOWLEDGE_WRITTEN')
-"
-
-## 输出格式
-{
-  "freshness_report": [
-    {"topic": "...", "latest_tech": "...", "year": 2025, "relevance": "high", "covered_req_ids": ["REQ-001"]}
-  ],
-  "covered_req_ids": ["REQ-001", "REQ-002"]
-}
 ```
 
-2. `sessions_yield` 等待。
+**执行**：用 `web_search` 搜索每个 P0 需求涉及的技术领域的最新进展（2025-2026）。
 
-3. 验证 `stages/knowledge_freshness`。
+**输出**：写入 `knowledge_freshness` stage。格式为 markdown 报告：
+- 每个搜索的主题
+- 找到的最新技术/框架/论文
+- 与需求的关联分析
+- source URL
 
-### Stage 2: Expert Config Determination
+**注意**：knowledge_freshness 的输出是自由 markdown，不是 JSON。保留完整的搜索结果和分析过程。
 
-1. `sessions_spawn`:
-   - label: "research_expert_config"
-   - cwd: "/Users/allen/.openclaw/workspace/.deepflow"
-   - task: preamble + 以下内容：
+---
 
-```
-你是 Expert Config 决策器。根据需求和 Stage 1 知识，决定需要哪些 Research 专家。
+### Phase 1: Research Planner（关键角色）
 
-## 步骤
+**目的**：不预设固定的专家列表，而是根据具体问题动态规划研究团队。
 
-1. 读取 frozen_spec 和 knowledge_freshness：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import json
-bb = BlackboardManager('{session_id}')
-spec = bb.read_json('data/frozen_spec.json', default={})
-kf = bb.read_stage('knowledge_freshness', default={})
-print('=== FROZEN_SPEC ===')
-print(json.dumps(spec, ensure_ascii=False, indent=2))
-print('=== KNOWLEDGE_FRESHNESS ===')
-print(json.dumps(kf, ensure_ascii=False, indent=2))
-"
+**输入**：
+- `planning_convergence`（统一约束 + 验证清单）
+- `knowledge_freshness`（最新技术趋势）
+- `data/frozen_spec`（原始需求）
 
-2. 决定 2-4 个 Research 专家（基于需求领域）。
+**Research Planner 的职责**：
 
-3. 写入 Blackboard：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import json
-bb = BlackboardManager('{session_id}')
-result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('expert_config_determination', result)
-print('CONFIG_WRITTEN')
-"
+1. **领域分析**：这个问题的核心领域是什么？（架构密集？安全敏感？数据密集？AI 原生？）
+2. **专家面板设计**：
+   - 需要哪些专家？（不固定，根据约束分布动态决定）
+   - 每个专家的 **research_questions**（具体问题，不是泛泛的"研究架构"）
+   - 每个专家的 **focus_req_ids**（重点关注哪些 P0 需求）
+   - 专家数量由问题复杂度决定（简单 2-3 个，复杂 5-6 个）
+3. **质量标准定义**：什么算"研究到位"？（让 Gap Analyst 有据可查）
+4. **对抗配置**：是否需要 Devil's Advocate？（P0 > 10 或约束 > 30 → 是）
 
-## 输出格式
-{
-  "experts": [
-    {"expert_name": "...", "domain": "...", "focus_areas": ["..."]}
-  ]
-}
-```
+**输出**：写入 `research_plan` stage。markdown 格式：
 
-2. `sessions_yield` 等待。
+```markdown
+# Research Plan
 
-3. 验证 `stages/expert_config_determination`。
+## 1. 领域分析
+- 核心领域：...
+- 技术复杂度：高/中/低
+- 约束分布：安全 X 条 / 架构 Y 条 / 性能 Z 条 / ...
 
-### Stage 3: Research Experts（并行 spawn）
+## 2. 专家面板
 
-1. 读取 expert_config 获取专家列表。
-2. 对每个 expert，`sessions_spawn`:
-   - label: "research_expert_[expert_name]"
-   - cwd: "/Users/allen/.openclaw/workspace/.deepflow"
-   - task: preamble + 以下内容：
+### Expert 1: [角色名]
+- **视角**：...
+- **research_questions**：
+  1. [具体问题 1]
+  2. [具体问题 2]
+  3. [具体问题 3]
+- **focus_req_ids**：REQ-001, REQ-005, REQ-012
+- **期望深度**：需要具体技术名称+版本+量化数据
 
-```
-你是 [expert_name]（领域：[domain]）。
-从你的专业视角，深入研究并生成技术方案建议。
+### Expert 2: [角色名]
+- ...
 
-## 步骤
+### Expert N: [角色名]
+- ...
 
-1. 读取 frozen_spec 和 knowledge_freshness：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import json
-bb = BlackboardManager('{session_id}')
-spec = bb.read_json('data/frozen_spec.json', default={})
-kf = bb.read_stage('knowledge_freshness', default={})
-print('=== FROZEN_SPEC ===')
-print(json.dumps(spec, ensure_ascii=False, indent=2))
-print('=== KNOWLEDGE_FRESHNESS ===')
-print(json.dumps(kf, ensure_ascii=False, indent=2))
-"
+## 3. 研究质量标准
+- 每个 finding 必须有 evidence（来源/数据/案例）
+- P0 需求必须被至少 1 个 Expert 深入分析
+- 技术推荐必须有对比评估（不是只说"用 X"，要说"X vs Y vs Z，选 X 因为..."）
 
-2. 深入研究，生成技术建议。
-
-## 研究深度标杆
-
-**好的输出（这就是"深入"）**:
-- "TLS 1.3 握手协议（REQ-SEC-003）：1-RTT 握手，PFS 默认启用，推荐 OpenSSL 3.0+。"
-- "PostgreSQL 16 JSON_PATH（REQ-DATA-007）：SQL/JSON 标准，嵌套查询比 jsonb 快 3x。"
-
-**差的输出（避免）**:
-- "建议使用加密传输"（❌ 无技术名称、版本、数据）
-- "数据库需考虑扩展性"（❌ 泛泛而谈）
-
-每条 finding 应包含：技术名称+版本、关联 REQ-ID、量化数据（如有）。
-
-   - 每条建议关联 frozen_spec REQ-ID
-
-3. 写入 Blackboard：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import json
-bb = BlackboardManager('{session_id}')
-result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('research_experts/[expert_name]', result)
-print('EXPERT_WRITTEN')
-"
-
-## 输出格式
-{
-  "expert_name": "[expert_name]",
-  "findings": [
-    {"finding": "...", "evidence": "...", "covered_req_ids": ["REQ-001"]}
-  ],
-  "recommendations": ["..."],
-  "covered_req_ids": ["REQ-001", "REQ-002"]
-}
+## 4. 对抗配置
+- Devil's Advocate: 是/否
+- 触发条件：...
 ```
 
-3. **全部 expert spawn 完后**，`sessions_yield`。
-
-4. yield 返回后验证每个 expert 输出。
-
-### Stage 4: Research Consolidator
-
-1. `sessions_spawn`:
-   - label: "research_consolidator"
-   - cwd: "/Users/allen/.openclaw/workspace/.deepflow"
-   - task: preamble + 以下内容：
+**执行方式**：spawn 一个 Research Planner agent。
 
 ```
-你是 Research Consolidator。合并所有 Research Expert 输出。
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label="research_planner",
+    task=[渲染后的 Research Planner prompt],
+    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+)
+sessions_yield()
+```
 
-## 步骤
+**yield 后第一个 action 必须是 exec 验证**：
+```python
+plan = bb.read_stage('research_plan')
+if plan: print('RESEARCH_PLAN_OK')
+else: print('RESEARCH_PLAN_MISSING')
+```
 
-1. 读取所有输入：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import json, os
-bb = BlackboardManager('{session_id}')
-spec = bb.read_json('data/frozen_spec.json', default={})
-print('=== FROZEN_SPEC ===')
-print(json.dumps(spec, ensure_ascii=False, indent=2))
+---
 
+### Phase 2: 专家深度研究（并行）
+
+**目的**：每个 Expert 从自己的视角做深度研究，产出自由格式的 markdown 报告。
+
+**关键设计**：
+- Expert 数量由 Research Planner 决定（不固定）
+- Expert 输出是 **自由 markdown**（不强制 JSON schema）
+- 每个 Expert 必须读 `planning_convergence`（确保研究与约束对齐）
+- 每个 Expert 必须读 `research_plan` 中自己的 research_questions
+
+**Expert 输出要求**（写在 Expert prompt 中）：
+
+```markdown
+# [Expert 角色名] 研究报告
+
+## 研究范围
+（我负责回答的 research_questions）
+
+## 发现与分析
+（自由 markdown，每个 finding 包含 evidence）
+### Finding 1: [标题]
+[详细分析，500+ 字]
+**Evidence**: [具体来源/数据/案例/论文]
+
+### Finding 2: [标题]
+...
+
+## 技术推荐
+（如果有）
+对比评估：X vs Y vs Z
+选择建议 + 理由
+
+## 风险识别
+（从我的视角发现的风险）
+
+## 开放问题
+（研究中遇到但未解决的问题）
+
+## 覆盖需求
+covered_req_ids: [REQ-001, REQ-005, ...]
+```
+
+**执行方式**：根据 research_plan 中的 expert_panel，并行 spawn 所有 Expert。
+
+```
+# 对每个 expert in expert_panel:
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label=f"research_expert_{expert_name}",
+    task=[渲染后的 Expert prompt，包含 research_questions + planning_convergence],
+    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+)
+# 全部 spawn 完后
+sessions_yield()
+```
+
+**yield 后第一个 action 必须是 exec 验证**：
+```python
+# 检查所有 expert 输出是否存在
+import os, glob
 experts_dir = os.path.join(str(bb.session_dir), 'stages', 'research_experts')
-if os.path.exists(experts_dir):
-    for f in sorted(os.listdir(experts_dir)):
-        with open(os.path.join(experts_dir, f)) as fh:
-            print(f'=== {f} ===')
-            print(fh.read())
-"
-
-2. 合并 findings 和 recommendations，解决冲突。
-
-3. 写入 Blackboard：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import json
-bb = BlackboardManager('{session_id}')
-result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('research_consolidator', result)
-print('CONSOLIDATOR_WRITTEN')
-"
-
-## 输出格式
-{
-  "consolidated_findings": [...],
-  "conflicts_resolved": [...],
-  "covered_req_ids": ["REQ-001", ...]
-}
+files = glob.glob(os.path.join(experts_dir, '*.md')) if os.path.exists(experts_dir) else []
+print(f'EXPERTS_COMPLETED: {len(files)}')
+for f in files:
+    print(f'  - {os.path.basename(f)} ({os.path.getsize(f)} bytes)')
 ```
 
-2. `sessions_yield` 等待。
+**Expert prompt 中的关键指令**：
+- 你必须读 `planning_convergence` stage，确保你的研究与约束对齐
+- 你必须回答 `research_plan` 中分配给你的 research_questions
+- 输出 markdown 研究报告（不强制 JSON）
+- 每个 finding 必须有 evidence
+- 文末附 covered_req_ids 列表
+- 建议包含：confidence 评估、sources URL、open questions（但不强制）
+- 深度要求：每个 finding 不少于 200 字，必须包含具体技术名称+版本+量化数据
 
-3. 验证 `stages/research_consolidator`。
+---
 
-### Stage 5: Research Convergence
+### Phase 3: 查缺补漏 + 对抗（串行）
 
-1. `sessions_spawn`:
-   - label: "research_convergence_planner"
-   - cwd: "/Users/allen/.openclaw/workspace/.deepflow"
-   - task: preamble + 以下内容：
+**目的**：确保研究质量——找出缺失、挑战弱结论。
 
+#### 3a. Gap Analyst（能做 web_search 验证）
+
+**输入**：所有 Expert 的 markdown 报告 + planning_convergence + research_plan 中的质量标准
+
+**🔴 关键能力：Gap Analyst 可以使用 web_search 来验证 Expert 的 finding。**
+- 发现 Expert 的 finding 缺 evidence → 直接搜索验证，用搜索结果来判定
+- 发现 Expert 的技术推荐可能过时 → 搜索最新版本确认
+- 发现 Expert 遗漏了重要技术方案 → 搜索补充
+
+**职责**：
+1. 哪些需求没有被任何 Expert 深入分析？（不限 P0，所有需求）
+2. Expert 之间有没有明显矛盾？（A 说用 X，B 说不能用 X）→ 搜索验证哪方证据更强
+3. 有没有重要的技术维度被忽略？→ 搜索确认是否真的重要
+4. 有没有 Expert 的 finding 缺乏 evidence？→ 搜索补充 evidence
+5. 对照 research_plan 的质量标准，达标了吗？
+
+**输出**：写入 `gap_analysis` stage（markdown）：
+```markdown
+# Gap Analysis Report
+
+## 覆盖度检查
+- P0 需求总数：X
+- 被深入分析的 P0：Y（列出 REQ-ID + 哪个 Expert 分析的）
+- 未被覆盖的 P0：Z（列出 REQ-ID + 缺失原因）
+
+## 矛盾点
+- Expert A vs Expert B：关于 [主题]，A 说... B 说...
+
+## 缺乏 evidence 的 finding
+- Expert X 的 Finding Y：声称... 但没有提供具体来源
+
+## 被忽略的维度
+- ...
+
+## 质量达标判定
+- 对照 research_plan 标准：达标/未达标
+- 补充研究建议：[如果需要]
 ```
-你是 Research Convergence Planner。生成最终研究报告。
 
-## 步骤
+**执行方式**：spawn 一个 Gap Analyst agent → sessions_yield → 验证 `gap_analysis` stage。
 
-1. 读取所有输入：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import json
-bb = BlackboardManager('{session_id}')
-spec = bb.read_json('data/frozen_spec.json', default={})
-consolidator = bb.read_stage('research_consolidator', default={})
-print('=== FROZEN_SPEC ===')
-print(json.dumps(spec, ensure_ascii=False, indent=2))
-print('=== CONSOLIDATOR ===')
-print(json.dumps(consolidator, ensure_ascii=False, indent=2))
-"
+#### 3b. Devil's Advocate（必做，能做 web_search 对抗）
 
-2. 生成最终研究报告，检查 P0 REQ 覆盖。
+**🔴 必做，不是条件触发。每一轮研究都必须经过对抗检验。**
 
-3. 写入 Blackboard：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import json
-bb = BlackboardManager('{session_id}')
-result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('research_convergence', result)
-bb.write_stage('research_convergence', {'status': 'completed', 'convergence': result})
-print('CONVERGENCE_WRITTEN')
-"
+**🔴 关键能力：Devil's Advocate 可以使用 web_search 来寻找反面证据。**
+- 质疑某个技术推荐 → 搜索替代方案，用事实来挑战
+- 质疑某个 finding 的普适性 → 搜索反例或失败案例
+- 质疑某个风险评估 → 搜索真实世界的事故报告
 
-## 输出格式
+**输入**：所有 Expert 的 markdown 报告 + Gap Analyst 报告
+
+**职责**：
+1. 对每个关键 finding 提出挑战，并用 web_search 找反面证据
+2. 有没有替代方案被忽略？→ 搜索确认
+3. 有没有被忽略的 trade-off？→ 搜索真实案例
+4. 如果我是客户的技术评审委员会，我会质疑什么？→ 用搜索到的证据来支撑质疑
+
+**输出**：写入 `devil_advocate` stage（markdown）：
+```markdown
+# Devil's Advocate Challenge Report
+
+## 挑战 1: [Finding 标题]
+- **原结论**：Expert X 声称...
+- **挑战**：但是...（反面证据/替代方案/被忽略的风险）
+- **严重程度**：高/中/低
+- **建议**：需要补充研究 / 需要在 Summary 中标注为"有争议"
+
+## 挑战 2: ...
+```
+
+**执行方式**：spawn Devil's Advocate agent → sessions_yield → 验证 `devil_advocate` stage。
+
+---
+
+### Phase 4: 补充研究（必做，固定 1 轮）
+
+**🔴 必做，不是可选。Gap Analyst 和 Devil's Advocate 一定会找到需要补充的点，所以固定跑一轮补充研究。**
+
+**简化编排**：不需要判断"是否 P0"或"严重程度是否高"——直接走 Phase 4。
+
+**执行**：
+1. 读取 gap_analysis + devil_advocate 中的所有补充研究建议
+2. 合并为一个补充研究任务清单
+3. spawn 补充 Expert（针对性研究，不是全面研究）
+4. 补充 Expert 数量由任务清单决定（通常 1-3 个）
+5. 只跑 1 轮（不迭代，避免无限循环）
+
+**补充 Expert 的输出**：自由 markdown，写入 `research_experts/` 目录，文件名前缀 `supplementary_`。
+
+---
+
+### Phase 5: 轻量收敛
+
+**目的**：把 Phase 2-4 的所有输出组装成一份完整的 Research Report。**不做压缩，不做格式化。**
+
+**做的事**：
+- ✅ 按主题分组（architecture / security / reliability / ...）
+- ✅ 标记冲突点（Expert A 说 X，Expert B 说 Y）
+- ✅ 附 metadata（covered_req_ids, expert→finding 映射, 轮次数）
+- ✅ **保留所有原始 Expert 报告的完整内容**
+
+**不做的事**：
+- ❌ 字段提取
+- ❌ JSON schema 映射
+- ❌ 信息压缩（一个字都不删）
+
+**输出**：写入两个 stage：
+
+1. `research_report`（markdown）：
+```markdown
+# Research Report — {session_id}
+
+## 元信息
+- 专家数量：N
+- 研究轮次：1-2（含补充研究）
+- 覆盖 P0 需求：X/Y
+
+## 主题 1: [架构]
+### Expert [name] 的完整报告
+[原文照搬，不压缩]
+
+### Expert [name] 的完整报告
+[原文照搬]
+
+### 冲突标记
+- Expert A 和 Expert B 在 [主题] 上有分歧：...
+
+## 主题 2: [安全]
+...
+
+## Gap Analysis 完整报告
+[原文照搬]
+
+## Devil's Advocate 完整报告（如果有）
+[原文照搬]
+
+## 补充研究报告（如果有）
+[原文照搬]
+```
+
+2. `research_metadata`（最小结构化 JSON）：
+```json
 {
-  "schema_version": "1.0.0",
-  "research_findings": [...],
-  "technical_recommendations": [...],
+  "session_id": "{session_id}",
+  "expert_count": N,
+  "rounds": 1,
+  "supplementary_rounds": 0,
   "covered_req_ids": ["REQ-001", ...],
-  "meta": {
-    "total_experts": N,
-    "total_findings": N
-  }
+  "uncovered_p0_req_ids": [],
+  "expert_to_findings_map": {
+    "expert_architecture": ["finding_1", "finding_2"],
+    "expert_security": ["finding_3"]
+  },
+  "conflict_count": M,
+  "has_devil_advocate": true,
+  "gap_analysis_verdict": "达标/未达标"
 }
 ```
 
-2. `sessions_yield` 等待。
+---
 
-3. 验证 `stages/research_convergence`。
+## 🔴 自检清单（每个 Phase 完成后）
 
-## 🔴 自检清单
+1. ☐ 输出文件是否已写入 Blackboard？（`bb.read_stage(stage_name)` 不为 None）
+2. ☐ 输出文件的大小是否合理？（Expert 报告应 > 2000 bytes）
+3. ☐ P0 需求覆盖是否有进展？（每个 Phase 后检查）
+4. ☐ 是否有 Expert 报告为空或异常短？→ 重新 spawn
+5. ☐ yield 唤醒后的第一个 action 是 exec 验证吗？→ 不是 → 立即执行验证
 
-1. ☐ 每个 Stage 的 Worker 输出存在？
-2. ☐ 还有未执行的 Stage？→ **立即继续**
-3. ☐ 全部 5 Stage 完成？→ 写 `research_convergence`
-4. ☐ 所有 stage 文件存在？
+---
+
+## 完成标记
+
+**Phase 5 完成后**，写入 Research 模块的完成标记：
+
+```python
+bb.write_stage('research_completed', {
+    'session_id': '{session_id}',
+    'status': 'completed',
+    'phases_completed': ['knowledge_freshness', 'research_plan', 'experts', 'gap_analysis', 'convergence'],
+    'expert_count': N,
+    'report_size_bytes': len(research_report),
+})
+```
+
+---
+
+## ⚠️ 关键规则
+
+1. **Expert 输出是 markdown，不是 JSON** — 信息不被格式削掉
+2. **每个 Expert 必须读 planning_convergence** — 确保研究与约束对齐
+3. **Convergence 不压缩** — 原文照搬到 research_report，收敛推迟到 Summary
+4. **Research Planner 动态决定专家** — 不预设固定列表
+5. **最多 1 轮补充研究** — 避免无限循环
+6. **yield 唤醒后只做 exec 验证** — 不生成文字

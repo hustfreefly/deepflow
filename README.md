@@ -6,7 +6,7 @@
 > **Version**: 0.5.0
 > **Positioning**: DeepFlow is an **extensible multi-agent pipeline framework** that provides a general-purpose orchestration engine, Pydantic contract cages, and quality gates. Domain-specific applications are built on top of this framework.
 
-> 🚀 **新用户？** 请看 [QUICKSTART.md](QUICKSTART.md) — 5 分钟上手指南
+> 🚀 **新用户？** 请看 [QUICKSTART.md](docs/guides/QUICKSTART.md) — 5 分钟上手指南
 
 ---
 
@@ -25,7 +25,7 @@ cd ~/.openclaw/workspace && git clone https://github.com/deepflow/deepflow .deep
 /research-pro      # 深度研究
 ```
 
-详见 [QUICKSTART.md](QUICKSTART.md)
+详见 [QUICKSTART.md](docs/guides/QUICKSTART.md)
 
 ---
 
@@ -311,7 +311,7 @@ DeepFlow 有两个容易混淆的目录，职责完全不同：
 
 | Document | Description |
 |----------|-------------|
-| [QUICKSTART.md](QUICKSTART.md) | 🚀 **5 分钟上手指南（新用户必看）** |
+| [QUICKSTART.md](docs/guides/QUICKSTART.md) | 🚀 **5 分钟上手指南（新用户必看）** |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Complete architecture design |
 | [Spec Pro](domains/spec_pro/_overview.md) | Spec Pro execution guide |
 | [Solution Pro](domains/solution_pro/SKILL.md) | Solution Pro execution guide |

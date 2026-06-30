@@ -1,0 +1,68 @@
+---
+id: deepflow_cleanup_v1.0
+version: "1.0.0"
+created: "2026-06-30"
+status: active
+module: deepflow_root
+type: cleanup_contract
+---
+
+# DeepFlow 根目录清理 + 基础设施统一契约
+
+> 来源：V1→V2 审计后，人类 SE 视角判定"需要修"（#3-5）+ "顺手修"（#6-9）
+
+## 铁律（MUST）
+
+### #3 根目录散落文件清理
+- `blackboard_recover_all.py` → 移入 `scripts/`
+- `V6_IMPLEMENTATION_PLAN.md` → 移入 `docs/` 或 `ARCHIVED/`
+- `diagnostics_fallback_list.json` → 移入 `docs/reports/` 或删除
+- `diagnostics_validation_report.json` → 移入 `docs/reports/` 或删除
+- `QUALITY_GUIDE.md` → 移入 `docs/guides/`
+- `QUICKSTART.md` → 移入 `docs/guides/`
+- `conftest.py` → 保留（pytest 标准配置，白名单）
+- **验收**：根目录只剩白名单文件（README/CHANGELOG/CONTRACTS/SKILL/pyproject.toml/pytest.ini/__init__.py/.gitignore）
+
+### #4 中文输出目录清理
+- 8 个 `*_architecture_*` 目录 → 移入 `projects/`
+- **验收**：根目录无中文命名目录
+
+### #5 prompt_registry 统一
+- Ship Pro 和 Research Pro 的 prompt 加载统一使用 `core.prompt_registry`
+- 不修改现有功能行为
+- **验收**：`grep -rn "open(" domains/ship_pro/ domains/research_pro/ --include="*.py"` 不含直接 `open()` 读 .md prompt 文件的代码
+
+### #6 cage/ 文件位置
+- `cage/spec_pro_direct_driver.yaml` → 移入 `cage/archive/`
+- **验收**：`cage/` 根目录无 .yaml 文件
+
+### #7 auto-discovery hack 替换
+- 所有 `sys.path.insert` hack 替换为 `import core.bootstrap`
+- 涉及文件：`domains/solution_pro/blackboard.py`、`domains/ship_pro/blackboard.py`、`domains/spec_pro/blackboard.py`、`domains/research_pro/blackboard.py`
+- **验收**：`grep -rn "sys.path.insert" domains/ --include="*.py"` 返回 0 结果
+
+### #8 contracts/shared/ 清理
+- 移除 `contracts/shared/` 下的 .py 文件和 `__pycache__/`
+- 保留 .md 契约文件
+- **验收**：`find contracts/ -name "*.py" -o -name "__pycache__"` 返回 0 结果
+
+### #9 cleanup 契约归档
+- `cage/active/root_cleanup_v1.0.yaml` → 移入 `cage/archive/`
+- **验收**：active/ 中无已完成的一次性契约
+
+## 禁止（MUST NOT）
+- ❌ 不修改任何 .py 文件的业务逻辑
+- ❌ 不修改任何 prompt 文件内容
+- ❌ 不修改任何测试文件
+- ❌ 不删除任何有引用的文件（移之前先 grep 确认）
+
+## 验收标准
+```bash
+# 全量验证（必须全部 PASS）
+1. 根目录白名单检查：ls .deepflow/ | grep -v "白名单" == 空
+2. 中文目录检查：ls .deepflow/ | grep -P '[\x{4e00}-\x{9fff}]' == 空
+3. prompt 直接 open 检查：grep 结果为 0
+4. cage 根目录检查：ls cage/*.yaml == 空
+5. sys.path.insert 检查：grep 结果为 0
+6. contracts/ .py 检查：find 结果为 0
+7. 测试回归：pytest 全绿

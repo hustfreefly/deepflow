@@ -22,7 +22,7 @@ TZ_SHANGHAI = timezone(timedelta(hours=8))
 # ── 管线配置 ──
 
 PIPELINE_CONFIGS = {
-    "solution": {
+    "solution_pro": {
         "display_name": "Solution Pro",
         "phases": [
             ("data_collection", "数据收集", "📊"),
@@ -219,7 +219,7 @@ def build_phase_detail_list(config, completed_set, failed_set, current):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True)
-    parser.add_argument("--pipeline", default="solution",
+    parser.add_argument("--pipeline", default="solution_pro",
                        choices=list(PIPELINE_CONFIGS.keys()))
     parser.add_argument("--detail", action="store_true",
                        help="显示详细阶段列表（每行一个阶段 + 状态图标）")

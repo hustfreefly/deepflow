@@ -23,7 +23,7 @@ def read_prompt(domain: str, filename: str) -> str:
     自动剥离YAML Front Matter，只返回prompt正文，避免污染LLM上下文。
     
     参数:
-        domain: 领域名称，如 "investment", "solution"
+        domain: 领域名称，如 "investment", "solution_pro"
         filename: prompt文件名，如 "planner.md", "researcher_finance.md"
     
     返回:
@@ -31,7 +31,7 @@ def read_prompt(domain: str, filename: str) -> str:
     
     示例:
         >>> read_prompt("investment", "researcher_finance.md")
-        >>> read_prompt("solution", "planner.md")
+        >>> read_prompt("solution_pro", "planner.md")
     
     契约合规:
         - PROMPT-001: 统一函数签名

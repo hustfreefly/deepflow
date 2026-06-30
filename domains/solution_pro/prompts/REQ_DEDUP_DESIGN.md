@@ -143,7 +143,7 @@ tags: [solution, prompt, dedup, requirements, design]
 
 1. **检查 consolidator.md 是否包含去重指令**：
    ```bash
-   grep -c "REQ 语义去重" prompts/consolidator.md
+   grep -c "REQ 语义去重" prompts/v1/consolidator.md
    # 期望：1
    ```
 

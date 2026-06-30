@@ -104,11 +104,9 @@ def _save_status(output_dir: Path, status: dict) -> None:
 
 
 def _load_prompt(agent_name: str) -> str:
-    prompt_dir = Path(__file__).resolve().parent.parent / "prompts"
-    prompt_file = prompt_dir / PROMPT_FILES[agent_name]
-    if not prompt_file.exists():
-        raise FileNotFoundError(f"Prompt not found: {prompt_file}")
-    return prompt_file.read_text()
+    """Load prompt via core.prompt_registry."""
+    from core.prompt_registry import read_prompt
+    return read_prompt(f"ship_pro/{agent_name}")
 
 
 def _compute_prompt_sha(agent_name: str) -> str:
