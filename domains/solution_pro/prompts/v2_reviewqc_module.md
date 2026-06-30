@@ -52,8 +52,8 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 spec = bb.read_json('data/frozen_spec.json', default={})
-planning = bb.read_stage('stages/planning_convergence', default={})
-research = bb.read_stage('stages/research_convergence', default={})
+planning = bb.read_stage('planning_convergence', default={})
+research = bb.read_stage('research_convergence', default={})
 print('=== FROZEN_SPEC ===')
 print(json.dumps(spec, ensure_ascii=False, indent=2))
 print('=== PLANNING_CONVERGENCE ===')
@@ -75,7 +75,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('stages/schema_validation', result)
+bb.write_stage('schema_validation', result)
 print('SCHEMA_VALIDATION_WRITTEN')
 "
 
@@ -110,9 +110,9 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 spec = bb.read_json('data/frozen_spec.json', default={})
-planning = bb.read_stage('stages/planning_convergence', default={})
-research = bb.read_stage('stages/research_convergence', default={})
-schema = bb.read_stage('stages/schema_validation', default={})
+planning = bb.read_stage('planning_convergence', default={})
+research = bb.read_stage('research_convergence', default={})
+schema = bb.read_stage('schema_validation', default={})
 print('=== FROZEN_SPEC ===')
 print(json.dumps(spec, ensure_ascii=False, indent=2))
 print('=== PLANNING ===')
@@ -135,7 +135,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('stages/harness_check', result)
+bb.write_stage('harness_check', result)
 print('HARNESS_CHECK_WRITTEN')
 "
 
@@ -172,10 +172,10 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 spec = bb.read_json('data/frozen_spec.json', default={})
-schema = bb.read_stage('stages/schema_validation', default={})
-harness = bb.read_stage('stages/harness_check', default={})
-planning = bb.read_stage('stages/planning_convergence', default={})
-research = bb.read_stage('stages/research_convergence', default={})
+schema = bb.read_stage('schema_validation', default={})
+harness = bb.read_stage('harness_check', default={})
+planning = bb.read_stage('planning_convergence', default={})
+research = bb.read_stage('research_convergence', default={})
 print('=== ALL DATA ===')
 for name, data in [('spec', spec), ('schema', schema), ('harness', harness), ('planning', planning), ('research', research)]:
     print(f'--- {name} ---')
@@ -220,7 +220,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('stages/review_qc_convergence', result)
+bb.write_stage('review_qc_convergence', result)
 bb.write_stage('review_qc_convergence', {'status': 'completed', 'convergence': result})
 print('QC_CONVERGENCE_WRITTEN')
 "

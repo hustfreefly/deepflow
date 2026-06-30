@@ -65,7 +65,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('stages/meta_planning', result)
+bb.write_stage('meta_planning', result)
 print('META_PLANNING_WRITTEN')
 "
 
@@ -92,7 +92,7 @@ print('META_PLANNING_WRITTEN')
 cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
-meta = bb.read_stage('stages/meta_planning')
+meta = bb.read_stage('meta_planning')
 print('META_OK' if meta else 'META_MISSING')
 "
 ```
@@ -107,7 +107,7 @@ cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
-meta = bb.read_stage('stages/meta_planning', default={})
+meta = bb.read_stage('meta_planning', default={})
 for e in meta.get('experts', []):
     print(f\"{e['expert_name']}:{e.get('domain','')}:{','.join(e.get('focus_areas',[]))}\")
 "
@@ -145,7 +145,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('stages/expert_[expert_name]', result)
+bb.write_stage('expert_[expert_name]', result)
 print('EXPERT_WRITTEN')
 "
 
@@ -210,8 +210,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('stages/planning_convergence', result)
-bb.write_stage('planning_convergence', {'status': 'completed', 'convergence': result})
+bb.write_stage('planning_convergence', result)
 print('CONVERGENCE_WRITTEN')
 "
 

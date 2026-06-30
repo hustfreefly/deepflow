@@ -65,7 +65,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('stages/knowledge_freshness', result)
+bb.write_stage('knowledge_freshness', result)
 print('KNOWLEDGE_WRITTEN')
 "
 
@@ -100,7 +100,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 spec = bb.read_json('data/frozen_spec.json', default={})
-kf = bb.read_stage('stages/knowledge_freshness', default={})
+kf = bb.read_stage('knowledge_freshness', default={})
 print('=== FROZEN_SPEC ===')
 print(json.dumps(spec, ensure_ascii=False, indent=2))
 print('=== KNOWLEDGE_FRESHNESS ===')
@@ -115,7 +115,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('stages/expert_config_determination', result)
+bb.write_stage('expert_config_determination', result)
 print('CONFIG_WRITTEN')
 "
 
@@ -151,7 +151,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 spec = bb.read_json('data/frozen_spec.json', default={})
-kf = bb.read_stage('stages/knowledge_freshness', default={})
+kf = bb.read_stage('knowledge_freshness', default={})
 print('=== FROZEN_SPEC ===')
 print(json.dumps(spec, ensure_ascii=False, indent=2))
 print('=== KNOWLEDGE_FRESHNESS ===')
@@ -180,7 +180,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('stages/research_experts/[expert_name]', result)
+bb.write_stage('research_experts/[expert_name]', result)
 print('EXPERT_WRITTEN')
 "
 
@@ -236,7 +236,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('stages/research_consolidator', result)
+bb.write_stage('research_consolidator', result)
 print('CONSOLIDATOR_WRITTEN')
 "
 
@@ -270,7 +270,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 spec = bb.read_json('data/frozen_spec.json', default={})
-consolidator = bb.read_stage('stages/research_consolidator', default={})
+consolidator = bb.read_stage('research_consolidator', default={})
 print('=== FROZEN_SPEC ===')
 print(json.dumps(spec, ensure_ascii=False, indent=2))
 print('=== CONSOLIDATOR ===')
@@ -285,7 +285,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
 result = {{ ... 你的 JSON 输出 ... }}
-bb.write_stage('stages/research_convergence', result)
+bb.write_stage('research_convergence', result)
 bb.write_stage('research_convergence', {'status': 'completed', 'convergence': result})
 print('CONVERGENCE_WRITTEN')
 "
