@@ -1,0 +1,308 @@
+{
+  "schema_version": "2.0",
+  "expert_name": "fractal_loop_orchestration_architect",
+  "domain": "Multi-agent fractal loop orchestration and DAG-based task decomposition",
+  "timestamp": "2026-07-01T17:15:00.000000",
+  "constraints": [
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C01",
+      "description": "三层分形Loop职责边界必须严格隔离：外Loop(Project Loop, 天级)负责从需求到交付的全局编排，中Loop(Domain Loop, 小时级)负责单域完整执行(Spec Pro/Solution Pro/Ship Pro/Research Pro)，内Loop(Phase Loop, 分钟级)负责单Phase执行。每层只能向下委托，不能跨层直接调用。",
+      "category": "architecture",
+      "priority": "MUST",
+      "rationale": "三层职责混淆会导致控制流混乱，违反分层混合编排决策(D5)。外Loop编排式、内Loop编舞式的切换点依赖于清晰的层级边界。如果外Loop直接调用Phase Worker，编排式的可控性和编舞式的灵活性都会丧失。",
+      "verification_method": "架构审查：检查方案中每层Loop的controller角色定义是否唯一，是否存在跨层直接调用的路径。通过模拟第一个案例(消费Ship Pro产出物)验证三层交互是否经过且仅经过定义的接口。",
+      "covered_req_ids": [
+        "REQ-001",
+        "REQ-042"
+      ],
+      "relevant_experts": [
+        "all"
+      ]
+    },
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C02",
+      "description": "编排式与编舞式的切换点必须明确定义：外Loop(Project)和中Loop(Domain)采用编排式(orchestration)——由controller LLM做决策、分配任务、验证结果；内Loop(Phase)采用编舞式(choreography)——Phase Worker自主决定执行路径，可动态请求帮助。切换发生在Domain Loop向Phase Loop委托时。",
+      "category": "architecture",
+      "priority": "MUST",
+      "rationale": "分层混合编排(D5)是核心架构决策。如果切换点不明确，要么内Loop失去编舞式的灵活性(退化为全编排式)，要么外Loop失去编排式的可控性(退化为全编舞式)。8h+自主运行需要外层的可控性来保证方向正确，同时需要内层的灵活性来处理执行细节。",
+      "verification_method": "架构审查：检查Domain Loop→Phase Loop的委托协议是否定义了明确的控制模式切换。模拟一个Phase Worker执行过程中遇到困难的场景，验证编舞式的'请求帮助'机制是否正常工作。",
+      "covered_req_ids": [
+        "REQ-001",
+        "REQ-006"
+      ],
+      "relevant_experts": [
+        "all"
+      ]
+    },
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C03",
+      "description": "任务DAG分解必须由LLM完成，Python仅执行分解结果的格式化输出。DAG分解必须包含：(1)依赖关系分析(哪些任务有前置依赖)，(2)并行度计算(哪些任务可以同时执行，受max_workers=6约束)，(3)关键路径识别(最长执行路径决定总时长)。DAG分解结果必须持久化到task_dag.json。",
+      "category": "task_decomposition",
+      "priority": "MUST",
+      "rationale": "全LLM控制(D2)要求DAG分解不能由Python的if/else逻辑完成。同时DAG分解质量直接影响任务完成率(REQ-036)和首次跑通率(REQ-038)。错误的依赖分析会导致任务执行顺序错误，忽略并行度会浪费执行时间，不识别关键路径会导致无法优化总时长。",
+      "verification_method": "功能测试：给定第一个案例(消费Ship Pro产出物)的输入，验证LLM生成的DAG是否包含正确的依赖关系、合理的并行度(≤6)、和明确的关键路径。对比LLM分解结果与人工专家分解的一致率。",
+      "covered_req_ids": [
+        "REQ-010",
+        "REQ-042"
+      ],
+      "relevant_experts": [
+        "quality_gate_and_direction_deviation_specialist"
+      ]
+    },
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C04",
+      "description": "间歇式心跳机制必须支持四种频率且各自职责不重叠：fast_pulse(3min)仅检查Worker完成状态和异常检测；slow_pulse(1h)检查项目进度、调整策略、推送进度通知；deep_breath(daily)触发Dream Loop反思+优化+记忆整理；long_meditation(weekly)触发Meta-Loop调整目标、进化Skill。每种心跳的触发条件、执行内容、和超时时间必须独立配置。",
+      "category": "heartbeat",
+      "priority": "MUST",
+      "rationale": "心跳是Loop系统的'自主神经系统'。职责重叠会导致冲突(如fast_pulse和slow_pulse同时尝试修改进度策略)，职责缺失会导致盲区(如没有fast_pulse则无法及时发现Worker异常)。3min的fast_pulse是死循环熔断的基础检测频率，1h的slow_pulse对应'每小时一次进度推送'的需求(REQ-015)。",
+      "verification_method": "集成测试：模拟8h运行周期，验证四种心跳是否按各自频率触发，是否执行各自定义的内容，是否存在职责重叠导致的冲突。特别验证fast_pulse能否在3min内检测到Worker异常并触发熔断。",
+      "covered_req_ids": [
+        "REQ-003",
+        "REQ-035"
+      ],
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert",
+        "state_persistence_and_recovery_engineer"
+      ]
+    },
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C05",
+      "description": "分形中断传播必须支持任意层级Loop的中断/暂停/恢复，中断信号沿分形链向上传播(Phase→Domain→Project)，恢复时从最近的checkpoint断点续跑。中断时的状态快照必须持久化到pause_snapshot.json，包含：当前执行位置、已完成任务列表、未完成DAG子图、Worker状态、心跳状态。",
+      "category": "interrupt_recovery",
+      "priority": "MUST",
+      "rationale": "8h+运行必然需要中断恢复能力。如果中断只能从Project层发起，Domain或Phase层的局部问题会导致整个项目重启，浪费已完成的工作。如果恢复不能从断点续跑，每次中断都意味着从头开始，无法满足自主运行时长要求(REQ-035)。pause_snapshot.json是跨Session状态存活的关键载体。",
+      "verification_method": "故障注入测试：在Phase Loop执行中途触发中断，验证状态是否正确持久化到pause_snapshot.json。恢复后验证是否能从断点续跑，已完成的任务是否不会重复执行。在Domain Loop执行中途触发中断，验证分形传播是否正确暂停所有下属Phase Loop。",
+      "covered_req_ids": [
+        "REQ-024",
+        "REQ-035"
+      ],
+      "relevant_experts": [
+        "state_persistence_and_recovery_engineer",
+        "long_running_reliability_and_circuit_breaker_expert"
+      ]
+    },
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C06",
+      "description": "Hermes协作必须通过共享memory + sessions_send实现对等协作，严禁通过sessions_spawn管理Hermes。协作协议必须定义：(1)信息交换格式(自然语言+结构化数据)，(2)请求-响应超时时间(建议24h，对应hitl_timeout_hours)，(3)Hermes拒绝响应时的降级策略(自行调研或跳过)。Hermes的状态不能存储在OpenClaw的Loop状态中，只能通过共享memory的约定目录交换信息。",
+      "category": "peer_collaboration",
+      "priority": "MUST",
+      "rationale": "Hermes是对等协作伙伴(D4)是核心决策。如果通过sessions_spawn管理Hermes，Hermes就变成子Agent，失去独立性和自主决策能力。共享memory+sessions_send的模式保证了Hermes可以按自己的节奏和方式响应，符合'对等'定义。超时降级策略防止Hermes不响应时OpenClaw无限等待。",
+      "verification_method": "架构审查：检查方案中是否存在sessions_spawn(action='hermes')或类似调用。集成测试：模拟Hermes响应延迟(>1h)和无响应(>24h)场景，验证降级策略是否正常工作。验证共享memory目录的信息交换格式是否被双方正确解析。",
+      "covered_req_ids": [
+        "REQ-001"
+      ],
+      "relevant_experts": [
+        "all"
+      ]
+    },
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C07",
+      "description": "Codex/Claude Code工具集成必须采用'sessions_spawn→Full Auto→auto-announce→验证'模式。验证步骤必须包括：(1)auto-announce结果的质量评估(由独立LLM Judge完成，不能是执行者自己)，(2)测试结果验证(如果任务包含测试)，(3)产出物文件存在性检查。验证失败时触发失败恢复决策树。",
+      "category": "tool_integration",
+      "priority": "MUST",
+      "rationale": "监督式自治(D8)是工具集成的核心决策。auto-announce后不验证就信任结果会导致R3风险(子Agent返回低质量结果但主Loop误判为通过)。验证必须由独立LLM Judge完成(运动员不等于裁判原则)。验证失败后触发失败恢复决策树(超时→拆分、测试失败→附带错误重试、能力不足→切换工具)是REQ-006的要求。",
+      "verification_method": "集成测试：spawn一个Codex Worker执行编码任务，验证auto-announce后是否触发独立LLM Judge评估。模拟验证失败场景，验证是否按失败恢复决策树执行(重试/切换/上报)。特别验证'能力不足→切换工具'路径：Codex失败后是否切换到Claude Code。",
+      "covered_req_ids": [
+        "REQ-006",
+        "REQ-002"
+      ],
+      "relevant_experts": [
+        "quality_gate_and_direction_deviation_specialist",
+        "long_running_reliability_and_circuit_breaker_expert"
+      ]
+    },
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C08",
+      "description": "DAG分解的并行度必须受max_workers=6约束，且必须实现优先级调度。当可并行任务数>6时，必须按以下优先级排序：(1)安全相关任务最高，(2)阻塞链上游任务优先，(3)陈旧惩罚(>48h无进展的任务降一级)，(4)关键路径任务优先于非关键路径。优先级相同时按DAG拓扑序执行。",
+      "category": "task_decomposition",
+      "priority": "SHOULD",
+      "rationale": "max_workers=6是明确约束(REQ-033)。优先级调度确保有限资源分配给最重要的任务。Goal优先级竞争的规则(安全优先、阻塞链上游优先、陈旧惩罚)需要在DAG调度层落地。虽然用户说'并发是次要的'，但合理的优先级调度可以在不增加并发数的情况下提升效率。",
+      "verification_method": "功能测试：构造一个包含10个可并行任务的DAG，验证是否只spawn≤6个Worker，且优先级排序是否符合规则。模拟一个任务>48h无进展，验证其优先级是否自动降低。",
+      "covered_req_ids": [
+        "REQ-010"
+      ],
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert"
+      ]
+    },
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C09",
+      "description": "心跳机制必须支持自适应频率调整：fast_pulse在检测到异常时自动提高频率(如从3min缩短到1min)，在连续N次无异常时自动降低频率(如从3min延长到5min)。slow_pulse/deep_breath/long_meditation的频率可由Meta-Loop根据历史表现调整。所有频率调整必须记录到changelog，且不能突破硬限制(fast_pulse最短1min，slow_pulse最短30min)。",
+      "category": "heartbeat",
+      "priority": "SHOULD",
+      "rationale": "固定频率的心跳无法适应不同场景：紧急情况下3min可能太慢，平静期3min又太频繁浪费资源。自适应频率是Routines'有状态的自适应调度器'的核心特性。但必须有硬限制防止极端情况(如fast_pulse缩短到10s导致资源耗尽)。Meta-Loop根据历史表现调整频率是REQ-012的要求。",
+      "verification_method": "集成测试：模拟Worker连续失败场景，验证fast_pulse频率是否自动提高。模拟长时间无异常场景，验证频率是否自动降低。验证Meta-Loop调整slow_pulse频率后是否记录到changelog。验证频率调整是否不会突破硬限制。",
+      "covered_req_ids": [
+        "REQ-012",
+        "REQ-068"
+      ],
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert",
+        "state_persistence_and_recovery_engineer"
+      ]
+    },
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C10",
+      "description": "分形中断传播必须支持'优雅降级'：当部分Worker无法响应中断信号时(如Codex进程卡死)，上层Loop不能无限等待，必须有超时机制(建议fast_pulse周期×3=9min)。超时后强制标记Worker为'中断超时'状态，继续处理其他任务。被强制中断的Worker状态必须记录到errors.jsonl供后续分析。",
+      "category": "interrupt_recovery",
+      "priority": "SHOULD",
+      "rationale": "8h+运行中Worker无响应是已知风险(R4)。如果中断传播依赖所有Worker响应，一个卡死的Worker会阻塞整个中断流程，导致系统无法暂停。优雅降级确保系统部分故障时仍能整体暂停。超时后强制标记而不是重试，防止故障Worker消耗更多资源。",
+      "verification_method": "故障注入测试：spawn一个Worker后模拟其无响应(如kill进程但不发送auto-announce)。触发中断，验证上层Loop是否在9min内完成中断流程，不等待无响应Worker。验证errors.jsonl是否记录了'中断超时'事件。",
+      "covered_req_ids": [
+        "REQ-024"
+      ],
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert",
+        "state_persistence_and_recovery_engineer"
+      ]
+    },
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C11",
+      "description": "DAG分解必须支持动态重规划：当执行过程中发现原始分解不合理时(如任务依赖关系变化、新信息导致需要增加任务、任务失败后需要拆分)，LLM可以重新生成DAG并持久化到task_dag.json。重规划必须记录原DAG和新DAG的差异到history.jsonl，且不能丢失已完成任务的状态。重规划次数超过3次必须通知用户。",
+      "category": "task_decomposition",
+      "priority": "SHOULD",
+      "rationale": "长时间运行中初始DAG分解不可能总是完美的。方向偏离检测(REQ-004/REQ-007)可能发现需要调整任务结构。失败恢复决策树中'方向错误→LLM重新规划任务DAG'需要动态重规划能力。但无限制的重规划可能导致系统在不稳定状态下振荡，3次通知阈值与Goal演化规则(REQ-071)一致。",
+      "verification_method": "功能测试：执行过程中模拟发现初始DAG依赖关系错误，验证LLM是否能重新生成DAG。验证重规划后已完成任务的状态是否保留。验证history.jsonl是否记录了DAG差异。触发第4次重规划，验证是否通知用户。",
+      "covered_req_ids": [
+        "REQ-004",
+        "REQ-006"
+      ],
+      "relevant_experts": [
+        "quality_gate_and_direction_deviation_specialist",
+        "state_persistence_and_recovery_engineer"
+      ]
+    },
+    {
+      "constraint_id": "fractal_loop_orchestration_architect-C12",
+      "description": "三层Loop之间的数据流必须通过文件系统进行，严禁通过内存传递或进程间通信。外Loop→中Loop：通过memory/loops/{project_loop_id}/domains/{domain_id}/input.json传递任务定义。中Loop→内Loop：通过memory/loops/{domain_loop_id}/phases/{phase_id}/input.json传递Phase定义。结果回传通过output.json。所有数据流必须记录到history.jsonl。",
+      "category": "architecture",
+      "priority": "MUST",
+      "rationale": "'文件即状态，目录即Loop'是状态管理哲学。如果通过内存传递数据，Session结束后数据丢失，无法跨Session恢复(REQ-024)。通过文件系统传递确保了数据的持久性和可审计性。history.jsonl记录了完整的数据流历史，支持Dream Loop的反思和Meta-Loop的分析。",
+      "verification_method": "架构审查：检查方案中是否存在跨Loop的内存数据传递(如全局变量、进程间消息队列)。集成测试：验证外Loop→中Loop→内Loop的数据流是否都通过文件系统。验证Session恢复后是否能从文件系统读取之前的数据流。",
+      "covered_req_ids": [
+        "REQ-001",
+        "REQ-024"
+      ],
+      "relevant_experts": [
+        "state_persistence_and_recovery_engineer"
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "risk_id": "fractal_loop_orchestration_architect-R01",
+      "description": "三层Loop职责边界模糊导致控制流混乱：外Loop直接调用Phase Worker绕过中Loop，或中Loop直接修改Project级状态，导致编排式/编舞式切换失效，系统行为不可预测。",
+      "severity": "CRITICAL",
+      "mitigation": "在架构层面定义严格的层间接口规范，每层只能调用下一层的定义接口。通过代码审查和集成测试验证层间调用的合规性。在history.jsonl中记录所有层间调用，Dream Loop分析是否存在违规调用模式。"
+    },
+    {
+      "risk_id": "fractal_loop_orchestration_architect-R02",
+      "description": "DAG分解质量差导致任务执行效率低下或失败：LLM生成的DAG依赖关系错误(循环依赖或遗漏依赖)、并行度计算不合理(超过max_workers或过度保守)、关键路径识别错误导致总时长超预期。",
+      "severity": "HIGH",
+      "mitigation": "DAG分解后由独立LLM Judge验证依赖关系的正确性(检测循环依赖、验证依赖完整性)。并行度计算硬编码≤6约束。关键路径识别后与人工估算对比(前3次执行)。记录历史DAG分解质量，Meta-Loop根据历史表现调整DAG分解策略。"
+    },
+    {
+      "risk_id": "fractal_loop_orchestration_architect-R03",
+      "description": "心跳机制职责重叠或冲突：fast_pulse和slow_pulse同时尝试修改进度策略，或deep_breath的Dream Loop反思与slow_pulse的进度调整产生冲突(如Dream Loop正在优化记忆时slow_pulse尝试修改Loop状态)。",
+      "severity": "HIGH",
+      "mitigation": "定义心跳的互斥锁机制：同一时刻只能有一种心跳在执行写操作。fast_pulse只做读操作(检查状态)，不修改任何状态。slow_pulse/deep_breath/long_meditation执行前检查是否有其他心跳在运行，如有则等待或跳过。在state.json中记录最后执行的心跳类型和时间。"
+    },
+    {
+      "risk_id": "fractal_loop_orchestration_architect-R04",
+      "description": "分形中断传播时断点状态不一致：中断信号传播到部分层级但其他层级未响应(如Worker卡死)，导致恢复时状态不一致(部分任务认为已中断，部分任务认为仍在执行)。",
+      "severity": "HIGH",
+      "mitigation": "中断传播采用超时机制(约束C10)，超时后强制标记Worker状态。pause_snapshot.json包含所有层级的状态快照，恢复时以快照为准而不是以各层级的自报告为准。恢复后先验证所有Worker状态与快照一致，不一致则以快照为准强制同步。"
+    },
+    {
+      "risk_id": "fractal_loop_orchestration_architect-R05",
+      "description": "Hermes协作引入状态竞争：Hermes和OpenClaw同时修改共享memory目录中的同一文件，导致数据损坏或信息丢失。特别是当Hermes正在写入调研结果时OpenClaw尝试读取，或双方同时修改同一个Goal文件。",
+      "severity": "MEDIUM",
+      "mitigation": "共享memory采用约定目录隔离：Hermes写入hermes_inbox/目录，OpenClaw写入openclaw_inbox/目录，双方只读取对方的inbox。Goal文件采用追加模式(只增不删)而不是覆盖模式。关键文件修改前创建.lock文件，修改完成后删除.lock，对方检测到.lock时等待。"
+    },
+    {
+      "risk_id": "fractal_loop_orchestration_architect-R06",
+      "description": "动态重规划导致系统振荡：LLM频繁重新生成DAG(每次遇到失败就重规划)，导致系统在不同任务结构之间来回切换，无法稳定执行任何一个方案。",
+      "severity": "MEDIUM",
+      "mitigation": "重规划次数限制：3次重规划后通知用户(约束C11)。重规划时必须保留已完成任务的状态，不能推翻已完成的工作。重规划后必须与前一版DAG对比，如果新DAG的关键路径比旧DAG更长，拒绝重规划并上报。"
+    },
+    {
+      "risk_id": "fractal_loop_orchestration_architect-R07",
+      "description": "心跳自适应频率调整失控：fast_pulse在异常时自动提高频率，但如果异常持续存在，频率可能不断提高(3min→1min→30s→10s)，最终导致资源耗尽或API调用频率超限。",
+      "severity": "MEDIUM",
+      "mitigation": "硬限制约束(约束C09)：fast_pulse最短1min，slow_pulse最短30min。自适应调整算法采用指数退避而不是线性缩短。连续N次提高频率后触发熔断而不是继续提高。Meta-Loop监控心跳频率历史，发现异常模式时通知用户。"
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "criteria_id": "fractal_loop_orchestration_architect-AC01",
+      "description": "三层分形Loop架构完整性验证：方案明确定义外Loop(Project Loop, 天级)、中Loop(Domain Loop, 小时级)、内Loop(Phase Loop, 分钟级)的职责边界、controller角色、输入输出接口。三层之间的编排式/编舞式切换点明确。不存在跨层直接调用的路径。",
+      "verification_method": "架构审查 + 场景模拟：审查方案文档验证三层定义完整性。模拟第一个案例(消费Ship Pro产出物)的端到端流程，验证数据流是否经过且仅经过三层Loop的定义接口。检查方案中是否存在外Loop直接调用Phase Worker的路径。"
+    },
+    {
+      "criteria_id": "fractal_loop_orchestration_architect-AC02",
+      "description": "任务DAG分解质量验证：给定第一个案例的输入，LLM生成的DAG包含正确的依赖关系(无循环依赖、无遗漏依赖)、合理的并行度(≤6)、明确的关键路径。DAG分解结果持久化到task_dag.json。",
+      "verification_method": "功能测试：使用第一个案例(消费Ship Pro产出物生成正式编程文件)作为输入，让LLM生成DAG。人工专家审核DAG的依赖关系正确性。验证task_dag.json是否包含完整的DAG结构(节点、边、并行度、关键路径)。重复3次验证一致性。"
+    },
+    {
+      "criteria_id": "fractal_loop_orchestration_architect-AC03",
+      "description": "间歇式心跳机制验证：四种心跳(fast_pulse/slow_pulse/deep_breath/long_meditation)按各自频率触发，职责不重叠。fast_pulse能在3min内检测到Worker异常。slow_pulse每小时推送一次进度通知。deep_breath触发Dream Loop反思。long_meditation触发Meta-Loop优化。",
+      "verification_method": "集成测试：模拟8h运行周期，监控心跳触发日志。验证fast_pulse频率≤3min且能检测Worker异常。验证slow_pulse频率≈1h且推送进度通知。验证deep_breath在空闲时触发Dream Loop。验证long_meditation在weekly触发Meta-Loop。验证不存在职责重叠导致的冲突。"
+    },
+    {
+      "criteria_id": "fractal_loop_orchestration_architect-AC04",
+      "description": "分形中断传播与恢复验证：任意层级Loop可中断/暂停/恢复。中断信号沿分形链向上传播。恢复时从pause_snapshot.json断点续跑，已完成任务不重复执行。部分Worker无响应时优雅降级(超时后强制标记)。",
+      "verification_method": "故障注入测试：(1)在Phase Loop执行中途触发中断，验证pause_snapshot.json生成。(2)恢复后验证从断点续跑，已完成任务不重复。(3)在Domain Loop执行中途触发中断，验证所有下属Phase Loop正确暂停。(4)模拟Worker无响应，验证9min超时后强制标记。"
+    },
+    {
+      "criteria_id": "fractal_loop_orchestration_architect-AC05",
+      "description": "Hermes对等协作验证：Hermes通过共享memory + sessions_send协作，不通过sessions_spawn管理。Hermes无响应时(>24h)降级策略正常工作。共享memory信息交换格式被双方正确解析。",
+      "verification_method": "架构审查 + 集成测试：审查方案确认不存在sessions_spawn(action='hermes')调用。模拟Hermes响应延迟(>1h)和无响应(>24h)场景，验证降级策略(自行调研或跳过)。验证共享memory目录的信息交换格式(自然语言+结构化数据)被双方正确解析。"
+    },
+    {
+      "criteria_id": "fractal_loop_orchestration_architect-AC06",
+      "description": "Codex/Claude Code工具集成验证：采用'sessions_spawn→Full Auto→auto-announce→验证'模式。验证由独立LLM Judge完成(非执行者自己)。验证失败时触发失败恢复决策树(重试/切换工具/上报)。",
+      "verification_method": "集成测试：(1)spawn Codex Worker执行编码任务，验证auto-announce后触发独立LLM Judge评估。(2)模拟验证失败，验证触发重试。(3)模拟Codex能力不足，验证切换到Claude Code。(4)模拟3次失败，验证通知用户。"
+    },
+    {
+      "criteria_id": "fractal_loop_orchestration_architect-AC07",
+      "description": "全LLM控制验证：方案中不存在Python代码做控制流决策(if/else分支决定任务走向、for循环控制执行顺序)。所有决策(任务分解、Worker分配、质量判定、方向纠正)由LLM完成。Python仅用于exec工具调用。",
+      "verification_method": "代码审查：检查方案中所有Python代码，确认不存在if/else做任务决策、for循环控制执行顺序。确认Python仅用于文件读写、命令执行、API调用等工具操作。验证DAG分解、Worker分配、质量判定、方向纠正是否都由LLM prompt完成。"
+    },
+    {
+      "criteria_id": "fractal_loop_orchestration_architect-AC08",
+      "description": "数据流文件系统验证：三层Loop之间的数据流通过文件系统传递(不通过内存)。外Loop→中Loop通过input.json，中Loop→内Loop通过input.json，结果通过output.json回传。所有数据流记录到history.jsonl。Session恢复后能从文件系统读取之前的数据流。",
+      "verification_method": "架构审查 + 集成测试：审查方案确认不存在跨Loop的内存数据传递(全局变量、进程间消息队列)。模拟外Loop→中Loop→内Loop的数据流，验证input.json/output.json的使用。验证Session恢复后能从文件系统读取之前的数据流。检查history.jsonl是否记录了完整的数据流历史。"
+    }
+  ],
+  "extensions": {
+    "expert_focus_summary": "本专家方案从分形Loop编排的完整性、可恢复性、和编排效率角度审视架构设计。核心关注点：(1)三层Loop职责边界严格隔离，(2)编排式/编舞式混合编排的切换点明确，(3)DAG分解质量保障与动态重规划，(4)四种心跳频率职责不重叠且支持自适应，(5)分形中断传播的可靠性与优雅降级，(6)Hermes对等协作的状态竞争防护，(7)Codex/Claude Code工具集成的监督式自治与独立验证。",
+    "key_design_decisions_supported": [
+      "D1-一步到位全AI Native",
+      "D2-全LLM控制",
+      "D3-基于当前OpenClaw能力",
+      "D4-Hermes对等协作",
+      "D5-分层混合编排",
+      "D8-Codex监督式自治"
+    ],
+    "critical_risk_areas": [
+      "三层职责边界模糊",
+      "DAG分解质量差",
+      "心跳职责冲突",
+      "中断传播状态不一致",
+      "Hermes状态竞争",
+      "动态重规划振荡",
+      "心跳频率失控"
+    ],
+    "p0_req_coverage": [
+      "REQ-001(框架目标)",
+      "REQ-002(质量验证)",
+      "REQ-003(进度通知)",
+      "REQ-004(方向偏离检测)",
+      "REQ-006(失败恢复)",
+      "REQ-010(DAG分解)",
+      "REQ-024(跨Session状态)",
+      "REQ-035(8h自主运行)",
+      "REQ-042(自动分解DAG)"
+    ]
+  }
+}

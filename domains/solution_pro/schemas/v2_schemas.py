@@ -185,8 +185,13 @@ class Risk(BaseModel):
 
 
 class AcceptanceCriterion(BaseModel):
-    """验收标准（Expert Planner 输出）"""
-    criterion_id: str = Field(description="验收标准 ID（如 AC-001）")
+    """验收标准（Expert Planner 输出）
+    
+    容错: 接受 criterion_id 或 criteria_id（LLM 常见混淆）
+    """
+    model_config = {"populate_by_name": True}
+    
+    criterion_id: str = Field(description="验收标准 ID（如 AC-001）", alias="criteria_id")
     description: str = Field(description="验收标准描述")
     verification_method: str = Field(description="验证方法")
 
@@ -703,3 +708,44 @@ __all__ = [
     "STAGE_SCHEMA_MAP",
 ]
 # [V2 Phase 0a] P0-16: 收紧 ResearchConvergenceSchema gate 类型 + 新增 ModuleOrchestratorStateSchema/TaskBuilderOutputSchema
+
+
+# =============================================================================
+# Research Digest Schema (V3 AI Native)
+# =============================================================================
+
+class DigestFinding(BaseModel):
+    """单个 Research Finding"""
+    finding_id: str = Field(description="Finding ID, e.g. F-001")
+    expert_id: str = Field(description="来源 Expert, e.g. expert_1_fractal_loop")
+    title: str = Field(description="Finding 标题")
+    confidence: float = Field(ge=0.0, le=1.0, description="置信度 0-1")
+    relevance: Literal["HIGH", "MEDIUM", "LOW"] = Field(description="与方案的相关性")
+    design_implication: str = Field(description="对方案设计的启示（1-2 句话）")
+    source_reference: str = Field(description="来源路径 + section, e.g. expert_1.md#F-001")
+    detail: str = Field(default="", description="完整分析文本")
+
+class ResearchDigest(BaseModel):
+    """Research Digest — LLM 合成的研究发现摘要
+    
+    契约笼子：确保 Digest 输出格式一致，Base Synthesizer 可可靠消费。
+    """
+    schema_version: str = Field(default="1.0.0")
+    total_findings: int = Field(description="总 Finding 数量")
+    high_relevance_count: int = Field(description="HIGH relevance Finding 数量")
+    expert_summaries: dict[str, str] = Field(
+        default_factory=dict,
+        description="每个 Expert 的核心结论摘要 (key=expert_name, value=summary)"
+    )
+    findings_index: list[DigestFinding] = Field(
+        default_factory=list,
+        description="语义去重后的 Findings 索引"
+    )
+    conflicts: list[dict] = Field(
+        default_factory=list,
+        description="Expert 间的语义矛盾 [{finding_a, finding_b, nature}]"
+    )
+    coverage_map: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="约束 → Findings 映射 {constraint_id: [finding_id, ...]}"
+    )

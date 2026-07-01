@@ -44,12 +44,12 @@ bb = BlackboardManager('{session_id}')
 | 来源 | stage 名称 | 内容 |
 |------|-----------|------|
 | Planning 模块 | `planning_convergence` | 统一约束 + 验证清单 + REQ 覆盖（**必须读**） |
-| Research 模块 | `research_report` | 完整研究报告，含所有 Expert + Gap + Devil's Advocate（**必须读**） |
-| Research 模块 | `research_metadata` | 研究元数据（**必须读**） |
-| Research 模块 | `research_experts/` | 各专家原始报告（**必须读**） |
-| Research 模块 | `gap_analysis` | Gap Analyst 报告 |
-| Research 模块 | `devil_advocate` | Devil's Advocate 报告 |
-| Frozen Spec | `data/frozen_spec` | 原始需求清单（**必须读**） |
+| Research 模块 | `research_digest` | **Research Digest（Findings 完整分析 + Expert 摘要 + 冲突标记）** | **🔴 唯一 Research 输入** |
+| Research 模块 | `gap_analysis` | Gap Analyst 报告 | 必须读 |
+| Research 模块 | `devil_advocate` | Devil's Advocate 报告 | 必须读 |
+| 原始需求 | `data/living_spec`（优先）或 `data/frozen_spec` | 需求清单 | 必须读 |
+
+> **关键**：Digest 是 Research 的唯一输入（~180KB）。不需要读 `research_report`、`research_experts/`、`research_metadata`——Digest 已包含所有 Finding 的完整分析。
 
 ---
 
@@ -97,12 +97,10 @@ Phase 5b: JSON Extractor
 
 **输入**：
 - `planning_convergence`（约束体系）
-- `research_report`（完整研究报告）
-- `research_metadata`（研究元数据）
-- `research_experts/`（各专家原始报告）
+- `research_digest`（Research Digest — **唯一 Research 输入**，含 Findings 完整分析 + Expert 摘要 + 冲突标记）
 - `gap_analysis`（Gap Analyst 报告）
 - `devil_advocate`（Devil's Advocate 报告）
-- `data/frozen_spec`（原始需求）
+- `data/living_spec`（优先）或 `data/frozen_spec`（原始需求）
 
 **执行**：
 
@@ -143,6 +141,78 @@ else:
 - 大小 > 3000 chars（完整基础方案不应太短）
 - 如果验证失败，重新 spawn Base Synthesizer
 
+**Phase 1 Gate: Finding 覆盖度检查（AI Native 验证）**
+
+Base Synthesizer 产出后，spawn 一个 LLM Judge 检查 Research Digest 的 Findings 是否被 base_solution 覆盖：
+
+```python
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label="finding_coverage_gate",
+    task=f"""cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+
+你是 Finding 覆盖度检查器（LLM-as-Judge）。
+
+## 任务
+读取 `research_digest` 和 `base_solution`，检查 Digest 中的 Findings 是否在 base_solution 中有对应实现。
+
+## 你的 session_id
+`{session_id}`
+
+## 执行
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
+digest = bb.read_stage('research_digest')
+base = bb.read_stage('base_solution')
+```
+
+## 检查方式（语义理解，不是字符串匹配）
+1. 从 digest 的 `findings_index` 提取所有 HIGH relevance 的 Findings
+2. 对每个 Finding，语义判断 base_solution 是否包含了对应的实现或回应
+3. 不要求精确匹配关键词——用你的语义理解判断
+
+## 输出
+写入 `stages/finding_coverage.json`:
+```json
+{{{{
+  "total_high_findings": N,
+  "covered": N,
+  "coverage_ratio": 0.XX,
+  "missing_findings": [
+    {{{{"id": "F-001", "title": "...", "reason": "base_solution 没有提到..."}}}}
+  ],
+  "verdict": "PASS" | "FAIL"
+}}}}
+```
+
+**判定标准**：coverage_ratio >= 0.8 → PASS，否则 FAIL。
+""",
+    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+)
+sessions_yield()
+```
+
+**Gate 验证**：
+```python
+coverage = bb.read_stage('finding_coverage')
+if coverage and coverage.get('verdict') == 'PASS':
+    print(f"FINDING_COVERAGE_OK: {coverage['coverage_ratio']:.0%}")
+elif coverage and coverage.get('verdict') == 'FAIL':
+    print(f"FINDING_COVERAGE_FAIL: {coverage['coverage_ratio']:.0%}")
+    print(f"Missing: {len(coverage.get('missing_findings', []))} findings")
+    # 重新 spawn Base Synthesizer，传入 missing_findings 清单
+else:
+    print("FINDING_COVERAGE_ERROR")
+```
+
+**FAIL 处理**：
+- 将 `missing_findings` 清单传入 Base Synthesizer 的重新 spawn task 中
+- 在 task 末尾追加：`## ⚠️ 上次遗漏的 Findings（必须覆盖）\n{missing_findings_json}`
+- 最多重试 1 次。如果仍然 FAIL，继续执行但记录警告
+
 ---
 
 ### Phase 2: Meta Summary Planner（裁判 + 导演）
@@ -152,7 +222,8 @@ else:
 **输入**：
 - `base_solution`（Phase 1 产出）
 - `planning_convergence`（约束体系）
-- `research_report`（研究知识）
+- `research_digest`（Research Digest — 研究知识）
+- `finding_coverage`（Finding 覆盖度检查结果）
 
 **执行**：
 
@@ -429,7 +500,7 @@ else:
 **输入**：
 - `refined_solution`（修复后的方案）
 - `planning_convergence`（含 verification_checklist）
-- `data/frozen_spec`（原始需求）
+- `data/living_spec`（优先）或 `data/frozen_spec`（原始需求）
 
 **执行**：
 
@@ -702,7 +773,7 @@ else:
 6. **Phase 5a/5b 串行** — 先写文档，再从文档提取 JSON
 7. **文档和 JSON 分离** — 避免 LLM token 上限导致截断
 8. **yield 唤醒后只做 exec 验证** — 不生成文字
-9. **不修改上游输出** — Summary 不能修改 planning_convergence 或 research_report
+9. **不修改上游输出** — Summary 不能修改 planning_convergence 或 research_digest
 10. **Phase 3 分析面板动态** — 不预设固定 Analyzer 列表，由 Meta Summary Planner 根据基础方案弱点决定
 
 ---

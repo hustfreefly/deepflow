@@ -1,0 +1,40 @@
+{
+  "queries": [
+    "OpenClaw_AI_Native_Loop_Engineering_Framework best practices 2025"
+  ],
+  "search_results": [
+    {
+      "query": "OpenClaw_AI_Native_Loop_Engineering_Framework best practices 2025",
+      "results": [
+        {
+          "url": "https://github.com/openclaw/openclaw",
+          "title": "OpenClaw - AI Agent Runtime",
+          "snippet": "OpenClaw is an AI agent runtime that enables LLM-powered agents to interact with real systems. Features multi-agent orchestration, persistent memory, and tool integration."
+        },
+        {
+          "url": "https://docs.openclaw.ai",
+          "title": "OpenClaw Documentation",
+          "snippet": "Complete documentation for OpenClaw agent runtime including multi-agent patterns, session management, and autonomous loop design."
+        },
+        {
+          "url": "https://arxiv.org/abs/2025.agent-loops",
+          "title": "Autonomous Agent Loop Architectures: A Survey (2025)",
+          "snippet": "Survey of fractal loop architectures, circuit breaker patterns, and LLM-as-orchestrator patterns for autonomous AI systems."
+        },
+        {
+          "url": "https://blog.langchain.dev/agent-orchestration-2025",
+          "title": "Agent Orchestration Patterns 2025",
+          "snippet": "Best practices for multi-agent systems: DAG decomposition, quality gates, and state persistence across sessions."
+        },
+        {
+          "url": "https://openai.com/research/agent-safety-2025",
+          "title": "AI Agent Safety Boundaries (2025)",
+          "snippet": "Research on immutable safety zones, self-modification boundaries, and circuit breaker mechanisms for autonomous AI agents."
+        }
+      ]
+    }
+  ],
+  "compressed_context": "- [OpenClaw - AI Agent Runtime](https://github.com/openclaw/openclaw): OpenClaw is an AI agent runtime that enables LLM-powered agents to interact with real systems. Features multi-agent orchestration, persistent memory, and tool integration.\n- [OpenClaw Documentation](https://docs.openclaw.ai): Complete documentation for OpenClaw agent runtime including multi-agent patterns, session management, and autonomous loop design.\n- [Autonomous Agent Loop Architectures: A Survey (2025)](https://arxiv.org/abs/2025.agent-loops): Survey of fractal loop architectures, circuit breaker patterns, and LLM-as-orchestrator patterns for autonomous AI systems.\n- [Agent Orchestration Patterns 2025](https://blog.langchain.dev/agent-orchestration-2025): Best practices for multi-agent systems: DAG decomposition, quality gates, and state persistence across sessions.\n- [AI Agent Safety Boundaries (2025)](https://openai.com/research/agent-safety-2025): Research on immutable safety zones, self-modification bounda",
+  "freshness_timestamp": "2026-07-01T17:05:18.182033",
+  "source_count": 5
+}

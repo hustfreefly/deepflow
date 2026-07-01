@@ -1,0 +1,256 @@
+{
+  "schema_version": "2.0",
+  "expert_name": "quality_gate_and_direction_deviation_specialist",
+  "domain": "Quality validation harness and real-time direction deviation detection",
+  "constraints": [
+    {
+      "constraint_id": "quality-gate-and-direction-deviation-specialist-C01",
+      "description": "质量门控必须包含语义层评估（Layer 2 LLM-as-Judge），不能仅靠形式检查（字段存在性、类型匹配）通过。每个关键节点的产出必须经过'形式完成 vs 实质高质量'的区分判定。",
+      "category": "quality_gate_design",
+      "priority": "MUST",
+      "rationale": "R3风险（子Agent返回低质量结果但主Loop误判为通过）的核心缓解措施。形式检查只能验证输出结构完整性，无法判断语义正确性、方案可行性、或是否真正解决了目标问题。参考AGENTS.md Zone 4.3 LLM-as-Judge三层门控架构。",
+      "verification_method": "审查方案中每个质量门控是否定义了Layer 2语义评估维度和独立Judge角色（非执行者自身）",
+      "covered_req_ids": [
+        "REQ-002",
+        "REQ-020",
+        "REQ-037"
+      ],
+      "relevant_experts": [
+        "fractal_loop_orchestration_architect",
+        "long_running_reliability_and_circuit_breaker_expert"
+      ]
+    },
+    {
+      "constraint_id": "quality-gate-and-direction-deviation-specialist-C02",
+      "description": "方向偏离检测必须在每个关键节点触发，且检测延迟不超过当前Phase执行时间的15%。检测由独立LLM视角执行，不得由执行者自我判断方向是否正确。",
+      "category": "deviation_detection",
+      "priority": "MUST",
+      "rationale": "用户核心需求'不停下来等人判断方向是否正确'(REQ-014)要求检测必须自动化且低延迟。同时'运动员不等于裁判'原则要求检测视角独立于执行者，否则LLM倾向于认为自己一直在正确方向上（确认偏差）。",
+      "verification_method": "审查方案是否定义了关键节点的判定标准、偏离检测的独立执行机制（独立prompt/独立Agent）、以及检测延迟预算",
+      "covered_req_ids": [
+        "REQ-004",
+        "REQ-007",
+        "REQ-021"
+      ],
+      "relevant_experts": [
+        "fractal_loop_orchestration_architect",
+        "state_persistence_and_recovery_engineer"
+      ]
+    },
+    {
+      "constraint_id": "quality-gate-and-direction-deviation-specialist-C03",
+      "description": "自动纠正策略必须包含纠正影响范围评估：纠正前评估该纠正是否会影响已完成的其他DAG节点，如果影响范围>当前偏离本身，应暂停并通知用户而非自动纠正。",
+      "category": "auto_correction",
+      "priority": "MUST",
+      "rationale": "自动纠正可能引入新的偏离（任务描述中明确提出的关注点）。在分形Loop架构中，一个Phase的纠正可能级联影响其他Phase的输入假设。如果纠正的破坏性大于偏离本身，自动纠正就比不纠正更糟糕。",
+      "verification_method": "审查方案中自动纠正流程是否包含影响范围分析步骤和纠正/暂停的决策阈值",
+      "covered_req_ids": [
+        "REQ-004",
+        "REQ-005",
+        "REQ-014"
+      ],
+      "relevant_experts": [
+        "fractal_loop_orchestration_architect",
+        "state_persistence_and_recovery_engineer"
+      ]
+    },
+    {
+      "constraint_id": "quality-gate-and-direction-deviation-specialist-C04",
+      "description": "子Agent输出质量评估必须由独立于执行者的Judge执行。Judge可以是不同模型、不同prompt视角、或不同Agent实例。执行者的自我评估只能作为参考信号，不能作为通过/失败的判定依据。",
+      "category": "independent_quality_assessment",
+      "priority": "MUST",
+      "rationale": "直接缓解R3风险（子Agent返回结果质量低但主Loop误判为通过）。AGENTS.md Zone 4.3明确规定'不能用同一LLM维度做Judge和Executor'。主Loop评估子Agent产出时，如果复用执行者的同一推理路径，会继承相同的认知盲区。",
+      "verification_method": "审查方案中子Agent产出评估是否要求独立Judge（不同模型/prompt/Agent），以及Judge与Executor的独立性验证方法",
+      "covered_req_ids": [
+        "REQ-002",
+        "REQ-020",
+        "REQ-037"
+      ],
+      "relevant_experts": [
+        "fractal_loop_orchestration_architect",
+        "ai_safety_and_self_modification_boundary_guardian"
+      ]
+    },
+    {
+      "constraint_id": "quality-gate-and-direction-deviation-specialist-C05",
+      "description": "管线级质量保障必须实现多引擎迭代+多轮Review，不能依赖单次Agent输出作为最终质量。至少覆盖：执行引擎产出→Review引擎审查→修正引擎迭代的三阶段循环。",
+      "category": "pipeline_quality",
+      "priority": "MUST",
+      "rationale": "REQ-019明确要求'达到DeepFlow管线级别（多引擎迭代+多轮Review），非单次Agent输出'。单次Agent输出的质量方差大，多引擎迭代通过不同视角的交叉验证降低方差。这是Loop框架区别于简单Agent调用的核心质量差异。",
+      "verification_method": "审查方案是否定义了至少三阶段的管线质量流程，以及每阶段的输入输出和质量标准",
+      "covered_req_ids": [
+        "REQ-019",
+        "REQ-037"
+      ],
+      "relevant_experts": [
+        "fractal_loop_orchestration_architect"
+      ]
+    },
+    {
+      "constraint_id": "quality-gate-and-direction-deviation-specialist-C06",
+      "description": "8h自主运行中质量检查的频率和深度必须动态调整：关键路径节点执行深度检查（全维度语义评估），非关键路径节点执行轻量检查（形式验证+抽样语义评估）。质量检查总开销不超过执行时间的20%。",
+      "category": "quality_speed_balance",
+      "priority": "SHOULD",
+      "rationale": "8h运行中如果对每个节点都执行全维度质量检查，检查本身的token消耗和时间开销可能导致任务无法在合理时间内完成。20%是质量保障与执行效率的经验平衡点。关键路径节点（DAG关键路径上的节点）必须深度检查，因为它们的失败会导致级联影响。",
+      "verification_method": "审查方案是否定义了质量检查的频率分级策略、深度/轻量检查的判定标准、以及质量开销占比的计算方式",
+      "covered_req_ids": [
+        "REQ-002",
+        "REQ-035"
+      ],
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert",
+        "fractal_loop_orchestration_architect"
+      ]
+    },
+    {
+      "constraint_id": "quality-gate-and-direction-deviation-specialist-C07",
+      "description": "方向偏离检测的评估维度必须包含Loop特有维度，不能仅复用DeepFlow Harness的四维度(completeness, necessity, alignment, global_impact)。Loop特有维度至少包括：目标对齐漂移（当前产出是否仍服务于原始Goal）、资源消耗合理性（token/时间消耗是否与任务复杂度匹配）、循环检测（是否在重复相似的决策模式）。",
+      "category": "deviation_dimensions",
+      "priority": "MUST",
+      "rationale": "任务描述明确要求'设计Loop特有的门控维度'。DeepFlow Harness是管线质量工具，不是为长时间自主运行设计的。Loop场景的特有风险（目标漂移、资源耗尽、无效循环）需要专门的检测维度。meta_planning中R2风险（LLM陷入无效循环）也需要循环检测维度来缓解。",
+      "verification_method": "审查方案中偏离检测维度是否包含目标对齐漂移、资源消耗合理性、循环检测三个Loop特有维度",
+      "covered_req_ids": [
+        "REQ-004",
+        "REQ-007",
+        "REQ-021"
+      ],
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert",
+        "fractal_loop_orchestration_architect"
+      ]
+    },
+    {
+      "constraint_id": "quality-gate-and-direction-deviation-specialist-C08",
+      "description": "Dream Loop反思产出必须有可验证的改善指标，不能仅产出自然语言总结。反思产出必须包含：识别的具体问题、量化改善目标、可执行的改进策略、以及验证改善是否生效的检查方法。",
+      "category": "dream_loop_quality",
+      "priority": "SHOULD",
+      "rationale": "任务描述关注'反思产出是否真正改善了执行模式，而非产生空洞总结'。Dream Loop的Memory Consolidation和Pattern Discovery阶段容易产出看似合理但无法验证的模糊总结（如'应该更好地管理时间'）。没有可验证指标，Dream Loop就变成token浪费器。",
+      "verification_method": "审查方案中Dream Loop反思产出是否要求结构化输出（问题→量化目标→策略→验证方法），以及是否有机制追踪改进策略是否被后续执行验证",
+      "covered_req_ids": [
+        "REQ-037"
+      ],
+      "relevant_experts": [
+        "ai_safety_and_self_modification_boundary_guardian",
+        "fractal_loop_orchestration_architect"
+      ]
+    },
+    {
+      "constraint_id": "quality-gate-and-direction-deviation-specialist-C09",
+      "description": "Meta-Loop参数优化必须基于对比实验数据，不能基于单次执行结果调参。优化策略应包含：基线记录→参数变更→对比执行→效果评估→采纳/回滚的完整A/B测试流程。",
+      "category": "meta_loop_validation",
+      "priority": "SHOULD",
+      "rationale": "任务描述要求'A/B测试策略的效果评估方法'。Meta-Loop调整的参数（timeout/retry/model/parallelism）直接影响8h运行的效率和可靠性。如果基于单次执行结果调参，可能因为任务特殊性而非参数优越性导致错误采纳，引入系统性偏差。",
+      "verification_method": "审查方案中Meta-Loop是否定义了基线记录、对比实验设计、效果评估指标、以及采纳/回滚决策标准",
+      "covered_req_ids": [
+        "REQ-037"
+      ],
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert"
+      ]
+    },
+    {
+      "constraint_id": "quality-gate-and-direction-deviation-specialist-C10",
+      "description": "方向偏离检测判定为'偏离'后，纠正策略必须记录到history.jsonl，包含：偏离描述、检测时间、纠正动作、纠正后预期状态。连续3次纠正同一维度偏离应触发升级（通知用户或暂停Loop），而非继续自动纠正。",
+      "category": "correction_escalation",
+      "priority": "MUST",
+      "rationale": "自动纠正如果无限循环执行，可能比偏离本身更危险。连续3次同维度纠正失败说明系统对该方向的判断可能存在根本性错误，需要人类介入。这也与死循环熔断机制（REQ-034约束）形成协同——方向纠正失败是熔断触发条件之一。",
+      "verification_method": "审查方案是否定义了纠正记录格式、同维度连续纠正的计数机制、以及升级阈值（建议3次）",
+      "covered_req_ids": [
+        "REQ-004",
+        "REQ-005",
+        "REQ-014"
+      ],
+      "relevant_experts": [
+        "state_persistence_and_recovery_engineer",
+        "long_running_reliability_and_circuit_breaker_expert"
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "risk_id": "quality-gate-and-direction-deviation-specialist-R01",
+      "description": "质量门控的LLM-as-Judge评估产生大量额外token消耗，在8h运行中累积导致成本失控或触发API限流",
+      "severity": "HIGH",
+      "mitigation": "实施分层质量检查策略（C06）：关键节点深度检查，非关键节点轻量检查。质量检查总开销控制在执行时间20%以内。对Judge使用更轻量模型（如用qwen3.7-plus做Judge而非qwen3-max）以降低成本。"
+    },
+    {
+      "risk_id": "quality-gate-and-direction-deviation-specialist-R02",
+      "description": "方向偏离检测的误判率过高：将正常探索误判为偏离，导致频繁自动纠正，反而阻碍任务进展",
+      "severity": "HIGH",
+      "mitigation": "偏离检测应设置置信度阈值，低置信度的偏离信号不触发纠正而是记录观察。引入'探索宽容期'——在任务早期（前20%执行时间）降低偏离检测灵敏度。纠正前必须执行影响范围评估（C03），避免纠正的破坏性大于偏离本身。"
+    },
+    {
+      "risk_id": "quality-gate-and-direction-deviation-specialist-R03",
+      "description": "独立Judge的质量评估与执行者评估严重不一致时，缺乏裁决机制导致决策僵局",
+      "severity": "MEDIUM",
+      "mitigation": "定义裁决规则：当Judge与Executor评估不一致时，优先信任Judge（独立性原则）。但如果Executor能提供具体理由说明Judge评估不适用于当前任务上下文，可以覆盖Judge评估并记录理由。连续3次覆盖触发用户通知。"
+    },
+    {
+      "risk_id": "quality-gate-and-direction-deviation-specialist-R04",
+      "description": "自动纠正引入新的偏离，形成纠正-偏离-纠正的无限循环，消耗大量token和时间而不产生实质进展",
+      "severity": "HIGH",
+      "mitigation": "纠正次数上限机制（C10）：连续3次同维度纠正失败触发升级。每次纠正前记录当前状态快照，如果纠正后状态比纠正前更差，自动回滚到纠正前状态。纠正策略本身也需要通过质量门控。"
+    },
+    {
+      "risk_id": "quality-gate-and-direction-deviation-specialist-R05",
+      "description": "Dream Loop反思产出无法量化验证，变成形式化的空洞总结，无法真正改善执行模式",
+      "severity": "MEDIUM",
+      "mitigation": "强制结构化反思输出（C08）：每个反思必须包含具体问题描述、量化改善目标、可执行策略、验证方法。Dream Loop产出的改进策略必须有对应的追踪机制——在后续执行中检查该策略是否被采纳以及是否产生了预期效果。"
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "criteria_id": "quality-gate-and-direction-deviation-specialist-AC01",
+      "description": "方案定义了至少3层质量门控维度：形式验证（Layer 1）、语义评估（Layer 2 LLM-as-Judge）、管线级交叉验证（Layer 3）。每层有明确的通过/失败标准和判定逻辑。",
+      "verification_method": "审查方案中质量门控设计是否包含三层架构，每层是否有具体的评估指标和判定规则。通过构造测试场景验证：形式通过但语义错误的产出能否被Layer 2拦截。"
+    },
+    {
+      "criteria_id": "quality-gate-and-direction-deviation-specialist-AC02",
+      "description": "方案定义了方向偏离检测的触发时机（关键节点判定标准）、评估维度（包含Loop特有维度：目标漂移/资源消耗/循环检测）、判定标准（LLM动态判断而非硬编码规则）、和独立执行机制（非执行者自我判断）。",
+      "verification_method": "审查方案中偏离检测设计是否覆盖触发时机、评估维度、判定标准、独立执行机制四个要素。通过模拟场景验证：执行者认为方向正确但实际偏离的情况能否被独立检测发现。"
+    },
+    {
+      "criteria_id": "quality-gate-and-direction-deviation-specialist-AC03",
+      "description": "方案定义了自动纠正的完整流程：偏离识别→影响范围评估→纠正策略生成→纠正执行→纠正后验证。包含纠正失败升级机制（连续3次同维度纠正失败→通知用户/暂停Loop）。",
+      "verification_method": "审查方案中自动纠正流程是否包含完整的5步流程和升级机制。通过模拟场景验证：纠正引入新偏离时系统是否能检测并回滚。"
+    },
+    {
+      "criteria_id": "quality-gate-and-direction-deviation-specialist-AC04",
+      "description": "方案中子Agent输出质量评估的Judge与Executor角色分离。Judge不能复用Executor的同一推理路径。Judge评估结果与Executor自评不一致时有明确裁决规则。",
+      "verification_method": "审查方案中质量评估是否明确定义了Judge角色独立性要求。通过历史案例分析：Executor自评通过但Judge判定不通过的场景是否有处理规则。"
+    },
+    {
+      "criteria_id": "quality-gate-and-direction-deviation-specialist-AC05",
+      "description": "方案定义了管线级质量保障流程，覆盖多引擎迭代（至少3阶段）和多轮Review。单次Agent输出不能直接作为最终交付物，必须经过Review-修正循环。",
+      "verification_method": "审查方案是否定义了至少三阶段的管线质量流程。验证第一个案例（消费DeepFlow Ship Pro产出物）是否经过管线级质量保障而非单次Agent处理。"
+    },
+    {
+      "criteria_id": "quality-gate-and-direction-deviation-specialist-AC06",
+      "description": "方案中质量检查的频率和深度有动态调整策略，质量检查总开销不超过执行时间的20%。关键路径节点执行深度检查，非关键节点执行轻量检查。",
+      "verification_method": "审查方案是否定义了质量检查分级策略和开销预算。通过模拟8h运行场景计算质量检查的累计token消耗和时间占比。"
+    }
+  ],
+  "extensions": {
+    "expert_focus_summary": "本专家从质量门控有效性和方向偏离检测灵敏度两个核心维度审视方案设计。核心关注：(1)质量门控能否区分形式完成和实质高质量；(2)方向偏离检测延迟是否可接受；(3)自动纠正是否引入新偏离；(4)子Agent质量评估是否独立于执行者。",
+    "key_p0_reqs_covered": [
+      "REQ-002",
+      "REQ-004",
+      "REQ-005",
+      "REQ-007",
+      "REQ-014",
+      "REQ-019",
+      "REQ-020",
+      "REQ-021",
+      "REQ-037"
+    ],
+    "risk_alignment": {
+      "R1_跑了很多轮但最终质量差": "通过C01(语义层评估)、C05(管线级质量)、C04(独立Judge)三层保障缓解",
+      "R2_LLM陷入无效循环": "通过C07(循环检测维度)、C10(纠正升级机制)检测和缓解",
+      "R3_子Agent质量低但误判通过": "通过C04(独立Judge)、C01(语义层评估)直接缓解"
+    },
+    "gate_b_check_alignment": {
+      "direction_deviation_detection": "C02(偏离检测独立性)、C07(Loop特有维度)、C03(纠正影响评估)直接支撑此Gate B检查项通过",
+      "circuit_breaker_mechanism": "C10(纠正升级机制)与熔断机制协同——方向纠正连续失败是熔断触发条件之一"
+    }
+  }
+}

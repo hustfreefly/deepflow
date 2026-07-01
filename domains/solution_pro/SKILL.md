@@ -1,8 +1,9 @@
 # Solution Pro V2 — Agent 执行指南
 
-> **版本**: V5.0 | **最后更新**: 2026-06-29  
-> **架构**: MasterOrchestrator → Planning（三层）+ Research（多专家并行）+ ReviewQC（Fix Loop + 收敛）  
-> **V1 架构**: 固定多阶段管线方案（已归档，仅用于已有 session 续跑）
+> **版本**: V5.1 | **最后更新**: 2026-07-01  
+> **架构**: MasterOrchestrator → Planning（三层）+ Research（多专家并行）+ ReviewQC（Fix Loop + Finding Ledger + 确定性检查）  
+> **V1 架构**: 固定多阶段管线方案（已归档，仅用于已有 session 续跑）  
+> **V3 改进**: 基于 E2E V3 质量评估，新增研究利用追踪 + Finding Ledger + 6 个确定性检查
 
 ---
 
@@ -484,4 +485,17 @@ except:
 - **Schema 契约**: 见 `schemas/v2_schemas.py`
 - **V1 文档**: 见 `prompts/v1/pipeline_orchestrator.md`（V1 Orchestrator 指令）
 
-*V5.0 | 2026-06-29 | V2 三层架构（Planning + Research + ReviewQC）+ 断点续跑 + 超时降级*
+## 🆕 V3 改进（2026-07-01）
+
+> **背景**: E2E V3 质量评估 (4 Agent 并行分析) 发现 5 个系统性缺陷
+> **详细计划**: `IMPROVEMENT_PLAN_V3.md`
+
+| Fix | 描述 | 文件 | 状态 |
+|-----|------|------|------|
+| Fix 1 | 研究利用追踪器 | `information_conservation.py` | ✅ |
+| Fix 4 | Finding Ledger | `review_qc_orchestrator.py` | ✅ |
+| Fix 5 | 6 个确定性检查 | `deterministic_checks.py` | ✅ |
+| Fix 2 | Python-only 控制器 | master_orchestrator.py | 📋 |
+| Fix 3 | 独立 Verification Module | 新增 | 📋 |
+
+*V5.1 | 2026-07-01 | V2 三层架构 + V3 改进（研究追踪 + Finding Ledger + 确定性检查）*

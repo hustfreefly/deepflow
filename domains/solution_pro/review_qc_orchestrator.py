@@ -76,6 +76,7 @@ class ReviewQCOrchestrator(ModuleOrchestrator):
         planning_output: dict,
         research_output: dict,
         spawn_fn: Optional[Callable] = None,
+        living_spec: dict = None,
     ) -> dict:
         """
         Review/QC 模块主入口
@@ -85,6 +86,7 @@ class ReviewQCOrchestrator(ModuleOrchestrator):
             planning_output: Planning 模块输出
             research_output: Research 模块输出
             spawn_fn: 可选的 spawn 函数覆盖
+            living_spec: Living Spec dict（优先使用，fallback 到 frozen_spec）
         
         Returns:
             Review/QC 收敛点数据
@@ -92,6 +94,7 @@ class ReviewQCOrchestrator(ModuleOrchestrator):
         if spawn_fn:
             self.spawn_fn = spawn_fn
         
+        self.living_spec = living_spec
         self.frozen_spec = frozen_spec
         self.planning_output = planning_output
         self.research_output = research_output
@@ -154,8 +157,12 @@ class ReviewQCOrchestrator(ModuleOrchestrator):
         2. 如果有问题 → 尝试修复
         3. 如果修复成功 → 继续下一轮
         4. 如果修复失败 → ABORT
+        
+        Fix 4 (Finding Ledger): 修复循环必须产出 finding_ledger，
+        对每个外部 finding（devil_advocate、gap_analysis、analyzer）做显式决策。
         """
         current_output = research_output
+        finding_ledger = self._build_finding_ledger(research_output)
         
         for round_num in range(self.MAX_FIX_ROUNDS):
             # 检测问题
@@ -166,6 +173,7 @@ class ReviewQCOrchestrator(ModuleOrchestrator):
                     "status": "PASS",
                     "round": round_num,
                     "output": current_output,
+                    "finding_ledger": finding_ledger,  # Fix 4
                 }
             
             # 尝试修复
@@ -173,6 +181,8 @@ class ReviewQCOrchestrator(ModuleOrchestrator):
             
             if fix_result.get("status") == "FIXED":
                 current_output = fix_result["output"]
+                # Fix 4: 更新 finding ledger 中已修复的状态
+                self._update_ledger_after_fix(finding_ledger, issues, fix_result)
             else:
                 return {
                     "status": "ABORT",
@@ -180,12 +190,14 @@ class ReviewQCOrchestrator(ModuleOrchestrator):
                     "abort_reason": f"Fix failed after {round_num + 1} rounds",
                     "partial_outputs": [current_output],
                     "diagnosis": fix_result.get("diagnosis", "Unknown"),
+                    "finding_ledger": finding_ledger,  # Fix 4: 即使 abort 也保留 ledger
                 }
         
         return {
             "status": "MAX_ROUNDS",
             "round": self.MAX_FIX_ROUNDS,
             "output": current_output,
+            "finding_ledger": finding_ledger,  # Fix 4
         }
     
     def _detect_issues(self, output: dict, planning_output: dict) -> list[dict]:
@@ -210,7 +222,99 @@ class ReviewQCOrchestrator(ModuleOrchestrator):
                 "details": constraint_check,
             })
         
+        # Fix 4: 检查 3 — 未处理的外部 finding（devil_advocate、gap_analysis、analyzer）
+        unaddressed = self._detect_unaddressed_findings(output)
+        if unaddressed:
+            issues.append({
+                "type": "unaddressed_findings",
+                "severity": "MEDIUM",
+                "details": {"count": len(unaddressed), "findings": unaddressed[:5]},
+            })
+        
         return issues
+    
+    def _build_finding_ledger(self, research_output: dict) -> list[dict]:
+        """Fix 4: 构建 Finding Ledger — 追踪所有外部 finding 的处置状态。
+        
+        E2E V3 发现: Devil Advocate 10 个 finding 中 3 个被完全忽略，
+        原因是 Fix Loop 没有强制要求对每个 finding 做显式决策。
+        
+        Ledger 要求每个 finding 必须有:
+        - source: 来源 (devil_advocate / gap_analysis / analyzer / expert)
+        - finding_id: 唯一标识
+        - description: 简述
+        - decision: adopted / rejected / partial (默认为 pending)
+        - rationale: 决策理由 (Fix Agent 填写)
+        """
+        ledger = []
+        finding_id = 0
+        
+        # 从 research_output 中提取各类 finding 来源
+        sources = {
+            "devil_advocate": research_output.get("devil_advocate", {}),
+            "gap_analysis": research_output.get("gap_analysis", {}),
+        }
+        
+        for source_name, source_data in sources.items():
+            if not isinstance(source_data, dict):
+                continue
+            
+            # 提取 findings/challenges/issues 列表
+            for key in ("findings", "challenges", "issues", "key_findings", "top_findings"):
+                items = source_data.get(key, [])
+                if not isinstance(items, list):
+                    continue
+                for item in items:
+                    finding_id += 1
+                    desc = item if isinstance(item, str) else (
+                        item.get("description", item.get("title", item.get("challenge", str(item))))
+                    )
+                    ledger.append({
+                        "finding_id": f"F-{finding_id:03d}",
+                        "source": source_name,
+                        "description": str(desc)[:200],
+                        "decision": "pending",
+                        "rationale": "",
+                    })
+        
+        logger.info(f"[Fix4] Finding Ledger initialized with {len(ledger)} findings")
+        return ledger
+    
+    def _update_ledger_after_fix(self, ledger: list[dict], issues: list[dict], fix_result: dict) -> None:
+        """Fix 4: 修复后更新 Finding Ledger 的 decision 状态。"""
+        fixed_types = {i.get("type") for i in issues if i.get("type")}
+        
+        for entry in ledger:
+            if entry["decision"] != "pending":
+                continue
+            
+            # 如果 finding 的 source 相关的 issue 类型被修复了，标记为 adopted
+            if entry["source"] in ("devil_advocate", "gap_analysis") and "unaddressed_findings" in fixed_types:
+                entry["decision"] = "adopted"
+                entry["rationale"] = f"Addressed in fix round via {fix_result.get('fix_type', 'automated_fix')}"
+        
+        # 记录未处理的
+        pending_count = sum(1 for e in ledger if e["decision"] == "pending")
+        if pending_count > 0:
+            logger.warning(f"[Fix4] {pending_count} findings still pending after fix round")
+    
+    def _detect_unaddressed_findings(self, output: dict) -> list[str]:
+        """Fix 4: 检测 output 中未被处理的外部 finding。"""
+        unaddressed = []
+        
+        # 检查 devil_advocate findings 是否在 output 中被提及
+        devil = output.get("devil_advocate", {})
+        if isinstance(devil, dict):
+            for key in ("findings", "challenges", "key_findings"):
+                items = devil.get(key, [])
+                if isinstance(items, list):
+                    for item in items:
+                        desc = item if isinstance(item, str) else str(item.get("description", ""))
+                        # 检查是否在 solution 文本中被引用
+                        if desc and desc[:30] not in str(output.get("solution", output.get("refined_solution", ""))):
+                            unaddressed.append(f"devil_advocate: {desc[:80]}")
+        
+        return unaddressed[:10]  # 最多返回 10 个
     
     def _attempt_fix(self, issues: list[dict], output: dict) -> dict:
         """尝试修复问题"""

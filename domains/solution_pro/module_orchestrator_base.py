@@ -83,7 +83,7 @@ class ModuleOrchestrator:
         统一的 spawn_fn 契约（所有子模块必须使用此方法）
         
         生产模式（_use_adapter=True）: spawn worker → 轮询 blackboard → 返回 worker 输出
-        测试模式（_use_adapter=False 或 blackboard 不支持）: 直接调用 mock spawn_fn
+        spawn_fn 必须存在，否则 raise ValueError（无降级、无 mock）
         
         Args:
             task: Worker 的任务描述（prompt 文本）
@@ -93,11 +93,12 @@ class ModuleOrchestrator:
         Returns:
             Worker 的输出 dict
         """
-        if not self._use_adapter or not self.spawn_fn:
-            # 测试模式：直接调用 mock spawn_fn
-            if self.spawn_fn:
-                return self.spawn_fn(task=task, output_path=output_path, **kwargs)
-            return None
+        if not self.spawn_fn:
+            raise ValueError("spawn_fn is required — _adapted_spawn cannot run without it. No mock allowed.")
+        
+        if not self._use_adapter:
+            # 直接调用 spawn_fn（适配器关闭时）
+            return self.spawn_fn(task=task, output_path=output_path, **kwargs)
         
         # 生产模式：spawn + wait
         # Step 0: 检查 blackboard 是否支持 read_json（MockBlackboard 可能不支持）
@@ -142,8 +143,7 @@ class ModuleOrchestrator:
         try:
             return self._wait_for_output(output_path, timeout)
         except TimeoutError:
-            logger.warning(f"Worker timeout after {timeout}s, returning None")
-            return None
+            raise RuntimeError(f"Worker timeout after {timeout}s — FAILING. No silent fallback allowed.")
     
     def _wait_for_output(self, output_path: str, timeout: int) -> dict:
         """轮询 blackboard 等待 worker 写入输出"""
@@ -274,20 +274,19 @@ class ModuleOrchestrator:
         # 构建 Worker task（子类可覆盖）
         task = self._build_worker_task(stage)
         
-        # Spawn Worker（如果提供了 spawn_fn）
-        if self.spawn_fn:
-            result = self.spawn_fn(
-                task=task,
-                mode="run",
-                label=f"{self.module_name}_{stage_name}",
-            )
-            
-            # 读取 Worker 输出
-            output_path = STAGE_PATH_REGISTRY.get(stage_name, f"stages/{stage_name}.json")
-            output = self.blackboard.read(output_path)
-        else:
-            # 本地执行（用于测试或简单 Stage）
-            output = self._execute_local(stage)
+        # Spawn Worker — spawn_fn 必须存在
+        if not self.spawn_fn:
+            raise ValueError(f"spawn_fn is required for stage '{stage_name}' — no local execution allowed")
+        
+        result = self.spawn_fn(
+            task=task,
+            mode="run",
+            label=f"{self.module_name}_{stage_name}",
+        )
+        
+        # 读取 Worker 输出
+        output_path = STAGE_PATH_REGISTRY.get(stage_name, f"stages/{stage_name}.json")
+        output = self.blackboard.read(output_path)
         
         # 更新 state
         if stage_name not in self.state["completed_stages"]:
@@ -329,7 +328,7 @@ class ModuleOrchestrator:
     
     def _execute_local(self, stage: dict) -> dict:
         """
-        本地执行 Stage（子类可覆盖）
+        已废弃 — execute_stage 现在要求 spawn_fn，不再调用此方法
         
         Args:
             stage: Stage 配置 dict
@@ -366,20 +365,19 @@ class ModuleOrchestrator:
             gate_b_config = {}
             verdict_policy = {}
         
-        # Spawn Harness Agent（如果提供了 spawn_fn）
-        if self.spawn_fn:
-            task = self._build_harness_task(stage_name, stage_output, gate_a_config, gate_b_config)
-            result = self.spawn_fn(
-                task=task,
-                mode="run",
-                label=f"harness_{stage_name}",
-            )
-            
-            # 读取 Harness Agent 输出
-            harness_output = self.blackboard.read(f"stages/harness_{stage_name}.json")
-        else:
-            # 本地计算（用于测试）
-            harness_output = self._run_harness_local(stage_output, gate_a_config, gate_b_config)
+        # Spawn Harness Agent — spawn_fn 必须存在
+        if not self.spawn_fn:
+            raise ValueError(f"spawn_fn is required for harness evaluation of '{stage_name}' — no local fallback allowed")
+        
+        task = self._build_harness_task(stage_name, stage_output, gate_a_config, gate_b_config)
+        result = self.spawn_fn(
+            task=task,
+            mode="run",
+            label=f"harness_{stage_name}",
+        )
+        
+        # 读取 Harness Agent 输出
+        harness_output = self.blackboard.read(f"stages/harness_{stage_name}.json")
         
         return harness_output
     
@@ -430,14 +428,11 @@ stages/harness_{stage_name}.json
         gate_a_config: dict,
         gate_b_config: dict,
     ) -> dict:
-        """本地运行 Harness（用于测试）"""
-        # 简化实现：返回 PASS
-        logger.warning("Running Harness locally (test mode), returning PASS")
-        return {
-            "gate_a": {"score": 0.9, "verdict": "PASS"},
-            "gate_b": {"pass_rate": 1.0, "verdict": "PASS"},
-            "final_verdict": {"final_verdict": "PASS"},
-        }
+        """Harness 必须通过 spawn_fn 调用 LLM，不允许本地硬编码 PASS"""
+        raise NotImplementedError(
+            "Harness cannot run locally — must use spawn_fn for real LLM evaluation. "
+            "Local hardcoded PASS is forbidden."
+        )
     
     def _handle_gate_failure(self, stage: dict, harness_output: dict):
         """处理 Gate 失败"""
@@ -726,6 +721,9 @@ def create_module_orchestrator(
     elif module_name == "review_qc":
         from .review_qc_orchestrator import ReviewQCOrchestrator
         return ReviewQCOrchestrator(session_id, spawn_fn)
+    elif module_name == "summary":
+        from .summary_orchestrator import SummaryOrchestrator
+        return SummaryOrchestrator(session_id, spawn_fn)
     else:
         raise ValueError(f"Unknown module: {module_name}")
 

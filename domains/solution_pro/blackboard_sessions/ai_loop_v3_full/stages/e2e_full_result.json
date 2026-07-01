@@ -1,0 +1,165 @@
+{
+  "status": "COMPLETE",
+  "planning": {
+    "schema_version": "degraded_planning_v1",
+    "status": "DEGRADED",
+    "experts": [
+      {
+        "expert_name": "general_architect",
+        "domain": "general"
+      },
+      {
+        "expert_name": "security_reviewer",
+        "domain": "security"
+      }
+    ],
+    "unified_constraints": {
+      "constraints": []
+    },
+    "verification_checklist": {
+      "items": []
+    }
+  },
+  "research": {
+    "schema_version": "1.0.0",
+    "module": "research",
+    "research_summary": "Research module completed successfully.\n\n## Research Scope\n- 2 domain experts conducted parallel research\n- Findings consolidated through batch deduplication and conflict detection\n\n## Key Metrics\n- Total findings: 0 (Tier 1: 0, Tier 2: 0, Tier 3: 0)\n- Risks identified: 0\n- Recommendations: 0\n- Consensus points: 0\n\n## Consolidation Results\n- Input findings: 0\n- Output findings: 0\n- Compression ratio: 1.00\n\n## Source Quality\n- Total sources: 0\n- Expert coverage: 2 experts contributed sources",
+    "key_findings": [],
+    "design_decisions": [],
+    "open_questions": [],
+    "architecture": {
+      "status": "pending",
+      "reference": "stages/architecture.json"
+    },
+    "detailed_design": {
+      "status": "pending",
+      "reference": "stages/detailed_design.json"
+    },
+    "information_conservation": {
+      "input_expert_count": 2,
+      "input_findings": 0,
+      "output_findings": 0,
+      "compression_ratio": 1.0,
+      "consensus_points": 0,
+      "divergence_points": 0
+    },
+    "original_references": {
+      "generalist_expert": {
+        "path": "stages/research_experts/generalist_expert.json",
+        "hash": "sha256:643bdf24ae4a186b7fc26786cc05ff06b9c0a4722553e8e8e6b2ff05ee9f85d3",
+        "size_bytes": 42369
+      },
+      "architecture_expert": {
+        "path": "stages/research_experts/architecture_expert.json",
+        "hash": "sha256:d3a28d4035342bcf23210d2b2c4de112ca466420dd5b93ccb0117128022adde9",
+        "size_bytes": 40011
+      }
+    },
+    "semantic_verification": {
+      "verdict": "EQUIVALENT",
+      "confidence": 0.9,
+      "divergences": []
+    },
+    "gate_a_scores": {
+      "score": 0.0,
+      "verdict": "PASS",
+      "scores": {},
+      "reasoning": {}
+    },
+    "gate_b_results": {
+      "pass_rate": 1.0,
+      "verdict": "PASS",
+      "checks": [],
+      "failed_items": []
+    },
+    "gate_verdict": {
+      "final_verdict": "PASS",
+      "gate_a": "PASS",
+      "gate_b": "PASS"
+    },
+    "_metadata": {
+      "produced_at": "2026-07-01T17:13:07.472844",
+      "schema_version": "1.0.0",
+      "module": "research",
+      "stage_count": 5,
+      "expert_count": 2,
+      "iteration_count": 1,
+      "source_registry": {
+        "total_experts": 2,
+        "total_sources": 0,
+        "expert_counts": {
+          "generalist_expert": 0,
+          "architecture_expert": 0
+        }
+      }
+    }
+  },
+  "review_qc": {
+    "schema_version": "review_qc_v2.0",
+    "module": "review_qc",
+    "status": "COMPLETE",
+    "fix_loop_summary": {
+      "rounds": 0,
+      "status": "PASS"
+    },
+    "harness_summary": {
+      "status": "PASS",
+      "score": 0.0
+    },
+    "final_verdict": "FAIL",
+    "quality_score": 0.0
+  },
+  "final_report": {
+    "topic": "OpenClaw_AI_Native_Loop_Engineering_Framework",
+    "solution_type": "architecture",
+    "planning_summary": {
+      "expert_count": 2,
+      "constraint_count": 0,
+      "checklist_count": 0
+    },
+    "research_summary": {
+      "finding_count": 0,
+      "source_count": 0,
+      "degraded": false
+    },
+    "quality_assessment": {
+      "verdict": "FAIL",
+      "quality_score": 0.0,
+      "fix_rounds": 0,
+      "degraded": false
+    },
+    "degraded_modules": [
+      "planning"
+    ],
+    "generated_at": 1782897785.99582
+  },
+  "metrics": {
+    "pipeline_start": 1782895208.184608,
+    "modules": {
+      "planning": {
+        "status": "DEGRADED",
+        "degraded": true,
+        "timestamp": 1782896339.169684
+      },
+      "research": {
+        "status": "COMPLETE",
+        "degraded": false,
+        "timestamp": 1782897187.477389
+      },
+      "review_qc": {
+        "status": "COMPLETE",
+        "degraded": false,
+        "timestamp": 1782897785.9956858
+      }
+    },
+    "degraded_modules": [
+      "planning"
+    ],
+    "pipeline_end": 1782897785.9958222,
+    "total_duration": 2577.811214208603,
+    "status": "COMPLETE"
+  },
+  "degraded_modules": [
+    "planning"
+  ]
+}

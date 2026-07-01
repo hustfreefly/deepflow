@@ -51,7 +51,7 @@ cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
-spec = bb.read_json('data/frozen_spec.json', default={})
+spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/frozen_spec.json', default={})
 planning = bb.read_stage('planning_convergence', default={})
 research = bb.read_stage('research_convergence', default={})
 print('=== FROZEN_SPEC ===')
@@ -109,7 +109,7 @@ cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
-spec = bb.read_json('data/frozen_spec.json', default={})
+spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/frozen_spec.json', default={})
 planning = bb.read_stage('planning_convergence', default={})
 research = bb.read_stage('research_convergence', default={})
 schema = bb.read_stage('schema_validation', default={})
@@ -124,10 +124,10 @@ print(json.dumps(schema, ensure_ascii=False, indent=2))
 "
 
 2. 检查：
-   - P0 REQ 覆盖率：frozen_spec.requirements 中 priority=P0 的 REQ 是否在 covered_req_ids 中
+   - P0 REQ 覆盖率：living_spec.requirement_index（或 frozen_spec.requirements）中 priority=P0 的 REQ 是否在 covered_req_ids 中
    - 架构一致性：unified_constraints 是否与 executive_summary 目标一致
    - Guardrails 遵守：是否有约束违反 guardrails.never_do
-   - 信息守恒：frozen_spec 中的需求是否在最终方案中有对应
+   - 信息守恒：living_spec（或 frozen_spec）中的需求是否在最终方案中有对应
 
 3. 写入 Blackboard：
 cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
@@ -171,7 +171,7 @@ cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
-spec = bb.read_json('data/frozen_spec.json', default={})
+spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/frozen_spec.json', default={})
 schema = bb.read_stage('schema_validation', default={})
 harness = bb.read_stage('harness_check', default={})
 planning = bb.read_stage('planning_convergence', default={})

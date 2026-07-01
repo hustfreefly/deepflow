@@ -829,8 +829,12 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
     return final_prompt
 
 
-def build_designer_task(session_id: str, topic: str, context: dict) -> str:
-    """构建 Designer Task(修复 P1-003: 明确前置输入文件)"""
+def build_designer_task(session_id: str, topic: str, context: dict, living_spec: dict = None) -> str:
+    """构建 Designer Task(修复 P1-003: 明确前置输入文件)
+
+    Args:
+        living_spec: Living Spec(Spec Pro 产出,可选)
+    """
     prompt = read_prompt("solution/designer")
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
 
@@ -1129,8 +1133,12 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str, li
 """
 
 
-def build_deliver_task(session_id: str, topic: str, context: dict) -> str:
-    """构建 Deliver Task(修复 P1-002, P2-003: 使用专门交付模板,与 design 区分)"""
+def build_deliver_task(session_id: str, topic: str, context: dict, living_spec: dict = None) -> str:
+    """构建 Deliver Task(修复 P1-002, P2-003: 使用专门交付模板,与 design 区分)
+
+    Args:
+        living_spec: Living Spec(Spec Pro 产出,可选)
+    """
     # Phase 2: 尝试从文件读取prompt(优先),失败则使用硬编码兜底
     try:
         prompt = read_prompt("solution/deliver")
@@ -1372,7 +1380,8 @@ bb = BlackboardManager(session_id="{session_id}")
 # ============================================================
 
 def build_harness_v2_task(session_id: str, topic: str, worker_role: str,
-                          layer2_constraints: list = None) -> str:
+                          layer2_constraints: list = None,
+                          living_spec: dict = None) -> str:
     """构建 Harness V2 Task(通用Worker自评)
 
     Args:
@@ -1380,6 +1389,7 @@ def build_harness_v2_task(session_id: str, topic: str, worker_role: str,
         topic: 任务主题
         worker_role: Worker角色(planner/reviewer/researcher/...)
         layer2_constraints: Layer 2场景约束列表
+        living_spec: Living Spec(Spec Pro 产出,可选)
     """
     from core.prompt_registry import read_prompt
 
@@ -1560,7 +1570,8 @@ def build_harness_final_task(session_id: str, topic: str, living_spec: dict = No
 
 # 保留兼容入口:内部也统一走4维 Harness V3
 def build_harness_task(session_id: str, topic: str, current_solution: dict,
-                       is_final: bool = False) -> str:
+                       is_final: bool = False,
+                       living_spec: dict = None) -> str:
     """构建 Harness V3 Task(兼容入口,统一4维评分)
 
     Args:
@@ -1568,6 +1579,7 @@ def build_harness_task(session_id: str, topic: str, current_solution: dict,
         topic: 检查主题
         current_solution: 当前方案内容
         is_final: 是否为最终检查(Stage 7.5)
+        living_spec: Living Spec(Spec Pro 产出,可选)
     """
     prompt = read_prompt("solution/harness_v3")
     harness_scoring = read_prompt("solution/harness_scoring")
@@ -2009,14 +2021,19 @@ bb = BlackboardManager(session_id="{session_id}")
 # V2 Task Builder Functions (Phase 0b)
 # ============================================================
 
-def build_meta_planner_task(frozen_spec: dict, structured_requirements: dict, session_dir: str) -> dict:
+def build_meta_planner_task(frozen_spec: dict, structured_requirements: dict, session_dir: str, living_spec: dict = None) -> dict:
     """构建 Meta-Planner Task"""
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "meta_planner.md"
     system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
+    # Living Spec 优先（V3 AI Native）
+    if living_spec:
+        spec_context = living_spec.get("narrative", "") + "\n\n## REQ-ID 索引\n" + str(living_spec.get("requirement_index", []))
+    else:
+        spec_context = json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:3000]
     prompt = f"""## 输入
-### Frozen Spec
-{json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:3000]}
+### Spec Context
+{spec_context}
 
 ### Structured Requirements  
 {json.dumps(structured_requirements, ensure_ascii=False, indent=2)[:3000]}
@@ -2032,12 +2049,17 @@ def build_meta_planner_task(frozen_spec: dict, structured_requirements: dict, se
         "timeout": 300,
     }
 
-def build_expert_planner_task(expert_config: dict, frozen_spec: dict, structured_requirements: dict, session_dir: str) -> dict:
+def build_expert_planner_task(expert_config: dict, frozen_spec: dict, structured_requirements: dict, session_dir: str, living_spec: dict = None) -> dict:
     """构建单个 Expert Planner Task"""
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "expert_planner_base.md"
     system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
     expert_name = expert_config["expert_name"]
+    # Living Spec 优先（V3 AI Native）
+    if living_spec:
+        spec_context = living_spec.get("narrative", "") + "\n\n## REQ-ID 索引\n" + str(living_spec.get("requirement_index", []))
+    else:
+        spec_context = json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:2000]
     prompt = f"""## 你的专业领域
 {expert_name}: {expert_config.get('domain', '')}
 
@@ -2048,8 +2070,8 @@ def build_expert_planner_task(expert_config: dict, frozen_spec: dict, structured
 {expert_config.get('focus_areas', [])}
 
 ## 输入
-### Frozen Spec
-{json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:2000]}
+### Spec Context
+{spec_context}
 
 ### Structured Requirements
 {json.dumps(structured_requirements, ensure_ascii=False, indent=2)[:2000]}
@@ -2065,7 +2087,7 @@ def build_expert_planner_task(expert_config: dict, frozen_spec: dict, structured
         "timeout": 300,
     }
 
-def build_convergence_planner_task(expert_plans: list, session_dir: str) -> dict:
+def build_convergence_planner_task(expert_plans: list, session_dir: str, living_spec: dict = None) -> dict:
     """构建 Convergence Planner Task"""
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "convergence_planner.md"
@@ -2087,16 +2109,21 @@ def build_convergence_planner_task(expert_plans: list, session_dir: str) -> dict
         "timeout": 300,
     }
 
-def build_harness_agent_task(stage_name: str, stage_output: dict, gate_config: dict, frozen_spec: dict, session_dir: str) -> dict:
+def build_harness_agent_task(stage_name: str, stage_output: dict, gate_config: dict, frozen_spec: dict, session_dir: str, living_spec: dict = None) -> dict:
     """构建 Harness Agent Task（对抗性评估）"""
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "harness_agent.md"
     system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
+    # Living Spec 优先（V3 AI Native）
+    if living_spec:
+        spec_context = living_spec.get("narrative", "") + "\n\n## REQ-ID 索引\n" + str(living_spec.get("requirement_index", []))
+    else:
+        spec_context = json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:2000]
     prompt = f"""## 评估目标
 Stage: {stage_name}
 
-## 原始需求（Frozen Spec 摘要）
-{json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:2000]}
+## 原始需求（Spec Context）
+{spec_context}
 
 ## Stage 输出
 {json.dumps(stage_output, ensure_ascii=False, indent=2)[:3000]}
@@ -2120,17 +2147,22 @@ Stage: {stage_name}
         "timeout": 300,
     }
 
-def build_reviewer_meta_task(expert_manifest: dict, frozen_spec: dict, session_dir: str) -> dict:
+def build_reviewer_meta_task(expert_manifest: dict, frozen_spec: dict, session_dir: str, living_spec: dict = None) -> dict:
     """构建 Reviewer_Meta Task"""
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "reviewer_meta.md"
     system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
+    # Living Spec 优先（V3 AI Native）
+    if living_spec:
+        spec_context = living_spec.get("narrative", "") + "\n\n## REQ-ID 索引\n" + str(living_spec.get("requirement_index", []))
+    else:
+        spec_context = json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:1500]
     prompt = f"""## 输入
 ### Expert Manifest
 {json.dumps(expert_manifest, ensure_ascii=False, indent=2)[:3000]}
 
-### Frozen Spec（摘要）
-{json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:1500]}
+### Spec Context（摘要）
+{spec_context}
 
 ## 任务
 评审 Meta-Planner 的专家组合是否覆盖任务的关键风险领域。
@@ -2143,7 +2175,7 @@ def build_reviewer_meta_task(expert_manifest: dict, frozen_spec: dict, session_d
         "timeout": 300,
     }
 
-def build_reviewer_convergence_task(unified_constraints: dict, verification_checklist: dict, expert_plans: list, session_dir: str) -> dict:
+def build_reviewer_convergence_task(unified_constraints: dict, verification_checklist: dict, expert_plans: list, session_dir: str, living_spec: dict = None) -> dict:
     """构建 Reviewer_Convergence Task"""
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "reviewer_convergence.md"

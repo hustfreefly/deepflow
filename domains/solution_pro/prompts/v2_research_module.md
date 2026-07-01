@@ -43,7 +43,7 @@ bb = BlackboardManager('{session_id}')
 | 来源 | stage 名称 | 内容 |
 |------|-----------|------|
 | Planning 模块 | `planning_convergence` | 统一约束 + 验证清单 + REQ 覆盖（**必须读**） |
-| Frozen Spec | `data/frozen_spec` | 原始需求清单（**必须读**） |
+| Living/Frozen Spec | `data/living_spec`（优先）或 `data/frozen_spec` | 原始需求清单（**必须读**） |
 
 ---
 
@@ -57,7 +57,10 @@ bb = BlackboardManager('{session_id}')
 cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
-spec = bb.read_json('data/frozen_spec.json', default={})
+# 优先读取 living_spec，向后兼容 frozen_spec
+spec = bb.read_json('data/living_spec.json', default=None)
+if spec is None:
+    spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/frozen_spec.json', default={})
 reqs = spec.get('requirements', [])
 # 提取需要搜索最新信息的技术领域
 domains = set()
@@ -89,7 +92,7 @@ print(f'Total requirements: {len(reqs)}')
 **输入**：
 - `planning_convergence`（统一约束 + 验证清单）
 - `knowledge_freshness`（最新技术趋势）
-- `data/frozen_spec`（原始需求）
+- `data/living_spec`（优先）或 `data/frozen_spec`（原始需求）
 
 **Research Planner 的职责**：
 
@@ -403,6 +406,35 @@ for f in files:
   "gap_analysis_verdict": "达标/未达标"
 }
 ```
+
+---
+
+### Stage 6: 约束覆盖度 Gate（AI Native 验证）
+
+Research 完成后，spawn 一个 LLM Judge 检查 Planning 约束是否被 Research Findings 覆盖。
+
+**检查方式**（LLM-as-Judge，语义理解）：
+1. 读取 `planning_convergence` 的 unified_constraints（MUST 级约束）
+2. 读取各 Expert 的 Findings 索引中的 `Related Constraints` 字段
+3. 语义判断：每个 MUST 约束是否在至少一个 Finding 中被实质性回应（不只是提到 ID）
+4. 输出 `stages/constraint_coverage.json`：
+```json
+{
+  "total_must_constraints": N,
+  "covered": N,
+  "coverage_ratio": 0.XX,
+  "uncovered_constraints": [
+    {"constraint_id": "CON-001", "description": "...", "reason": "无 Expert 回应此约束"}
+  ],
+  "verdict": "PASS" | "FAIL"
+}
+```
+
+**判定标准**：coverage_ratio >= 0.8 → PASS
+
+**FAIL 处理**：
+- 将 uncovered_constraints 追加到 Research 报告中作为补充说明
+- 记录警告，继续执行（不重试，因为 Research 已经完成）
 
 ---
 

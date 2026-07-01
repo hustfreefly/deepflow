@@ -13,7 +13,9 @@ import logging
 import os
 import time
 import json
+import hashlib
 import threading
+from datetime import datetime
 from typing import Optional, Callable
 from pathlib import Path
 
@@ -30,15 +32,10 @@ logger = logging.getLogger(__name__)
 MODULE_TIMEOUTS = {
     "planning": 600,    # 5 min
     "research": 900,    # 15 min
-    "review_qc": 600,   # 10 min
+    "summary": 1200,    # 20 min (5+1 Phase，含并行 Analyzer)
 }
 
-# 降级行为定义 [R1-P1 采纳]
-DEGRADATION_STRATEGIES = {
-    "planning": "default_expert_manifest",     # 使用 2 个通用 expert
-    "research": "skip_with_degraded_flag",      # 跳过，标记 degraded=true
-    "review_qc": "degraded_final_convergence",  # 使用 DegradedFinalConvergenceSchema
-}
+# 降级策略已移除 — 降级 = 失败，不允许空壳数据
 
 
 class MasterOrchestrator:
@@ -68,7 +65,7 @@ class MasterOrchestrator:
         self.module_timeouts = {**MODULE_TIMEOUTS, **self.config.get("module_timeouts", {})}
         
         # 降级模块记录
-        self.degraded_modules = []
+        # 降级策略已移除 — 任何模块失败直接 raise，不产出空壳数据
         
         # Pipeline Watcher — 运行时可观测性
         try:
@@ -77,13 +74,14 @@ class MasterOrchestrator:
             logger.warning(f"Failed to initialize PipelineWatcher: {e}")
             self.watcher = None
     
-    def run(self, user_input: str, config: dict = None) -> dict:
+    def run(self, user_input: str, config: dict = None, living_spec: dict = None) -> dict:
         """
         Pipeline 主入口
         
         Args:
             user_input: 用户输入（需求描述）
             config: 配置（topic, solution_type, mode 等）
+            living_spec: Living Spec dict（V3: 唯一输入源）
         
         Returns:
             pipeline_result dict
@@ -93,6 +91,10 @@ class MasterOrchestrator:
         
         logger.info(f"Pipeline started: topic={config.get('topic', 'N/A')}")
         
+        # V3: 准备 Living Spec 输入
+        prepared_living_spec = self._prepare_input(user_input, config, living_spec)
+        self.living_spec = prepared_living_spec  # 存储到 self，供 assertion 和子模块使用
+        
         # 加载/恢复 state
         self._load_state()
         
@@ -100,7 +102,6 @@ class MasterOrchestrator:
         metrics = {
             "pipeline_start": time.time(),
             "modules": {},
-            "degraded_modules": [],
         }
         
         try:
@@ -108,7 +109,7 @@ class MasterOrchestrator:
             logger.info("[Pipeline] === Module 1/3: Planning ===")
             planning_output = self._run_module(
                 "planning",
-                lambda: self._execute_planning(user_input, config),
+                lambda: self._execute_planning(user_input, config, prepared_living_spec),
             )
             metrics["modules"]["planning"] = self._module_metrics("planning", planning_output)
             logger.info(f"[Pipeline] Planning done, completed_modules={self.state.get('completed_modules', [])}")
@@ -117,30 +118,29 @@ class MasterOrchestrator:
             logger.info("[Pipeline] === Module 2/3: Research ===")
             research_output = self._run_module(
                 "research",
-                lambda: self._execute_research(planning_output, config),
+                lambda: self._execute_research(planning_output, config, prepared_living_spec),
             )
             metrics["modules"]["research"] = self._module_metrics("research", research_output)
             logger.info(f"[Pipeline] Research done, completed_modules={self.state.get('completed_modules', [])}")
             
-            # Module 3: ReviewQC
-            logger.info("[Pipeline] === Module 3/3: ReviewQC ===")
-            review_qc_output = self._run_module(
-                "review_qc",
-                lambda: self._execute_review_qc(planning_output, research_output, config),
+            # Module 3: Summary（V3 架构设计：收敛模块）
+            logger.info("[Pipeline] === Module 3/3: Summary ===")
+            summary_output = self._run_module(
+                "summary",
+                lambda: self._execute_summary(planning_output, research_output, config, prepared_living_spec),
             )
-            metrics["modules"]["review_qc"] = self._module_metrics("review_qc", review_qc_output)
-            logger.info(f"[Pipeline] ReviewQC done, completed_modules={self.state.get('completed_modules', [])}")
+            metrics["modules"]["summary"] = self._module_metrics("summary", summary_output)
+            logger.info(f"[Pipeline] Summary done, completed_modules={self.state.get('completed_modules', [])}")
             
             # 生成最终报告
             final_report = self._generate_final_report(
-                planning_output, research_output, review_qc_output, config
+                planning_output, research_output, summary_output, config
             )
             
             # 记录 pipeline 指标
             metrics["pipeline_end"] = time.time()
             metrics["total_duration"] = metrics["pipeline_end"] - metrics["pipeline_start"]
             metrics["status"] = "COMPLETE"
-            metrics["degraded_modules"] = self.degraded_modules
             
             self._save_pipeline_metrics(metrics)
             
@@ -162,10 +162,9 @@ class MasterOrchestrator:
                 "status": "COMPLETE",
                 "planning": planning_output,
                 "research": research_output,
-                "review_qc": review_qc_output,
+                "summary": summary_output,
                 "final_report": final_report,
                 "metrics": metrics,
-                "degraded_modules": self.degraded_modules,
             }
             
         except PipelineError as e:
@@ -245,18 +244,9 @@ class MasterOrchestrator:
                     self.watcher.on_module_timeout(module_name, timeout)
             except Exception as e:
                 logger.warning(f"[Watcher] on_module_timeout failed: {e}")
-            # 超时 → 降级
-            logger.warning(f"[Module:{module_name}] timed out after {timeout}s, applying degradation")
-            degraded = self._apply_degradation(module_name)
-            # Watcher: module degraded
-            try:
-                if self.watcher:
-                    self.watcher.on_module_degraded(module_name, f"timeout after {timeout}s")
-            except Exception as e:
-                logger.warning(f"[Watcher] on_module_degraded failed: {e}")
-            self._mark_module_completed(module_name)
-            logger.info(f"[Module:{module_name}] degradation applied and marked completed")
-            return degraded
+            # 超时 = 失败，不降级
+            logger.error(f"[Module:{module_name}] timed out after {timeout}s — FAILING (no degradation)")
+            raise ModuleTimeoutError(module_name, timeout)
             
         except Exception as e:
             # Watcher: module failed
@@ -265,82 +255,298 @@ class MasterOrchestrator:
                     self.watcher.on_module_failed(module_name, e)
             except Exception as w_err:
                 logger.warning(f"[Watcher] on_module_failed failed: {w_err}")
-            # 其他错误 → 尝试降级
+            # 异常 = 失败，不降级
             logger.error(f"[Module:{module_name}] failed with exception: {e}", exc_info=True)
-            degradation = DEGRADATION_STRATEGIES.get(module_name)
-            if degradation:
-                logger.warning(f"[Module:{module_name}] applying degradation '{degradation}'")
-                degraded = self._apply_degradation(module_name)
-                # Watcher: module degraded (after exception)
-                try:
-                    if self.watcher:
-                        self.watcher.on_module_degraded(module_name, str(e))
-                except Exception as w_err:
-                    logger.warning(f"[Watcher] on_module_degraded failed: {w_err}")
-                self._mark_module_completed(module_name)
-                logger.info(f"[Module:{module_name}] degradation applied and marked completed")
-                return degraded
-            logger.error(f"[Module:{module_name}] no degradation strategy, raising ModuleFailureError")
             raise ModuleFailureError(module_name, "unknown", e)
     
-    def _execute_planning(self, user_input: str, config: dict) -> dict:
+    def _prepare_input(self, user_input: str, config: dict, living_spec: dict = None) -> dict:
+        """
+        V3: 准备 Living Spec 输入
+
+        如果有 living_spec，直接用它（写入 blackboard 的 data/living_spec.json）
+        如果没有，从 user_input + config 构造一个最小 Living Spec
+
+        Args:
+            user_input: 用户输入
+            config: 配置
+            living_spec: 外部传入的 Living Spec
+
+        Returns:
+            准备好的 Living Spec dict
+        """
+        if living_spec:
+            # V3: 有 living_spec，直接使用 + 快照机制
+            logger.info("[V3] Using provided living_spec as primary input")
+            try:
+                self.blackboard.write("data/living_spec.json", living_spec)
+            except Exception as e:
+                logger.warning(f"Failed to write living_spec.json: {e}")
+            # 快照机制：计算 hash + 写入 snapshot
+            try:
+                snapshot = json.loads(json.dumps(living_spec))  # deep copy
+                snapshot_hash = hashlib.sha256(
+                    json.dumps(living_spec, sort_keys=True, ensure_ascii=False).encode()
+                ).hexdigest()[:16]
+                snapshot["_snapshot_hash"] = snapshot_hash
+                snapshot["_snapshot_at"] = datetime.now().isoformat()
+                self.blackboard.write("data/living_spec_snapshot.json", snapshot)
+                logger.info(f"[V3] Living spec snapshot created: hash={snapshot_hash}")
+            except Exception as e:
+                logger.warning(f"Failed to create living_spec snapshot: {e}")
+
+            # Living Spec 质量验证 (Devil's Advocate CRITICAL)
+            spec_validation = self._validate_living_spec(living_spec)
+            if not spec_validation["valid"]:
+                logger.error(f"Living Spec validation failed: {spec_validation['issues']}")
+            if spec_validation["issues"]:
+                for issue in spec_validation["issues"]:
+                    logger.warning(f"Living Spec issue: [{issue['severity']}] {issue['type']}: {issue['detail']}")
+            if spec_validation["conflicts"]:
+                for conflict in spec_validation["conflicts"]:
+                    logger.warning(f"Living Spec conflict: {conflict['type']}: {conflict['detail']}")
+            # 写入 blackboard 供审计
+            self.blackboard.write("data/living_spec_validation.json", spec_validation)
+
+            return living_spec
+
+        # V3 fallback: 从 user_input + config 构造最小 Living Spec
+        logger.info("[V3] No living_spec provided, constructing minimal living_spec from user_input + config")
+        topic = config.get("topic", user_input or "Unknown")
+        minimal_living_spec = {
+            "meta": {
+                "engine": "spec_pro",
+                "version": "2.1",
+                "spec_version": 1,
+                "scenario": "genesis",
+                "mode": config.get("mode", "standard"),
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+                "conversation_rounds": 0,
+                "quality_score": 0,
+                "quality_level": "C",
+            },
+            "confirmed": {
+                "objective": topic,
+                "pain_points": [],
+                "success_metrics": [],
+                "users": [],
+                "key_scenarios": [],
+                "capabilities": {
+                    "always_do": [],
+                    "should_do": [],
+                    "never_do": [],
+                },
+                "quality_attributes": [],
+                "constraints": config.get("constraints", {}),
+                "integration": {},
+                "risks_and_assumptions": {
+                    "risks": [],
+                    "assumptions": [],
+                    "dependencies": [],
+                },
+                "terms": [],
+                "user_directives": [],
+            },
+            "inferred": [],
+            "guardrails": None,
+            "solution_pro_hints": None,
+            "route_recommendation": None,
+            "narrative": user_input or topic,
+            "requirement_index": [],
+        }
+
+        # 尝试从 living_spec 生成 requirement_index
+        try:
+            from domains.solution_pro.frozen_spec import generate_requirement_index
+            minimal_living_spec["requirement_index"] = generate_requirement_index(minimal_living_spec)
+        except Exception as e:
+            logger.warning(f"Failed to generate requirement_index: {e}")
+
+        try:
+            self.blackboard.write("data/living_spec.json", minimal_living_spec)
+        except Exception as e:
+            logger.warning(f"Failed to write minimal living_spec.json: {e}")
+
+        # 快照机制：同样为构造的 living_spec 创建快照
+        try:
+            snapshot = json.loads(json.dumps(minimal_living_spec))  # deep copy
+            snapshot_hash = hashlib.sha256(
+                json.dumps(minimal_living_spec, sort_keys=True, ensure_ascii=False).encode()
+            ).hexdigest()[:16]
+            snapshot["_snapshot_hash"] = snapshot_hash
+            snapshot["_snapshot_at"] = datetime.now().isoformat()
+            self.blackboard.write("data/living_spec_snapshot.json", snapshot)
+            logger.info(f"[V3] Minimal living spec snapshot created: hash={snapshot_hash}")
+        except Exception as e:
+            logger.warning(f"Failed to create minimal living_spec snapshot: {e}")
+
+        # Living Spec 质量验证 (Devil's Advocate CRITICAL)
+        spec_validation = self._validate_living_spec(minimal_living_spec)
+        if not spec_validation["valid"]:
+            logger.error(f"Living Spec validation failed: {spec_validation['issues']}")
+        if spec_validation["issues"]:
+            for issue in spec_validation["issues"]:
+                logger.warning(f"Living Spec issue: [{issue['severity']}] {issue['type']}: {issue['detail']}")
+        if spec_validation["conflicts"]:
+            for conflict in spec_validation["conflicts"]:
+                logger.warning(f"Living Spec conflict: {conflict['type']}: {conflict['detail']}")
+        # 写入 blackboard 供审计
+        self.blackboard.write("data/living_spec_validation.json", spec_validation)
+
+        return minimal_living_spec
+
+    def _validate_living_spec(self, living_spec: dict) -> dict:
+        """验证 Living Spec 质量（确定性检查 + 冲突检测）
+
+        AI Native: 代码做存在性检查，语义质量由上游 Spec Pro 保证。
+        冲突解决策略：requirement_index 是权威源，narrative 是辅助理解。
+        """
+        issues = []
+        narrative = living_spec.get("narrative", "")
+        req_index = living_spec.get("requirement_index", [])
+
+        # 1. narrative 存在性检查
+        if not narrative or len(narrative.strip()) < 50:
+            issues.append({
+                "type": "narrative_too_short",
+                "detail": f"narrative 长度 {len(narrative)} 字符，最低要求 50 字符",
+                "severity": "WARNING",
+            })
+
+        # 2. requirement_index 存在性检查
+        if not req_index:
+            issues.append({
+                "type": "requirement_index_empty",
+                "detail": "requirement_index 为空，无法进行 REQ-ID 追溯",
+                "severity": "WARNING",
+            })
+
+        # 3. 冲突检测：narrative 中的关键概念是否在 requirement_index 中有对应
+        conflicts = []
+        if narrative and req_index:
+            req_titles = [r.get("title", "") for r in req_index if isinstance(r, dict)]
+            mentioned = sum(1 for t in req_titles if t and t.lower() in narrative.lower())
+            if req_titles and mentioned == 0:
+                conflicts.append({
+                    "type": "narrative_index_disconnected",
+                    "detail": f"narrative 没有提到 requirement_index 中的任何标题 ({len(req_titles)} 个)",
+                    "severity": "WARNING",
+                })
+
+        # 4. core_summary 检查
+        core_summary = living_spec.get("core_summary", "")
+        if not core_summary and narrative and len(narrative) > 5000:
+            issues.append({
+                "type": "missing_core_summary",
+                "detail": "narrative 超过 5KB 但没有 core_summary，下游 Agent 将面临 token 开销",
+                "severity": "INFO",
+            })
+
+        return {
+            "valid": len([i for i in issues if i["severity"] == "ERROR"]) == 0,
+            "issues": issues,
+            "conflicts": conflicts,
+            "conflict_resolution": {
+                "authority": "requirement_index",
+                "narrative_role": "auxiliary_context",
+                "policy": "当 narrative 与 requirement_index 不一致时，以 requirement_index 为准",
+            },
+        }
+
+    def _get_living_spec_snapshot(self) -> dict:
+        """获取 living_spec 快照（优先 snapshot，fallback 到 living_spec.json）"""
+        try:
+            snapshot = self.blackboard.read_json("data/living_spec_snapshot.json")
+            if snapshot and isinstance(snapshot, dict):
+                return snapshot
+        except Exception:
+            pass
+        try:
+            return self.blackboard.read_json("data/living_spec.json")
+        except Exception:
+            return None
+
+    def _execute_planning(self, user_input: str, config: dict, living_spec: dict = None) -> dict:
         """执行 Planning 模块"""
         from domains.solution_pro.planning_orchestrator import PlanningOrchestrator
-        
+
         orchestrator = PlanningOrchestrator(
             session_id=self.blackboard.session_id,
             spawn_fn=self.spawn_fn,
             base_dir=str(self.blackboard.session_dir.parent),
         )
-        
-        # 构造 frozen_spec 和 structured_requirements
-        frozen_spec = self._build_frozen_spec(user_input, config)
+
+        # V3: 使用 snapshot（保证一致性）
+        snapshot = self._get_living_spec_snapshot()
+        effective_living_spec = snapshot if snapshot else living_spec
+
+        # 向后兼容 assertion (Arch-P1): living_spec 存在时禁止读取 frozen_spec 非索引字段
+        if living_spec:
+            assert self.living_spec is not None, "living_spec 已传入但 self.living_spec 为 None"
+
+        # V3: 传递 living_spec（优先）+ 兼容旧的 frozen_spec
+        frozen_spec = self._build_frozen_spec(user_input, config, effective_living_spec)
         structured_requirements = self._build_structured_requirements(user_input, config)
-        
+
         return orchestrator.run(
             frozen_spec=frozen_spec,
             structured_requirements=structured_requirements,
             spawn_fn=self.spawn_fn,
+            living_spec=effective_living_spec,
         )
-    
-    def _execute_research(self, planning_output: dict, config: dict) -> dict:
+
+    def _execute_research(self, planning_output: dict, config: dict, living_spec: dict = None) -> dict:
         """执行 Research 模块"""
         from domains.solution_pro.research_orchestrator import ResearchOrchestrator
-        
+
         orchestrator = ResearchOrchestrator(
             session_id=self.blackboard.session_id,
             spawn_fn=self.spawn_fn,
             base_dir=str(self.blackboard.session_dir.parent),
         )
-        
-        frozen_spec = self._build_frozen_spec("", config)
-        
+
+        # V3: 使用 snapshot（保证一致性）
+        snapshot = self._get_living_spec_snapshot()
+        effective_living_spec = snapshot if snapshot else living_spec
+
+        # 向后兼容 assertion (Arch-P1): living_spec 存在时确保优先使用
+        if living_spec:
+            assert self.living_spec is not None, "living_spec 已传入但 self.living_spec 为 None"
+
+        frozen_spec = self._build_frozen_spec("", config, effective_living_spec)
+
         return orchestrator.run(
             frozen_spec=frozen_spec,
             planning_output=planning_output,
             spawn_fn=self.spawn_fn,
+            living_spec=effective_living_spec,
         )
-    
-    def _execute_review_qc(self, planning_output: dict, research_output: dict, config: dict) -> dict:
-        """执行 ReviewQC 模块"""
-        from domains.solution_pro.review_qc_orchestrator import ReviewQCOrchestrator
-        
-        orchestrator = ReviewQCOrchestrator(
+
+    def _execute_summary(self, planning_output: dict, research_output: dict, config: dict, living_spec: dict = None) -> dict:
+        """执行 Summary 模块（V3 收敛模块，5+1 Phase）"""
+        from domains.solution_pro.summary_orchestrator import SummaryOrchestrator
+
+        orchestrator = SummaryOrchestrator(
             session_id=self.blackboard.session_id,
             spawn_fn=self.spawn_fn,
             base_dir=str(self.blackboard.session_dir.parent),
         )
-        
-        frozen_spec = self._build_frozen_spec("", config)
-        
+
+        # V3: 使用 snapshot（保证一致性）
+        snapshot = self._get_living_spec_snapshot()
+        effective_living_spec = snapshot if snapshot else living_spec
+
+        frozen_spec = self._build_frozen_spec("", config, effective_living_spec)
+
         return orchestrator.run(
             frozen_spec=frozen_spec,
             planning_output=planning_output,
             research_output=research_output,
             spawn_fn=self.spawn_fn,
+            living_spec=effective_living_spec,
         )
     
-    def _generate_final_report(self, planning, research, review_qc, config) -> dict:
+    def _generate_final_report(self, planning, research, summary, config) -> dict:
         """
         生成最终报告
         
@@ -351,8 +557,7 @@ class MasterOrchestrator:
             "solution_type": config.get("solution_type", "architecture"),
             "planning_summary": self._summarize_planning(planning),
             "research_summary": self._summarize_research(research),
-            "quality_assessment": self._summarize_review_qc(review_qc),
-            "degraded_modules": self.degraded_modules,
+            "quality_assessment": self._summarize_summary(summary),
             "generated_at": time.time(),
         }
     
@@ -430,52 +635,29 @@ class MasterOrchestrator:
         
         return result[0]
     
-    # === 降级策略 ===
-    
-    def _apply_degradation(self, module_name: str) -> dict:
-        """应用模块降级策略"""
-        strategy = DEGRADATION_STRATEGIES.get(module_name, "skip")
-        self.degraded_modules.append(module_name)
-        
-        logger.warning(f"Applying degradation '{strategy}' for module '{module_name}'")
-        
-        if module_name == "planning":
-            # 默认 ExpertManifest（2 个通用 expert）
-            return {
-                "schema_version": "degraded_planning_v1",
-                "status": "DEGRADED",
-                "experts": [
-                    {"expert_name": "general_architect", "domain": "general"},
-                    {"expert_name": "security_reviewer", "domain": "security"},
-                ],
-                "unified_constraints": {"constraints": []},
-                "verification_checklist": {"items": []},
-            }
-        elif module_name == "research":
-            return {
-                "schema_version": "degraded_research_v1",
-                "status": "DEGRADED",
-                "degradation_flag": True,
-                "findings": [],
-                "sources": [],
-            }
-        elif module_name == "review_qc":
-            return {
-                "schema_version": "degraded_final_v1",
-                "status": "DEGRADED",
-                "degradation_flag": True,
-                "degradation_reason": f"Module '{module_name}' failed or timed out",
-                "partial_results": [],
-                "quality_scores": {"degraded": True, "score": 0.0},
-                "fix_loop_summary": {"abort_round": 0, "failure_diagnosis": "timeout or error"},
-            }
-        
-        return {"status": "DEGRADED", "module": module_name}
+    # === 降级策略已移除 ===
+    # 原则：降级 = 失败。任何模块超时或异常，直接 raise，不产出空壳数据。
     
     # === 辅助方法 ===
     
-    def _build_frozen_spec(self, user_input: str, config: dict) -> dict:
-        """构建 Frozen Spec"""
+    def _build_frozen_spec(self, user_input: str, config: dict, living_spec: dict = None) -> dict:
+        """
+        构建 Frozen Spec
+
+        V3 DEPRECATED: 此方法保留仅为向后兼容。
+        内部改为从 living_spec 提取 REQ-ID index。
+        新代码应直接使用 living_spec。
+        """
+        if living_spec:
+            # V3: 从 living_spec 构建 frozen_spec（通过 frozen_spec.py）
+            try:
+                from domains.solution_pro.frozen_spec import build_frozen_spec as _build_fs
+                topic = config.get("topic", user_input) or living_spec.get("confirmed", {}).get("objective", "")
+                return _build_fs(topic, config.get("constraints", []), living_spec)
+            except Exception as e:
+                logger.warning(f"Failed to build frozen_spec from living_spec: {e}")
+
+        # Fallback: 旧逻辑
         return {
             "topic": config.get("topic", user_input),
             "solution_type": config.get("solution_type", "architecture"),
@@ -517,15 +699,16 @@ class MasterOrchestrator:
             "degraded": research_output.get("degradation_flag", False),
         }
     
-    def _summarize_review_qc(self, review_qc_output) -> dict:
-        """摘要 ReviewQC 输出（健壮版）"""
-        if not isinstance(review_qc_output, dict):
-            return {"verdict": "UNKNOWN", "quality_score": 0.0, "fix_rounds": 0, "degraded": True}
+    def _summarize_summary(self, summary_output) -> dict:
+        """摘要 Summary 输出（健壮版）"""
+        if not isinstance(summary_output, dict):
+            return {"verdict": "UNKNOWN", "schema_version": "?", "degraded": True}
         return {
-            "verdict": review_qc_output.get("final_verdict", "UNKNOWN"),
-            "quality_score": review_qc_output.get("quality_score", 0.0),
-            "fix_rounds": review_qc_output.get("fix_loop_summary", {}).get("rounds", 0),
-            "degraded": review_qc_output.get("degradation_flag", False),
+            "schema_version": summary_output.get("schema_version", "?"),
+            "constraint_coverage": summary_output.get("constraint_coverage", {}),
+            "verification_status": summary_output.get("verification_status", {}),
+            "document_ref": summary_output.get("document_ref", ""),
+            "degraded": summary_output.get("status") == "DEGRADED",
         }
     
     def _module_metrics(self, module_name: str, output) -> dict:

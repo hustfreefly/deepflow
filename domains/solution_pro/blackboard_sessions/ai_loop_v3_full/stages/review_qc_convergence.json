@@ -1,0 +1,15 @@
+{
+  "schema_version": "review_qc_v2.0",
+  "module": "review_qc",
+  "status": "COMPLETE",
+  "fix_loop_summary": {
+    "rounds": 0,
+    "status": "PASS"
+  },
+  "harness_summary": {
+    "status": "PASS",
+    "score": 0.0
+  },
+  "final_verdict": "FAIL",
+  "quality_score": 0.0
+}

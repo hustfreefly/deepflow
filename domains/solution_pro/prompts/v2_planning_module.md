@@ -42,7 +42,7 @@ bb = BlackboardManager('{session_id}')
 
 | 来源 | stage 名称 | 内容 |
 |------|-----------|------|
-| Frozen Spec | `data/frozen_spec` | 原始需求清单（**必须读**） |
+| Living Spec | `data/living_spec`（优先）或 `data/frozen_spec`（向后兼容） | 原始需求清单（**必须读**） |
 
 **Planning 是第一个模块，没有上游模块依赖。**
 
@@ -80,11 +80,11 @@ sessions_yield 返回后：
 **执行方式**：不需要 spawn 独立 Agent，在 Module Agent 内直接用 web_search 完成，然后写入 stage。
 
 ```python
-# 先读取 frozen_spec 确定搜索方向
+# 先读取 living_spec（优先）或 frozen_spec 确定搜索方向
 cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
-spec = bb.read_json('data/frozen_spec.json', default={})
+spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/frozen_spec.json', default={})
 reqs = spec.get('requirements', [])
 p0_reqs = [r for r in reqs if r.get('priority','').startswith('P0')]
 print(f'P0 requirements: {len(p0_reqs)}')
@@ -106,7 +106,7 @@ bb.write_stage('knowledge_freshness', knowledge_freshness_markdown)
 
 **输入**：
 - `knowledge_freshness`（Phase 0 产出）
-- `data/frozen_spec`（原始需求）
+- `data/living_spec`（优先）或 `data/frozen_spec`（原始需求）
 
 **执行方式**：spawn 一个 Planning Planner agent。
 
@@ -237,7 +237,7 @@ for f in files:
 
 #### 3a. Gap Analyst（web_search 验证，查缺补漏）
 
-**输入**：所有 Expert 的 markdown 报告 + planning_plan + frozen_spec
+**输入**：所有 Expert 的 markdown 报告 + planning_plan + living_spec（或 frozen_spec）
 
 **🔴 关键能力：Gap Analyst 可以使用 web_search 来验证 Expert 的约束声明。**
 - 发现 Expert 的约束缺少 rationale → 搜索验证其因果关系
@@ -468,7 +468,7 @@ cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
 - `gap_analysis`（Gap Analyst 报告）
 - `devil_advocate`（Devil's Advocate 报告）
 - `planning_plan`（质量计划）
-- `data/frozen_spec.json`（原始需求）
+- `data/living_spec.json`（优先）或 `data/frozen_spec.json`（原始需求）
 
 ## 提取规则
 
@@ -601,7 +601,7 @@ bb.write_stage('planning_completed', {
 ## ⚠️ 关键规则
 
 1. **Expert 输出是 markdown，不是 JSON** — 约束信息不被格式削掉
-2. **Planning 是第一个模块** — 没有上游依赖，只读 frozen_spec
+2. **Planning 是第一个模块** — 没有上游依赖，读 living_spec（或 frozen_spec）
 3. **Phase 5 做结构化提取** — 从 markdown 中提取 unified_constraints JSON，不是原文照搬
 4. **Planning Planner 动态决定专家** — 不预设固定列表
 5. **最多 1 轮补充研究** — 避免无限循环

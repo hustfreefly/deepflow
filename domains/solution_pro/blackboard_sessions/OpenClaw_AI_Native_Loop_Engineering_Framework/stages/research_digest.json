@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0.0-degraded",
+  "total_findings": 0,
+  "high_relevance_count": 0,
+  "expert_summaries": {
+    "architecture_expert": "",
+    "generalist_expert": ""
+  },
+  "findings_index": [],
+  "conflicts": [],
+  "degraded": true,
+  "degradation_reason": "Expert format compliance < 50%"
+}

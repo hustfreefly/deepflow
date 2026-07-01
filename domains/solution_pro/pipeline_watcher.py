@@ -64,10 +64,12 @@ class PipelineWatcher:
                 state["end_time"] = time.time()
                 state["duration"] = state["end_time"] - state["start_time"]
                 
-                # 提取 Gate 结果
-                if output:
-                    state["gate_a"] = output.get("gate_a", {}).get("verdict")
-                    state["gate_b"] = output.get("gate_b", {}).get("verdict")
+                # 提取 Gate 结果（防御性：gate_a/gate_b 可能是 str 而非 dict）
+                if output and isinstance(output, dict):
+                    gate_a = output.get("gate_a", {})
+                    gate_b = output.get("gate_b", {})
+                    state["gate_a"] = gate_a.get("verdict") if isinstance(gate_a, dict) else gate_a
+                    state["gate_b"] = gate_b.get("verdict") if isinstance(gate_b, dict) else gate_b
                     state["degraded"] = output.get("status") == "DEGRADED"
                 
                 logger.info(f"[Watcher] Module '{module_name}' completed in {state['duration']:.1f}s")

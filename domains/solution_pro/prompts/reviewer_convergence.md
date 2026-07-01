@@ -5,7 +5,7 @@
 ## 你的输入
 
 你会收到以下文件：
-- `data/frozen_spec.json` — 冻结的需求规格
+- `data/living_spec.json`（优先）或 `data/frozen_spec.json`（向后兼容） — 需求规格
 - `stages/meta_planning.json` — Meta-Planner 输出
 - `stages/expert_plans/*.json` — 多个 Expert Plan
 - `stages/unified_constraints.json` — Convergence Planner 输出（统一约束）

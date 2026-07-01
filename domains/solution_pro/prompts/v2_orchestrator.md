@@ -66,7 +66,10 @@ from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('openclaw_loop_framework_solution_0353482b')
 import json
 
-spec = bb.read_json('data/frozen_spec.json', default=None)
+# 优先读取 living_spec，向后兼容 frozen_spec
+spec = bb.read_json('data/living_spec.json', default=None)
+if spec is None:
+    spec = bb.read_json('data/living_spec.json', default=None) or bb.read_json('data/frozen_spec.json', default=None)
 if spec:
     print(f'FROZEN_SPEC_OK: {len(spec.get(\"requirements\", []))} requirements')
 else:

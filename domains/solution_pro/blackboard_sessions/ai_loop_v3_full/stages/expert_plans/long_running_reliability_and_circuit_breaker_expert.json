@@ -1,0 +1,211 @@
+{
+  "schema_version": "2.0",
+  "expert_name": "long_running_reliability_and_circuit_breaker_expert",
+  "domain": "8h+ unattended autonomous operation reliability and circuit breaking",
+  "constraints": [
+    {
+      "constraint_id": "long_running_reliability_and_circuit_breaker_expert-C01",
+      "description": "死循环熔断机制必须基于客观进展度量，不能依赖LLM自我判断是否陷入循环（运动员不等于裁判原则）。进展度量必须使用可量化、可观测的指标（如文件变更hash、测试通过率、任务DAG完成节点数），而非LLM主观评估'我是否在进步'。",
+      "category": "circuit_breaker",
+      "priority": "MUST",
+      "rationale": "REQ-047明确指出LLM陷入无效循环是high/medium风险。如果熔断检测依赖LLM自我判断，则陷入循环的LLM同样会判断自己'没有陷入循环'，熔断形同虚设。必须用独立的、确定性的观测指标。",
+      "verification_method": "审查方案中熔断触发条件的定义：是否存在不依赖LLM主观判断的客观度量？是否定义了'无进展'的具体计算方式（如连续N次迭代输出hash相同/任务DAG完成节点数未增加/文件变更集为空）？",
+      "covered_req_ids": [
+        "REQ-006",
+        "REQ-035"
+      ]
+    },
+    {
+      "constraint_id": "long_running_reliability_and_circuit_breaker_expert-C02",
+      "description": "熔断机制不得在正常慢速任务上误触发。进展度量必须区分'无进展'和'慢速进展'：对于已知长耗时任务（如大型代码重构、多轮Review迭代），应允许配置per-task的进展阈值和超时窗口，而非全局统一阈值。",
+      "category": "circuit_breaker",
+      "priority": "MUST",
+      "rationale": "8h+运行中必然包含不同耗时的任务。如果全局统一阈值过短，正常慢速任务会被误熔断；如果过长，真正死循环会浪费数小时。必须支持per-task或per-phase的自适应阈值。",
+      "verification_method": "审查方案中是否支持per-task/per-phase的超时配置？是否有'任务复杂度预估→动态调整阈值'的机制？是否记录了误熔断和漏熔断的历史数据供Meta-Loop优化？",
+      "covered_req_ids": [
+        "REQ-035",
+        "REQ-036"
+      ]
+    },
+    {
+      "constraint_id": "long_running_reliability_and_circuit_breaker_expert-C03",
+      "description": "Worker失败处理链必须覆盖完整的决策树：自动分析(根因分类) → 重试(同工具,带修正prompt) → 切换工具(Codex↔Claude Code) → 降级(简化任务粒度) → 上报(通知用户)。每一跳必须有明确的触发条件和超时限制，整条链的总耗时不超过该任务分配时间的2倍。",
+      "category": "failure_recovery",
+      "priority": "MUST",
+      "rationale": "REQ-006要求子Agent失败时自动分析/重试/切换/上报。Living Spec已定义决策树分支（超时→拆分、测试失败→重试、能力不足→切换、信息不足→请求Hermes、方向错误→重新规划、三次失败→通知用户）。但缺少每跳的超时限制和总耗时上限，可能导致失败恢复本身成为无限循环。",
+      "verification_method": "审查方案中失败决策树的每一条分支是否都有：(1)明确的触发条件，(2)单次超时限制，(3)总耗时上限。是否定义了'三次失败'的计数窗口（是累计还是滑动窗口）？",
+      "covered_req_ids": [
+        "REQ-006"
+      ]
+    },
+    {
+      "constraint_id": "long_running_reliability_and_circuit_breaker_expert-C04",
+      "description": "API故障容错策略必须实现分级降级，而非全有或全无。降级梯度：(1)主模型超时→同provider备用模型→备用provider→降低输出质量要求( shorter max_tokens)→暂停等待(指数退避)。降级过程中不得出现质量断崖（从高质量直接跳到不可用），每级降级必须有可接受的质量下限。",
+      "category": "api_fault_tolerance",
+      "priority": "MUST",
+      "rationale": "REQ-049识别了长时间执行中模型API不可用或超时的风险。8h+运行中API中断是大概率事件（模型provider维护、网络波动、rate limit）。如果没有分级降级，API中断直接导致整个Loop暂停，无法满足8h自主运行要求。",
+      "verification_method": "审查方案中是否定义了至少3级API降级梯度？每级降级是否有明确的触发条件（如连续N次超时、HTTP状态码）？降级后是否有质量验证确保输出仍可接受？",
+      "covered_req_ids": [
+        "REQ-035"
+      ]
+    },
+    {
+      "constraint_id": "long_running_reliability_and_circuit_breaker_expert-C05",
+      "description": "通知策略必须实现频率控制：常规进度推送严格≤1次/小时（心跳slow_pulse），关键事件通知需定义明确的'关键事件'清单（如：任务DAG完成、熔断触发、需要人类决策的阻塞、质量门控失败超过阈值）。非关键事件不得触发即时通知，应聚合到下一次常规推送中。",
+      "category": "notification",
+      "priority": "MUST",
+      "rationale": "REQ-015明确要求'不频繁打扰用户（最多每小时一次+关键事件）'。如果'关键事件'定义过宽，通知频率会失控；如果过窄，用户可能错过需要干预的时刻。必须有明确的'关键事件'清单，且清单可配置。",
+      "verification_method": "审查方案中是否定义了'关键事件'的完整清单？是否有通知去重/聚合机制？是否有'免打扰时段'配置（如夜间静默非紧急通知）？是否记录了通知历史用于Meta-Loop优化频率？",
+      "covered_req_ids": [
+        "REQ-003",
+        "REQ-015"
+      ]
+    },
+    {
+      "constraint_id": "long_running_reliability_and_circuit_breaker_expert-C06",
+      "description": "Token预算管理必须实现'默认不限制+统计记录+可配置上限'三层机制。统计粒度应至少到per-task和per-Loop层级，支持实时查询当前消耗。当配置了上限时，应在达到80%时发出预警通知，达到100%时优雅暂停（保存当前状态到checkpoint）而非硬截断。",
+      "category": "resource_management",
+      "priority": "SHOULD",
+      "rationale": "Living Spec明确'默认不限制token消耗（可配置上限）'。但8h+运行中如果不做统计，用户无法知道成本；如果上限截断太粗暴，会丢失已完成的工作。需要优雅的成本控制机制。",
+      "verification_method": "审查方案中是否有token消耗的实时统计（per-task/per-Loop）？是否有80%预警机制？达到上限时是否保存checkpoint？是否支持动态调整上限（运行中修改）？",
+      "covered_req_ids": [
+        "REQ-035"
+      ]
+    },
+    {
+      "constraint_id": "long_running_reliability_and_circuit_breaker_expert-C07",
+      "description": "资源泄漏防护必须覆盖8h+运行中的三类累积问题：(1)文件句柄：所有通过exec打开的进程必须有超时kill机制，禁止无限等待的子进程；(2)内存：history.jsonl等追加写入文件必须有大小上限（如100MB），超过后自动rotate；(3)临时文件：所有临时文件必须写入指定tmp目录，Loop结束或熔断时自动清理。",
+      "category": "resource_management",
+      "priority": "SHOULD",
+      "rationale": "8h+连续运行中，资源泄漏是渐进式故障。单个泄漏可能无害，但8小时累积可能导致磁盘满、文件描述符耗尽、内存膨胀。这类故障难以在短期测试中发现，必须在架构层面预防。",
+      "verification_method": "审查方案中是否有进程超时kill机制？history.jsonl等追加文件是否有rotate策略？临时文件是否有清理机制？是否有资源使用监控（磁盘/内存/文件描述符数量）？",
+      "covered_req_ids": [
+        "REQ-035"
+      ]
+    },
+    {
+      "constraint_id": "long_running_reliability_and_circuit_breaker_expert-C08",
+      "description": "熔断后的恢复路径必须明确定义：熔断触发后，系统应保存完整的熔断快照（当前任务状态、已完成的DAG节点、失败原因链、资源使用统计），通知用户后进入等待状态。用户干预后，必须能从快照恢复到熔断前的最近一致状态，而非从头开始。恢复后熔断计数器重置，但历史记录保留供Meta-Loop分析。",
+      "category": "circuit_breaker",
+      "priority": "MUST",
+      "rationale": "熔断本身不是目的，熔断后能恢复继续才是目标。如果熔断后必须从头开始，8h运行中一次熔断就意味着数小时工作丢失，用户体验极差。必须与state_persistence专家协作确保快照完整性。",
+      "verification_method": "审查方案中熔断快照是否包含足够信息用于恢复？恢复后是否能从最近checkpoint续跑？熔断计数器是否正确重置？历史熔断记录是否持久化供分析？",
+      "covered_req_ids": [
+        "REQ-006",
+        "REQ-035"
+      ]
+    },
+    {
+      "constraint_id": "long_running_reliability_and_circuit_breaker_expert-C09",
+      "description": "心跳机制（fast_pulse 3min / slow_pulse 1h）本身必须有健康检测：如果心跳连续N次未执行（如Session意外终止、cron未触发），必须有独立的看门狗机制检测'心跳停止'并通知用户。心跳不能是'自己监控自己'。",
+      "category": "reliability",
+      "priority": "SHOULD",
+      "rationale": "心跳是8h+运行的生命线。但如果心跳机制本身失效（Session崩溃、cron配置错误），没有独立的看门狗，系统会静默死亡，用户可能数小时后才发现。",
+      "verification_method": "审查方案中心跳健康检测是否独立于被监控的心跳？（如：用外部cron监控主Loop的heartbeat文件最后更新时间）。是否有'心跳超时'的告警机制？",
+      "covered_req_ids": [
+        "REQ-035"
+      ]
+    },
+    {
+      "constraint_id": "long_running_reliability_and_circuit_breaker_expert-C10",
+      "description": "所有可靠性参数（熔断阈值、重试次数、超时时间、通知频率、token上限等）必须存储在Zone 2可配置区域，支持Meta-Loop动态调优和运行时热更新，无需重启Loop。参数变更必须记录到changelog并通知用户（如果变更幅度超过±50%）。",
+      "category": "reliability",
+      "priority": "SHOULD",
+      "rationale": "Living Spec将超时时间、重试次数等列为Zone 2可自由调整参数。Meta-Loop需要根据历史表现动态调优这些参数。如果参数修改需要重启Loop，则8h运行中的调优会中断当前任务。",
+      "verification_method": "审查方案中可靠性参数是否集中管理？是否支持运行时热更新？参数变更是否有changelog记录？大幅变更是否有用户通知？",
+      "covered_req_ids": [
+        "REQ-035"
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "risk_id": "long_running_reliability_and_circuit_breaker_expert-R01",
+      "description": "熔断机制在正常慢速任务上误触发，导致已完成的工作被丢弃或任务被错误标记为'无进展'。特别是对于需要大量思考/调研的任务（如架构设计、竞品分析），文件变更可能很少但LLM实际在深度思考。",
+      "severity": "HIGH",
+      "mitigation": "实现多维度进展度量：不仅看文件变更，还要看LLM输出内容的语义变化（如task_dag完成节点数、history.jsonl中新条目的内容多样性）。支持per-task的'预期耗时'配置，对已知长耗时任务放宽阈值。引入'心跳确认'机制：即使无产出，LLM定期报告'我正在处理X，当前进展Y'。"
+    },
+    {
+      "risk_id": "long_running_reliability_and_circuit_breaker_expert-R02",
+      "description": "API降级策略导致质量断崖：从高质量模型降级到低质量模型后，输出质量大幅下降，但任务仍'完成'了（形式上），最终交付质量不达标。用户8小时后收到的结果质量低劣，但系统认为任务成功。",
+      "severity": "HIGH",
+      "mitigation": "每级降级后必须执行质量门控验证（调用quality_gate专家的质量检查）。降级后的输出必须标记'降级产出'标签，在最终交付时向用户透明披露哪些任务是在降级状态下完成的。设置质量下限：如果降级后输出无法通过基本质量检查，宁可暂停等待API恢复也不交付低质量结果。"
+    },
+    {
+      "risk_id": "long_running_reliability_and_circuit_breaker_expert-R03",
+      "description": "Worker失败处理链中的'切换工具'分支（Codex→Claude Code）可能引入不一致的输出风格或接口格式，导致下游任务无法正确消费上游产出。工具切换时如果输出格式不兼容，会产生隐性错误。",
+      "severity": "MEDIUM",
+      "mitigation": "定义标准的Worker输出契约（输入/输出格式规范），所有工具（Codex/Claude Code/Hermes）必须遵守。切换工具时，先验证新工具能正确读取上游产出格式。切换后的第一个产出必须经过额外的格式兼容性检查。"
+    },
+    {
+      "risk_id": "long_running_reliability_and_circuit_breaker_expert-R04",
+      "description": "8h+运行中history.jsonl等追加写入文件无限膨胀，导致磁盘空间耗尽或文件读取性能急剧下降。特别是fast_pulse(3min)心跳，8小时产生160条记录，每条可能包含大量上下文。",
+      "severity": "MEDIUM",
+      "mitigation": "实现文件rotate机制：history.jsonl超过100MB自动归档为history.jsonl.1并创建新文件。心跳记录采用精简格式（只记录状态变更，不重复记录完整上下文）。Dream Loop的Memory Consolidation阶段定期压缩历史记录。设置磁盘空间监控，剩余<1GB时触发告警。"
+    },
+    {
+      "risk_id": "long_running_reliability_and_circuit_breaker_expert-R05",
+      "description": "通知频率控制在'关键事件'定义模糊时失效：如果'关键事件'清单过宽，用户收到过多通知失去信任后忽略所有通知（狼来了效应）；如果过窄，用户错过真正需要干预的时刻。",
+      "severity": "MEDIUM",
+      "mitigation": "明确定义'关键事件'白名单（熔断触发、质量门控失败≥2次、需要人类决策的阻塞、任务DAG完成、安全边界触碰）。白名单外的所有事件聚合到每小时常规推送。实现通知去重：同一问题5分钟内不重复通知。Meta-Loop根据用户响应模式动态调整通知策略。"
+    },
+    {
+      "risk_id": "long_running_reliability_and_circuit_breaker_expert-R06",
+      "description": "看门狗机制（监控心跳是否存活）本身可能失效：如果看门狗依赖同一个cron系统，cron故障时看门狗和被监控对象同时死亡，形成单点故障。",
+      "severity": "LOW",
+      "mitigation": "看门狗使用独立于主Loop的cron配置（不同cron entry）。看门狗检测逻辑简单可靠（只检查文件最后更新时间）。看门狗失败时通过独立通道告警（如系统级通知而非飞书API）。定期测试看门狗是否正常工作（如每月一次模拟心跳停止）。"
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "criteria_id": "long_running_reliability_and_circuit_breaker_expert-AC01",
+      "description": "死循环熔断机制在模拟测试中能在≤15分钟内检测到预设的死循环场景（LLM反复输出相同内容），且不误触发正常慢速任务（≥30分钟的架构设计任务不被中断）。",
+      "verification_method": "设计3个测试场景：(1)死循环场景：LLM重复输出相同内容，验证≤15min内熔断触发；(2)正常慢速任务：30分钟架构设计任务，文件变更少但内容多样，验证不被误熔断；(3)边界场景：任务在阈值附近波动，验证行为一致性。记录每次测试的熔断延迟和误触发率。"
+    },
+    {
+      "criteria_id": "long_running_reliability_and_circuit_breaker_expert-AC02",
+      "description": "Worker失败处理链在模拟测试中覆盖所有已定义故障模式（超时、测试失败、能力不足、信息不足、方向错误），且每条分支的总耗时不超过该任务分配时间的2倍。三次失败后100%触发用户通知。",
+      "verification_method": "对每种故障模式进行模拟测试，验证：(1)根因分析是否正确分类，(2)重试/切换/降级是否按决策树执行，(3)总耗时是否在2倍上限内，(4)三次失败后是否触发通知。记录每条分支的成功率和耗时分布。"
+    },
+    {
+      "criteria_id": "long_running_reliability_and_circuit_breaker_expert-AC03",
+      "description": "API降级策略在主模型完全不可用时，能在≤5分钟内切换到备用方案并恢复任务执行，降级后输出质量通过基本质量门控（≥70%的评分）。",
+      "verification_method": "模拟主模型API完全不可用（如断开网络或返回500），验证：(1)降级切换时间≤5min，(2)降级后输出通过质量门控，(3)降级过程有日志记录，(4)恢复后自动切回主模型。测试至少3种API故障场景（超时、500错误、rate limit）。"
+    },
+    {
+      "criteria_id": "long_running_reliability_and_circuit_breaker_expert-AC04",
+      "description": "通知策略在8小时连续运行测试中，常规进度推送频率严格≤1次/小时，关键事件通知仅在白名单事件发生时触发，非关键事件100%聚合到下一次常规推送。用户收到的总通知数≤12条/8小时。",
+      "verification_method": "运行8小时连续测试，记录所有通知的时间戳和类型。验证：(1)常规推送间隔≥60min，(2)关键事件通知仅在白名单事件后触发，(3)非关键事件不出现在即时通知中，(4)总通知数≤12条。模拟多种事件组合验证通知聚合逻辑。"
+    },
+    {
+      "criteria_id": "long_running_reliability_and_circuit_breaker_expert-AC05",
+      "description": "资源泄漏防护在8小时连续运行测试中，history.jsonl文件大小始终≤100MB，临时文件在Loop结束后100%清理，磁盘空间净增长≤500MB（不含正常产出物）。",
+      "verification_method": "运行8小时连续测试，监控：(1)history.jsonl文件大小变化曲线，验证rotate机制生效，(2)Loop结束后检查tmp目录是否为空，(3)磁盘空间变化，(4)文件描述符使用量是否稳定（无泄漏）。"
+    },
+    {
+      "criteria_id": "long_running_reliability_and_circuit_breaker_expert-AC06",
+      "description": "熔断后恢复机制在测试中能从熔断快照100%恢复到最近一致状态，恢复后任务从checkpoint续跑而非从头开始。恢复后的产出与未熔断场景的产出质量一致。",
+      "verification_method": "在任务执行中途触发熔断，验证：(1)熔断快照包含完整信息（任务状态、已完成节点、失败原因），(2)恢复后从最近checkpoint续跑，(3)恢复后产出不丢失已完成的DAG节点，(4)恢复后质量与未熔断场景一致。测试至少3种熔断触发点（早期、中期、晚期）。"
+    }
+  ],
+  "extensions": {
+    "expert_focus_summary": "本专家从8h+无人工干预的可靠性保障角度出发，重点关注：(1)熔断机制的客观性和误触发防护，(2)失败处理链的完整性和时效性，(3)API降级的平滑性和质量保障，(4)通知频率的精确控制，(5)资源泄漏的长期防护。核心原则是'熔断不能依赖自我判断'和'降级不能导致质量断崖'。",
+    "cross_expert_dependencies": [
+      {
+        "expert": "state_persistence_and_recovery_engineer",
+        "dependency": "熔断快照需要与state_persistence专家协作确保完整性；恢复路径依赖checkpoint机制",
+        "interface": "熔断触发时调用state_persistence的checkpoint保存接口；恢复时调用state_persistence的checkpoint恢复接口"
+      },
+      {
+        "expert": "quality_gate_and_direction_deviation_specialist",
+        "dependency": "API降级后的质量验证需要quality_gate专家提供质量门控检查；进展度量中的语义变化检测需要质量评估支持",
+        "interface": "降级后输出通过quality_gate的质量检查接口；进展度量调用质量评估接口判断内容多样性"
+      },
+      {
+        "expert": "fractal_loop_orchestration_architect",
+        "dependency": "心跳机制（fast_pulse/slow_pulse）是fractal_loop架构的组成部分，可靠性专家监控心跳健康但不拥有心跳实现",
+        "interface": "可靠性专家读取心跳文件最后更新时间用于看门狗检测；心跳参数由fractal_loop专家定义，可靠性专家提供调优建议"
+      }
+    ]
+  }
+}

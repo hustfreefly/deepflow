@@ -96,6 +96,10 @@ class ConvergenceLayer:
         # 2. 语义压缩（LLM）
         compressed = self._compress_semantically(stage_outputs)
         
+        # 2.5 字段归一化（代码做确定性工作）
+        if self.module_name == "planning":
+            compressed = self._normalize_planning_constraints(compressed)
+        
         # 3. 契约验证（Pydantic）
         self._validate_contract(compressed)
         
@@ -117,6 +121,45 @@ class ConvergenceLayer:
         self.blackboard.write(convergence_path, compressed)
         
         logger.info(f"Convergence completed: {convergence_path}")
+        return compressed
+    
+    def _normalize_planning_constraints(self, compressed: dict) -> dict:
+        """
+        归一化 Planning 约束字段名。
+        
+        LLM 可能输出 id/constraint_id、content/description 等不同字段名。
+        代码做归一化（确定性工作），不依赖 LLM 精确遵守字段名。
+        这是 AI Native 的容错设计：接受 LLM 的自然输出，代码处理格式差异。
+        """
+        constraints = compressed.get("unified_constraints", [])
+        normalized = []
+        
+        for c in constraints:
+            if not isinstance(c, dict):
+                normalized.append(c)
+                continue
+            
+            nc = dict(c)  # copy
+            
+            # 归一化 ID 字段
+            if "constraint_id" not in nc and "id" in nc:
+                nc["constraint_id"] = nc.pop("id")
+            
+            # 归一化描述字段
+            if "description" not in nc and "content" in nc:
+                nc["description"] = nc.pop("content")
+            
+            # 确保 relevant_experts 存在
+            if "relevant_experts" not in nc:
+                nc["relevant_experts"] = []
+            
+            # 确保 covered_req_ids 存在
+            if "covered_req_ids" not in nc:
+                nc["covered_req_ids"] = []
+            
+            normalized.append(nc)
+        
+        compressed["unified_constraints"] = normalized
         return compressed
     
     def _collect_stage_outputs(self) -> dict:
@@ -414,14 +457,24 @@ stages/convergence_{self.module_name}.json
         return conservation
     
     def _get_p0_reqs(self) -> list[str]:
-        """获取 P0 REQ 列表（从 frozen_spec.json）"""
+        """获取 P0 REQ 列表（优先 living_spec，fallback frozen_spec）"""
+        # 优先从 living_spec 的 requirement_index 获取
         try:
-            frozen_spec = self.blackboard.read("data/frozen_spec.json")
-            p0_reqs = frozen_spec.get("p0_req_ids", [])
-            return p0_reqs
-        except Exception as e:
-            logger.warning(f"Failed to read P0 REQs: {e}")
-            return []
+            living_spec = self.blackboard.read_json("data/living_spec.json")
+            if living_spec and isinstance(living_spec, dict):
+                req_index = living_spec.get("requirement_index", [])
+                if req_index:
+                    return [r["id"] for r in req_index if isinstance(r, dict) and r.get("priority") == "P0"]
+        except Exception:
+            pass
+        # Fallback: frozen_spec
+        try:
+            frozen_spec = self.blackboard.read_json("data/frozen_spec.json")
+            if frozen_spec:
+                return frozen_spec.get("p0_req_ids", [])
+        except Exception:
+            pass
+        return []
     
     def _get_input_constraints(self) -> list[str]:
         """获取输入约束列表（从 Expert Plans）"""
@@ -441,7 +494,7 @@ stages/convergence_{self.module_name}.json
         
         # 读取 Gate 配置（从 meta_planning 输出）
         try:
-            expert_manifest = self.blackboard.read("stages/meta_planning.json")
+            expert_manifest = self.blackboard.read_json("stages/meta_planning.json")
             gate_a_config = expert_manifest.get("gate_a", {})
             gate_b_config = expert_manifest.get("gate_b", {})
             verdict_policy = expert_manifest.get("verdict_policy", {})

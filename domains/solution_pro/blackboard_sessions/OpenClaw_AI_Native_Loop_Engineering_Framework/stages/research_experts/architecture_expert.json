@@ -1,0 +1,51 @@
+{
+  "status": "completed",
+  "unified_constraints": [
+    {
+      "constraint_id": "CON-001",
+      "description": "全LLM控制",
+      "category": "architecture",
+      "priority": "P0",
+      "verification_method": "代码检查",
+      "rationale": "核心架构原则",
+      "relevant_experts": [
+        "expert_1_architecture"
+      ]
+    },
+    {
+      "constraint_id": "CON-002",
+      "description": "8小时运行",
+      "category": "quality_attribute",
+      "priority": "P0",
+      "verification_method": "运行测试",
+      "rationale": "可靠性要求",
+      "relevant_experts": [
+        "expert_2_quality"
+      ]
+    }
+  ],
+  "verification_checklist": [
+    {
+      "check_id": "CHK-001",
+      "description": "LLM 控制所有决策",
+      "req_ids": [
+        "REQ-001"
+      ]
+    }
+  ],
+  "gate_a_result": {
+    "completeness": 0.8,
+    "necessity": 0.8,
+    "alignment": 0.8,
+    "global_impact": 0.8,
+    "passed": true
+  },
+  "expert_name": "architecture_expert",
+  "domain": "architecture",
+  "findings": [],
+  "risks": [],
+  "recommendations": [],
+  "confidence_score": 0.5,
+  "sources": [],
+  "iteration": 1
+}

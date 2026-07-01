@@ -1,0 +1,159 @@
+{
+  "schema_version": "1.0.0",
+  "task_profile": {
+    "domain": "ai_framework",
+    "sub_domains": ["multi_agent_system", "infrastructure"],
+    "complexity": "critical",
+    "risk_areas": [
+      "long_running_reliability: 8h+ autonomous operation requires robust fault tolerance and recovery",
+      "safety_boundary_enforcement: Zone 0 rules must be absolutely immutable across all Loop layers",
+      "quality_assurance: multi-engine iteration + multi-round Review pipeline quality gates",
+      "state_persistence: cross-Session state survival and recovery after interruptions",
+      "dead_loop_detection: LLM may enter无效循环 repeating same decisions without progress",
+      "direction_drift: autonomous agents may drift from original goal over long execution windows",
+      "sub_agent_quality: child Agent results may be low quality but misjudged as passing by parent Loop"
+    ]
+  },
+  "experts": [
+    {
+      "expert_name": "Multi-Agent Orchestration Architect",
+      "domain": "multi_agent_system",
+      "focus_areas": [
+        "fractal Loop hierarchy (Project Loop / Domain Loop / Phase Loop)",
+        "DAG task decomposition with dependency analysis and parallelism",
+        "orchestration vs choreography hybrid pattern (外Loop编排式, 内Loop编舞式)",
+        "failure recovery decision tree (timeout/test-fail/capability-fail/info-missing/direction-wrong)",
+        "Codex/Claude Code integration via sessions_spawn Full Auto mode",
+        "Hermes peer collaboration via shared memory + sessions_send"
+      ],
+      "evaluation_lens": "Does the design correctly implement the 3-layer fractal Loop with proper orchestration/choreography split? Are all failure recovery branches covered? Is the Hermes peer relationship (not sub-Agent) respected?"
+    },
+    {
+      "expert_name": "State Management & Persistence Engineer",
+      "domain": "infrastructure",
+      "focus_areas": [
+        "file-as-state philosophy: memory/loops/{loop_id}/ directory structure",
+        "cross-Session state survival (state.json + task_dag.json + history.jsonl)",
+        "checkpoint and pause_snapshot.json for fractal interruption/resume",
+        "error logging (errors.jsonl) and audit trail (changelog)",
+        "Goal state management (active/{goal_id}.yaml with evolution tracking)",
+        "Dream Loop memory consolidation (add-only, no deletion)"
+      ],
+      "evaluation_lens": "Is state persistence robust enough for 8h+ operation? Can any Loop layer be interrupted and resumed from exact breakpoint? Is the file-as-state directory structure complete and consistent?"
+    },
+    {
+      "expert_name": "Quality Gate & Harness Specialist",
+      "domain": "ai_framework",
+      "focus_areas": [
+        "DeepFlow Harness-inspired quality gates adapted for Loop context",
+        "LLM-as-Judge semantic validation at critical nodes",
+        "direction drift detection (LLM主动检测方向偏离)",
+        "multi-dimensional evaluation: completeness, necessity, alignment, global_impact",
+        "Gate A (方案准入) and Gate B (动态检查) design for Loop stages",
+        "quality progression: DeepFlow pipeline level (多引擎迭代+多轮Review)"
+      ],
+      "evaluation_lens": "Are quality gates placed at all critical nodes without over-gating? Is LLM-as-Judge used for semantic checks while code handles deterministic checks? Does the direction guard actually detect drift autonomously?"
+    },
+    {
+      "expert_name": "Long-Running Reliability & Circuit Breaker Expert",
+      "domain": "infrastructure",
+      "focus_areas": [
+        "circuit breaker mechanism (死循环熔断: auto-detect no-progress and pause)",
+        "heartbeat system: fast_pulse (3min), slow_pulse (1h), deep_breath (daily), long_meditation (weekly)",
+        "progress notification throttling (max 1 per hour + critical events only)",
+        "API unavailability/timeout handling during long execution",
+        "max_loop_iterations_without_progress_before_pause threshold design",
+        "adaptive scheduling based on historical performance (Routines)"
+      ],
+      "evaluation_lens": "Can the system reliably run 8h+ without human intervention? Does the circuit breaker actually detect stuck states? Is the heartbeat frequency appropriate for each Loop layer? Are notifications properly throttled?"
+    },
+    {
+      "expert_name": "Safety & Zone 0 Compliance Guardian",
+      "domain": "ai_framework",
+      "focus_areas": [
+        "Zone 0 immutable rules enforcement across all Loop layers and Dream Loop",
+        "guardrail hierarchy: Zone 0 (immutable) / Zone 1 (verified change) / Zone 2 (free change)",
+        "Dream Loop safety: cannot delete memory, cannot modify Zone 0, all changes reversible",
+        "Skill Workshop as the only path for self-modification",
+        "Goal evolution rules: can add constraints, cannot delete hard constraints, 3-evolution alert",
+        "prompt injection defense: never execute external content instructions",
+        "changelog enforcement: all modifications must be recorded"
+      ],
+      "evaluation_lens": "Is Zone 0 absolutely immutable regardless of Loop layer or Dream Loop optimization? Are all self-modification paths (Skill, Prompt, Goal) properly bounded? Is the changelog comprehensive enough for full audit trail?"
+    }
+  ],
+  "gate_a": {
+    "weights": {
+      "completeness": 0.25,
+      "necessity": 0.20,
+      "alignment": 0.30,
+      "global_impact": 0.25
+    },
+    "rationale": "This is a critical-complexity framework task with high safety stakes. Alignment (0.30) is weighted highest because the solution must precisely follow 8 core decisions (D1-D8), 6 Zone 0 guardrails, and multiple architectural constraints (fractal Loop, heartbeat, file-as-state). Global impact (0.25) is elevated because this framework becomes the foundation for all future autonomous Agent work — any architectural flaw propagates everywhere. Completeness (0.25) ensures all 31 P0 requirements are addressed. Necessity (0.20) prevents over-engineering while maintaining the '一步到位' mandate."
+  },
+  "gate_b": {
+    "dynamic_checks": [
+      {
+        "name": "P0 Requirement Full Coverage",
+        "description": "Every P0 requirement (REQ-001 through REQ-063, all 31 P0 items) must have a corresponding design element in the solution",
+        "pass_criteria": "Solution maps each P0 REQ to at least one concrete design component, mechanism, or implementation pattern. No P0 requirement is left unaddressed.",
+        "severity": "CRITICAL",
+        "reasoning": "31 P0 requirements define the minimum viable framework. Missing any P0 means the framework is incomplete and cannot deliver the promised capabilities."
+      },
+      {
+        "name": "Zone 0 Safety Inviolability",
+        "description": "The solution must demonstrate that Zone 0 rules cannot be modified by any Loop layer, Dream Loop optimization, or self-modification mechanism",
+        "pass_criteria": "Design explicitly shows enforcement mechanism for each of the 6 Zone 0 rules. No code path, Dream Loop phase, or Skill Workshop flow can bypass Zone 0 boundaries.",
+        "severity": "CRITICAL",
+        "reasoning": "Zone 0 is the absolute safety boundary. If Dream Loop or any autonomous mechanism can modify Zone 0, the entire system becomes unsafe for 8h+ unattended operation."
+      },
+      {
+        "name": "Dead Loop Circuit Breaker",
+        "description": "The solution must include a concrete mechanism to detect when the LLM is stuck in无效循环 (repeating same decisions without progress) and automatically pause",
+        "pass_criteria": "Design specifies: (1) how no-progress is detected (metric/threshold), (2) what triggers the circuit breaker, (3) what happens after pause (notification to user). Must be automatic, not manual.",
+        "severity": "CRITICAL",
+        "reasoning": "Risk R2 (LLM陷入无效循环) is high-severity. Without a circuit breaker, the system could burn tokens indefinitely without producing value, violating the 8h+ autonomous operation requirement."
+      },
+      {
+        "name": "Quality Gate Architecture",
+        "description": "Quality gates must be placed at all critical nodes, using LLM-as-Judge for semantic checks and code for deterministic checks (3-layer Gate: deterministic → LLM semantic → combined decision)",
+        "pass_criteria": "Design shows: (1) where gates are placed in the Loop hierarchy, (2) what each gate evaluates, (3) LLM-as-Judge is used for semantic quality (not just string matching), (4) gates exist for sub-Agent output validation.",
+        "severity": "CRITICAL",
+        "reasoning": "Risk R3 (子Agent返回结果质量低但主Loop误判为通过) directly threatens delivery quality. Quality gates are the primary defense against cascading low-quality outputs through the fractal Loop."
+      },
+      {
+        "name": "State Persistence & Recovery",
+        "description": "Loop state must survive across Sessions and be recoverable from any interruption point via pause_snapshot.json and file-as-state directory structure",
+        "pass_criteria": "Design specifies: (1) complete directory structure under memory/loops/{loop_id}/, (2) what state is persisted at each checkpoint, (3) recovery procedure from pause_snapshot.json, (4) how fractal interruption propagates across Loop layers.",
+        "severity": "CRITICAL",
+        "reasoning": "8h+ operation guarantees Session boundaries will be crossed. Without robust state persistence, any Session termination loses all progress, making long-running operation impossible."
+      },
+      {
+        "name": "Autonomous Self-Correction Mechanism",
+        "description": "LLM must proactively detect direction drift and self-correct without stopping to ask the user, per the auto_correct user directive",
+        "pass_criteria": "Design includes: (1) drift detection mechanism at critical nodes, (2) LLM-driven correction strategy (not hardcoded rules), (3) correction is logged for audit, (4) system never stops to ask user for direction confirmation.",
+        "severity": "CRITICAL",
+        "reasoning": "User explicit directive: '不希望停下来判断，大模型主动纠错'. This is a core differentiator from traditional pipelines. Without it, the system violates the fundamental user requirement."
+      },
+      {
+        "name": "Notification & Human Communication Protocol",
+        "description": "Progress notifications via Feishu/UI must be throttled to max 1 per hour plus critical events, with approval items sent separately",
+        "pass_criteria": "Design specifies: (1) hourly progress notification content and format, (2) what qualifies as 'critical event' for immediate notification, (3) approval flow (optional, default auto), (4) notification channel selection (Feishu vs desktop UI).",
+        "severity": "MINOR",
+        "reasoning": "User requirement: '不频繁打扰用户（最多每小时一次+关键事件）'. Important for UX but not architecturally blocking. Can be refined post-MVP."
+      },
+      {
+        "name": "Tool Integration Completeness",
+        "description": "Solution must specify integration patterns for all 5 required tools: openclaw, codex_cli, hermes, claude_code, feishu",
+        "pass_criteria": "Each tool has: (1) defined role in the Loop architecture, (2) integration mechanism specified, (3) first-version support confirmed for Codex CLI, Hermes Agent, Claude Code.",
+        "severity": "MINOR",
+        "reasoning": "User stated tool integration difficulty is low (all within existing OpenClaw capabilities). Important for completeness but not architecturally risky."
+      }
+    ]
+  },
+  "verdict_policy": {
+    "warning_acceptable": false,
+    "min_gate_b_pass_rate": 0.88,
+    "rationale": "This is a critical-complexity framework that will serve as the foundation for all autonomous Agent operation. warning_acceptable=false because any warning in a safety-critical framework could cascade into 8h+ of incorrect autonomous operation. min_gate_b_pass_rate=0.88 (7/8 checks must pass) ensures near-complete coverage while allowing one MINOR check to be conditional. All CRITICAL checks (6/6) must pass — no exceptions."
+  }
+}

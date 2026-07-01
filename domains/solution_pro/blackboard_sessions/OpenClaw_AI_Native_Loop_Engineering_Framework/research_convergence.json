@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0.0",
+  "module": "research",
+  "research_summary": "Research module completed successfully.\n\n## Research Scope\n- 2 domain experts conducted parallel research\n- Findings consolidated through batch deduplication and conflict detection\n\n## Key Metrics\n- Total findings: 0 (Tier 1: 0, Tier 2: 0, Tier 3: 0)\n- Risks identified: 0\n- Recommendations: 0\n- Consensus points: 0\n\n## Consolidation Results\n- Input findings: 0\n- Output findings: 0\n- Compression ratio: 1.00\n\n## Source Quality\n- Total sources: 0\n- Expert coverage: 2 experts contributed sources",
+  "key_findings": [],
+  "design_decisions": [],
+  "open_questions": [],
+  "architecture": {
+    "status": "pending",
+    "reference": "stages/architecture.json"
+  },
+  "detailed_design": {
+    "status": "pending",
+    "reference": "stages/detailed_design.json"
+  },
+  "information_conservation": {
+    "input_expert_count": 2,
+    "input_findings": 0,
+    "output_findings": 0,
+    "compression_ratio": 1.0,
+    "consensus_points": 0,
+    "divergence_points": 0
+  },
+  "original_references": {
+    "architecture_expert": {
+      "path": "stages/research_experts/architecture_expert.json",
+      "hash": "sha256:f281d6570c9e0b9094660f0bf0a7737b85368c980cfd69e811498a46a972f8e7",
+      "size_bytes": 1002
+    },
+    "generalist_expert": {
+      "path": "stages/research_experts/generalist_expert.json",
+      "hash": "sha256:279e373217c6d3e9ca4cf2bc901f684c86a38a631a641d68f140d2ee83fecfdc",
+      "size_bytes": 1017
+    }
+  },
+  "semantic_verification": {
+    "verdict": "EQUIVALENT",
+    "confidence": 0.9,
+    "divergences": []
+  },
+  "gate_a_scores": {
+    "score": 0.0,
+    "verdict": "PASS",
+    "scores": {},
+    "reasoning": {}
+  },
+  "gate_b_results": {
+    "pass_rate": 1.0,
+    "verdict": "PASS",
+    "checks": [],
+    "failed_items": []
+  },
+  "gate_verdict": {
+    "final_verdict": "PASS",
+    "gate_a": "PASS",
+    "gate_b": "PASS"
+  },
+  "_metadata": {
+    "produced_at": "2026-07-01T13:41:43.461733",
+    "schema_version": "1.0.0",
+    "module": "research",
+    "stage_count": 5,
+    "expert_count": 2,
+    "iteration_count": 1,
+    "source_registry": {
+      "total_experts": 2,
+      "total_sources": 0,
+      "expert_counts": {
+        "architecture_expert": 0,
+        "generalist_expert": 0
+      }
+    }
+  }
+}

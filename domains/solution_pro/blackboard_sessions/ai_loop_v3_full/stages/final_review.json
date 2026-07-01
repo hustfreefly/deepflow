@@ -1,0 +1,544 @@
+{
+  "schema_version": "1.0.0",
+  "reviewed_at": "2026-07-01T17:45:00.000000",
+  "reviewer": "final_review_worker",
+  "review_summary": "Research module for the OpenClaw AI Native Loop Engineering Framework passes final review with CONDITIONAL_PASS. Two domain experts (architecture_expert, generalist_expert) produced high-quality, substantive reports (40KB+ each) covering 12 findings across 34/80 requirements (42.5%). The research correctly identifies the three most critical architectural challenges: (1) LLM control vs 8h+ reliability fundamental contradiction, (2) fractal loop layer coupling requiring event-mediated decoupling, (3) Session-Loop structural tension with OpenClaw's request-response model. Five consensus points across both experts provide strong architectural direction. However, significant coverage gaps exist for P0 requirements (natural language input, output format, success metrics, Zone 0 guardrails), and two data-quality bugs in the digest pipeline (content-ID misalignment, findings count=0) undermine data integrity. The research is sufficient to inform downstream architecture and detailed_design stages, but those stages must reference original expert reports directly rather than the misaligned digest findings_detail.",
+  "coverage_analysis": {
+    "requirements_covered": 34,
+    "requirements_total": 80,
+    "coverage_rate": 0.425,
+    "p0_covered": 13,
+    "p0_total": 31,
+    "p0_coverage_rate": 0.419,
+    "covered_by_expert": {
+      "architecture_expert": {
+        "count": 25,
+        "req_ids": [
+          "REQ-001",
+          "REQ-002",
+          "REQ-004",
+          "REQ-005",
+          "REQ-006",
+          "REQ-007",
+          "REQ-010",
+          "REQ-011",
+          "REQ-012",
+          "REQ-019",
+          "REQ-020",
+          "REQ-021",
+          "REQ-024",
+          "REQ-034",
+          "REQ-035",
+          "REQ-042",
+          "REQ-046",
+          "REQ-047",
+          "REQ-048",
+          "REQ-051",
+          "REQ-076",
+          "REQ-077",
+          "REQ-078",
+          "REQ-079",
+          "REQ-080"
+        ]
+      },
+      "generalist_expert": {
+        "count": 20,
+        "req_ids": [
+          "REQ-001",
+          "REQ-002",
+          "REQ-003",
+          "REQ-006",
+          "REQ-011",
+          "REQ-012",
+          "REQ-015",
+          "REQ-017",
+          "REQ-019",
+          "REQ-022",
+          "REQ-023",
+          "REQ-024",
+          "REQ-030",
+          "REQ-033",
+          "REQ-034",
+          "REQ-035",
+          "REQ-047",
+          "REQ-049",
+          "REQ-050",
+          "REQ-079"
+        ]
+      }
+    },
+    "combined_unique_req_ids": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003",
+      "REQ-004",
+      "REQ-005",
+      "REQ-006",
+      "REQ-007",
+      "REQ-010",
+      "REQ-011",
+      "REQ-012",
+      "REQ-015",
+      "REQ-017",
+      "REQ-019",
+      "REQ-020",
+      "REQ-021",
+      "REQ-022",
+      "REQ-023",
+      "REQ-024",
+      "REQ-030",
+      "REQ-033",
+      "REQ-034",
+      "REQ-035",
+      "REQ-042",
+      "REQ-046",
+      "REQ-047",
+      "REQ-048",
+      "REQ-049",
+      "REQ-050",
+      "REQ-051",
+      "REQ-076",
+      "REQ-077",
+      "REQ-078",
+      "REQ-079",
+      "REQ-080"
+    ],
+    "coverage_gaps": {
+      "critical_gaps": [
+        {
+          "id": "REQ-008",
+          "title": "Natural language input entry point",
+          "priority": "P0",
+          "reason": "Core user interaction mechanism not researched"
+        },
+        {
+          "id": "REQ-009",
+          "title": "Output format determined by task type",
+          "priority": "P0",
+          "reason": "Exit point design not researched"
+        },
+        {
+          "id": "REQ-014",
+          "title": "No stopping for human direction judgment",
+          "priority": "P0",
+          "reason": "Core auto-correction behavior not explicitly addressed"
+        },
+        {
+          "id": "REQ-016",
+          "title": "No executing external content instructions",
+          "priority": "P0",
+          "reason": "Prompt injection defense mechanism not researched"
+        },
+        {
+          "id": "REQ-018",
+          "title": "No deleting memory (Dream Loop add-only)",
+          "priority": "P0",
+          "reason": "Memory safety constraint not researched"
+        },
+        {
+          "id": "REQ-036",
+          "title": "Task completion rate metric",
+          "priority": "P0",
+          "reason": "Success metric definition not researched"
+        },
+        {
+          "id": "REQ-037",
+          "title": "Delivery quality metric",
+          "priority": "P0",
+          "reason": "Success metric definition not researched"
+        },
+        {
+          "id": "REQ-038",
+          "title": "First-pass success rate metric",
+          "priority": "P0",
+          "reason": "Success metric definition not researched"
+        }
+      ],
+      "high_gaps": [
+        {
+          "range": "REQ-054 to REQ-063",
+          "title": "Zone 0 guardrails and Zone 1/2 change mechanisms",
+          "priority": "P0",
+          "reason": "10 safety/guardrail requirements completely uncovered — most critical for 8h+ unattended operation"
+        },
+        {
+          "range": "REQ-064 to REQ-075",
+          "title": "Operational boundary parameters",
+          "priority": "P1",
+          "reason": "Tunable parameter ranges not researched"
+        },
+        {
+          "range": "REQ-040 to REQ-045",
+          "title": "Key scenarios (first use case, notification, Dream Loop)",
+          "priority": "P1",
+          "reason": "End-to-end scenario walkthrough not explicitly covered"
+        }
+      ],
+      "coverage_by_category": {
+        "objective": {
+          "covered": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "capability": {
+          "covered": 7,
+          "total": 8,
+          "rate": 0.875
+        },
+        "prohibition": {
+          "covered": 2,
+          "total": 5,
+          "rate": 0.4
+        },
+        "quality_attribute": {
+          "covered": 5,
+          "total": 7,
+          "rate": 0.714
+        },
+        "constraint": {
+          "covered": 6,
+          "total": 9,
+          "rate": 0.667
+        },
+        "success_metric": {
+          "covered": 1,
+          "total": 4,
+          "rate": 0.25
+        },
+        "guardrail_prohibition": {
+          "covered": 0,
+          "total": 6,
+          "rate": 0.0
+        },
+        "guardrail": {
+          "covered": 0,
+          "total": 12,
+          "rate": 0.0
+        },
+        "hint": {
+          "covered": 5,
+          "total": 5,
+          "rate": 1.0
+        },
+        "risk": {
+          "covered": 4,
+          "total": 4,
+          "rate": 1.0
+        },
+        "assumption": {
+          "covered": 2,
+          "total": 4,
+          "rate": 0.5
+        },
+        "scenario": {
+          "covered": 1,
+          "total": 6,
+          "rate": 0.167
+        },
+        "user": {
+          "covered": 0,
+          "total": 1,
+          "rate": 0.0
+        }
+      }
+    },
+    "coverage_assessment": "Coverage is strong for architectural concerns (hints 100%, risks 100%, capabilities 87.5%) but critically weak for safety guardrails (0%), operational parameters (0%), and key scenarios (16.7%). The 42.5% overall coverage is partially offset by the fact that covered requirements include most architecturally critical ones (fractal loop, heartbeat, state management, circuit breaker). The 0% guardrail coverage is the most concerning gap — downstream stages MUST address Zone 0/1/2 enforcement in detail."
+  },
+  "quality_assessment": {
+    "gate_a_score": 0.77,
+    "gate_a_threshold": 0.7,
+    "gate_a_verdict": "PASS",
+    "gate_a_breakdown": {
+      "completeness": {
+        "score": 0.65,
+        "weight": 0.25,
+        "weighted": 0.1625
+      },
+      "necessity": {
+        "score": 0.85,
+        "weight": 0.25,
+        "weighted": 0.2125
+      },
+      "alignment": {
+        "score": 0.8,
+        "weight": 0.3,
+        "weighted": 0.24
+      },
+      "note": "Global impact not separately scored in harness; included in alignment"
+    },
+    "gate_b_pass_rate": 0.833,
+    "gate_b_threshold": 0.7,
+    "gate_b_verdict": "PASS",
+    "gate_b_checks_total": 12,
+    "gate_b_checks_passed": 10,
+    "gate_b_checks_failed": 2,
+    "gate_b_failed_items": [
+      {
+        "id": "B09",
+        "name": "digest_content_consistency",
+        "severity": "MEDIUM",
+        "detail": "findings_detail full_text content systematically shifted relative to finding IDs. Generalist F-001 content appears under digest F-003, etc. Architecture findings start at F-007. Expert attribution incorrect for some entries.",
+        "impact": "Downstream stages reading findings_detail by ID will get incorrect content. Original expert reports are unaffected.",
+        "recommendation": "Fix digest pipeline; downstream stages should use original expert reports as primary source"
+      },
+      {
+        "id": "B10",
+        "name": "sources_cited",
+        "severity": "LOW",
+        "detail": "Structured 'sources' arrays empty in both expert JSON files. Reports contain inline citations (IBM 2025, arXiv 2025, LangChain 2025, OpenAI 2025, etc.) but these are not captured in structured form.",
+        "impact": "Cannot programmatically verify or trace evidence sources. Inline citations still provide human-readable traceability.",
+        "recommendation": "Fix expert report schema to populate sources array from inline citations"
+      }
+    ],
+    "substantive_quality": {
+      "expert_report_depth": "EXCELLENT — Both reports exceed 40KB with detailed analysis, comparison tables, evidence citations, and actionable recommendations",
+      "finding_quality": "HIGH — 12 findings with confidence 0.70-0.90, 3 rated HIGH relevance addressing fundamental contradictions",
+      "evidence_base": "GOOD — Multiple 2025 industry sources cited (IBM, arXiv, OpenAI, LangChain, Confluent, Berkeley Exec-Ed), though not structured",
+      "actionability": "EXCELLENT — Each finding includes concrete design implications with OpenClaw-specific implementation patterns",
+      "cross_expert_consensus": "STRONG — 5 consensus points independently identified by both experts (LLM context decay, athlete≠referee, file-based async, deterministic circuit breaker, concurrent write handling)"
+    }
+  },
+  "risk_assessment": {
+    "high_risks": [
+      {
+        "id": "RH-001",
+        "description": "Guardrail coverage gap: 0% of Zone 0/1/2 guardrail requirements (REQ-054 to REQ-063) covered by research",
+        "likelihood": "CERTAIN",
+        "impact": "CRITICAL — Downstream architecture stage must design safety enforcement without research backing. Risk of incomplete or inconsistent safety boundary design.",
+        "mitigation": "Architecture stage MUST prioritize safety boundary design as first deliverable. Consider spawning a dedicated safety expert if architecture stage cannot cover this gap."
+      },
+      {
+        "id": "RH-002",
+        "description": "Digest content-ID misalignment may mislead downstream stages",
+        "likelihood": "HIGH",
+        "impact": "HIGH — If architecture/detailed_design stages read findings_detail by ID, they will receive incorrect content attributed to wrong experts.",
+        "mitigation": "Mark digest findings_detail as UNTRUSTED. Downstream stages must read original expert reports directly. Add warning flag to digest output."
+      },
+      {
+        "id": "RH-003",
+        "description": "Success metrics (REQ-036/037/038) not researched — no definition of 'task completion', 'quality', or 'first-pass rate'",
+        "likelihood": "HIGH",
+        "impact": "HIGH — Without clear success metrics, the framework cannot self-evaluate or trigger appropriate circuit breakers.",
+        "mitigation": "Architecture stage must define measurable success criteria before designing control flow. Reference living_spec success_metrics section."
+      }
+    ],
+    "medium_risks": [
+      {
+        "id": "RM-001",
+        "description": "Key scenarios (REQ-040 to REQ-045) only 16.7% covered — first use case execution path not validated",
+        "likelihood": "MEDIUM",
+        "impact": "MEDIUM — Architecture may not be grounded in concrete execution scenarios, leading to over-abstract design.",
+        "mitigation": "Architecture stage should walk through at least the first use case (DeepFlow Ship Pro → programming files) end-to-end."
+      },
+      {
+        "id": "RM-002",
+        "description": "Natural language input (REQ-008) not researched — entry point design unknown",
+        "likelihood": "MEDIUM",
+        "impact": "MEDIUM — User interaction model may be inconsistent with framework capabilities.",
+        "mitigation": "Reference existing Spec Pro entry point pattern; architecture stage should define goal declaration interface."
+      },
+      {
+        "id": "RM-003",
+        "description": "Expert findings arrays empty in JSON — pipeline extraction failure",
+        "likelihood": "CERTAIN",
+        "impact": "LOW — Findings are available in report markdown and digest index, but structured access is broken.",
+        "mitigation": "Fix pipeline to extract findings into structured array. Non-blocking for downstream stages."
+      }
+    ],
+    "mitigations_summary": [
+      "Original expert reports retain full information integrity despite digest bugs",
+      "5 cross-expert consensus points provide strong architectural foundation",
+      "13 risks and 8 open questions already identified by experts — downstream stages have ample warning",
+      "Coverage gaps are identifiable and addressable in architecture/detailed_design stages",
+      "Research module's strong necessity (0.85) and alignment (0.80) scores indicate findings are relevant and well-directed"
+    ]
+  },
+  "gate_b_verification": {
+    "meta_planning_gate_b_checks": {
+      "description": "Meta-planning defined 9 Gate B checks for downstream architecture stage. Final review verifies research module provides sufficient foundation for each.",
+      "checks": [
+        {
+          "name": "fractal_loop_architecture_completeness",
+          "severity": "CRITICAL",
+          "research_support": "STRONG — Architecture expert F-001/F-002/F-005 directly address three-layer fractal loop design, event-mediated coupling, and handoff protocol. Generalist expert F-001 addresses Session-Loop mapping tension.",
+          "ready_for_architecture": true
+        },
+        {
+          "name": "full_llm_control_verification",
+          "severity": "CRITICAL",
+          "research_support": "STRONG — Generalist F-002/F-003 directly analyze full-LLM-control constraints and the fundamental contradiction with reliability. Architecture F-003 provides Context Checkpoint mitigation.",
+          "ready_for_architecture": true
+        },
+        {
+          "name": "zone_0_safety_enforcement",
+          "severity": "CRITICAL",
+          "research_support": "WEAK — Only generalist F-005 briefly mentions Zone 0 conflict points. No dedicated safety research. Guardrail requirements (REQ-054 to REQ-063) completely uncovered.",
+          "ready_for_architecture": false,
+          "gap_note": "Architecture stage MUST address Zone 0 enforcement without research backing. Consider supplementary safety research."
+        },
+        {
+          "name": "circuit_breaker_mechanism",
+          "severity": "CRITICAL",
+          "research_support": "STRONG — Both experts independently identify circuit breaker needs. Generalist F-003 proposes Deterministic State Tracker (DST). Architecture F-004 proposes Interceptor-Based Quality Architecture with Python-based progress counter.",
+          "ready_for_architecture": true
+        },
+        {
+          "name": "dream_loop_safety_boundary",
+          "severity": "CRITICAL",
+          "research_support": "MODERATE — Generalist F-005 identifies Dream Loop vs Zone 0 conflict. Generalist F-006 addresses resource competition. Architecture F-005 mentions self-modification paradox. But no dedicated Dream Loop safety research.",
+          "ready_for_architecture": true,
+          "gap_note": "Architecture stage should define Dream Loop 4-phase safety model explicitly."
+        },
+        {
+          "name": "cross_session_state_recovery",
+          "severity": "CRITICAL",
+          "research_support": "STRONG — Generalist F-001/F-004 comprehensively cover Session-Loop tension, state persistence, concurrent write consistency, and atomic write patterns. Architecture F-001/F-003 provide file-system-based state architecture.",
+          "ready_for_architecture": true
+        },
+        {
+          "name": "hermes_peer_collaboration_model",
+          "severity": "MINOR",
+          "research_support": "MODERATE — Generalist F-002 mentions Hermes integration via shared memory + sessions_send. Architecture F-002 mentions Hermes in passing. No deep Hermes collaboration research.",
+          "ready_for_architecture": true,
+          "gap_note": "Architecture stage should define Hermes message protocol in detail."
+        },
+        {
+          "name": "direction_deviation_detection",
+          "severity": "CRITICAL",
+          "research_support": "STRONG — Architecture F-004 proposes independent Direction Check Agent spawned per slow_pulse. Generalist F-003 supports with deterministic state tracking. Both align with athlete≠referee principle.",
+          "ready_for_architecture": true
+        },
+        {
+          "name": "first_use_case_end_to_end",
+          "severity": "MINOR",
+          "research_support": "WEAK — No expert explicitly traces the DeepFlow Ship Pro → programming files use case through the fractal loop architecture.",
+          "ready_for_architecture": false,
+          "gap_note": "Architecture stage MUST walk through first use case as validation exercise."
+        }
+      ],
+      "summary": {
+        "critical_ready": 5,
+        "critical_total": 7,
+        "minor_ready": 1,
+        "minor_total": 2,
+        "overall_ready": 6,
+        "overall_total": 9,
+        "readiness_rate": 0.667,
+        "not_ready_checks": [
+          "zone_0_safety_enforcement (CRITICAL — no research backing)",
+          "first_use_case_end_to_end (MINOR — not traced)"
+        ]
+      }
+    }
+  },
+  "information_conservation_assessment": {
+    "expert_count": 2,
+    "total_findings_in_reports": 12,
+    "findings_in_digest_index": 12,
+    "compression_ratio": 1.0,
+    "information_preserved": true,
+    "information_integrity_issues": [
+      "Digest findings_detail content-ID misalignment (B09 FAIL) — content shuffled relative to IDs",
+      "Expert findings arrays empty in both JSON files — pipeline extraction failure",
+      "Digest summary statistics report 'Total findings: 0' — counting bug"
+    ],
+    "consensus_points": 5,
+    "divergence_points": 3,
+    "conservation_verdict": "INDEX_PRESERVED_DETAIL_CORRUPTED — The digest findings_index correctly preserves all 12 findings with metadata, but the findings_detail full_text is misaligned. Original expert reports are the authoritative source."
+  },
+  "bug_report": {
+    "confirmed_bugs": [
+      {
+        "id": "BUG-001",
+        "name": "digest_findings_count_zero",
+        "severity": "LOW",
+        "description": "Digest metadata reports 'Total findings: 0' despite 12 findings in index",
+        "root_cause": "Pipeline counts findings from expert JSON 'findings' arrays which are empty, not from findings_index",
+        "fix": "Count from findings_index length instead"
+      },
+      {
+        "id": "BUG-002",
+        "name": "digest_content_id_misalignment",
+        "severity": "MEDIUM",
+        "description": "findings_detail full_text content systematically shifted relative to finding IDs",
+        "root_cause": "Pipeline extraction associates full_text blocks with wrong finding IDs during shuffle/merge",
+        "fix": "Fix ID association logic in digest pipeline"
+      },
+      {
+        "id": "BUG-003",
+        "name": "expert_findings_arrays_empty",
+        "severity": "LOW",
+        "description": "Both expert JSON files have empty 'findings' arrays despite rich findings in report markdown",
+        "root_cause": "Expert report generation populates findings in markdown but not in structured JSON array",
+        "fix": "Extract findings from report markdown into structured findings array"
+      },
+      {
+        "id": "BUG-004",
+        "name": "sources_arrays_empty",
+        "severity": "LOW",
+        "description": "Both expert JSON files have empty 'sources' arrays despite inline citations in reports",
+        "root_cause": "Expert report generation includes citations in prose but not in structured sources field",
+        "fix": "Extract inline citations into structured sources array"
+      }
+    ]
+  },
+  "final_verdict": "CONDITIONAL_PASS",
+  "verdict_rationale": "Research module meets quantitative gate thresholds (Gate A: 0.77 > 0.70, Gate B: 0.833 > 0.70) and produces substantively excellent expert analysis. However, CONDITIONAL_PASS rather than PASS due to: (1) 0% coverage of Zone 0/1/2 guardrail requirements — critical for unattended 8h+ operation, (2) digest content-ID misalignment bug that could mislead downstream stages, (3) 42.5% overall requirement coverage with significant gaps in safety, success metrics, and key scenarios. The conditions for full PASS are: (a) downstream architecture stage must prioritize guardrail/safety research gap, (b) digest bugs must be flagged so downstream stages use original expert reports, (c) architecture stage must walk through first use case end-to-end.",
+  "conditions_for_downstream": [
+    "CRITICAL: Architecture stage MUST design Zone 0/1/2 safety enforcement without research backing — this is the highest priority gap",
+    "CRITICAL: Downstream stages MUST read original expert reports (architecture_expert.json, generalist_expert.json) directly, NOT digest findings_detail",
+    "IMPORTANT: Architecture stage MUST walk through first use case (DeepFlow Ship Pro → programming files) as validation",
+    "IMPORTANT: Architecture stage MUST define measurable success criteria for REQ-036/037/038 before designing control flow",
+    "RECOMMENDED: Fix digest pipeline bugs (content-ID alignment, findings count, sources extraction) before production use",
+    "RECOMMENDED: Architecture stage should define Hermes message protocol and Dream Loop 4-phase safety model explicitly"
+  ],
+  "recommendations": [
+    {
+      "priority": "P0",
+      "recommendation": "Fix digest content-ID misalignment bug before any downstream stage consumes findings_detail",
+      "effort": "LOW",
+      "impact": "Prevents silent data corruption in architecture and detailed_design stages"
+    },
+    {
+      "priority": "P0",
+      "recommendation": "Architecture stage must treat Zone 0/1/2 safety design as first-priority deliverable given 0% research coverage",
+      "effort": "MEDIUM",
+      "impact": "Ensures safety boundary is designed proactively rather than retrofitted"
+    },
+    {
+      "priority": "P0",
+      "recommendation": "Add explicit warning flag to digest findings_detail marking it as UNTRUSTED due to content-ID misalignment",
+      "effort": "LOW",
+      "impact": "Prevents downstream stages from accidentally using corrupted data"
+    },
+    {
+      "priority": "P1",
+      "recommendation": "Architecture stage should define success metrics (REQ-036/037/038) as part of control flow design",
+      "effort": "MEDIUM",
+      "impact": "Without measurable success criteria, circuit breakers and quality gates cannot function"
+    },
+    {
+      "priority": "P1",
+      "recommendation": "Conduct end-to-end walkthrough of first use case (DeepFlow Ship Pro → programming files) in architecture stage",
+      "effort": "LOW",
+      "impact": "Validates that abstract fractal loop architecture can support concrete execution scenarios"
+    },
+    {
+      "priority": "P2",
+      "recommendation": "Fix expert report schema to populate structured findings arrays and sources arrays",
+      "effort": "LOW",
+      "impact": "Enables programmatic access to findings and evidence traceability"
+    },
+    {
+      "priority": "P2",
+      "recommendation": "Consider supplementary safety-focused research if architecture stage identifies gaps in Zone 0 enforcement design",
+      "effort": "MEDIUM",
+      "impact": "Reduces risk of safety boundary design being incomplete or inconsistent"
+    }
+  ],
+  "next_stage_readiness": {
+    "architecture_stage": "READY_WITH_CONDITIONS — Strong research foundation for core architecture (fractal loop, heartbeat, state management, circuit breaker, direction detection). Must address safety gap and use original expert reports.",
+    "detailed_design_stage": "NOT_READY — Depends on architecture stage output first. Research provides sufficient foundation for architecture but not all design details.",
+    "overall_pipeline_health": "HEALTHY_WITH_QUALITY_ISSUES — Research module produces excellent substantive analysis, but data pipeline has formatting bugs that need fixing before production use."
+  }
+}

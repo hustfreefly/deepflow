@@ -36,12 +36,12 @@ bb = BlackboardManager('{session_id}')
 |------|-----------|------|
 | Planning 模块 | `planning_convergence` | 统一约束 + 验证清单 + REQ 覆盖（**必须读**） |
 | Phase 0 | `knowledge_freshness` | 最新技术趋势搜索结果 |
-| 原始需求 | `data/frozen_spec` | 需求清单 |
+| 原始需求 | `data/living_spec`（优先）或 `data/frozen_spec` | 需求清单 |
 
 **读取顺序**：
 1. `planning_convergence` — 理解约束分布（安全几条、架构几条、性能几条…）
 2. `knowledge_freshness` — 理解最新技术动态
-3. `data/frozen_spec` — 理解原始需求
+3. `data/living_spec`（优先）或 `data/frozen_spec` — 理解原始需求
 
 ---
 

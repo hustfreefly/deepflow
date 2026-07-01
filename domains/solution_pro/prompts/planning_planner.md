@@ -35,13 +35,13 @@ bb = BlackboardManager('{session_id}')
 | 来源 | stage 名称 | 内容 |
 |------|-----------|------|
 | Phase 0 | `knowledge_freshness` | 最新标准/规范/框架搜索结果 |
-| 原始需求 | `data/frozen_spec` | 需求清单 |
+| 原始需求 | `data/living_spec`（优先）或 `data/frozen_spec` | 需求清单 |
 
 **Planning 是第一个模块，没有 `planning_convergence` 输入。**
 
 **读取顺序**：
 1. `knowledge_freshness` — 理解最新标准/规范/框架
-2. `data/frozen_spec` — 理解原始需求
+2. `data/living_spec`（优先）或 `data/frozen_spec` — 理解原始需求
 
 ---
 
@@ -129,6 +129,25 @@ bb = BlackboardManager('{session_id}')
 - MUST 约束必须有可执行的验证方法
 - P0 需求必须被至少 1 个 Expert 深入分析
 - 约束必须具体到技术级别（不是"保证安全"，而是"TLS 1.3 + AES-256-GCM"）
+- 每条约束必须标注 **relevant_experts**（哪些 Research Expert 应该关注这条约束）
+
+### 约束字段结构（unified_constraints 中每条约束的字段）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| constraint_id | string | ✅ | 约束唯一标识（如 C-001） |
+| description | string | ✅ | 约束描述（具体到技术级别） |
+| priority | string | ✅ | MUST / SHOULD / MAY |
+| rationale | string | ✅ | 因果链：为什么需要这个约束 |
+| covered_req_ids | list[string] | ✅ | 关联的需求 ID 列表 |
+| verification_method | string | MUST 必填 | 怎么验证是否遵守这个约束 |
+| source_experts | list[string] | ✅ | 哪些 Expert 提出了这条约束 |
+| **relevant_experts** | list[string] | ✅ | 哪些 Research Expert 应该关注这条约束 |
+
+- **relevant_experts**：标注这条约束应该被哪些 Research Expert 关注。
+  使用 Research Expert 的角色名（snake_case），例如：architecture_expert, quality_expert, security_expert 等。
+  每条约束至少标注 1 个 relevant_expert。MUST 级约束通常关联 2-3 个 Expert。
+  这个字段用于 Research 模块自动将约束注入到对应 Expert 的上下文中。
 
 ## 4. 专家数量决策理由
 - 为什么选择 N 个专家：[基于约束维度分布的推理过程]

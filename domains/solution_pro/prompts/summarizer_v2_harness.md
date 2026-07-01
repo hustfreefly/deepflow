@@ -37,7 +37,7 @@ updated: "2026-05-01"
 - `stages/fix.json` — Fixer 初步修正
 - `stages/fixer_expert.json` — Fixer Expert 深度修正
 - `stages/harness_final.json` — Harness Final 质量门禁
-- `data/frozen_spec.json` — Frozen Spec（需求清单）
+- `data/living_spec.json`（优先）或 `data/frozen_spec.json`（向后兼容） — 需求规格（需求清单）
 - `requirements_traceability_matrix.json` — 需求覆盖矩阵
 
 ## 输入数据（辅助，不是唯一来源）

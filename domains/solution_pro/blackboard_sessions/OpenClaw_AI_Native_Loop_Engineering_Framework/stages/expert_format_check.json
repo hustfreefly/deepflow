@@ -1,0 +1,27 @@
+{
+  "total": 2,
+  "compliant": 0,
+  "issues": [
+    {
+      "expert": "architecture_expert",
+      "missing": [
+        "missing_executive_summary",
+        "missing_findings_section",
+        "missing_confidence",
+        "missing_related_constraints"
+      ]
+    },
+    {
+      "expert": "generalist_expert",
+      "missing": [
+        "missing_executive_summary",
+        "missing_findings_section",
+        "missing_confidence",
+        "missing_related_constraints"
+      ]
+    }
+  ],
+  "compliance_rate": 0.0,
+  "degraded_mode": true,
+  "degradation_reason": "合规率 0% 低于 50%，Digest 生成将回退到直接读取 Expert 原始报告"
+}

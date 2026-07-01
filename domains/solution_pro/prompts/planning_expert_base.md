@@ -45,12 +45,12 @@ bb = BlackboardManager('{session_id}')
 |------|-----------|------|
 | Planning Planner | `planning_plan` | 专家面板规划（**找到自己的 analysis_questions**） |
 | Phase 0 | `knowledge_freshness` | 最新标准/规范/框架 |
-| 原始需求 | `data/frozen_spec` | 需求清单 |
+| 原始需求 | `data/living_spec`（优先）或 `data/frozen_spec` | 需求清单 |
 
 **读取顺序**：
 1. `planning_plan` — 找到分配给你的 analysis_questions 和 focus_req_ids
 2. `knowledge_freshness` — 了解最新标准/规范
-3. `data/frozen_spec` — 理解原始需求细节
+3. `data/living_spec`（优先）或 `data/frozen_spec` — 理解原始需求细节
 
 ---
 
@@ -123,7 +123,7 @@ covered_req_ids: [REQ-001, REQ-005, ...]
 - **描述**：具体约束描述
 - **优先级**：MUST / SHOULD / MAY
 - **covered_req_ids**：REQ-001, REQ-002
-- **rationale**：因果链 — 因为需求 X 要求 Y（引用 frozen_spec），所以必须遵守 Z
+- **rationale**：因果链 — 因为需求 X 要求 Y（引用 living_spec/frozen_spec），所以必须遵守 Z
 - **验证方法**：怎么验证是否遵守了这个约束（具体命令/检查步骤）
 - **冲突**：与其他约束是否有冲突（如有，说明）
 

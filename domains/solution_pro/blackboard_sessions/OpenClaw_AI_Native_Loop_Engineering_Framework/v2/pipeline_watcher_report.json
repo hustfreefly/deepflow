@@ -1,0 +1,69 @@
+{
+  "report_type": "pipeline_watcher_report",
+  "generated_at": 1782885095.7485619,
+  "summary": {
+    "total_modules": 3,
+    "complete": 1,
+    "failed": 0,
+    "degraded": 2,
+    "timed_out": 0,
+    "total_duration": 1200.5248441696167,
+    "alert_count": 4,
+    "pipeline_status": "COMPLETE_DEGRADED"
+  },
+  "module_details": {
+    "planning": {
+      "status": "DEGRADED",
+      "start_time": 1782883895.193559,
+      "end_time": 1782884195.709795,
+      "duration": 300.51623606681824,
+      "gate_a": null,
+      "gate_b": null,
+      "degraded": true,
+      "error": {
+        "type": "RuntimeError",
+        "message": "spawn_fn returned None for meta_planner"
+      },
+      "degradation_reason": "spawn_fn returned None for meta_planner"
+    },
+    "research": {
+      "status": "DEGRADED",
+      "start_time": 1782884195.7185862,
+      "end_time": 1782885095.7350552,
+      "duration": 900,
+      "gate_a": null,
+      "gate_b": null,
+      "degraded": true,
+      "error": null,
+      "degradation_reason": "timeout after 900s"
+    },
+    "review_qc": {
+      "status": "COMPLETE",
+      "start_time": 1782885095.738959,
+      "end_time": 1782885095.7475672,
+      "duration": 0.008608102798461914,
+      "gate_a": null,
+      "gate_b": null,
+      "degraded": false,
+      "error": null
+    }
+  },
+  "alerts": [
+    {
+      "message": "Module 'planning' failed: spawn_fn returned None for meta_planner",
+      "timestamp": 1782884195.70981
+    },
+    {
+      "message": "Module 'planning' degraded: spawn_fn returned None for meta_planner",
+      "timestamp": 1782884195.716522
+    },
+    {
+      "message": "Module 'research' timed out after 900s",
+      "timestamp": 1782885095.735064
+    },
+    {
+      "message": "Module 'research' degraded: timeout after 900s",
+      "timestamp": 1782885095.73584
+    }
+  ]
+}

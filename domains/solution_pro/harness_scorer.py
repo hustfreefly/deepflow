@@ -470,9 +470,13 @@ class GateALayer2Calibration:
         harness_reasoning: str,
         scores: dict,
         n_runs: int = 3,
+        living_spec: dict = None,
     ) -> dict:
         """
         运行 3 次 LLM Judge，取多数投票结果。
+
+        Args:
+            living_spec: Living Spec(Spec Pro 产出,可选)。存在时优先使用 narrative 替代 frozen_spec。
 
         Returns:
             {
@@ -487,7 +491,7 @@ class GateALayer2Calibration:
 
         votes = []
         for i in range(n_runs):
-            prompt = self._build_calibration_prompt(stage_output, frozen_spec, harness_reasoning, scores)
+            prompt = self._build_calibration_prompt(stage_output, frozen_spec, harness_reasoning, scores, living_spec=living_spec)
             result = self.llm_judge_fn(
                 stage_output=stage_output,
                 frozen_spec=frozen_spec,
@@ -517,12 +521,18 @@ class GateALayer2Calibration:
             "consistency": max(pass_count, fail_count) / n_runs,
         }
 
-    def _build_calibration_prompt(self, stage_output, frozen_spec, harness_reasoning, scores):
+    def _build_calibration_prompt(self, stage_output, frozen_spec, harness_reasoning, scores, living_spec=None):
         """构建 Layer 2 校准 prompt"""
         examples_text = "\n".join([
             f"示例 {i+1}:\n输入: {ex['input']}\n输出: {ex['output']}"
             for i, ex in enumerate(self.FEW_SHOT_EXAMPLES)
         ])
+
+        # Living Spec 优先（V3 AI Native）
+        if living_spec:
+            spec_for_prompt = living_spec.get("narrative", "")[:3000]
+        else:
+            spec_for_prompt = str(json.dumps(frozen_spec, ensure_ascii=False))[:3000] if frozen_spec else ""
 
         return f"""## Gate A Layer 2 语义校准
 
@@ -537,8 +547,8 @@ class GateALayer2Calibration:
 ### Harness Agent 推理
 {harness_reasoning}
 
-### 原始需求（Frozen Spec 摘要）
-{json.dumps(frozen_spec, ensure_ascii=False)[:1000]}
+### 原始需求（Spec Context）
+{spec_for_prompt}
 
 ### Stage 输出摘要
 {json.dumps(stage_output, ensure_ascii=False)[:1000]}

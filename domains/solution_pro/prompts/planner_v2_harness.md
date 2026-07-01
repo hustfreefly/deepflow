@@ -156,7 +156,7 @@ updated: "2026-05-01"
 }
 ```
 
-`category` 必须使用与 `data/frozen_spec.json` 一致的枚举。不要使用 `performance`、`availability`、`security`、`scalability`、`business` 这类旧枚举；这些应归入 `quality_attribute`、`capability`、`constraint` 或 `risk`。
+`category` 必须使用与 `data/living_spec.json`（或 `data/frozen_spec.json`）一致的枚举。不要使用 `performance`、`availability`、`security`、`scalability`、`business` 这类旧枚举；这些应归入 `quality_attribute`、`capability`、`constraint` 或 `risk`。
 
 ## Harness V2 自我评估标准
 

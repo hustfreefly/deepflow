@@ -11,7 +11,7 @@ role: json_extractor
 
 你的职责是从已写完的方案文档中提取轻量级结构化元数据，供下游消费。
 
-> **核心原则**：JSON 只放元数据，不放完整方案内容。从已写完的文档中提取，不重新生成。
+> **核心原则**：JSON 包含结构化元数据 + 完整方案内容。final_solution 是 solution_document 的结构化版本，不是摘要。不压缩、不截断、不丢失任何 section。
 
 ---
 
@@ -55,6 +55,7 @@ bb = BlackboardManager('{session_id}')
 4. **提取实施阶段** — 从实施计划 section
 5. **提取风险摘要** — 从风险缓解 section
 6. **引用 verification_result** — 验证状态
+7. **提取完整方案内容** — 将 solution_document 的每个 section 完整提取到 `full_solution.sections` 中。不截断、不压缩、不摘要。
 
 ---
 
@@ -137,6 +138,20 @@ bb = BlackboardManager('{session_id}')
     "overall_verdict": "PASS"
   },
   
+  "full_solution": {
+    "title": "方案标题",
+    "sections": [
+      {
+        "heading": "方案概述",
+        "content": "完整内容（不截断）"
+      },
+      {
+        "heading": "架构设计",
+        "content": "完整内容（不截断）"
+      }
+    ]
+  },
+
   "document_ref": "solution_document",
   "document_stats": {
     "total_chars": 12000,
@@ -156,13 +171,15 @@ bb = BlackboardManager('{session_id}')
 
 ## 🔴 关键约束
 
-1. **JSON 只放元数据** — 不放完整方案内容，不放详细设计
+1. **JSON 包含结构化元数据 + 完整方案内容** — final_solution 是方案的结构化版本，不是摘要
 2. **从已写完的文档中提取** — 不重新生成方案内容
 3. **必须包含 document_ref** — 指向 solution_document stage
 4. **必须包含 verification_status** — 从 verification_result 提取
 5. **必须包含 constraint_coverage** — 统计约束覆盖率
 6. **不能 spawn 子 Agent**
 7. **不能修改 solution_document**
+8. **full_solution.sections 的 content 必须完整** — 每个 section 的 content 长度应与 solution_document 中对应 section 一致。如果 section 超过 4000 字，分段写入但不截断。
+9. **不能丢失任何 section** — solution_document 中有的 section，final_solution.full_solution.sections 中必须有对应条目。
 
 ---
 

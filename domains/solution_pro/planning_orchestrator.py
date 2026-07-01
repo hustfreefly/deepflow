@@ -115,6 +115,36 @@ class PlanningOrchestrator(ModuleOrchestrator):
             logger.warning(f"Prompt file not found: {filename}")
             return ""
     
+    def _get_prompt_input(self) -> str:
+        """
+        V3: 获取 prompt 注入的输入内容
+        
+        优先级：
+        1. living_spec（如果有 narrative 或 requirement_index）
+        2. frozen_spec（fallback）
+        
+        Returns:
+            格式化后的 prompt 输入字符串
+        """
+        # V3: 优先使用 living_spec
+        living_spec = getattr(self, 'living_spec', None)
+        if living_spec:
+            narrative = living_spec.get("narrative", "")
+            requirement_index = living_spec.get("requirement_index", [])
+            if narrative or requirement_index:
+                try:
+                    from domains.solution_pro.frozen_spec import format_living_spec_for_prompt
+                    return format_living_spec_for_prompt(living_spec)
+                except Exception as e:
+                    logger.warning(f"[V3] Failed to format living_spec: {e}")
+        
+        # Fallback: frozen_spec
+        try:
+            frozen_spec = self.blackboard.read_json("frozen_spec.json")
+            return json.dumps(frozen_spec, indent=2, ensure_ascii=False)
+        except Exception:
+            return "(No input available)"
+    
     def _load_checkpoint(self, path: str) -> Optional[dict]:
         """
         加载断点输出（如果存在）
@@ -155,6 +185,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
         structured_requirements: dict = None,
         spawn_fn: Callable = None,
         llm_judge_fn: Callable = None,
+        living_spec: dict = None,
     ) -> dict:
         """
         Run Planning module (main entry point)
@@ -163,11 +194,16 @@ class PlanningOrchestrator(ModuleOrchestrator):
         - 如果提供参数，使用参数值
         - 如果未提供，从 blackboard 读取（V1 模式）
         
+        V3 增强：living_spec 成为主要输入源
+        - 如果有 living_spec，优先使用（写入 blackboard + prompt 注入）
+        - 如果没有，fallback 到 frozen_spec
+        
         Args:
             frozen_spec: Frozen spec dict（可选，V1 从 blackboard 读取）
             structured_requirements: Structured requirements dict（可选，V1 从 blackboard 读取）
             spawn_fn: Spawn function（可选，覆盖初始化时的 spawn_fn）
             llm_judge_fn: LLM judge function（可选，供 Phase 2 使用）
+            living_spec: Living spec dict（V3: 主要输入源）
         
         Returns:
             planning_convergence.json content
@@ -182,6 +218,23 @@ class PlanningOrchestrator(ModuleOrchestrator):
         if structured_requirements is not None:
             self.blackboard.write("structured_requirements.json", structured_requirements)
         
+        # V3: 存储 living_spec（主要输入源）
+        if living_spec is not None:
+            self.living_spec = living_spec
+            try:
+                self.blackboard.write("data/living_spec.json", living_spec)
+                logger.info("[V3] living_spec written to blackboard: data/living_spec.json")
+            except Exception as e:
+                logger.warning(f"[V3] Failed to write living_spec.json: {e}")
+        else:
+            # V3 fallback: 尝试从 blackboard 读取（必须用 read_json，不能用 read）
+            try:
+                self.living_spec = self.blackboard.read_json("data/living_spec.json")
+                logger.info("[V3] living_spec loaded from blackboard")
+            except Exception:
+                self.living_spec = None
+                logger.info("[V3] No living_spec available, using frozen_spec fallback")
+        
         logger.info("Starting Planning module")
         
         # Check for checkpoint (resume support)
@@ -192,7 +245,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
                 if hasattr(self.blackboard, 'read_json'):
                     checkpoint_data = self.blackboard.read_json("planning_convergence.json")
                 else:
-                    result = self.blackboard.read("planning_convergence.json")
+                    result = self.blackboard.read_json("planning_convergence.json")
                     if isinstance(result, str):
                         import json
                         checkpoint_data = json.loads(result)
@@ -277,14 +330,28 @@ class PlanningOrchestrator(ModuleOrchestrator):
             return checkpoint
         
         # Read input files
-        frozen_spec = self.blackboard.read("frozen_spec.json")
-        structured_requirements = self.blackboard.read("structured_requirements.json")
+        frozen_spec = self.blackboard.read_json("frozen_spec.json") or {}
+        structured_requirements = self.blackboard.read_json("structured_requirements.json") or {}
         
         # Get session directory from blackboard (fallback for test mocks)
         session_dir = str(getattr(self.blackboard, 'session_dir', self.session_id))
         
-        # Build task using task_builder (generates prompt + system_prompt)
-        task = build_meta_planner_task(frozen_spec, structured_requirements, session_dir)
+        # V3: 优先使用 living_spec 构建 task
+        living_spec = getattr(self, 'living_spec', None)
+        if living_spec and (living_spec.get("narrative") or living_spec.get("requirement_index")):
+            # V3: 使用 living_spec 作为主要输入
+            try:
+                from domains.solution_pro.frozen_spec import format_living_spec_for_prompt
+                living_spec_prompt = format_living_spec_for_prompt(living_spec)
+                # 将 living_spec_prompt 注入到 frozen_spec 中供 task_builder 使用
+                frozen_spec_with_living = {**frozen_spec, "living_spec_prompt": living_spec_prompt}
+                task = build_meta_planner_task(frozen_spec_with_living, structured_requirements, session_dir)
+            except Exception as e:
+                logger.warning(f"[V3] Failed to use living_spec for meta_planner: {e}, falling back")
+                task = build_meta_planner_task(frozen_spec, structured_requirements, session_dir)
+        else:
+            # Fallback: 旧逻辑
+            task = build_meta_planner_task(frozen_spec, structured_requirements, session_dir)
         
         # Execute task via spawn_fn
         # Use relative output_path for spawn_fn compatibility (blackboard handles session_dir)
@@ -298,8 +365,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
             if worker_output is None:
                 raise RuntimeError("spawn_fn returned None for meta_planner")
         else:
-            # Fallback for testing
-            worker_output = self._mock_meta_planner()
+            raise ValueError("spawn_fn is required — no mock fallback allowed. Planning cannot run without a real LLM agent.")
         
         # Validate output against ExpertManifestSchema
         try:
@@ -312,75 +378,6 @@ class PlanningOrchestrator(ModuleOrchestrator):
         self._save_checkpoint("stages/meta_planning.json", worker_output)
         
         return worker_output
-    
-    def _mock_meta_planner(self) -> dict:
-        """Mock Meta-Planner output (for testing)"""
-        return {
-            "schema_version": "1.0.0",
-            "task_profile": {
-                "domain": "backend_api",
-                "complexity": "high",
-                "risk_areas": ["security", "scalability", "data_consistency"],
-            },
-            "experts": [
-                {
-                    "expert_name": "security_expert",
-                    "domain": "Security",
-                    "focus_areas": ["OWASP Top 10", "authentication", "authorization"],
-                    "evaluation_lens": "从安全漏洞和攻击面角度审视每个设计决策",
-                },
-                {
-                    "expert_name": "performance_expert",
-                    "domain": "Performance & Scalability",
-                    "focus_areas": ["latency", "throughput", "resource_usage"],
-                    "evaluation_lens": "从性能瓶颈和扩展性角度审视每个设计决策",
-                },
-                {
-                    "expert_name": "data_architect",
-                    "domain": "Data Architecture",
-                    "focus_areas": ["data_modeling", "consistency", "migration"],
-                    "evaluation_lens": "从数据完整性和一致性角度审视每个设计决策",
-                },
-            ],
-            "gate_a": {
-                "weights": {
-                    "completeness": 0.30,
-                    "necessity": 0.15,
-                    "alignment": 0.35,
-                    "global_impact": 0.20,
-                },
-                "thresholds": {
-                    "PASS": 0.85,
-                    "WARNING": 0.70,
-                    "CRITICAL_WARNING": 0.60,
-                    "BLOCK_RECOMMENDATION": 0.0,
-                },
-                "rationale": "高风险后端 API 任务，强调目标一致性和完整性",
-            },
-            "gate_b": {
-                "dynamic_checks": [
-                    {
-                        "name": "security_audit",
-                        "description": "安全审计检查",
-                        "pass_criteria": "无高危漏洞，所有 OWASP Top 10 风险已缓解",
-                        "severity": "CRITICAL",
-                        "reasoning": "安全是 P0 需求 REQ-P0-001",
-                    },
-                    {
-                        "name": "p0_req_coverage",
-                        "description": "P0 需求覆盖率检查",
-                        "pass_criteria": "所有 P0 REQ 在 unified_constraints 中有对应约束",
-                        "severity": "CRITICAL",
-                        "reasoning": "P0 需求必须 100% 覆盖",
-                    },
-                ],
-            },
-            "verdict_policy": {
-                "warning_acceptable": False,
-                "min_gate_b_pass_rate": 0.8,
-            },
-        }
-    
     def _run_reviewer_meta(self, expert_manifest: dict) -> dict:
         """
         Run Reviewer_Meta (validate Meta-Planner output)（含断点续跑）
@@ -400,7 +397,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
             return checkpoint
         
         # Read input files
-        frozen_spec = self.blackboard.read("frozen_spec.json")
+        frozen_spec = self.blackboard.read_json("frozen_spec.json")
         
         # Get session directory from blackboard (fallback for test mocks)
         session_dir = str(getattr(self.blackboard, 'session_dir', self.session_id))
@@ -420,26 +417,12 @@ class PlanningOrchestrator(ModuleOrchestrator):
             if worker_output is None:
                 raise RuntimeError("spawn_fn returned None for reviewer_meta")
         else:
-            # Fallback for testing
-            worker_output = self._mock_reviewer_meta()
+            raise ValueError("spawn_fn is required — no mock fallback allowed. Reviewer_Meta cannot run without a real LLM agent.")
         
         # Save to blackboard（checkpoint）
         self._save_checkpoint("stages/reviewer_meta.json", worker_output)
         
         return worker_output
-    
-    def _mock_reviewer_meta(self) -> dict:
-        """Mock Reviewer_Meta output (for testing)"""
-        return {
-            "schema_version": "1.0.0",
-            "reviewer": "reviewer_meta",
-            "overall_verdict": "PASS",
-            "overall_score": 0.92,
-            "reviews": {},
-            "issues": [],
-            "suggestions": [],
-        }
-    
     def _run_expert_planners(self, expert_manifest: dict) -> list[dict]:
         """Run Expert Planners ×N (Layer 1, parallel)"""
         # V2: Use parallel execution with checkpoint, retry, and graceful degradation
@@ -456,7 +439,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
         4. graceful degradation（MIN_VIABLE_EXPERTS）
         5. per-expert timeout（default 120s）
         
-        V1 向后兼容：当 spawn_fn 为 None 时，退化为顺序执行（测试模式）
+        spawn_fn 必须存在，否则 raise ValueError（无降级、无 mock）
         """
         from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
         import time
@@ -485,45 +468,36 @@ class PlanningOrchestrator(ModuleOrchestrator):
             logger.info("All experts loaded from checkpoint, skipping execution")
             return results
         
-        # V1 向后兼容：当 spawn_fn 为 None 时，退化为顺序执行（测试模式）
+        # spawn_fn 必须存在，不允许 mock 执行
         if not self.spawn_fn:
-            logger.info("spawn_fn is None, falling back to sequential execution (V1 mode)")
+            raise ValueError("spawn_fn is required — Expert Planners cannot run without real LLM agents. No mock fallback allowed.")
+        
+        # V2: 并行执行
+        logger.info(f"Running {len(pending_experts)} experts in parallel (max_workers={min(5, len(pending_experts))})")
+        
+        with ThreadPoolExecutor(max_workers=min(5, len(pending_experts))) as executor:
+            futures = {}
             for expert in pending_experts:
-                try:
-                    result = self._mock_expert_planner(expert)
-                    ExpertPlanSchema(**result)
-                    self._save_expert_checkpoint(expert["expert_name"], result)
-                    results.append(result)
-                except Exception as e:
-                    failed_experts.append({"name": expert["expert_name"], "error": str(e)})
-                    logger.error(f"Expert {expert['expert_name']} failed: {e}")
-        else:
-            # V2: 并行执行
-            logger.info(f"Running {len(pending_experts)} experts in parallel (max_workers={min(5, len(pending_experts))})")
+                future = executor.submit(self._run_single_expert_with_retry, expert)
+                futures[future] = expert
             
-            with ThreadPoolExecutor(max_workers=min(5, len(pending_experts))) as executor:
-                futures = {}
-                for expert in pending_experts:
-                    future = executor.submit(self._run_single_expert_with_retry, expert)
-                    futures[future] = expert
-                
-                # Wait for completion with timeout
-                try:
-                    for future in as_completed(futures, timeout=600):
-                        expert = futures[future]
-                        try:
-                            result = future.result(timeout=600)
-                            results.append(result)
-                            self._save_expert_checkpoint(expert["expert_name"], result)
-                            logger.info(f"Expert {expert['expert_name']} completed successfully")
-                        except TimeoutError:
-                            failed_experts.append({"name": expert["expert_name"], "error": "Timeout (120s)"})
-                            logger.error(f"Expert {expert['expert_name']} timed out")
-                        except Exception as e:
-                            failed_experts.append({"name": expert["expert_name"], "error": str(e)})
-                            logger.error(f"Expert {expert['expert_name']} failed: {e}")
-                except TimeoutError:
-                    logger.error("Global timeout (600s) exceeded for expert planners")
+            # Wait for completion with timeout
+            try:
+                for future in as_completed(futures, timeout=600):
+                    expert = futures[future]
+                    try:
+                        result = future.result(timeout=600)
+                        results.append(result)
+                        self._save_expert_checkpoint(expert["expert_name"], result)
+                        logger.info(f"Expert {expert['expert_name']} completed successfully")
+                    except TimeoutError:
+                        failed_experts.append({"name": expert["expert_name"], "error": "Timeout (120s)"})
+                        logger.error(f"Expert {expert['expert_name']} timed out")
+                    except Exception as e:
+                        failed_experts.append({"name": expert["expert_name"], "error": str(e)})
+                        logger.error(f"Expert {expert['expert_name']} failed: {e}")
+            except TimeoutError:
+                logger.error("Global timeout (600s) exceeded for expert planners")
         
         # Graceful degradation check
         if len(results) < min_viable:
@@ -562,8 +536,8 @@ class PlanningOrchestrator(ModuleOrchestrator):
                 logger.info(f"Running expert {expert['expert_name']} (attempt {attempt + 1}/{max_retries + 1})")
                 
                 # Read input files
-                frozen_spec = self.blackboard.read("frozen_spec.json")
-                structured_requirements = self.blackboard.read("structured_requirements.json")
+                frozen_spec = self.blackboard.read_json("frozen_spec.json")
+                structured_requirements = self.blackboard.read_json("structured_requirements.json")
                 
                 # Build prompt (base + specialization)
                 prompt = self.expert_planner_prompt
@@ -643,43 +617,6 @@ class PlanningOrchestrator(ModuleOrchestrator):
             logger.debug(f"Checkpoint saved for {expert_name}")
         except Exception as e:
             logger.error(f"Failed to save checkpoint for {expert_name}: {e}")
-    
-    def _mock_expert_planner(self, expert: dict) -> dict:
-        """Mock Expert Planner output (for testing)"""
-        return {
-            "schema_version": "1.0.0",
-            "expert_name": expert["expert_name"],
-            "constraints": [
-                {
-                    "constraint_id": "C-001",
-                    "description": f"{expert['domain']} constraint 1",
-                    "priority": "MUST",
-                    "rationale": "Critical requirement",
-                },
-                {
-                    "constraint_id": "C-002",
-                    "description": f"{expert['domain']} constraint 2",
-                    "priority": "SHOULD",
-                    "rationale": "Important requirement",
-                },
-            ],
-            "risks": [
-                {
-                    "risk_id": "R-001",
-                    "description": f"{expert['domain']} risk 1",
-                    "mitigation": "Mitigation strategy",
-                },
-            ],
-            "acceptance_criteria": [
-                {
-                    "criterion_id": "AC-001",
-                    "description": f"{expert['domain']} acceptance criterion 1",
-                    "verification_method": "Run test X, expect Y",
-                },
-            ],
-            "covered_req_ids": ["REQ-P0-001"],
-        }
-    
     def _run_convergence_planner(
         self,
         expert_manifest: dict,
@@ -703,7 +640,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
             return checkpoint
         
         # Read input files
-        frozen_spec = self.blackboard.read("frozen_spec.json")
+        frozen_spec = self.blackboard.read_json("frozen_spec.json")
         
         # Build prompt
         prompt = self.convergence_planner_prompt.replace("{frozen_spec}", json.dumps(frozen_spec, indent=2))
@@ -720,8 +657,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
             if worker_output is None:
                 raise RuntimeError("spawn_fn returned None for convergence_planner")
         else:
-            # Fallback for testing
-            worker_output = self._mock_convergence_planner(expert_plans)
+            raise ValueError("spawn_fn is required — no mock fallback allowed. Convergence Planner cannot run without a real LLM agent.")
         
         # Validate output (unified_constraints + verification_checklist)
         try:
@@ -737,58 +673,6 @@ class PlanningOrchestrator(ModuleOrchestrator):
         self._save_checkpoint("stages/convergence_planning.json", worker_output)
         
         return worker_output
-    
-    def _mock_convergence_planner(self, expert_plans: list[dict]) -> dict:
-        """Mock Convergence Planner output (for testing)"""
-        # Merge constraints from all experts
-        unified_constraints = []
-        constraint_id = 1
-        
-        for plan in expert_plans:
-            for constraint in plan["constraints"]:
-                unified_constraints.append({
-                    "constraint_id": f"UC-{constraint_id:03d}",
-                    "description": constraint["description"],
-                    "priority": constraint["priority"],
-                    "source_experts": [plan["expert_name"]],
-                    "conflicts_resolved": [],
-                })
-                constraint_id += 1
-        
-        # Generate verification checklist
-        verification_checklist = []
-        check_id = 1
-        
-        for constraint in unified_constraints:
-            verification_checklist.append({
-                "check_id": f"VC-{check_id:03d}",
-                "constraint_id": constraint["constraint_id"],
-                "verification_method": f"Verify {constraint['description']}",
-                "expected_result": "Pass",
-            })
-            check_id += 1
-        
-        return {
-            "schema_version": "1.0.0",
-            "unified_constraints": {
-                "schema_version": "1.0.0",
-                "constraints": unified_constraints,
-                "rejected_constraints": [],
-                "meta": {
-                    "total_expert_plans": len(expert_plans),
-                    "total_input_constraints": sum(len(p["constraints"]) for p in expert_plans),
-                    "total_output_constraints": len(unified_constraints),
-                    "merge_ratio": len(unified_constraints) / sum(len(p["constraints"]) for p in expert_plans),
-                },
-                "covered_req_ids": ["REQ-P0-001"],
-            },
-            "verification_checklist": {
-                "schema_version": "1.0.0",
-                "checklist": verification_checklist,
-                "total_checks": len(verification_checklist),
-            },
-        }
-    
     def _run_reviewer_convergence(self, convergence_output: dict) -> dict:
         """
         Run Reviewer_Convergence (validate Convergence output)（含断点续跑）
@@ -807,8 +691,8 @@ class PlanningOrchestrator(ModuleOrchestrator):
             return checkpoint
         
         # Read input files
-        frozen_spec = self.blackboard.read("frozen_spec.json")
-        expert_manifest = self.blackboard.read("stages/meta_planning.json")
+        frozen_spec = self.blackboard.read_json("frozen_spec.json")
+        expert_manifest = self.blackboard.read_json("stages/meta_planning.json")
         expert_plans = []
         
         for expert in expert_manifest["experts"]:
@@ -832,26 +716,12 @@ class PlanningOrchestrator(ModuleOrchestrator):
             if worker_output is None:
                 raise RuntimeError("spawn_fn returned None for reviewer_convergence")
         else:
-            # Fallback for testing
-            worker_output = self._mock_reviewer_convergence()
+            raise ValueError("spawn_fn is required — no mock fallback allowed. Reviewer_Convergence cannot run without a real LLM agent.")
         
         # Save to blackboard（checkpoint）
         self._save_checkpoint("stages/reviewer_convergence.json", worker_output)
         
         return worker_output
-    
-    def _mock_reviewer_convergence(self) -> dict:
-        """Mock Reviewer_Convergence output (for testing)"""
-        return {
-            "schema_version": "1.0.0",
-            "reviewer": "reviewer_convergence",
-            "overall_verdict": "PASS",
-            "overall_score": 0.91,
-            "reviews": {},
-            "issues": [],
-            "suggestions": [],
-        }
-    
     def _run_harness_agent(
         self,
         convergence_output: dict,
@@ -892,8 +762,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
             if worker_output is None:
                 raise RuntimeError("spawn_fn returned None for harness_agent")
         else:
-            # Fallback for testing
-            worker_output = self._mock_harness_agent()
+            raise ValueError("spawn_fn is required — no mock fallback allowed. Harness Agent cannot run without a real LLM agent.")
 
         # [V2 Phase 1.4] Layer 2: 语义校准
         llm_judge_fn = getattr(self, 'llm_judge_fn', None)
@@ -906,7 +775,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
 
         # Read frozen_spec if available (for Layer 2 prompt context)
         try:
-            frozen_spec = self.blackboard.read("frozen_spec.json")
+            frozen_spec = self.blackboard.read_json("frozen_spec.json")
         except Exception:
             frozen_spec = {}
 
@@ -943,40 +812,6 @@ class PlanningOrchestrator(ModuleOrchestrator):
         self._save_checkpoint("stages/harness_planning.json", worker_output)
 
         return worker_output
-    
-    def _mock_harness_agent(self) -> dict:
-        """Mock Harness Agent output (for testing)"""
-        return {
-            "schema_version": "1.0.0",
-            "gate_a": {
-                "score": 0.87,
-                "verdict": "PASS",
-                "scores": {
-                    "completeness": 0.90,
-                    "necessity": 0.85,
-                    "alignment": 0.88,
-                    "global_impact": 0.82,
-                },
-                "reasoning": {
-                    "completeness": "Good coverage",
-                    "necessity": "Reasonable constraints",
-                    "alignment": "Aligned with task profile",
-                    "global_impact": "Considered global impact",
-                },
-            },
-            "gate_b": {
-                "pass_rate": 1.0,
-                "verdict": "PASS",
-                "checks": [],
-                "failed_items": [],
-            },
-            "final_verdict": {
-                "final_verdict": "PASS",
-                "gate_a": "PASS",
-                "gate_b": "PASS",
-            },
-        }
-    
     def _generate_planning_convergence(
         self,
         expert_manifest: dict,

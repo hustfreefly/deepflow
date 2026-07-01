@@ -20,6 +20,7 @@ L2_THRESHOLDS = {
     "research_to_review_qc": {
         "req_coverage_min": 0.85,
         "constraint_propagation_min": 0.8,
+        "research_utilization_min": 0.6,  # Fix 1: Expert finding 利用率下限
     },
 }
 
@@ -28,6 +29,7 @@ L3_THRESHOLDS = {
     "req_coverage_min": 0.8,
     "constraint_propagation_min": 0.75,
     "source_traceability_min": 0.7,
+    "research_utilization_min": 0.5,  # Fix 1: 研究利用率下限
     "overall_score_min": 0.8,
 }
 
@@ -47,12 +49,20 @@ class InformationConservationValidator:
         research_output: dict | None = None,
         review_qc_output: dict | None = None,
     ) -> dict:
-        """Returns verdict + scores for req_coverage, constraint_propagation, source_traceability."""
+        """Returns verdict + scores for req_coverage, constraint_propagation, source_traceability, research_utilization."""
         req_cov = self._check_req_coverage(planning_output, research_output, review_qc_output)
         const_prop = self._check_constraint_propagation(planning_output, research_output, review_qc_output)
         src_trace = self._check_source_traceability(planning_output)
+        # Fix 1: 研究利用率检查 — 防止 Expert findings 被静默忽略
+        research_util = self._check_research_utilization(research_output, review_qc_output)
 
-        score = req_cov["rate"] * 0.4 + const_prop["rate"] * 0.4 + src_trace["rate"] * 0.2
+        # 权重分配: 需求 35% + 约束 30% + 追溯 15% + 研究利用 20%
+        score = (
+            req_cov["rate"] * 0.35
+            + const_prop["rate"] * 0.30
+            + src_trace["rate"] * 0.15
+            + research_util["rate"] * 0.20
+        )
 
         if score >= 0.8:
             verdict = "PASS"
@@ -64,16 +74,21 @@ class InformationConservationValidator:
         # 安全底线: 需求覆盖率 < 0.5 → 强制 FAIL
         if req_cov["rate"] < 0.5:
             verdict = "FAIL"
+        # Fix 1: 研究利用率 < 0.3 → 降级为 WARNING（不强制 FAIL，因为有些研究可能确实不相关）
+        if research_util["rate"] < 0.3:
+            verdict = "WARNING" if verdict == "PASS" else verdict
 
-        logger.info("InfoConservation verdict=%s score=%.2f", verdict, score)
+        logger.info("InfoConservation verdict=%s score=%.2f research_util=%.2f", verdict, score, research_util["rate"])
         return {
             "verdict": verdict,
             "score": round(score, 4),
             "req_coverage": req_cov,
             "constraint_propagation": const_prop,
             "source_traceability": src_trace,
+            "research_utilization": research_util,
             "missing_reqs": req_cov.get("missing", []),
             "dropped_constraints": const_prop.get("dropped", []),
+            "uncited_experts": research_util.get("uncited_experts", []),
         }
 
     # --- Dimension 1: Requirement coverage ---
@@ -87,8 +102,17 @@ class InformationConservationValidator:
     # --- Dimension 2: Constraint propagation ---
 
     def _check_constraint_propagation(self, planning_output: dict, research_output: dict | None, review_qc_output: dict | None) -> dict:
-        constraints = planning_output.get("unified_constraints", {}).get("constraints", [])
-        cids = [c.get("constraint_id") for c in constraints if c.get("constraint_id")]
+        # Fix: unified_constraints 可能是 list 或 dict
+        raw = planning_output.get("unified_constraints", [])
+        if isinstance(raw, dict):
+            constraints = raw.get("constraints", [])
+        elif isinstance(raw, list):
+            constraints = raw
+        else:
+            constraints = []
+        # 兼容 id / constraint_id 两种字段名
+        cids = [c.get("id", c.get("constraint_id", "")) for c in constraints if isinstance(c, dict)]
+        cids = [c for c in cids if c]
         propagated = {c for c in cids if self._id_in(c, research_output, review_qc_output)}
         rate = len(propagated) / len(cids) if cids else 1.0
         return {"total": len(cids), "propagated": len(propagated), "rate": round(rate, 4), "dropped": sorted(set(cids) - propagated)}
@@ -96,12 +120,103 @@ class InformationConservationValidator:
     # --- Dimension 3: Source traceability ---
 
     def _check_source_traceability(self, planning_output: dict) -> dict:
-        constraints = planning_output.get("unified_constraints", {}).get("constraints", [])
-        traceable = sum(1 for c in constraints if c.get("source_experts"))
+        raw = planning_output.get("unified_constraints", [])
+        if isinstance(raw, dict):
+            constraints = raw.get("constraints", [])
+        elif isinstance(raw, list):
+            constraints = raw
+        else:
+            constraints = []
+        traceable = sum(1 for c in constraints if isinstance(c, dict) and c.get("source_experts"))
         rate = traceable / len(constraints) if constraints else 1.0
         return {"total": len(constraints), "traceable": traceable, "rate": round(rate, 4)}
 
     # --- Helpers ---
+
+    # --- Dimension 4: Research utilization (Fix 1) ---
+
+    def _check_research_utilization(self, research_output: dict | None, review_qc_output: dict | None) -> dict:
+        """Check whether expert findings were utilized in the solution.
+
+        E2E V3 发现: 56% Expert 零引用，360KB research → 45KB solution 压缩后仅 1 处引用标记。
+        本方法检测 expert findings 是否被下游方案引用（粗粒度：expert name/ID 出现在方案文本中）。
+        """
+        if research_output is None:
+            return {"total": 0, "utilized": 0, "rate": 1.0, "uncited_experts": []}
+
+        # 兼容: research_output 可能是字符串（双重编码）
+        if isinstance(research_output, str):
+            import json as _json
+            try:
+                research_output = _json.loads(research_output)
+            except (ValueError, TypeError):
+                return {"total": 0, "utilized": 0, "rate": 1.0, "uncited_experts": []}
+
+        if not isinstance(research_output, dict):
+            return {"total": 0, "utilized": 0, "rate": 1.0, "uncited_experts": []}
+
+        # 提取 expert IDs 和关键 finding 标题
+        experts = research_output.get("expert_to_findings_map", {})
+        if not experts:
+            # Fallback: 从 research_metadata 或 expert 文件中提取
+            experts = self._extract_experts_from_metadata(research_output)
+
+        if not experts:
+            return {"total": 0, "utilized": 0, "rate": 1.0, "uncited_experts": []}
+
+        # 检查每个 expert 的 findings 是否在 review_qc_output 中被引用
+        solution_text = str(review_qc_output) if review_qc_output else ""
+        cited = []
+        uncited = []
+
+        for expert_id, findings in experts.items():
+            # 粗粒度检查: expert_id 或任一 finding 关键词出现在方案文本中
+            expert_cited = expert_id in solution_text
+            if not expert_cited and findings:
+                # 检查 finding 关键词
+                finding_keywords = [
+                    f[:20] for f in (findings if isinstance(findings, list) else [findings])
+                    if isinstance(f, str) and len(f) > 5
+                ]
+                expert_cited = any(kw.lower() in solution_text.lower() for kw in finding_keywords)
+
+            if expert_cited:
+                cited.append(expert_id)
+            else:
+                uncited.append(expert_id)
+
+        total = len(experts)
+        utilized = len(cited)
+        rate = utilized / total if total > 0 else 1.0
+
+        return {
+            "total": total,
+            "utilized": utilized,
+            "uncited": len(uncited),
+            "rate": round(rate, 4),
+            "uncited_experts": sorted(uncited),
+        }
+
+    @staticmethod
+    def _extract_experts_from_metadata(research_output: dict) -> dict:
+        """Fallback: extract expert map from research output structure."""
+        experts = {}
+        # 尝试从 research_metadata 提取
+        metadata = research_output.get("metadata", research_output.get("research_metadata", {}))
+        if isinstance(metadata, dict):
+            expert_map = metadata.get("expert_to_findings_map", {})
+            if expert_map:
+                return expert_map
+        # 尝试从 experts 列表提取
+        expert_list = research_output.get("experts", [])
+        if isinstance(expert_list, list):
+            for exp in expert_list:
+                if isinstance(exp, dict):
+                    eid = exp.get("expert_id", exp.get("id", ""))
+                    findings = exp.get("findings", exp.get("key_findings", []))
+                    if eid:
+                        experts[eid] = findings
+        return experts
 
     @staticmethod
     def _extract_p0_req_ids(planning_output: dict) -> list[str]:

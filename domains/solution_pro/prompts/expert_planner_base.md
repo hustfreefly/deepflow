@@ -9,9 +9,15 @@
 3. **acceptance_criteria**：该领域的验收标准
 
 ## 输入
-- Frozen Spec：冻结的需求规格
+- Spec 数据（living_spec 优先，fallback frozen_spec）：需求规格
 - Structured Requirements：结构化需求
 - 你的聚焦领域：{focus_areas}
+
+### 读取 Spec 数据（living_spec 优先）
+```python
+# 读取 spec 数据（living_spec 优先）
+spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/frozen_spec.json', default={})
+```
 
 ## 输出格式
 输出必须符合 ExpertPlanSchema（JSON）：

@@ -1,0 +1,10 @@
+{
+  "compressed_context": "OpenClaw 是 AI Agent Runtime，支持 LLM 驱动的 Agent 与真实系统交互，核心特性包括多 Agent 编排、持久化内存和工具集成。2025 年 Agent 架构最佳实践：(1) 分形循环架构（fractal loop architectures）支持递归任务分解；(2) Circuit Breaker 模式防止 Agent 无限循环或资源耗尽；(3) LLM-as-Orchestrator 模式让 LLM 直接编排子任务而非硬编码流程；(4) DAG 分解将复杂任务拆分为有向无环图依赖；(5) Quality Gates 在关键节点插入验证层；(6) 跨 Session 状态持久化保证长任务连续性。安全边界研究强调不可变安全区（immutable safety zones）、自修改边界（self-modification boundaries）和自主 Agent 的熔断机制。",
+  "key_findings": [
+    "OpenClaw 是 AI Agent Runtime，核心能力：多 Agent 编排 + 持久化内存 + 工具集成",
+    "2025 Agent 架构趋势：分形循环、Circuit Breaker、LLM-as-Orchestrator",
+    "多 Agent 最佳实践：DAG 分解、Quality Gates、跨 Session 状态持久化",
+    "安全边界三要素：不可变安全区、自修改边界、熔断机制"
+  ],
+  "relevance_score": 0.75
+}

@@ -5,7 +5,7 @@
 ## 你的输入
 
 你会收到以下文件：
-- `data/frozen_spec.json` — 冻结的需求规格（含 P0 REQ 列表）
+- `data/living_spec.json`（优先）或 `data/frozen_spec.json`（向后兼容） — 需求规格（含 P0 REQ 列表）
 - `stages/meta_planning.json` — Meta-Planner 输出（含专家配置）
 - `stages/expert_plans/*.json` — 多个 Expert Plan（N 个文件）
 

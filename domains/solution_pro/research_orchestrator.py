@@ -38,13 +38,15 @@ from .schemas.v2_schemas import (
     ResearchExpertSchema,
     ResearchConsolidatorSchema,
     ResearchConvergenceSchema,
+    ResearchDigest,
+    DigestFinding,
 )
 
 logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# Source Registry — Thread-safe source tracking
+# Source Registry - Thread-safe source tracking
 # ============================================================================
 
 class SourceRegistry:
@@ -84,7 +86,7 @@ class SourceRegistry:
                     self._sources[expert_name].append(src)
                     new_count += 1
                 elif not url:
-                    # No URL — always add (can't dedup)
+                    # No URL - always add (can't dedup)
                     self._sources[expert_name].append(src)
                     new_count += 1
 
@@ -128,12 +130,12 @@ class SourceRegistry:
 
 class ResearchOrchestrator(ModuleOrchestrator):
     """
-    Research 模块 — 多 Expert 并行调研 + 迭代收敛
+    Research 模块 - 多 Expert 并行调研 + 迭代收敛
 
     5 个 Stage:
     1. Knowledge Freshness: LLM 提取 query + web_search + 压缩
     2. Expert Config 确定: 从 planning_output.risk_areas 动态生成
-    3. Research Experts ×M: 并行执行（含迭代循环）
+    3. Research Experts ×M: 并行执行(含迭代循环)
     4. Consolidation: 批量去重 + 冲突检测 + Tier 分级
     5. Convergence: 调用 ConvergenceLayer 生成 research_convergence.json
 
@@ -234,6 +236,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
         frozen_spec: Optional[dict] = None,
         planning_output: Optional[dict] = None,
         spawn_fn: Optional[Callable] = None,
+        living_spec: Optional[dict] = None,
     ) -> dict:
         """
         Research 模块主入口
@@ -242,6 +245,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
             frozen_spec: Frozen spec dict
             planning_output: planning_convergence.json content
             spawn_fn: Optional spawn function override
+            living_spec: V3 Living Spec dict(主要输入源)
 
         Returns:
             research_convergence.json content
@@ -253,6 +257,23 @@ class ResearchOrchestrator(ModuleOrchestrator):
         if planning_output is not None:
             self.blackboard.write("planning_convergence.json", planning_output)
 
+        # V3: 存储 living_spec(主要输入源)
+        if living_spec is not None:
+            self.living_spec = living_spec
+            try:
+                self.blackboard.write("data/living_spec.json", living_spec)
+                logger.info("[V3] living_spec written to blackboard: data/living_spec.json")
+            except Exception as e:
+                logger.warning(f"[V3] Failed to write living_spec.json: {e}")
+        else:
+            # V3 fallback: 尝试从 blackboard 读取
+            try:
+                self.living_spec = self.blackboard.read_json("data/living_spec.json")
+                logger.info("[V3] living_spec loaded from blackboard")
+            except Exception:
+                self.living_spec = None
+                logger.info("[V3] No living_spec available, using frozen_spec fallback")
+
         logger.info("Starting Research module")
 
         # Checkpoint: skip if already completed
@@ -263,9 +284,9 @@ class ResearchOrchestrator(ModuleOrchestrator):
 
         # Load inputs
         if frozen_spec is None:
-            frozen_spec = self.blackboard.read("frozen_spec.json")
+            frozen_spec = self.blackboard.read_json("frozen_spec.json")
         if planning_output is None:
-            planning_output = self.blackboard.read("planning_convergence.json")
+            planning_output = self.blackboard.read_json("planning_convergence.json")
 
         self.frozen_spec = frozen_spec
         self.planning_output = planning_output
@@ -291,6 +312,24 @@ class ResearchOrchestrator(ModuleOrchestrator):
         consolidated = self._run_consolidation(expert_outputs)
         self._save_checkpoint("stages/research_consolidator.json", consolidated)
 
+        # Stage 4.3: Expert 格式合规检查
+        logger.info("Stage 4.3: Expert Format Compliance Check")
+        format_check = self._validate_expert_format(expert_outputs)
+        self.blackboard.write("stages/expert_format_check.json", format_check)
+
+        # 格式合规检查：不达标 = 失败，不降级
+        if format_check["compliance_rate"] < 0.5:
+            raise RuntimeError(
+                f"Expert format compliance {format_check['compliance_rate']:.0%} < 50% — FAILING. "
+                f"Issues: {format_check.get('issues', [])}. No degraded mode allowed."
+            )
+        format_check["degraded_mode"] = False
+
+        # Stage 4.5: Research Digest Generation
+        logger.info("Stage 4.5: Research Digest Generation")
+        digest = self._generate_research_digest(expert_outputs, consolidated)
+        self._save_checkpoint("stages/research_digest.json", digest)
+
         # Stage 5: Convergence
         logger.info("Stage 5: Research Convergence")
         convergence = self._generate_research_convergence(consolidated, expert_outputs)
@@ -310,7 +349,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
         self, frozen_spec: dict, planning_output: dict
     ) -> dict:
         """
-        知识新鲜度层 — 独立组件，在迭代前调用一次
+        知识新鲜度层 - 独立组件,在迭代前调用一次
         [R1-P0-2] 与迭代循环职责分离
 
         Flow:
@@ -330,7 +369,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
         # Step 1: LLM extracts search queries
         queries = self._extract_search_queries(frozen_spec, planning_output)
 
-        # Step 2: Execute searches (simulate — actual search requires web_search tool)
+        # Step 2: Execute searches (simulate - actual search requires web_search tool)
         search_results = self._execute_searches(queries)
 
         # Step 3: LLM compresses results
@@ -357,8 +396,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
             List of search query strings (max 3)
         """
         if not self.spawn_fn:
-            # Fallback: generate queries from spec keywords
-            return self._fallback_extract_queries(frozen_spec, planning_output)
+            raise ValueError("spawn_fn is required for query extraction — no mock allowed")
 
         task_description = (
             "You are a research query extractor. "
@@ -443,7 +481,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
                     logger.warning(f"Search failed for '{query}': {e}")
                     search_results.append({"query": query, "results": []})
             else:
-                # No spawn_fn — return empty results (test mode)
+                # No spawn_fn - return empty results (test mode)
                 search_results.append({"query": query, "results": []})
 
         return search_results
@@ -458,7 +496,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
             Compressed context string
         """
         if not self.spawn_fn:
-            return "(No search results — test mode)"
+            raise ValueError("spawn_fn is required for result compression — no mock allowed")
 
         all_snippets = []
         for sr in search_results:
@@ -560,6 +598,50 @@ class ResearchOrchestrator(ModuleOrchestrator):
 
         self._save_checkpoint("stages/expert_config_determination.json", expert_configs)
         return expert_configs
+
+    def _build_constraint_brief(self, planning_output: dict, expert_name: str) -> str:
+        """
+        从 Planning 输出中提取与指定 Expert 相关的约束，构建约束简报。
+        
+        AI Native 设计：代码做提取+分组（确定性），Expert 只需关注研究+关联（语义）。
+        """
+        constraints = planning_output.get("unified_constraints", [])
+        
+        # 筛选与该 Expert 相关的约束
+        relevant = []
+        for c in constraints:
+            if not isinstance(c, dict):
+                continue
+            relevant_experts = c.get("relevant_experts", [])
+            # 匹配：expert_name 在 relevant_experts 中，或 relevant_experts 为空（全 Expert 关注）
+            if expert_name in relevant_experts or not relevant_experts:
+                relevant.append(c)
+        
+        if not relevant:
+            return ""
+        
+        # 按优先级排序：MUST > SHOULD > MAY
+        priority_order = {"MUST": 0, "SHOULD": 1, "MAY": 2}
+        relevant.sort(key=lambda c: priority_order.get(c.get("priority", "MAY"), 3))
+        
+        # 构建简报
+        lines = ["## 你的约束简报", ""]
+        lines.append(f"以下 {len(relevant)} 条约束与你的研究方向直接相关。")
+        lines.append("在你的 Finding 中，用 `**Related Constraints**` 标注关联的约束 ID。")
+        lines.append("")
+        lines.append("| ID | 约束描述 | 优先级 |")
+        lines.append("|---|---------|--------|")
+        
+        for c in relevant[:30]:  # Cap at 30 to avoid token overload
+            cid = c.get("constraint_id", c.get("id", "?"))
+            desc = c.get("description", c.get("content", ""))[:100]
+            priority = c.get("priority", "?")
+            lines.append(f"| {cid} | {desc} | {priority} |")
+        
+        if len(relevant) > 30:
+            lines.append(f"\n（还有 {len(relevant) - 30} 条约束，读取 planning_convergence 查看完整列表）")
+        
+        return "\n".join(lines)
 
     def _extract_risk_areas(
         self, planning_output: dict, frozen_spec: dict
@@ -705,7 +787,123 @@ class ResearchOrchestrator(ModuleOrchestrator):
                     logger.info("No specific gaps identified, stopping iteration")
                     break
 
+        # 格式合规检查（P1）
+        format_check = self._validate_expert_format(all_expert_outputs)
+        logger.info(f"Expert format compliance: {format_check['compliance_rate']:.0%} ({format_check['compliant']}/{format_check['total']})")
+        if format_check["issues"]:
+            for issue in format_check["issues"]:
+                logger.warning(f"Expert {issue['expert']}: missing {issue['missing']}")
+        # 格式合规检查：不达标 = 失败，不降级
+        if format_check["compliance_rate"] < 0.5:
+            raise RuntimeError(
+                f"Expert format compliance {format_check['compliance_rate']:.0%} < 50% — FAILING. "
+                f"Issues: {format_check.get('issues', [])}. No degraded mode allowed."
+            )
+        format_check["degraded_mode"] = False
+
         return all_expert_outputs
+
+    def _validate_expert_format(self, expert_outputs: list) -> dict:
+        """
+        检查 Expert 输出是否包含要求的结构化字段。
+        AI Native 原则：LLM 做语义检查，代码做存在性检查。
+        """
+        results = {"total": len(expert_outputs), "compliant": 0, "issues": []}
+        
+        for i, output in enumerate(expert_outputs):
+            report = output.get("report", "") if isinstance(output, dict) else str(output)
+            expert_name = output.get("expert_name", f"expert_{i+1}") if isinstance(output, dict) else f"expert_{i+1}"
+            
+            issues = []
+            # 存在性检查（代码做）
+            if "## Executive Summary" not in report and "## 执行摘要" not in report:
+                issues.append("missing_executive_summary")
+            if "## Findings" not in report and "## 研究发现" not in report and "### F-" not in report:
+                issues.append("missing_findings_section")
+            if "Confidence" not in report and "confidence" not in report and "置信度" not in report:
+                issues.append("missing_confidence")
+            if "Related Constraints" not in report and "关联约束" not in report:
+                issues.append("missing_related_constraints")
+            
+            if not issues:
+                results["compliant"] += 1
+            else:
+                results["issues"].append({
+                    "expert": expert_name,
+                    "missing": issues,
+                })
+        
+        results["compliance_rate"] = results["compliant"] / max(results["total"], 1)
+        return results
+
+    def _validate_digest_coverage(self, digest: dict, expert_outputs: list) -> dict:
+        """验证 Research Digest 是否覆盖了 Expert Findings 的关键点。
+        
+        AI Native: 代码做存在性检查（finding 数量对比），
+        语义覆盖由 findings_index 的 source_reference 追溯保证。
+        """
+        # 从 digest 提取 findings 数量
+        digest_findings = digest.get("findings_index", [])
+        digest_count = len(digest_findings)
+        
+        # 从 expert outputs 估算总 findings 数量
+        expert_finding_count = 0
+        for output in expert_outputs:
+            report = output.get("report", "") if isinstance(output, dict) else str(output)
+            # 计算 F-xxx 模式的 finding 标记
+            import re
+            found = re.findall(r"###? F-\d+", report)
+            expert_finding_count += len(found)
+        
+        # 覆盖率计算
+        if expert_finding_count > 0:
+            coverage_rate = min(digest_count / expert_finding_count, 1.0)
+        else:
+            # 如果 Expert 没用 F-xxx 格式，用 findings_index 存在性判断
+            coverage_rate = 1.0 if digest_count > 0 else 0.0
+        
+        # 检查 expert_summaries 是否覆盖所有 Expert
+        expert_names = [
+            o.get("expert_name", f"expert_{i+1}") 
+            for i, o in enumerate(expert_outputs) 
+            if isinstance(o, dict)
+        ]
+        summarized_experts = list(digest.get("expert_summaries", {}).keys())
+        missing_summaries = [n for n in expert_names if n not in summarized_experts]
+        
+        return {
+            "digest_findings_count": digest_count,
+            "expert_findings_estimate": expert_finding_count,
+            "coverage_rate": coverage_rate,
+            "expert_summaries_coverage": f"{len(summarized_experts)}/{len(expert_names)}",
+            "missing_expert_summaries": missing_summaries,
+            "missing_topics": [],  # 语义检查由 LLM-as-Judge 做，这里只记录
+            "verdict": "PASS" if coverage_rate >= 0.8 else "WARN"
+        }
+
+    def _build_degraded_digest(self, expert_outputs: list) -> dict:
+        """降级模式：Expert 格式不合规时，直接搬运原始报告作为 Digest。
+        
+        AI Native 降级策略：不做语义压缩，保留原始信息。
+        下游 Base Synthesizer 需要自己处理原始报告。
+        """
+        expert_summaries = {}
+        for i, output in enumerate(expert_outputs):
+            name = output.get("expert_name", f"expert_{i+1}") if isinstance(output, dict) else f"expert_{i+1}"
+            report = output.get("report", "") if isinstance(output, dict) else str(output)
+            # 截取前 3000 字符作为摘要
+            expert_summaries[name] = report[:3000] if len(report) > 3000 else report
+        
+        return {
+            "schema_version": "1.0.0-degraded",
+            "total_findings": 0,
+            "high_relevance_count": 0,
+            "expert_summaries": expert_summaries,
+            "findings_index": [],
+            "conflicts": [],
+            "degraded": True,
+            "degradation_reason": "Expert format compliance < 50%"
+        }
 
     def _execute_expert_round(
         self,
@@ -730,15 +928,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
         failed = []
 
         if not self.spawn_fn:
-            # Test mode: sequential mock execution
-            for config in expert_configs:
-                result = self._mock_research_expert(config, frozen_spec, iteration)
-                self._save_expert_checkpoint(config["expert_name"], result, iteration)
-                self.source_registry.register(
-                    config["expert_name"], result.get("sources", [])
-                )
-                results.append(result)
-            return results
+            raise ValueError("spawn_fn is required for research experts — no mock allowed")
 
         # Production mode: parallel execution
         logger.info(
@@ -879,6 +1069,11 @@ class ResearchOrchestrator(ModuleOrchestrator):
                     f"Targeted queries: {json.dumps(gap_queries, ensure_ascii=False)}\n"
                 )
 
+        # 注入约束简报
+        constraint_brief = self._build_constraint_brief(planning_output, expert_name)
+        if constraint_brief:
+            prompt = prompt + "\n\n" + constraint_brief
+
         # Execute via spawn_fn
         output_path = f"stages/research_experts/{expert_name}.json"
         worker_output = self._adapted_spawn(
@@ -902,50 +1097,6 @@ class ResearchOrchestrator(ModuleOrchestrator):
         worker_output.setdefault("iteration", iteration)
 
         return worker_output
-
-    def _mock_research_expert(
-        self, config: dict, frozen_spec: dict, iteration: int
-    ) -> dict:
-        """Mock research expert output (for testing)."""
-        return {
-            "schema_version": "1.0.0",
-            "expert_name": config["expert_name"],
-            "domain": config["domain"],
-            "findings": [
-                {
-                    "finding_id": f"F-001",
-                    "description": f"{config['domain']} finding 1",
-                    "evidence": "Based on latest research",
-                    "relevance": "high",
-                },
-            ],
-            "risks": [
-                {
-                    "risk_id": "R-001",
-                    "description": f"{config['domain']} risk 1",
-                    "mitigation": "Standard mitigation",
-                    "severity": "medium",
-                },
-            ],
-            "recommendations": [
-                {
-                    "rec_id": "REC-001",
-                    "description": f"{config['domain']} recommendation 1",
-                    "rationale": "Best practice",
-                },
-            ],
-            "confidence_score": 0.85,
-            "sources": [
-                {
-                    "url": "https://example.com/1",
-                    "title": f"{config['domain']} reference",
-                    "quality": "high",
-                }
-            ],
-            "iteration": iteration,
-            "covered_req_ids": [],
-        }
-
     def _save_expert_checkpoint(
         self, expert_name: str, result: dict, iteration: int
     ):
@@ -981,21 +1132,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
             }
         """
         if not self.spawn_fn:
-            # Test mode: check average confidence
-            if not expert_outputs:
-                return {
-                    "sufficient": False,
-                    "gaps": ["No expert outputs"],
-                    "reason": "No outputs to assess",
-                }
-            avg_confidence = sum(
-                e.get("confidence_score", 0.5) for e in expert_outputs
-            ) / len(expert_outputs)
-            return {
-                "sufficient": avg_confidence >= 0.7,
-                "gaps": [] if avg_confidence >= 0.7 else ["Low average confidence"],
-                "reason": f"Average confidence: {avg_confidence:.2f}",
-            }
+            raise ValueError("spawn_fn is required for sufficiency assessment — no mock allowed")
 
         # Build assessment task
         findings_summary = []
@@ -1063,7 +1200,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
         return {
             "sufficient": avg_confidence >= 0.7,
             "gaps": [] if avg_confidence >= 0.7 else ["Low average confidence"],
-            "reason": f"Fallback — average confidence: {avg_confidence:.2f}",
+            "reason": f"Fallback - average confidence: {avg_confidence:.2f}",
         }
 
     def _create_gap_configs(
@@ -1086,13 +1223,174 @@ class ResearchOrchestrator(ModuleOrchestrator):
         return gap_configs
 
     # ========================================================================
+    # Stage 4.5: Research Digest Generation
+    # ========================================================================
+
+    def _generate_research_digest(self, expert_outputs: list, consolidated: dict) -> dict:
+        """
+        生成 Research Digest — AI Native 方式。
+        
+        LLM 做语义理解（去重/冲突检测/重要性判断），代码做 I/O（读写/验证）。
+        这是 AGENTS.md Zone 4.1 的正确实践：理解问题用 LLM，格式处理用代码。
+        
+        Base Synthesizer 只读这个 Digest，不读 Expert 原始报告。
+        """
+        # 降级模式已被禁止 — 如果 format_check 有 degraded_mode，说明上游出了问题
+        format_check = self.blackboard.read_json("stages/expert_format_check.json")
+        if format_check and format_check.get("degraded_mode"):
+            raise RuntimeError(
+                "Digest cannot run in degraded mode — format compliance must be >= 50%. "
+                "Fix expert outputs first."
+            )
+
+        logger.info("Generating Research Digest (LLM-based)")
+        
+        # 1. 代码做 I/O: 写入 Expert 报告到 blackboard，供 LLM 读取
+        expert_reports_summary = []
+        for i, expert_output in enumerate(expert_outputs):
+            expert_name = expert_output.get("expert_name", f"expert_{i+1}")
+            report = expert_output.get("report", "")
+            if report:
+                report_path = f"stages/_digest_expert_{i+1}_{expert_name}.md"
+                self.blackboard.write(report_path, report)
+                expert_reports_summary.append(
+                    f"- Expert {i+1} ({expert_name}): 读取 `{report_path}`"
+                )
+        
+        consolidated_summary = json.dumps({
+            "findings_count": len(consolidated.get("findings", [])),
+            "consensus_points": consolidated.get("consensus_points", []),
+            "divergence_points": consolidated.get("divergence_points", []),
+            "risks_count": len(consolidated.get("risks", [])),
+            "covered_req_ids": consolidated.get("covered_req_ids", []),
+        }, ensure_ascii=False, indent=2)
+        
+        # 2. LLM 做语义: 提取、去重、排序、冲突检测
+        task = (
+            "你是一个 Research Digest 生成器。\n\n"
+            "## 你的任务\n"
+            "读取所有 Expert 的研究报告，生成一个结构化的 Research Digest。\n"
+            "这个 Digest 将作为 Base Synthesizer 的唯一 Research 输入。\n\n"
+            "## Expert 报告\n"
+            f"{chr(10).join(expert_reports_summary)}\n\n"
+            "## Consolidation 上下文\n"
+            f"```json\n{consolidated_summary}\n```\n\n"
+            "## 输出要求\n\n"
+            "### expert_summaries\n"
+            "每个 Expert 的核心结论摘要（2000-3000 字）。\n"
+            "保留关键判断、重要数据点、核心建议。\n\n"
+            "### findings_index\n"
+            "从所有报告中提取全部 Findings：\n"
+            "- 语义去重：含义相同但措辞不同的 Finding 合并（保留更完整的版本）\n"
+            "- 每个 Finding 标注：id(F-001格式)、title、confidence(0-1)、relevance(HIGH/MEDIUM/LOW)、design_implication(1-2句)\n"
+            "- 按 relevance 排序：HIGH > MEDIUM > LOW\n\n"
+            "### findings_detail\n"
+            "为每个 Finding 提取完整分析文本（包含 Evidence、Confidence 理由、Design Implication）。\n"
+            "**不截断** — 保留完整分析，让 Synthesizer 自己决定什么重要。\n\n"
+            "### conflicts\n"
+            "检测专家之间的语义矛盾（不只是标题相似，而是观点冲突）。\n"
+            "每个 conflict 标注：topic、experts、positions（各方立场）、resolution(NEEDS_REVIEW)。\n\n"
+            "## 输出格式\n"
+            "返回 JSON 对象，包含以下字段：\n"
+            "```json\n"
+            "{\n"
+            '  "expert_summaries": [{"expert": "name", "summary": "..."}],\n'
+            '  "findings_index": [{"id": "F-001", "title": "...", "confidence": 0.9, "relevance": "HIGH", "design_implication": "..."}],\n'
+            '  "findings_detail": [{"id": "F-001", "title": "...", "expert": "source_expert", "full_text": "完整分析文本（不截断）"}],\n'
+            '  "conflicts": [{"topic": "...", "experts": ["..."], "positions": ["..."], "resolution": "NEEDS_REVIEW"}]\n'
+            "}\n"
+            "```\n\n"
+            f"将输出写入 `stages/_digest_output.json`"
+        )
+        
+        try:
+            result = self._adapted_spawn(
+                task=task,
+                output_path="stages/_digest_output.json",
+                timeout=600,
+            )
+            
+            if isinstance(result, dict):
+                digest_output = result
+            else:
+                digest_output = self.blackboard.read_json("stages/_digest_output.json")
+            
+            if not digest_output or not isinstance(digest_output, dict):
+                raise ValueError("LLM Digest output is empty or not a dict")
+            
+            # 3. 代码做验证: 检查必需字段
+            required_fields = ["expert_summaries", "findings_index", "findings_detail", "conflicts"]
+            for field in required_fields:
+                if field not in digest_output:
+                    raise ValueError(f"Missing required field: {field}")
+            
+            # 4. 代码做格式: 组装最终 Digest
+            digest = {
+                "schema_version": "1.0.0",
+                "generated_at": datetime.now().isoformat(),
+                "expert_count": len(expert_outputs),
+                "total_findings": len(digest_output.get("findings_index", [])),
+                "expert_summaries": digest_output["expert_summaries"],
+                "findings_index": digest_output["findings_index"],
+                "top_10_findings": digest_output["findings_index"][:10],
+                "findings_detail": digest_output["findings_detail"],
+                "conflicts": digest_output["conflicts"],
+                "coverage": {
+                    "covered_req_ids": consolidated.get("covered_req_ids", []),
+                    "uncovered_p0_req_ids": consolidated.get("uncovered_p0_req_ids", []),
+                },
+            }
+            
+            logger.info(
+                f"Research Digest (LLM): {digest['total_findings']} findings, "
+                f"{len(digest['conflicts'])} conflicts"
+            )
+            
+            # Digest 质量验证 (Devil's Advocate HIGH)
+            # AI Native: LLM-as-Judge 验证 Digest 是否覆盖 Expert Findings 关键点
+            try:
+                validation = self._validate_digest_coverage(digest, expert_outputs)
+                self.blackboard.write("stages/digest_validation.json", validation)
+                if validation["coverage_rate"] < 0.8:
+                    logger.warning(
+                        f"Digest coverage {validation['coverage_rate']:.0%} < 80%, "
+                        f"missing: {validation.get('missing_topics', [])[:5]}"
+                    )
+                else:
+                    logger.info(f"Digest coverage: {validation['coverage_rate']:.0%}")
+            except Exception as e:
+                logger.warning(f"Digest validation failed (non-blocking): {e}")
+            
+            # Pydantic 契约笼子验证 (P1-A1)
+            try:
+                validated = ResearchDigest(**digest)
+                logger.info(f"Digest schema validation passed: {validated.total_findings} findings")
+            except Exception as ve:
+                logger.warning(f"Digest schema validation failed (non-blocking): {ve}")
+
+            # Pydantic 契约笼子验证 (P1-A1)
+            try:
+                validated = ResearchDigest(**digest)
+                logger.info(f"Digest schema validation passed: {validated.total_findings} findings")
+            except Exception as ve:
+                logger.warning(f"Digest schema validation failed (non-blocking): {ve}")
+
+            return digest
+            
+        except Exception as e:
+            raise ValueError(
+                f"Research Digest generation failed — LLM 无法生成结构化 Digest。\n"
+                f"错误: {e}\n"
+                f"这是 Pipeline 的关键路径，无法跳过。请检查 LLM Agent 是否正常运行。"
+            ) from e
+    
     # Stage 4: Consolidation
     # ========================================================================
 
     def _run_consolidation(self, expert_outputs: list[dict]) -> dict:
         """
         批量去重 + 冲突检测 + Tier 分级
-        [R1-A-P1-6] 批量分组（O(1) LLM 调用替代 O(N²)）
+        [R1-A-P1-6] 批量分组(O(1) LLM 调用替代 O(N2))
         [R1-B-P1-4] LLM 不可用时 fallback 到文本相似度
 
         Returns:

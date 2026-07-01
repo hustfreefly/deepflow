@@ -39,13 +39,13 @@ bb = BlackboardManager('{session_id}')
 | Expert 报告 | `research_experts/` | 所有 Expert 的 markdown 研究报告（目录，多个文件） |
 | Planning 模块 | `planning_convergence` | 统一约束 |
 | Research Planner | `research_plan` | 质量标准 + 专家面板规划 |
-| 原始需求 | `data/frozen_spec` | 需求清单 |
+| 原始需求 | `data/living_spec`（优先）或 `data/frozen_spec` | 需求清单 |
 
 **读取顺序**：
 1. `research_experts/` — 逐个读取所有 Expert 报告
 2. `planning_convergence` — 理解约束体系
 3. `research_plan` — 理解质量标准
-4. `data/frozen_spec` — 理解完整需求清单
+4. `data/living_spec`（优先）或 `data/frozen_spec` — 理解完整需求清单
 
 ---
 

@@ -1,0 +1,23 @@
+[
+  {
+    "expert_name": "architecture_expert",
+    "domain": "architecture",
+    "focus_areas": [
+      "system design",
+      "scalability"
+    ],
+    "evaluation_lens": "从架构设计角度审视技术方案",
+    "iteration_queries": []
+  },
+  {
+    "expert_name": "generalist_expert",
+    "domain": "General Software Architecture",
+    "focus_areas": [
+      "cross-cutting concerns",
+      "integration patterns",
+      "trade-off analysis"
+    ],
+    "evaluation_lens": "从全局视角审视技术方案的可行性和一致性",
+    "iteration_queries": []
+  }
+]

@@ -1,0 +1,60 @@
+{
+  "report_type": "pipeline_watcher_report",
+  "generated_at": 1782897785.996781,
+  "summary": {
+    "total_modules": 3,
+    "complete": 2,
+    "failed": 0,
+    "degraded": 1,
+    "timed_out": 0,
+    "total_duration": 2577.8028140068054,
+    "alert_count": 2,
+    "pipeline_status": "COMPLETE_DEGRADED"
+  },
+  "module_details": {
+    "planning": {
+      "status": "DEGRADED",
+      "start_time": 1782895208.18464,
+      "end_time": 1782896339.161939,
+      "duration": 1130.9772989749908,
+      "gate_a": null,
+      "gate_b": null,
+      "degraded": true,
+      "error": {
+        "type": "RuntimeError",
+        "message": "Insufficient experts: 0/5 succeeded, minimum viable is 3. Failed: ['long_running_reliability_and_circuit_breaker_expert', 'ai_safety_and_self_modification_boundary_guardian', 'quality_gate_and_direction_deviation_specialist', 'state_persistence_and_recovery_engineer', 'fractal_loop_orchestration_architect']"
+      },
+      "degradation_reason": "Insufficient experts: 0/5 succeeded, minimum viable is 3. Failed: ['long_running_reliability_and_circuit_breaker_expert', 'ai_safety_and_self_modification_boundary_guardian', 'quality_gate_and_direction_deviation_specialist', 'state_persistence_and_recovery_engineer', 'fractal_loop_orchestration_architect']"
+    },
+    "research": {
+      "status": "COMPLETE",
+      "start_time": 1782896339.169815,
+      "end_time": 1782897187.477296,
+      "duration": 848.3074810504913,
+      "gate_a": null,
+      "gate_b": null,
+      "degraded": false,
+      "error": null
+    },
+    "review_qc": {
+      "status": "COMPLETE",
+      "start_time": 1782897187.47753,
+      "end_time": 1782897785.995564,
+      "duration": 598.5180339813232,
+      "gate_a": null,
+      "gate_b": null,
+      "degraded": false,
+      "error": null
+    }
+  },
+  "alerts": [
+    {
+      "message": "Module 'planning' failed: Insufficient experts: 0/5 succeeded, minimum viable is 3. Failed: ['long_running_reliability_and_circuit_breaker_expert', 'ai_safety_and_self_modification_boundary_guardian', 'quality_gate_and_direction_deviation_specialist', 'state_persistence_and_recovery_engineer', 'fractal_loop_orchestration_architect']",
+      "timestamp": 1782896339.16196
+    },
+    {
+      "message": "Module 'planning' degraded: Insufficient experts: 0/5 succeeded, minimum viable is 3. Failed: ['long_running_reliability_and_circuit_breaker_expert', 'ai_safety_and_self_modification_boundary_guardian', 'quality_gate_and_direction_deviation_specialist', 'state_persistence_and_recovery_engineer', 'fractal_loop_orchestration_architect']",
+      "timestamp": 1782896339.1678982
+    }
+  ]
+}

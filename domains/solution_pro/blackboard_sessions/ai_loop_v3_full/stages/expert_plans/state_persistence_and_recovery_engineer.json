@@ -1,0 +1,359 @@
+{
+  "schema_version": "2.0",
+  "expert_name": "state_persistence_and_recovery_engineer",
+  "domain": "Cross-session state management, file-as-state persistence, and failure recovery",
+  "constraints": [
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C01",
+      "description": "原子写入保障：所有状态文件（state.json, task_dag.json, config.json）必须通过 write-to-temp → fsync → atomic-rename 模式写入，禁止原地覆盖写。任何写入操作在 rename 之前崩溃都不应损坏已有状态。",
+      "category": "state_integrity",
+      "priority": "MUST",
+      "rationale": "8小时+运行中必然面临进程崩溃、Session中断、系统重启等场景。原地覆盖写（open-write-close）如果在 write 和 close 之间崩溃，会导致状态文件截断或损坏，Loop无法恢复。原子写入是文件即状态哲学的基石。",
+      "verification_method": "代码审查确认所有状态写入路径使用 tempfile + os.replace() 模式；在写入中途 kill 进程后验证原文件完整性",
+      "relevant_experts": [
+        "fractal_loop_orchestration_architect"
+      ],
+      "covered_req_ids": [
+        "REQ-024",
+        "REQ-006"
+      ]
+    },
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C02",
+      "description": "确定性恢复：从 pause_snapshot.json 或 checkpoint 恢复后，Loop 必须能精确续跑——不重复已完成任务、不遗漏未完成任务、不改变恢复前的执行语义。恢复过程本身必须是幂等的（多次恢复同一断点结果一致）。",
+      "category": "recovery_correctness",
+      "priority": "MUST",
+      "rationale": "跨Session恢复是8小时+自主运行的前提（REQ-024）。如果恢复后重复执行已完成任务会浪费token和时间；遗漏任务会导致DAG不完整；非幂等恢复意味着每次恢复可能产生不同结果，系统不可信。",
+      "verification_method": "设计恢复测试：创建状态→模拟中断→恢复→验证任务DAG执行状态与中断前一致；重复恢复3次验证幂等性",
+      "relevant_experts": [
+        "fractal_loop_orchestration_architect",
+        "long_running_reliability_and_circuit_breaker_expert"
+      ],
+      "covered_req_ids": [
+        "REQ-024",
+        "REQ-036"
+      ]
+    },
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C03",
+      "description": "并发写入协调：多Agent并发写入同一Loop状态时，必须使用文件锁（flock）或写入隔离（每个Agent写独立文件，由单一Aggregator合并）策略。禁止无锁并发追加写入同一文件。",
+      "category": "concurrency_safety",
+      "priority": "MUST",
+      "rationale": "最大并发6个子Agent（REQ-033），多个Worker可能同时更新 task_dag.json 的任务状态或追加 history.jsonl。无锁并发写入会导致数据丢失或文件损坏。特别是 history.jsonl 的追加写入，在 macOS 上虽然小数据量追加通常是原子的，但超过 PIPE_BUF(4096 bytes) 时不保证。",
+      "verification_method": "压力测试：6个并发进程同时写入同一状态文件1000次，验证无数据丢失；审查所有写入路径确认锁策略或写入隔离策略",
+      "relevant_experts": [
+        "fractal_loop_orchestration_architect"
+      ],
+      "covered_req_ids": [
+        "REQ-006"
+      ]
+    },
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C04",
+      "description": "pause_snapshot.json 分形完整性：分形中断时，pause_snapshot 必须捕获中断链路上所有层级的完整状态——包括 Project Loop 的当前 Domain 进度、Domain Loop 的当前 Phase 进度、Phase Loop 的当前 Worker 状态。快照必须包含恢复所需的全部上下文，不依赖内存中的临时状态。",
+      "category": "snapshot_completeness",
+      "priority": "MUST",
+      "rationale": "分形中断是三层Loop架构的核心特性。如果快照只捕获了部分层级，恢复时会出现状态断层——例如 Domain Loop 知道要做什么但不知道 Phase Loop 做到哪一步，导致恢复后重复工作或丢失进展。",
+      "verification_method": "在每层Loop执行中途触发分形中断→检查 pause_snapshot.json 包含所有层级的状态→恢复后验证各层级从正确位置续跑",
+      "relevant_experts": [
+        "fractal_loop_orchestration_architect"
+      ],
+      "covered_req_ids": [
+        "REQ-024"
+      ]
+    },
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C05",
+      "description": "history.jsonl 大小治理：history.jsonl 必须实现滚动策略——单文件超过阈值（如10MB或10000条）时自动归档为 history.{timestamp}.jsonl.gz，当前文件重新创建。checkpoint 中记录当前活跃的 history 文件路径。",
+      "category": "storage_management",
+      "priority": "SHOULD",
+      "rationale": "8小时+运行中，每3分钟一次 fast_pulse 心跳 + Worker 状态更新 + 方向偏离检测，history.jsonl 会以可观的速度增长。无限制追加会导致：(1)文件过大后读取恢复变慢，(2)占用磁盘空间累积，(3)LLM读取上下文时 token 浪费。归档而非删除保证审计可追溯性。",
+      "verification_method": "模拟长时间运行生成超过阈值的 history 记录→验证自动归档触发→验证归档后恢复仍正确→验证归档文件可被解压查阅",
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert"
+      ],
+      "covered_req_ids": [
+        "REQ-024"
+      ]
+    },
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C06",
+      "description": "失败恢复决策树状态化：失败恢复决策树的每个分支（超时→拆分、测试失败→重试、能力不足→切换、信息不足→请求Hermes、方向错误→重新规划、三次失败→通知用户）的每次执行必须将决策原因、输入状态、输出动作写入 errors.jsonl，且更新 state.json 中的 recovery_attempts 计数器。决策树本身不依赖 LLM 记忆来判断'已经试了几次'。",
+      "category": "recovery_determinism",
+      "priority": "MUST",
+      "rationale": "如果重试次数仅靠 LLM 上下文记忆来判断，Session 重启后 LLM 会丢失'已经重试了2次'的信息，可能导致无限重试或过早放弃。状态化的计数器确保恢复后能准确继续之前的恢复策略。",
+      "verification_method": "模拟 Worker 连续失败3次→验证每次失败都记录到 errors.jsonl→验证第3次失败后触发通知用户而非继续重试→模拟 Session 重启后验证重试计数从 state.json 正确恢复",
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert",
+        "fractal_loop_orchestration_architect"
+      ],
+      "covered_req_ids": [
+        "REQ-006"
+      ]
+    },
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C07",
+      "description": "熔断机制基于确定性计数器：死循环熔断（max_loop_iterations_without_progress_before_pause）必须基于文件系统持久化的进展计数器（如 state.json 中的 progress_counter + last_progress_timestamp），不依赖 LLM 自我判断是否陷入循环。计数器在每次有实质进展时由执行者更新。",
+      "category": "circuit_breaker_reliability",
+      "priority": "MUST",
+      "rationale": "让 LLM 自我判断是否陷入循环是'运动员当裁判'——LLM 可能认为自己在取得进展但实际上在重复相同决策（R2 风险）。确定性计数器由工具执行层在每次成功操作后递增，熔断检查读取计数器而非询问 LLM。Session 重启后计数器从文件恢复，不会因 Session 丢失而重置。",
+      "verification_method": "模拟 Agent 执行10次无进展迭代→验证熔断触发→验证计数器持久化到文件→重启 Session 后验证计数器从文件恢复而非归零",
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert"
+      ],
+      "covered_req_ids": [
+        "REQ-034"
+      ]
+    },
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C08",
+      "description": "状态 Schema 版本化与向后兼容：每个状态文件必须包含 schema_version 字段。状态结构变更时，必须提供迁移逻辑（migration），且恢复时必须能读取旧版本状态文件并自动迁移到新版本。禁止在不更新 schema_version 的情况下改变状态文件结构。",
+      "category": "evolution_safety",
+      "priority": "SHOULD",
+      "rationale": "Dream Loop 和 Meta-Loop 会持续优化系统（REQ-025），包括可能调整状态结构。如果旧版本的状态文件无法被新版本读取，Dream Loop 的优化可能导致正在运行的 Loop 无法恢复。向后兼容是自我进化的安全网。",
+      "verification_method": "创建 v1 状态文件→更新代码到 v2（改变结构）→验证恢复时自动迁移 v1→v2→验证迁移后数据无丢失",
+      "relevant_experts": [
+        "ai_safety_and_self_modification_boundary_guardian"
+      ],
+      "covered_req_ids": []
+    },
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C09",
+      "description": "Checkpoint 粒度与频率：checkpoint 必须在以下时机自动创建：(1)每个 Domain Loop 完成时，(2)每个 Phase Loop 完成时，(3)任何分形中断前，(4)history 归档时。checkpoint 包含指向当前所有状态文件的一致性快照引用（如文件哈希或序列号）。",
+      "category": "checkpoint_strategy",
+      "priority": "SHOULD",
+      "rationale": "Checkpoint 是恢复的锚点。太频繁（每次心跳）浪费 I/O 且增加状态不一致窗口；太稀疏（仅项目完成时）导致恢复时丢失大量已完成工作。以 Domain/Phase 完成为粒度，平衡了恢复精度和 I/O 开销。",
+      "verification_method": "运行包含3个 Domain Loop 的项目→验证每个 Domain 完成后 checkpoint 自动创建→中断后从最近 checkpoint 恢复→验证只丢失最近未完成 Domain 的工作",
+      "relevant_experts": [
+        "fractal_loop_orchestration_architect",
+        "long_running_reliability_and_circuit_breaker_expert"
+      ],
+      "covered_req_ids": [
+        "REQ-024",
+        "REQ-035"
+      ]
+    },
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C10",
+      "description": "状态目录隔离与清理：每个 Loop 的状态目录 memory/loops/{loop_id}/ 在 Loop 生命周期结束后标记为 archived（如添加 .archived 标记文件），不自动删除。Meta-Loop 的定期清理策略可归档已完成的 Loop 目录（压缩或移动），但必须保留至少30天的状态供审计。",
+      "category": "lifecycle_management",
+      "priority": "SHOULD",
+      "rationale": "自动删除已完成的 Loop 状态会导致：(1)Dream Loop 无法反思历史执行（REQ-011/REQ-045），(2)Meta-Loop 无法分析历史表现（REQ-013），(3)故障排查时丢失证据。但无限保留会导致磁盘膨胀。30天保留 + 归档压缩是平衡策略。",
+      "verification_method": "完成一个 Loop→验证目录标记为 archived→30天后验证 Meta-Loop 清理策略触发→验证归档后状态仍可读取",
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert"
+      ],
+      "covered_req_ids": []
+    },
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C11",
+      "description": "恢复启动验证协议：从断点恢复后，必须执行一致性自检——(1)task_dag.json 中的任务状态与 history.jsonl 最后记录一致，(2)config.json 的 Loop 参数与创建时一致或记录演化历史，(3)所有引用的 checkpoint 文件存在且可读。任何不一致必须记录到 errors.jsonl 并通知用户。",
+      "category": "recovery_validation",
+      "priority": "MUST",
+      "rationale": "文件系统状态可能被外部因素破坏（磁盘故障、手动编辑、其他工具误操作）。如果恢复时不验证一致性，可能基于损坏的状态做出错误决策，导致后续执行方向偏离。自检是恢复可信度的最后一道防线。",
+      "verification_method": "手动篡改 task_dag.json 中某任务状态→触发恢复→验证一致性自检发现不一致→验证记录到 errors.jsonl 并通知用户",
+      "relevant_experts": [
+        "quality_gate_and_direction_deviation_specialist"
+      ],
+      "covered_req_ids": [
+        "REQ-024"
+      ]
+    },
+    {
+      "constraint_id": "state_persistence_and_recovery_engineer-C12",
+      "description": "errors.jsonl 结构化与可查询：每次错误/失败/恢复事件必须以结构化 JSON 格式追加到 errors.jsonl，包含 timestamp、error_type、affected_loop_layer、affected_task_id、recovery_action_taken、state_snapshot_ref。支持按 error_type 和 time_range 查询，为 Meta-Loop 的参数优化提供数据。",
+      "category": "error_traceability",
+      "priority": "SHOULD",
+      "rationale": "Meta-Loop 需要根据历史错误模式优化参数（REQ-012）。如果 errors.jsonl 格式不统一或缺少关键字段，Meta-Loop 无法有效分析。结构化记录也是 Dream Loop 反思（REQ-045）的输入数据。",
+      "verification_method": "触发多种类型的错误→验证每条错误记录包含所有必需字段→验证 Meta-Loop 能按 error_type 查询并统计频率",
+      "relevant_experts": [
+        "long_running_reliability_and_circuit_breaker_expert",
+        "quality_gate_and_direction_deviation_specialist"
+      ],
+      "covered_req_ids": []
+    }
+  ],
+  "risks": [
+    {
+      "risk_id": "state_persistence_and_recovery_engineer-R01",
+      "description": "并发写入状态文件时文件锁死锁：如果多个 Agent 使用 flock 进行文件锁，某个 Agent 崩溃时未释放锁，其他 Agent 会永久等待，导致整个 Loop 挂起。",
+      "severity": "CRITICAL",
+      "mitigation": "使用带超时的文件锁（flock with timeout，如30秒）。超时后记录到 errors.jsonl 并触发恢复决策树。备选方案：采用写入隔离架构——每个 Worker Agent 写独立的 {worker_id}_result.json，由单一 Aggregator（主 Loop）顺序合并，完全避免并发写入。"
+    },
+    {
+      "risk_id": "state_persistence_and_recovery_engineer-R02",
+      "description": "pause_snapshot.json 写入过程中断导致快照不完整：如果分形中断触发时正在写入 pause_snapshot.json，写入中断会产生损坏的快照文件，恢复时无法使用。",
+      "severity": "HIGH",
+      "mitigation": "pause_snapshot.json 同样使用原子写入（write-temp → fsync → rename）。额外保障：保留前一个快照作为 pause_snapshot.prev.json，仅在新快照原子写入成功后才替换。恢复时优先使用 pause_snapshot.json，如果损坏则 fallback 到 pause_snapshot.prev.json。"
+    },
+    {
+      "risk_id": "state_persistence_and_recovery_engineer-R03",
+      "description": "history.jsonl 在高频心跳下膨胀过快：3分钟 fast_pulse + 6个并发 Worker 的状态更新，8小时内可能产生数万条记录，单文件可达数十MB，影响恢复时的读取性能和 LLM 上下文消耗。",
+      "severity": "HIGH",
+      "mitigation": "实施 C05 的滚动策略。额外优化：(1)心跳记录使用 compact 格式（仅记录变更字段而非全量状态），(2)checkpoint 创建时压缩前一个区间的 history 为摘要条目，(3)恢复时只读取最近一个 checkpoint 之后的 history 条目而非全量。"
+    },
+    {
+      "risk_id": "state_persistence_and_recovery_engineer-R04",
+      "description": "状态 Schema 演化导致旧 Loop 无法恢复：Dream Loop 或 Meta-Loop 修改了状态文件结构后，正在运行中的旧 Loop 的断点无法被新版本代码正确读取。",
+      "severity": "HIGH",
+      "mitigation": "C08 的 Schema 版本化 + 迁移逻辑。额外保障：(1)Meta-Loop 的状态 Schema 变更只在无活跃 Loop 时执行（检查所有 loops/ 目录状态），(2)迁移逻辑必须经过测试覆盖，(3)变更前自动备份所有状态文件。"
+    },
+    {
+      "risk_id": "state_persistence_and_recovery_engineer-R05",
+      "description": "熔断机制误判健康任务为无进展：某些合法任务（如大型代码重构、复杂调研）本身需要长时间执行，期间 progress_counter 不更新，可能被误判为死循环而熔断。",
+      "severity": "MEDIUM",
+      "mitigation": "progress_counter 不应仅基于时间，而应基于可观测的工作产出（如文件变更、搜索结果、中间产物）。对于已知的长任务，Worker 可以发送 heartbeat_ack 信号表示'仍在工作中，只是没有可观测产出'。熔断阈值 max_loop_iterations_without_progress_before_pause 应可由 Zone 2 配置调整。"
+    },
+    {
+      "risk_id": "state_persistence_and_recovery_engineer-R06",
+      "description": "macOS 文件系统特性导致状态损坏：APFS 的 metadata journal 在系统崩溃时可能丢失未提交的 metadata 更新，导致文件存在但内容回滚到之前版本。",
+      "severity": "MEDIUM",
+      "mitigation": "原子 rename 操作在 APFS 上是 journaling 的（metadata 操作有 journal 保护），但 fsync 的数据完整性取决于磁盘刷写。关键状态写入后调用 fsync + fdatasync。对于极度关键的状态（如 pause_snapshot），可考虑写入两份到不同目录。"
+    },
+    {
+      "risk_id": "state_persistence_and_recovery_engineer-R07",
+      "description": "checkpoints/ 目录积累过多快照导致磁盘空间耗尽：8小时+运行中频繁创建 checkpoint，每个 checkpoint 包含状态文件快照引用，长期积累可能占用大量磁盘空间。",
+      "severity": "MEDIUM",
+      "mitigation": "Checkpoint 保留策略：保留最近10个完整 checkpoint + 每小时的1个 checkpoint。旧 checkpoint 由 Meta-Loop 的定期清理任务自动删除。checkpoint 使用硬链接而非复制来引用状态文件，减少空间占用。"
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "criteria_id": "state_persistence_and_recovery_engineer-AC01",
+      "description": "原子写入验证：所有状态文件写入路径经过原子写入保障，在写入中途 kill 进程后原文件保持完整可用。",
+      "verification_method": "对每个状态文件写入路径执行 chaos test：在写入过程中随机 kill 进程100次，验证原文件100%保持完整（通过 JSON 解析验证）。"
+    },
+    {
+      "criteria_id": "state_persistence_and_recovery_engineer-AC02",
+      "description": "跨Session恢复正确性：从 pause_snapshot.json 恢复后，任务DAG的执行状态与中断前完全一致——已完成任务不重做，未完成任务不遗漏，进行中任务从断点续跑。",
+      "verification_method": "设计3个恢复场景测试：(1)Domain Loop 执行中途断开，(2)Phase Loop 执行中途断开，(3)Worker 执行中途断开。每个场景验证恢复后任务完成集合与中断前一致。"
+    },
+    {
+      "criteria_id": "state_persistence_and_recovery_engineer-AC03",
+      "description": "幂等恢复：对同一断点执行多次恢复，产生的执行结果完全一致（确定性）。",
+      "verification_method": "从同一 pause_snapshot.json 恢复3次，比较3次恢复后的 task_dag.json 执行轨迹，验证完全一致。"
+    },
+    {
+      "criteria_id": "state_persistence_and_recovery_engineer-AC04",
+      "description": "并发写入安全性：6个并发 Agent 同时更新 Loop 状态时，无数据丢失、无文件损坏、无死锁。",
+      "verification_method": "压力测试：模拟6个并发 Worker 同时写入 task_dag.json 和 history.jsonl，执行1000轮，验证无数据丢失（通过记录总数校验）和无死锁（通过超时检测）。"
+    },
+    {
+      "criteria_id": "state_persistence_and_recovery_engineer-AC05",
+      "description": "熔断机制可靠性：确定性进度计数器在 Session 重启后从文件正确恢复，不重置为零；熔断触发后正确暂停并通知用户。",
+      "verification_method": "模拟10次无进展迭代触发熔断→验证暂停+通知→重启 Session→验证计数器从文件恢复（非归零）→验证不会在恢复后立即再次熔断（除非确实仍无进展）。"
+    },
+    {
+      "criteria_id": "state_persistence_and_recovery_engineer-AC06",
+      "description": "失败恢复决策树完整性：6个分支（超时/测试失败/能力不足/信息不足/方向错误/三次失败）每个分支的决策和执行都正确记录到 errors.jsonl，重试次数准确。",
+      "verification_method": "针对每个分支设计触发场景，验证：(1)errors.jsonl 记录了正确的 error_type 和 recovery_action，(2)recovery_attempts 计数器正确递增，(3)第3次失败后触发通知用户。"
+    },
+    {
+      "criteria_id": "state_persistence_and_recovery_engineer-AC07",
+      "description": "history.jsonl 滚动策略有效性：长时间运行中 history 文件自动归档，单文件不超过阈值，归档后恢复仍正确。",
+      "verification_method": "模拟生成超过10MB的 history 记录→验证自动归档触发→验证归档文件可解压读取→验证恢复时只读取活跃 history 文件且结果正确。"
+    },
+    {
+      "criteria_id": "state_persistence_and_recovery_engineer-AC08",
+      "description": "恢复启动一致性自检：恢复后自动检测状态一致性，发现不一致时记录并通知用户，不基于损坏状态继续执行。",
+      "verification_method": "手动注入状态不一致（如 task_dag.json 标记任务完成但 history.jsonl 无对应记录）→触发恢复→验证自检发现不一致→验证记录到 errors.jsonl→验证通知用户。"
+    }
+  ],
+  "extensions": {
+    "state_file_specification": {
+      "config.json": {
+        "purpose": "Loop 创建时的静态配置，不可变",
+        "fields": [
+          "loop_id",
+          "loop_type",
+          "created_at",
+          "parent_loop_id",
+          "goal_description",
+          "constraints",
+          "tool_preferences",
+          "schema_version"
+        ],
+        "write_pattern": "创建时写入一次，之后只读"
+      },
+      "state.json": {
+        "purpose": "Loop 当前运行状态，频繁更新",
+        "fields": [
+          "current_phase",
+          "status",
+          "progress_counter",
+          "last_progress_timestamp",
+          "recovery_attempts",
+          "active_workers",
+          "last_heartbeat_at",
+          "schema_version"
+        ],
+        "write_pattern": "原子写入，每次心跳或状态变更时更新"
+      },
+      "task_dag.json": {
+        "purpose": "任务分解图，包含依赖关系和执行状态",
+        "fields": [
+          "tasks[{id, name, status, dependencies, assigned_worker, started_at, completed_at, result_ref}]"
+        ],
+        "write_pattern": "原子写入，任务状态变更时更新"
+      },
+      "history.jsonl": {
+        "purpose": "追加式操作日志，用于审计和恢复",
+        "fields": [
+          "timestamp",
+          "event_type",
+          "actor",
+          "details",
+          "state_delta"
+        ],
+        "write_pattern": "追加写入（带锁），超阈值时滚动归档"
+      },
+      "errors.jsonl": {
+        "purpose": "错误和恢复事件日志",
+        "fields": [
+          "timestamp",
+          "error_type",
+          "affected_loop_layer",
+          "affected_task_id",
+          "recovery_action_taken",
+          "state_snapshot_ref"
+        ],
+        "write_pattern": "追加写入（带锁），与 history 共享锁或独立锁"
+      },
+      "pause_snapshot.json": {
+        "purpose": "分形中断时的完整状态快照",
+        "fields": [
+          "snapshot_timestamp",
+          "interrupted_layer",
+          "layers[{layer_name, state_ref, active_tasks, pending_tasks}]",
+          "recovery_instructions"
+        ],
+        "write_pattern": "原子写入，保留 prev 版本作为 fallback"
+      },
+      "checkpoints/": {
+        "purpose": "定期创建的一致性快照目录",
+        "structure": "checkpoints/{timestamp}/{config,state,task_dag}.json",
+        "write_pattern": "Domain/Phase 完成时创建，使用硬链接节省空间"
+      }
+    },
+    "recovery_decision_tree_state_mapping": {
+      "timeout": {
+        "state_action": "拆分任务→更新 task_dag.json→重置相关任务状态为 pending→记录 errors.jsonl"
+      },
+      "test_failure": {
+        "state_action": "附加错误信息到 task metadata→recovery_attempts++ →记录 errors.jsonl"
+      },
+      "capability_insufficient": {
+        "state_action": "更新 assigned_worker→记录工具切换原因到 errors.jsonl"
+      },
+      "information_insufficient": {
+        "state_action": "创建 Hermes 请求记录→标记任务为 waiting_external→记录 errors.jsonl"
+      },
+      "direction_error": {
+        "state_action": "标记当前任务为 abandoned→触发 task_dag.json 重新规划→记录 errors.jsonl"
+      },
+      "three_failures": {
+        "state_action": "Loop status → paused→生成通知消息→记录 errors.jsonl→等待 hitl_timeout_hours"
+      }
+    }
+  }
+}

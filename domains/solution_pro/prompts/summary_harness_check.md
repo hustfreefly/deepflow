@@ -38,13 +38,13 @@ bb = BlackboardManager('{session_id}')
 |------|-----------|------|--------|
 | Phase 4 Step 2 | `refined_solution` | 修复后的方案（**验证对象**） | **必须读** |
 | Planning 模块 | `planning_convergence` | 约束体系 + verification_checklist | **必须读** |
-| 原始需求 | `data/frozen_spec` | 需求清单（Harness 层验证） | **必须读** |
+| 原始需求 | `data/living_spec`（优先）或 `data/frozen_spec` | 需求清单（Harness 层验证） | **必须读** |
 | Research 模块 | `research_report` | 研究知识（信息守恒检查） | 必须读 |
 
 **读取顺序**：
 1. `planning_convergence` — 提取 verification_checklist
 2. `refined_solution` — 逐条验证
-3. `data/frozen_spec` — 提取 P0 REQ-ID
+3. `data/living_spec`（优先）或 `data/frozen_spec` — 提取 P0 REQ-ID
 4. `research_report` — 信息守恒检查
 
 ---
@@ -89,13 +89,16 @@ for check in checklist:
 #### 2.1 P0 REQ 覆盖率
 
 **🔴 Python 辅助**：
-1. Python 从 `frozen_spec` 提取所有 P0 REQ-ID
+1. Python 从 `living_spec`（优先）或 `frozen_spec` 提取所有 P0 REQ-ID
 2. Python 在 `refined_solution` 中搜索每个 REQ-ID
 3. LLM 判断是否语义覆盖
 
 ```python
-frozen_spec = bb.read_json('data/frozen_spec.json')
-p0_req_ids = [r['req_id'] for r in frozen_spec.get('requirements', []) 
+# 优先读取 living_spec，向后兼容 frozen_spec
+spec = bb.read_json('data/living_spec.json', default=None)
+if spec is None:
+    spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/frozen_spec.json', default={})
+p0_req_ids = [r['req_id'] for r in spec.get('requirements', []) 
               if r.get('priority', '').startswith('P0')]
 
 refined = bb.read_stage('refined_solution')
@@ -124,11 +127,11 @@ for req_id in p0_req_ids:
 #### 2.3 Guardrails 遵守
 
 **🔴 Python 辅助**：
-1. Python 从 `frozen_spec` 提取 `never_do` 列表
+1. Python 从 `living_spec`（优先）或 `frozen_spec` 提取 `never_do` 列表
 2. Python 在 `refined_solution` 中搜索是否违反
 
 ```python
-never_do = frozen_spec.get('never_do', [])
+never_do = spec.get('never_do', [])
 for item in never_do:
     if item in refined_solution:
         print(f'VIOLATION: {item}')
@@ -143,7 +146,7 @@ for item in never_do:
 #### 2.4 信息守恒
 
 **🔴 Python 辅助**：
-1. Python 从 `frozen_spec` 提取所有 P0 REQ-ID
+1. Python 从 `living_spec`（优先）或 `frozen_spec` 提取所有 P0 REQ-ID
 2. Python 检查每个 ID 是否在 `refined_solution` 中出现
 3. LLM 判断是否语义覆盖（不是字符串匹配）
 
@@ -200,7 +203,7 @@ for item in never_do:
 
 ## 权限
 
-- ✅ 读 Blackboard — 读取 refined_solution, planning_convergence, frozen_spec, research_report
+- ✅ 读 Blackboard — 读取 refined_solution, planning_convergence, living_spec/frozen_spec, research_report
 - ✅ 写 Blackboard — 写入 `verification_result` stage
 - ✅ exec — 执行 Python 代码做确定性穷举
 - ❌ 不能修改 refined_solution

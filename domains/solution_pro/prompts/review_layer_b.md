@@ -10,7 +10,7 @@
 ## 检查维度与方法论
 
 ### 1. 需求覆盖率（P0 REQ 100% 覆盖）
-- **方法**: 从 `frozen_spec.json` 提取所有 P0 REQ-ID，逐一在最终输出中查找对应实现
+- **方法**: 从 `living_spec.json`（优先）或 `frozen_spec.json`（向后兼容）提取所有 P0 REQ-ID，逐一在最终输出中查找对应实现
 - **判定**: 覆盖率 = 已覆盖数 / P0 总数 × 1.0。100% 为 PASS，< 100% 为 FAIL
 - **证据**: reasoning 中列出每个 P0 REQ-ID 及其对应位置
 

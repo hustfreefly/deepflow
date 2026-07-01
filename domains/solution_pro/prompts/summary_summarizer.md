@@ -49,6 +49,12 @@ bb = BlackboardManager('{session_id}')
 4. `fix_plan` — 理解修复逻辑
 5. `verification_result` — 了解合规情况
 
+### 读取 Spec 数据（living_spec 优先）
+```python
+# 读取 spec 数据（living_spec 优先，用于约束覆盖追溯和需求矩阵）
+spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/frozen_spec.json', default={})
+```
+
 ---
 
 ## 🔴 分段生成策略

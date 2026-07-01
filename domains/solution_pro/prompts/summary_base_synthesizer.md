@@ -37,21 +37,21 @@ bb = BlackboardManager('{session_id}')
 | 来源 | stage 名称 | 内容 | 优先级 |
 |------|-----------|------|--------|
 | Planning 模块 | `planning_convergence` | 统一约束 + 验证清单 + REQ 覆盖 | **必须读** |
-| Research 模块 | `research_report` | 完整研究报告（含所有 Expert + Gap + Devil's Advocate） | **必须读** |
-| Research 模块 | `research_metadata` | 研究元数据（expert_count, rounds, covered_req_ids） | 必须读 |
-| Research 模块 | `research_experts/` | 各专家原始 markdown 报告 | 必须读 |
+| Research 模块 | `research_digest` | **Research Digest（Findings 索引 + 完整分析 + Expert 摘要 + 冲突标记）** | **🔴 唯一 Research 输入** |
 | Research 模块 | `gap_analysis` | Gap Analyst 报告 | 必须读 |
 | Research 模块 | `devil_advocate` | Devil's Advocate 挑战报告 | 必须读 |
-| 原始需求 | `data/frozen_spec` | 需求清单 | 必须读 |
+| 原始需求 | `data/living_spec`（优先）或 `data/frozen_spec` | 需求清单 | 必须读 |
 
 **读取顺序**：
 1. `planning_convergence` — 理解约束体系，特别是 MUST 约束
-2. `research_report` — 完整吸收所有研究发现
-3. `research_experts/` — 逐个读取各专家原始报告，确保不遗漏
-4. `gap_analysis` — 了解已识别的缺失和补充
-5. `devil_advocate` — 了解已识别的挑战和反面证据
-6. `research_metadata` — 了解研究覆盖面
-7. `data/frozen_spec` — 理解原始需求细节
+2. `research_digest` — **唯一 Research 输入**：Findings 索引 + 每个 Finding 的完整分析 + Expert 摘要 + 冲突标记
+3. `gap_analysis` — 了解已识别的缺失和补充
+4. `devil_advocate` — 了解已识别的挑战和反面证据
+5. `data/living_spec`（优先）或 `data/frozen_spec` — 理解原始需求细节
+
+> **关键**：Digest 是 Research 的唯一输入（~180KB，约 2x 压缩）。不需要读 `research_experts/` 或 `research_report`——Digest 保留了每个 Finding 的完整分析，只去重不截断。
+> 
+> **职责分离**：Expert 原始报告是给审计/调试用的，不是给 Synthesizer 消费的。Digest 是结构化知识，Synthesizer 只需要读它。
 
 ---
 
@@ -135,7 +135,7 @@ bb = BlackboardManager('{session_id}')
 
 ## 🔴 关键约束
 
-1. **必须覆盖 research_report 中的所有重要 finding** — 不遗漏，每个 Finding 至少有一个对应实现
+1. **必须覆盖 research_digest 中的所有重要 finding** — 不遗漏，每个 Finding 至少有一个对应实现
 2. **必须遵守 planning_convergence 中的所有 MUST 约束** — 每个 MUST 约束在方案中有明确体现
 3. **方案必须足够详细** — 每个 section 不少于 300 字，整体不少于 5000 字
 4. **技术选型必须有具体版本号** — "PostgreSQL 16" 而非 "关系数据库"

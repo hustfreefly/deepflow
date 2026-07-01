@@ -104,10 +104,27 @@ class SolutionProHints(BaseModel):
 
 
 class LivingSpec(BaseModel):
-    """Living Spec 完整结构"""
+    """
+    Living Spec 完整结构
+
+    core_summary 是 narrative 的压缩版（≤5KB），包含：
+    - 项目背景（1-2 句话）
+    - 核心目标（列表）
+    - 关键约束（列表）
+    - 用户画像（1-2 句话）
+
+    下游 Agent 的读取策略：
+    1. 先读 core_summary（快速理解全貌）
+    2. 按需深入读 narrative 的特定段落
+    3. requirement_index 用于 Verification 的 REQ-ID 追溯
+    """
     meta: LivingSpecMeta
     confirmed: ConfirmedLayer
     inferred: list[InferredItem] = Field(default_factory=list)
     guardrails: Optional[Guardrails] = None
     solution_pro_hints: Optional[SolutionProHints] = None
     route_recommendation: Optional[str] = None
+    # V3: Living Spec 成为唯一输入（叙述为主体 + REQ-ID 索引为附件）
+    core_summary: str = ""  # 核心需求摘要（≤5KB），下游 Agent 优先读取，避免 30KB narrative 的 token 开销
+    narrative: str = ""  # 完整的用户需求叙述（主体）
+    requirement_index: list = Field(default_factory=list)  # REQ-ID 追溯索引（附件）

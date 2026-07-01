@@ -1,0 +1,136 @@
+{
+  "schema_version": "2.0",
+  "expert_name": "State Management & Persistence Engineer",
+  "domain": "infrastructure",
+  "constraints": [
+    {
+      "constraint_id": "CON-STATE-001",
+      "description": "File-as-state atomic writes: all state mutations (state.json, task_dag.json, config.json) must use write-to-temp-then-rename pattern to prevent partial-write corruption during crashes or Session termination.",
+      "category": "architecture",
+      "priority": "P0",
+      "rationale": "8h+ autonomous operation guarantees Session boundaries will be crossed. A non-atomic write (e.g., direct overwrite of state.json) that is interrupted mid-write produces a corrupt file, making recovery impossible. The write-to-temp + atomic rename pattern ensures the file on disk is always either the old complete state or the new complete state — never a half-written blob.",
+      "verification_method": "Inspect all state-writing code paths: confirm every write to state.json, task_dag.json, config.json uses a temp file + os.rename() (or equivalent). Simulate crash mid-write (kill process during write) and verify the target file remains valid JSON on restart.",
+      "relevant_experts": ["Long-Running Reliability & Circuit Breaker Expert", "Multi-Agent Orchestration Architect"]
+    },
+    {
+      "constraint_id": "CON-STATE-002",
+      "description": "Cross-Session state survival: the complete Loop state under memory/loops/{loop_id}/ must be sufficient to reconstruct the full Loop execution context after any Session termination (normal exit, crash, timeout, or manual kill).",
+      "category": "architecture",
+      "priority": "P0",
+      "rationale": "The core value proposition is 8h+ autonomous operation. Sessions have finite lifetimes. If any critical state exists only in-memory (LLM context window, Python variables) and not on disk, that state is lost at Session boundary, making long-running operation impossible. Every piece of state needed to resume must be derivable from files alone.",
+      "verification_method": "Start a Loop, let it execute 3+ iterations, then hard-kill the Session. Start a new Session, load state from memory/loops/{loop_id}/, and verify: (1) the Loop can identify exactly where it left off, (2) no task is lost or duplicated, (3) the LLM can reconstruct its decision context from history.jsonl + state.json.",
+      "relevant_experts": ["Multi-Agent Orchestration Architect", "Long-Running Reliability & Circuit Breaker Expert"]
+    },
+    {
+      "constraint_id": "CON-STATE-003",
+      "description": "pause_snapshot.json completeness: when any Loop layer is interrupted (fractal interruption), the pause_snapshot.json must capture the full execution state including current phase, in-flight task assignments, partial results, LLM decision context summary, and the exact point-of-interruption marker.",
+      "category": "architecture",
+      "priority": "P0",
+      "rationale": "Fractal interruption is a core architectural mechanism — any layer can pause and resume. If pause_snapshot.json is incomplete (e.g., missing partial results or missing which sub-tasks were in-flight), the resumed Loop either loses work or repeats work incorrectly. The snapshot must be a complete 'save game' that enables exact resumption.",
+      "verification_method": "Trigger fractal interruption at 3 different points: (1) during Phase execution mid-task, (2) between phases, (3) during quality gate evaluation. For each, verify pause_snapshot.json contains enough information to resume without loss. Compare resumed execution against a non-interrupted baseline to confirm identical outcomes.",
+      "relevant_experts": ["Multi-Agent Orchestration Architect", "Long-Running Reliability & Circuit Breaker Expert"]
+    },
+    {
+      "constraint_id": "CON-STATE-004",
+      "description": "errors.jsonl append-only error logging: all errors, failures, and exceptions must be appended to errors.jsonl with timestamp, source Loop layer, error type, and full context. The file must never be overwritten, truncated, or deleted.",
+      "category": "safety",
+      "priority": "P0",
+      "rationale": "Over 8h+ of autonomous operation, errors are inevitable. The error log is the primary diagnostic artifact for post-mortem analysis, circuit breaker decisions, and Dream Loop reflection. If errors can be lost (overwritten/truncated), the system loses its ability to learn from failures and to detect patterns (e.g., repeated same error = dead loop).",
+      "verification_method": "Inject 5 different error types during execution. Verify each appears in errors.jsonl with correct metadata. Attempt to overwrite/truncate errors.jsonl via Dream Loop or normal operation — verify the system prevents it (append-only enforcement). Confirm error count in file matches actual error count.",
+      "relevant_experts": ["Long-Running Reliability & Circuit Breaker Expert", "Quality Gate & Harness Specialist"]
+    },
+    {
+      "constraint_id": "CON-STATE-005",
+      "description": "Dream Loop memory add-only enforcement: Dream Loop memory consolidation may only add new memory entries or summarize existing ones into higher-level entries. Direct deletion of any memory file is absolutely prohibited. Summarization must preserve the original entries alongside the summary.",
+      "category": "safety",
+      "priority": "P0",
+      "rationale": "This is a Zone 0 guardrail (REQ-059). Memory is the system's long-term knowledge. If Dream Loop can delete memory, an over-aggressive consolidation could erase critical historical context, making the system 'forget' important lessons. The add-only rule ensures the system's knowledge monotonically increases, which is essential for safe autonomous operation.",
+      "verification_method": "Run Dream Loop consolidation cycle. Diff memory directory before and after: verify zero deletions (only additions and new summary files). Attempt to trigger deletion via prompt injection in consolidation input — verify Zone 0 enforcement blocks it. Verify summary files reference their source entries.",
+      "relevant_experts": ["Safety & Zone 0 Compliance Guardian", "Quality Gate & Harness Specialist"]
+    },
+    {
+      "constraint_id": "CON-STATE-006",
+      "description": "Goal state evolution tracking: each active goal (memory/goals/active/{goal_id}.yaml) must maintain an evolution log recording every constraint addition, relaxation, or modification with timestamp, reason, and before/after diff. Hard constraint deletions must be rejected.",
+      "category": "architecture",
+      "priority": "P1",
+      "rationale": "Goal evolution is a core mechanism (Living Goals), but uncontrolled evolution leads to goal drift over 8h+ operation. The evolution log enables: (1) the 3-evolution alert threshold to be enforced, (2) post-mortem analysis of why a goal changed, (3) Dream Loop to learn from goal modification patterns. Without it, goal drift is undetectable.",
+      "verification_method": "Trigger 3 goal evolutions on a test goal. Verify each is logged with timestamp, reason, and diff. Verify the 4th evolution triggers an alert notification. Attempt to delete a hard constraint — verify rejection. Verify evolution log survives Session restart.",
+      "relevant_experts": ["Safety & Zone 0 Compliance Guardian", "Multi-Agent Orchestration Architect"]
+    },
+    {
+      "constraint_id": "CON-STATE-007",
+      "description": "Mandatory changelog for all state mutations: every write operation to any file under memory/loops/ or memory/goals/ must produce a corresponding changelog entry with timestamp, actor (which Loop layer/Agent), operation type, file path, and brief description.",
+      "category": "process",
+      "priority": "P1",
+      "rationale": "REQ-063 mandates all modifications must be recorded. The changelog is the audit trail that enables: (1) post-mortem reconstruction of what happened during 8h+ operation, (2) Dream Loop to analyze modification patterns, (3) Meta-Loop to optimize based on state change frequency. Without comprehensive changelog, the system is a black box.",
+      "verification_method": "Execute a full Loop cycle. Count total state mutations. Verify changelog has exactly one entry per mutation. Verify each entry contains required fields (timestamp, actor, operation, path, description). Verify changelog entries are append-only and survive Session restart.",
+      "relevant_experts": ["Safety & Zone 0 Compliance Guardian", "Quality Gate & Harness Specialist"]
+    },
+    {
+      "constraint_id": "CON-STATE-008",
+      "description": "history.jsonl structured audit trail: every significant state transition (task started, task completed, phase changed, quality gate passed/failed, goal evolved, Loop paused/resumed) must be recorded as a structured JSON line with timestamp, event_type, loop_id, source_layer, and event-specific payload.",
+      "category": "architecture",
+      "priority": "P1",
+      "rationale": "history.jsonl is the execution timeline that enables: (1) circuit breaker no-progress detection (by analyzing event timestamps and types), (2) Dream Loop pattern discovery (by mining event sequences), (3) post-mortem debugging (by replaying the exact sequence of events). Without structured history, the circuit breaker cannot detect dead loops and Dream Loop cannot learn.",
+      "verification_method": "Execute a Loop with known sequence of events. Verify history.jsonl contains exactly the expected events in order. Verify each event has required fields. Verify the circuit breaker can consume history.jsonl to detect no-progress (e.g., 10 consecutive identical event_types without state change).",
+      "relevant_experts": ["Long-Running Reliability & Circuit Breaker Expert", "Quality Gate & Harness Specialist"]
+    },
+    {
+      "constraint_id": "CON-STATE-009",
+      "description": "task_dag.json state consistency: the DAG file must maintain consistency between task definitions, dependency edges, and task completion status. A task marked 'completed' must have its output artifacts present on disk. A task with unmet dependencies must not be in 'in_progress' state.",
+      "category": "quality_attribute",
+      "priority": "P1",
+      "rationale": "task_dag.json is the execution plan. If it becomes inconsistent (e.g., task marked complete but no output, or task started before dependencies are met), the Loop will either skip necessary work or attempt impossible work. Over 8h+ with multiple sub-agents, consistency drift is likely without explicit enforcement.",
+      "verification_method": "After each task completion, verify: (1) task status in task_dag.json matches actual output existence, (2) no task is started while dependencies are unmet, (3) DAG invariants hold (acyclic, all nodes reachable). Inject a consistency violation (manually edit task_dag.json) and verify the system detects and repairs it on next checkpoint.",
+      "relevant_experts": ["Multi-Agent Orchestration Architect", "Quality Gate & Harness Specialist"]
+    },
+    {
+      "constraint_id": "CON-STATE-010",
+      "description": "Directory structure validation on Loop resume: when a Loop is resumed from disk (after Session restart or crash), the system must validate that the memory/loops/{loop_id}/ directory structure is complete and well-formed before proceeding. Missing critical files must trigger recovery, not silent continuation.",
+      "category": "process",
+      "priority": "P1",
+      "rationale": "If a Loop resumes with a missing state.json or corrupt task_dag.json, it will operate on incomplete information, leading to incorrect decisions. Silent continuation with missing state is worse than explicit failure. The validation-on-resume pattern catches corruption early, before it cascades into hours of wasted work.",
+      "verification_method": "Create a valid Loop state directory. Remove each critical file one at a time (state.json, task_dag.json, config.json). Attempt to resume the Loop. Verify each missing file triggers a specific recovery action (not silent default). Verify the error is logged to errors.jsonl. Test with corrupt JSON (invalid syntax) — verify detection.",
+      "relevant_experts": ["Long-Running Reliability & Circuit Breaker Expert", "Multi-Agent Orchestration Architect"]
+    }
+  ],
+  "risks": [
+    {
+      "risk_id": "RISK-STATE-001",
+      "description": "State file size growth: history.jsonl and errors.jsonl grow unboundedly over 8h+ operation, eventually causing slow reads and LLM context overflow when loaded.",
+      "severity": "HIGH",
+      "mitigation": "Implement log rotation: when a file exceeds threshold (e.g., 1MB), archive old entries to a timestamped archive file (history_20260701_120000.jsonl) and keep only recent entries in the active file. Archive files remain accessible for Dream Loop analysis."
+    },
+    {
+      "risk_id": "RISK-STATE-002",
+      "description": "Concurrent state writes: multiple sub-agents or Loop layers may attempt to write to the same state file simultaneously, causing race conditions and data loss.",
+      "severity": "HIGH",
+      "mitigation": "Use file-level locking (flock) for all state writes. Alternatively, designate a single writer per file (e.g., only the orchestrator writes state.json, only the error handler writes errors.jsonl) and route all other writes through that owner."
+    },
+    {
+      "risk_id": "RISK-STATE-003",
+      "description": "LLM context window exhaustion on resume: when resuming from pause_snapshot.json, loading full history.jsonl + state.json + task_dag.json into LLM context may exceed token limits after many iterations.",
+      "severity": "MEDIUM",
+      "mitigation": "Implement progressive loading: on resume, load only state.json + pause_snapshot.json (minimal context). Load history.jsonl summaries (not full file) via Dream Loop consolidation. Load full history only when explicitly needed for decision-making."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "criteria_id": "AC-STATE-001",
+      "description": "A Loop can be hard-killed at any point during 8h+ execution and resumed from the exact breakpoint with zero data loss and zero duplicate work.",
+      "verification_method": "Run a 2-hour test Loop. Hard-kill at 3 random points. Resume each time. Verify final output is identical to a non-interrupted run."
+    },
+    {
+      "criteria_id": "AC-STATE-002",
+      "description": "All state files pass JSON validation after any crash scenario. No corrupt files exist after recovery.",
+      "verification_method": "Simulate 10 crash scenarios (kill -9, power loss simulation via kill during write, disk full). Verify all state files are valid JSON after recovery."
+    },
+    {
+      "criteria_id": "AC-STATE-003",
+      "description": "Dream Loop consolidation cycle completes with zero memory deletions. Diff confirms only additions.",
+      "verification_method": "Run 5 Dream Loop consolidation cycles. Diff memory directory before/after each cycle. Confirm zero deletions."
+    }
+  ],
+  "analysis_summary": "The state management architecture is the foundation that makes 8h+ autonomous operation possible. The core philosophy 'file-as-state, directory-is-Loop' is sound, but requires strict enforcement of atomic writes, append-only logging, and validation-on-resume to be reliable. The 5 P0 constraints ensure: (1) no corrupt state from partial writes (CON-STATE-001), (2) no state loss across Sessions (CON-STATE-002), (3) exact resumability from any interruption point (CON-STATE-003), (4) complete error audit trail (CON-STATE-004), and (5) Zone 0 memory safety (CON-STATE-005). The 5 P1 constraints add evolution tracking, changelog, structured history, DAG consistency, and resume validation — all necessary for the system to be debuggable and self-improving over long operation windows. Key risks include unbounded log growth, concurrent write races, and LLM context exhaustion on resume — all mitigable with rotation, single-writer patterns, and progressive loading.",
+  "covered_req_ids": ["REQ-024", "REQ-035", "REQ-059", "REQ-063", "REQ-006", "REQ-019", "REQ-020"]
+}
