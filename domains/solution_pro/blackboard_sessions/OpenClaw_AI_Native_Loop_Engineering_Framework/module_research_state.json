@@ -5,6 +5,5 @@
   "completed_stages": [],
   "failed_stages": [],
   "retry_count": {},
-  "convergence_generated": false,
-  "completed": true
+  "convergence_generated": false
 }

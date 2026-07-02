@@ -1,0 +1,48 @@
+{
+  "gate_a": {
+    "scores": {
+      "completeness": 0.9,
+      "necessity": 0.85,
+      "alignment": 0.88,
+      "global_impact": 0.82
+    },
+    "reasoning": {
+      "completeness": "All key areas covered",
+      "necessity": "Constraints are necessary",
+      "alignment": "Well aligned with objectives",
+      "global_impact": "Positive global impact"
+    },
+    "weighted_score": 0.86,
+    "verdict": "PASS"
+  },
+  "gate_b": {
+    "checks": [
+      {
+        "check_id": "scalability_check",
+        "verdict": "PASS",
+        "evidence": "Solution includes scaling strategy"
+      }
+    ],
+    "pass_rate": 1.0,
+    "verdict": "PASS"
+  },
+  "final_verdict": {
+    "final_verdict": "PASS",
+    "confidence": 0.85
+  },
+  "overall_verdict": "PASS",
+  "gate_a_layer2": {
+    "semantic_verdict": "PASS",
+    "votes": [
+      "PASS"
+    ],
+    "consistency": 1.0,
+    "note": "rule_based_fallback"
+  },
+  "gate_b_critical": {
+    "verdict": "PASS",
+    "critical_pass_rate": 1.0,
+    "overall_pass_rate": 1.0,
+    "failed_critical": []
+  }
+}

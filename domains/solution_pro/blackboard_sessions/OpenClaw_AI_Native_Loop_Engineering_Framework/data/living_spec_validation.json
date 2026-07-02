@@ -1,7 +1,13 @@
 {
   "valid": true,
   "issues": [],
-  "conflicts": [],
+  "conflicts": [
+    {
+      "type": "narrative_index_disconnected",
+      "detail": "narrative 没有提到 requirement_index 中的任何标题 (1 个)",
+      "severity": "WARNING"
+    }
+  ],
   "conflict_resolution": {
     "authority": "requirement_index",
     "narrative_role": "auxiliary_context",

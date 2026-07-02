@@ -3,7 +3,7 @@
   "requirements": [
     {
       "req_id": "REQ-P0-001",
-      "description": "构建 OpenClaw AI Native Loop Engineering Framework。核心需求：全LLM控制的自主循环执行框架，支持8+小时无人干预运行。",
+      "description": "构建 OpenClaw AI Native Loop Engineering Framework。\n\n核心需求：\n- 全LLM控制的自主循环执行框架\n- 支持8+小时无人干预运行\n- Dream Loop/Meta-Loop实现持续自优化\n- 解决质量漂移、死循环、状态丢失、成本失控等核心问题\n\n详细约束：\n1. 三层Loop架构（Task Loop + Dream Loop + Meta-Loop）\n2. Python只做执行器，所有决策逻辑由LLM prompt驱动\n3. Hermes是对等协作伙伴（非子Agent），需要双向通信协议\n4. 质量门控必须由LLM根据上下文动态判断\n5. 状态持久化+上下文压缩+死循环熔断三重保障\n\n技术基础：OpenClaw现有平台能力（sessions_spawn, BlackboardManager, Skill Workshop, Feishu通知）\n",
       "priority": "P0"
     }
   ]

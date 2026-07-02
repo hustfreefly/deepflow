@@ -92,13 +92,13 @@ agents:
     description: "采集背景资料并生成结构化需求"
   
   - role: planning
-    prompt: "domains/solution/prompts/planner_v2_harness.md"
+    prompt: "domains/solution/prompts/planner_harness.md"
     timeout: 300
     model: "bailian/qwen3.5-plus"
     description: "分析需求并生成 Planner 动态契约"
   
   - role: reviewer
-    prompt: "domains/solution/prompts/reviewer_v2_harness.md"
+    prompt: "domains/solution/prompts/reviewer_harness.md"
     timeout: 300
     model: "kimi/kimi-code"
     parallel: all
@@ -112,7 +112,7 @@ agents:
         angle: "风险与合规"
   
   - role: researcher
-    prompt: "domains/solution/prompts/researcher_v2_harness.md"
+    prompt: "domains/solution/prompts/researcher_harness.md"
     timeout: 300
     model: "bailian/qwen3.5-plus"
     parallel: all
@@ -126,25 +126,25 @@ agents:
         angle: "动态专家槽位3"
   
   - role: consolidator
-    prompt: "domains/solution/prompts/consolidator_v2_harness.md"
+    prompt: "domains/solution/prompts/consolidator_harness.md"
     timeout: 300
     model: "kimi/kimi-code"
     description: "整合研究结果为统一方案"
   
   - role: auditor
-    prompt: "domains/solution/prompts/auditor_v2_harness.md"
+    prompt: "domains/solution/prompts/auditor_harness.md"
     timeout: 300
     model: "kimi/kimi-code"
     description: "审计统一方案"
   
   - role: fixer
-    prompt: "domains/solution/prompts/fixer_v2_harness.md"
+    prompt: "domains/solution/prompts/fixer_harness.md"
     timeout: 300
     model: "bailian/qwen3.5-plus"
     description: "根据审计意见修复方案"
   
   - role: fixer_expert
-    prompt: "domains/solution/prompts/fixer_expert_v2_harness.md"
+    prompt: "domains/solution/prompts/fixer_expert_harness.md"
     timeout: 300
     model: "bailian/qwen3.5-plus"
     description: "深度修复关键问题"
@@ -156,7 +156,7 @@ agents:
     description: "最终质量门禁并产出需求追溯矩阵"
   
   - role: summarizer
-    prompt: "domains/solution/prompts/summarizer_v2_harness.md"
+    prompt: "domains/solution/prompts/summarizer_harness.md"
     timeout: 300
     model: "bailian/qwen3.5-plus"
     description: "生成最终结构化结果和方案文档"

@@ -36,10 +36,10 @@ result = master.run(user_input="需求描述", config={"topic": "主题", ...})
 
 ```bash
 # V2 集成测试
-python3 tests/test_v2_integration.py
+python3 tests/test_integration.py
 
 # V2 Schema 验证
-python3 tests/test_v2_schemas.py
+python3 tests/test_schemas.py
 
 # Golden Case 验证
 python3 tests/test_golden_case_001.py
@@ -104,7 +104,7 @@ Stage 4: Convergence → final_convergence.json
 |------|------|------|
 | [SKILL.md](SKILL.md) | Agent 执行步骤（V5.0） | AI Agent |
 | [_overview.md](_overview.md) | V2 代码文件索引 | 开发者 |
-| `schemas/v2_schemas.py` | V2 Schema 契约 | 开发者 |
+| `schemas/schemas.py` | V2 Schema 契约 | 开发者 |
 | `prompts/` | V2 Prompt 模板 | 运行时 |
 | `tests/` | V2 测试套件 | 测试工程师 |
 

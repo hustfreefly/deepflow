@@ -1,28 +1,13 @@
 {
-  "pipeline_start": 1782883895.193536,
+  "pipeline_start": 1782975672.682442,
   "modules": {
     "planning": {
-      "status": "DEGRADED",
-      "degraded": true,
-      "timestamp": 1782884195.7184849
-    },
-    "research": {
-      "status": "DEGRADED",
-      "degraded": true,
-      "timestamp": 1782885095.738849
-    },
-    "review_qc": {
-      "status": "UNKNOWN",
-      "degraded": true,
-      "timestamp": 1782885095.7476768,
-      "output_type": "str"
+      "status": "COMPLETE",
+      "degraded": false,
+      "timestamp": 1782975672.740443
     }
   },
-  "degraded_modules": [
-    "planning",
-    "research"
-  ],
-  "pipeline_end": 1782885095.747766,
-  "total_duration": 1200.5542299747467,
-  "status": "COMPLETE"
+  "status": "FAILED",
+  "error": "Module 'research' failed at stage 'unknown': Expert format compliance 0% < 50% — FAILING. Issues: [{'expert': 'architecture_expert', 'missing': ['missing_executive_summary', 'missing_findings_section', 'missing_confidence', 'missing_related_constraints']}, {'expert': 'generalist_expert', 'missing': ['missing_executive_summary', 'missing_findings_section', 'missing_confidence', 'missing_related_constraints']}]. No degraded mode allowed.",
+  "pipeline_end": 1782975672.758573
 }

@@ -624,7 +624,7 @@ class _SolutionDispatcher:
 
     # ========== Harness V2 完整闭环执行(Solution Pro 默认执行方式)==========
 
-    def run_harness_v2(self, spawn_fn=None) -> dict:
+    def run_harness(self, spawn_fn=None) -> dict:
         """
         使用 EntryHarness + PipelineOrchestrator 完整闭环执行 Solution Pro
 
@@ -652,7 +652,7 @@ class _SolutionDispatcher:
                 "session_id": str,
                 "base_path": str,
                 "results": dict,          # PipelineOrchestrator 返回的完整结果
-                "harness_v2": True,
+                "harness_check": True,
             }
 
         Raises:
@@ -668,7 +668,7 @@ class _SolutionDispatcher:
                 "session_id": self.session_id,
                 "base_path": self.base_path,
                 "plan_path": f"{self.base_path}/execution_plan.json",
-                "harness_v2": False,
+                "harness_check": False,
                 "reason": (
                     "spawn_fn 不可用。已生成 tasks.json 和 execution_plan.json；"
                     "请在主 Agent 环境注入 spawn_fn 后执行完整管线。"
@@ -725,7 +725,7 @@ class _SolutionDispatcher:
             "session_id": self.session_id,
             "base_path": self.base_path,
             "results": result,
-            "harness_v2": True,
+            "harness_check": True,
         }
 
     def _read_harness_final_feedback(self) -> list:
@@ -821,13 +821,13 @@ class _SolutionDispatcher:
         if spawn_fn:
             # Harness V2 完整闭环执行(PipelineOrchestrator 在主Agent进程中运行,使用注入的 spawn_fn)
             print(f"[Solution Pro] 使用 Harness V2 执行")
-            result = orch.run_harness_v2(spawn_fn=spawn_fn)
+            result = orch.run_harness(spawn_fn=spawn_fn)
             return {
                 "success": result["status"] in ["completed", "partial"],
                 "session_id": session_id,
                 "status": result["status"],
                 "base_path": result["base_path"],
-                "harness_v2": True,
+                "harness_check": True,
                 "result": result
             }
         else:
@@ -838,7 +838,7 @@ class _SolutionDispatcher:
                 "session_id": session_id,
                 "status": "tasks_generated",
                 "base_path": orch.base_path,
-                "harness_v2": False,
+                "harness_check": False,
                 "note": (
                     "未提供 spawn_fn,任务已生成但未执行。"
                     "在主Agent中运行并传入 spawn_fn 以执行完整管线。"

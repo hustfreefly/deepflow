@@ -11,7 +11,7 @@ Date: 2026-06-28
 - V2 Schema（新架构）
 """
 
-from .v2_schemas import (
+from .schemas import (
     # 基础
     V2BaseSchema,
     # Module 1: Planning V2

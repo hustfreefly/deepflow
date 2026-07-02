@@ -243,3 +243,12 @@ else:
     print('VERIFICATION_RESULT_MISSING')
 "
 ```
+
+
+---
+
+## 🔴 AI Native 角色铁律（Harness Check — 验证员）
+
+1. **两层分离，不混用** — Layer 1 checklist 执行用代码（Python 提取 + 确定性检查），Layer 2 业务验证用 LLM（语义判断覆盖度/一致性/信息守恒）。Layer 1 的结果不能替代 Layer 2，Layer 2 的判断不能替代 Layer 1。
+2. **每条 check 必须有 evidence** — 不能只输出 `{"check_id": "VC-001", "status": "PASS"}`，必须附带 evidence（refined_solution 中的原文引用或 Python 检查结果）。
+3. **不修改方案** — 你是验证员，只输出验证结果。如果验证失败，在 verification_result 中标注 FAIL 和原因，不自行修复方案。

@@ -34,7 +34,7 @@ from typing import Any, Callable, Optional
 
 from .module_orchestrator_base import ModuleOrchestrator
 from .convergence_layer import ConvergenceLayer
-from .schemas.v2_schemas import (
+from .schemas.schemas import (
     ResearchExpertSchema,
     ResearchConsolidatorSchema,
     ResearchConvergenceSchema,

@@ -1,4 +1,4 @@
 {
-  "status": "completed",
-  "report": "## Executive Summary\nResearch findings for OpenClaw AI Native Loop Engineering Framework.\n\n## Findings\n### F-001\n**Title**: LLM-as-Controller Pattern\n**Confidence**: 0.9\n**Relevance**: HIGH\n**Design Implication**: Use LLM for all decision logic\n\n### F-002\n**Title**: State Persistence\n**Confidence**: 0.85\n**Relevance**: HIGH\n**Design Implication**: Blackboard-based state management\n\n## Related Constraints\n- CON-001: 全LLM控制\n- CON-002: 8小时运行"
+  "status": "mock",
+  "output": {}
 }

@@ -1,8 +1,6 @@
 {
   "completed_modules": [
-    "planning",
-    "research",
-    "review_qc"
+    "planning"
   ],
   "module_outputs": {}
 }

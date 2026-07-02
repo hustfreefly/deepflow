@@ -620,7 +620,7 @@ class SummaryOrchestrator(ModuleOrchestrator):
         self, role: str, role_desc: str, prompt_key: str,
         context: dict, output_stage: str, instructions: str,
     ) -> str:
-        """构建 Worker task prompt"""
+        """构建 Worker task prompt（含 P0 约束 + 追溯矩阵注入）"""
         prompt_content = self._prompts.get(prompt_key, "")
         
         # Serialize context (cap large values)
@@ -633,6 +633,11 @@ class SummaryOrchestrator(ModuleOrchestrator):
                 val_str = val_str[:15000] + f"\n... (truncated, {len(val_str)} chars total, read from blackboard for full content)"
             context_str += f"\n### {key}\n```json\n{val_str}\n```\n"
         
+        # === Quality Improvement: P0 约束 + 追溯矩阵注入 ===
+        p0_block = self._load_p0_constraints_prompt_block()
+        soft_constraints = self._get_system_soft_constraints()
+        trace_block = self._load_requirement_traceability_prompt_block()
+        
         task = f"""# {role}
 
 > {role_desc}
@@ -643,6 +648,12 @@ class SummaryOrchestrator(ModuleOrchestrator):
 ## 执行环境
 cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
 
+## P0 约束（不可违反）
+{p0_block}
+
+## 需求追溯矩阵
+{trace_block}
+
 ## Prompt
 {prompt_content[:5000] if prompt_content else "(使用以下指令)"}
 
@@ -651,6 +662,9 @@ cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
 
 ## 指令
 {instructions}
+
+## 系统级软约束
+{soft_constraints}
 
 ## 输出
 将结果写入 Blackboard stage: `{output_stage}`

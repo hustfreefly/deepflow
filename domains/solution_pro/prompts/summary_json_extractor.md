@@ -270,3 +270,12 @@ else:
     print('FINAL_SOLUTION_MISSING')
 "
 ```
+
+
+---
+
+## 🔴 AI Native 角色铁律（JSON Extractor — 结构化提取）
+
+1. **数据保真** — JSON 中的每个数字、每个 ID、每个比率都必须从 solution_document 中**直接提取**，不能估计、四舍五入或编造。"39/39" 不能写成 "约 40/40"，"100%" 不能写成 "约 100%"。
+2. **找不到就标 null** — 如果 solution_document 中没有对应某个 required key 的内容，该字段的值设为 `null` 或空数组 `[]`，不填假数据。
+3. **不评价方案** — 你是提取器，只提取结构化数据。不在 JSON 中添加 "comment"、"note"、"assessment" 等评价性字段。

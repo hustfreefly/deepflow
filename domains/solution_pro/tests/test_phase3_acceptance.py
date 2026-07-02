@@ -48,7 +48,7 @@ class TestPhase3Acceptance:
         assert master.config == config
         assert master.module_timeouts["planning"] == 60
     
-    def test_create_pipeline_v2(self, tmp_blackboard):
+    def test_create_pipeline(self, tmp_blackboard):
         """验证 create_pipeline(version='v2')"""
         pipeline = create_pipeline(tmp_blackboard, version="v2")
         assert isinstance(pipeline, MasterOrchestrator)

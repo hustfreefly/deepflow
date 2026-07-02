@@ -240,9 +240,178 @@ def _create_mock_spawn_fn():
         recorder = LLMRecorder()
         return recorder.create_mock_spawn_fn()
     except Exception:
-        # 最简 mock：返回空 JSON
-        def mock_spawn(task=None, **kwargs):
-            return json.dumps({"status": "mock", "output": {}})
+        # 智能 mock：根据 output_path 识别 stage 并返回对应结构
+        # 注意：检测顺序很重要！先检查更具体的关键字
+        def mock_spawn(task=None, output_path=None, **kwargs):
+            task_str = str(task or '').lower()
+            output_str = str(output_path or '').lower()
+            
+            # 优先级：精确匹配 output_path（最可靠）
+            # Meta-Planner (Layer 0): 返回 ExpertManifestSchema
+            if 'meta_planning' in output_str:
+                return {
+                    "task_profile": {
+                        "complexity": "high",
+                        "domain": "architecture",
+                        "required_expertise": ["system_design", "scalability"],
+                        "risk_areas": ["scalability", "maintainability"],
+                    },
+                    "experts": [
+                        {
+                            "expert_name": "architecture_expert",
+                            "domain": "system_architecture",
+                            "focus_areas": ["modularity", "scalability"],
+                            "evaluation_lens": "architectural_soundness",
+                        }
+                    ],
+                    "gate_a": {
+                        "weights": {
+                            "completeness": 0.3,
+                            "necessity": 0.2,
+                            "alignment": 0.3,
+                            "global_impact": 0.2,
+                        },
+                        "thresholds": {
+                            "PASS": 0.85,
+                            "WARNING": 0.70,
+                            "CRITICAL_WARNING": 0.60,
+                            "BLOCK_RECOMMENDATION": 0.0,
+                        },
+                        "rationale": "High complexity architecture task requires balanced evaluation across completeness and alignment",
+                    },
+                    "gate_b": {
+                        "dynamic_checks": [
+                            {
+                                "name": "scalability_check",
+                                "description": "Verify solution can scale to expected load",
+                                "pass_criteria": "Solution includes horizontal scaling strategy with stateless components",
+                                "severity": "CRITICAL",
+                                "reasoning": "Architecture must handle production load without degradation",
+                            }
+                        ],
+                    },
+                    "verdict_policy": {
+                        "warning_acceptable": False,
+                        "min_gate_b_pass_rate": 0.8,
+                    },
+                }
+            # Expert Planner (Layer 1): 返回 expert_plan
+            elif 'expert_plans' in output_str or 'expert_plan' in output_str:
+                return {
+                    "expert_name": "mock_expert",
+                    "constraints": [
+                        {
+                            "constraint_id": "C-001",
+                            "description": "Mock constraint for testing",
+                            "priority": "MUST",
+                            "rationale": "Ensures system reliability",
+                        }
+                    ],
+                    "risks": [
+                        {
+                            "risk_id": "R-001",
+                            "description": "Mock risk",
+                            "mitigation": "Implement monitoring",
+                        }
+                    ],
+                    "acceptance_criteria": [
+                        {
+                            "criterion_id": "AC-001",
+                            "description": "System passes all tests",
+                            "verification_method": "Automated test suite",
+                        }
+                    ],
+                }
+            # Convergence Planner (Layer 2): 返回 convergence output
+            elif 'convergence_planning' in output_str:
+                return {
+                    "unified_constraints": {
+                        "unified_constraints": [
+                            {
+                                "constraint_id": "UC-001",
+                                "description": "Mock unified constraint",
+                                "priority": "MUST",
+                                "source_experts": ["architecture_expert"],
+                                "conflicts_resolved": [],
+                            }
+                        ],
+                        "rejected_constraints": [],
+                        "meta": {
+                            "total_expert_plans": 1,
+                            "total_input_constraints": 1,
+                            "total_output_constraints": 1,
+                            "merge_ratio": 1.0,
+                        },
+                        "covered_req_ids": ["REQ-001"],
+                    },
+                    "verification_checklist": {
+                        "checklist": [
+                            {
+                                "check_id": "V-001",
+                                "constraint_id": "UC-001",
+                                "verification_method": "automated_test",
+                                "expected_result": "All tests pass",
+                            }
+                        ],
+                        "total_checks": 1,
+                    },
+                    "requirement_traceability_matrix": [],
+                }
+            # Reviewer Meta/Convergence: 返回 verdict
+            elif 'reviewer_meta' in output_str or 'reviewer_convergence' in output_str:
+                return {
+                    "overall_verdict": "PASS",
+                    "issues": [],
+                    "confidence": 0.8,
+                }
+            # Harness Agent: 返回 gate_a + gate_b + final_verdict
+            elif 'harness_planning' in output_str:
+                return {
+                    "gate_a": {
+                        "scores": {
+                            "completeness": 0.9,
+                            "necessity": 0.85,
+                            "alignment": 0.88,
+                            "global_impact": 0.82,
+                        },
+                        "reasoning": {
+                            "completeness": "All key areas covered",
+                            "necessity": "Constraints are necessary",
+                            "alignment": "Well aligned with objectives",
+                            "global_impact": "Positive global impact",
+                        },
+                        "weighted_score": 0.86,
+                        "verdict": "PASS",
+                    },
+                    "gate_b": {
+                        "checks": [
+                            {
+                                "check_id": "scalability_check",
+                                "verdict": "PASS",
+                                "evidence": "Solution includes scaling strategy",
+                            }
+                        ],
+                        "pass_rate": 1.0,
+                        "verdict": "PASS",
+                    },
+                    "final_verdict": {
+                        "final_verdict": "PASS",
+                        "confidence": 0.85,
+                    },
+                    "overall_verdict": "PASS",
+                }
+            # Fallback: 检查 task 内容（仅在 output_path 不匹配时使用）
+            elif 'meta' in task_str and 'planner' in task_str and 'reviewer' not in task_str:
+                # Meta-Planner task 内容匹配
+                return {
+                    "task_profile": {"complexity": "high", "domain": "architecture", "required_expertise": ["system_design"]},
+                    "experts": [{"expert_name": "architecture_expert", "domain": "system_architecture", "focus_areas": ["modularity"], "evaluation_lens": "architectural_soundness"}],
+                    "gate_a": {"weights": {"completeness": 0.25, "necessity": 0.25, "alignment": 0.25, "global_impact": 0.25}, "thresholds": {}, "rationale": "balanced"},
+                    "gate_b": {"dynamic_checks": [{"name": "check1", "description": "check", "pass_criteria": "pass", "severity": "CRITICAL", "reasoning": "test"}]},
+                }
+            else:
+                # 通用 fallback
+                return {"status": "mock", "output": {}}
         return mock_spawn
 
 

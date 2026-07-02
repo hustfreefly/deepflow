@@ -1,0 +1,53 @@
+{
+  "version": "2.0",
+  "generated_at": "2026-07-03T00:08:32.085195",
+  "topic": "test",
+  "source": "living_spec.confirmed+topic+constraints",
+  "executive_summary": {
+    "one_liner": "test",
+    "objective_req": "REQ-001",
+    "key_scenarios_reqs": [],
+    "why": [],
+    "for_whom": [],
+    "success_criteria": [],
+    "constraints": {},
+    "source": "auto_generated_from_topic"
+  },
+  "guardrails": {},
+  "solution_pro_hints": null,
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "category": "objective",
+      "description": "test",
+      "priority": "P0",
+      "source": "topic",
+      "measurable": ""
+    }
+  ],
+  "requirement_groups": {
+    "Core": {
+      "description": "核心目标、痛点、场景",
+      "categories": [
+        "objective",
+        "pain_point",
+        "scenario"
+      ],
+      "req_ids": [
+        "REQ-001"
+      ]
+    }
+  },
+  "coverage_policy": {
+    "worker_field": "covered_req_ids",
+    "matrix_path": "requirements_traceability_matrix.json",
+    "harness_final_must_check_all_p0": true
+  },
+  "metadata": {
+    "conflict_resolution": {
+      "authority": "requirement_index",
+      "narrative_role": "auxiliary_context",
+      "detected_conflicts": []
+    }
+  }
+}

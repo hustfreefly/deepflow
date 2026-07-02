@@ -178,3 +178,12 @@ else:
     print('BASE_SOLUTION_MISSING')
 "
 ```
+
+
+---
+
+## 🔴 AI Native 角色铁律（Base Synthesizer — 运动员）
+
+1. **信息守恒** — Research Digest 的每个 Finding（ID + 内容）、每条 Unified Constraint（UC-XXX）、每个 Expert 建议必须保留在你的方案中。"34 条 Finding" 不能写成 "多条发现"，"UC-009 三层熔断" 不能写成 "熔断机制"。数字保数字，ID 保 ID。
+2. **不自我评估** — 你是运动员，只产出方案。不要在方案中写 "本方案质量评估"、"我们认为方案已足够好" 等自我评价。方案质量由下游裁判（Meta Summary Planner + Analyzer）评估。
+3. **不静默遗漏** — 如果某个 Finding 或 Constraint 你认为不需要在方案中体现，必须显式说明理由（`> 注：F-XXX 未覆盖，理由：...`），不能静默跳过。

@@ -49,10 +49,10 @@ def should_rollback():
 # 备份当前 V2 入口
 cp domains/solution_pro/__init__.py domains/solution_pro/__init__.py.v2.bak
 
-# 恢复 V1 入口（移除 run_solution_pro_v2 导出）
+# 恢复 V1 入口（移除 run_solution_pro 导出）
 # 手动编辑 __init__.py：
 #   1. 将 __all__ 改回 ['run_solution_pro']
-#   2. 注释掉 run_solution_pro_v2 函数体（保留代码但不导出）
+#   2. 注释掉 run_solution_pro 函数体（保留代码但不导出）
 #   3. 或直接从 git 恢复 V1 版本
 git checkout HEAD~1 -- domains/solution_pro/__init__.py
 ```
@@ -62,7 +62,7 @@ git checkout HEAD~1 -- domains/solution_pro/__init__.py
 ```bash
 # 如果 SKILL.md 已更新为 V5（V2 入口），恢复为 V4.4
 git checkout HEAD~1 -- docs/skills/solution-pro/SKILL.md
-# 或手动修改入口说明，将 run_solution_pro_v2 改回 run_solution_pro
+# 或手动修改入口说明，将 run_solution_pro 改回 run_solution_pro
 ```
 
 ### Step 3: 通知用户
@@ -89,7 +89,7 @@ cd .deepflow
 python3 -c "from domains.solution_pro import run_solution_pro; print('V1 OK')"
 
 # 验证 V2 入口已禁用（可选）
-python3 -c "from domains.solution_pro import run_solution_pro_v2" 2>&1 | grep -q "ImportError" && echo "V2 disabled OK"
+python3 -c "from domains.solution_pro import run_solution_pro" 2>&1 | grep -q "ImportError" && echo "V2 disabled OK"
 ```
 
 ---
@@ -170,7 +170,7 @@ V2 执行失败
 1. 分析 V2 失败根因（查看 `v2/pipeline_metrics.json` 和错误日志）
 2. 修复 V2 代码（不修改 V1 文件）
 3. 在测试环境验证 V2 修复
-4. 重新切换入口到 V2（`__init__.py` 导出 `run_solution_pro_v2`）
+4. 重新切换入口到 V2（`__init__.py` 导出 `run_solution_pro`）
 5. 清理旧的 V2 blackboard 数据（可选）
 
 ---

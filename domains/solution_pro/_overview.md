@@ -78,7 +78,7 @@ MasterOrchestrator（极简调度器）
 | `reviewer_meta.md` | 验证 Meta-Planner 输出 |
 | `reviewer_convergence.md` | 验证 Convergence 输出 |
 | `harness_agent.md` | Gate A + Gate B 评估 |
-| `planner_v2_harness.md` | Planner Harness 验证 |
+| `planner_harness.md` | Planner Harness 验证 |
 
 ### Research 模块
 
@@ -86,18 +86,18 @@ MasterOrchestrator（极简调度器）
 |--------|------|
 | `research_expert_base.md` | Research Expert 基础模板 |
 | `consolidator.md` | 研究成果整合 |
-| `researcher_v2_harness.md` | Researcher Harness 验证 |
-| `consolidator_v2_harness.md` | Consolidator Harness 验证 |
+| `researcher_harness.md` | Researcher Harness 验证 |
+| `consolidator_harness.md` | Consolidator Harness 验证 |
 
 ### ReviewQC 模块
 
 | Prompt | 用途 |
 |--------|------|
-| `fixer_expert_v2_harness.md` | Fix Loop 修复 |
+| `fixer_expert_harness.md` | Fix Loop 修复 |
 | `harness_v3.md` | Harness 对抗性检查 |
-| `reviewer_v2_harness.md` | 最终评审 |
-| `summarizer_v2_harness.md` | Summarizer Harness 验证 |
-| `fixer_v2_harness.md` | Fixer Harness 验证 |
+| `reviewer_harness.md` | 最终评审 |
+| `summarizer_harness.md` | Summarizer Harness 验证 |
+| `fixer_harness.md` | Fixer Harness 验证 |
 
 ### 通用
 
@@ -107,13 +107,13 @@ MasterOrchestrator（极简调度器）
 | `summarizer.md` | 最终总结 |
 | `ai_native_cognitive_base.md` | AI Native 认知基础 |
 | `harness_scoring.md` | Harness 评分逻辑 |
-| `auditor_v2_harness.md` | Auditor Harness 验证 |
+| `auditor_harness.md` | Auditor Harness 验证 |
 
 ---
 
 ## V2 Schema 清单
 
-所有 V2 Schema 定义在 `schemas/v2_schemas.py`：
+所有 V2 Schema 定义在 `schemas/schemas.py`：
 
 | Schema | 用途 |
 |--------|------|
@@ -134,10 +134,10 @@ MasterOrchestrator（极简调度器）
 
 | 测试文件 | 覆盖范围 |
 |----------|---------|
-| `tests/test_v2_schemas.py` | V2 Schema 定义验证 |
-| `tests/test_v2_base_classes.py` | V2 基类（ModuleOrchestrator）验证 |
+| `tests/test_schemas.py` | V2 Schema 定义验证 |
+| `tests/test_base_classes.py` | V2 基类（ModuleOrchestrator）验证 |
 | `tests/test_planning_orchestrator.py` | Planning 模块单元测试 |
-| `tests/test_v2_integration.py` | V2 端到端集成测试 |
+| `tests/test_integration.py` | V2 端到端集成测试 |
 | `tests/test_convergence_migration.py` | 收敛层迁移测试 |
 | `tests/test_phase1_acceptance.py` | Phase 1 验收测试 |
 | `tests/test_phase2_acceptance.py` | Phase 2 验收测试 |

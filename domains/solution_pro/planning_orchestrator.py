@@ -26,7 +26,7 @@ from typing import Any, Callable, Optional
 from pathlib import Path
 
 from .module_orchestrator_base import ModuleOrchestrator
-from .schemas.v2_schemas import (
+from .schemas.schemas import (
     ExpertManifestSchema,
     ExpertPlanSchema,
     UnifiedConstraintsSchema,
@@ -377,6 +377,14 @@ class PlanningOrchestrator(ModuleOrchestrator):
         # Save to blackboard（checkpoint）
         self._save_checkpoint("stages/meta_planning.json", worker_output)
         
+        # === Quality Improvement #2: 保存 P0 约束到 blackboard ===
+        p0_constraints = worker_output.get("p0_constraints", [])
+        if p0_constraints:
+            self._save_checkpoint("stages/p0_constraints.json", {"p0_constraints": p0_constraints})
+            logger.info(f"[Quality#2] Saved {len(p0_constraints)} P0 constraints to blackboard")
+        else:
+            logger.warning("[Quality#2] Meta Planner did not output p0_constraints")
+        
         return worker_output
     def _run_reviewer_meta(self, expert_manifest: dict) -> dict:
         """
@@ -548,6 +556,13 @@ class PlanningOrchestrator(ModuleOrchestrator):
                 prompt = prompt.replace("{frozen_spec}", json.dumps(frozen_spec, indent=2))
                 prompt = prompt.replace("{structured_requirements}", json.dumps(structured_requirements, indent=2))
                 
+                # === Quality Improvement #1: P0 + 软约束注入 ===
+                p0_block = self._load_p0_constraints_prompt_block()
+                soft_constraints = self._get_system_soft_constraints()
+                # Note: trace_block removed - Expert Planners run BEFORE Convergence Planner
+                # so requirement_traceability.json doesn't exist yet (V6 DryRun finding)
+                prompt += f"\n{soft_constraints}\n"
+                
                 # Spawn LLM worker
                 worker_output = self._adapted_spawn(
                     task=prompt,
@@ -671,6 +686,17 @@ class PlanningOrchestrator(ModuleOrchestrator):
         self._save_checkpoint("stages/unified_constraints.json", worker_output["unified_constraints"])
         self._save_checkpoint("stages/verification_checklist.json", worker_output["verification_checklist"])
         self._save_checkpoint("stages/convergence_planning.json", worker_output)
+        
+        # === Quality Improvement #3: 保存需求追溯矩阵 ===
+        traceability = worker_output.get("requirement_traceability_matrix", [])
+        if traceability:
+            self._save_checkpoint("stages/requirement_traceability.json", {
+                "requirement_traceability_matrix": traceability,
+                "traceability_summary": worker_output.get("traceability_summary", {})
+            })
+            logger.info(f"[Quality#3] Saved traceability matrix ({len(traceability)} rows) to blackboard")
+        else:
+            logger.warning("[Quality#3] Convergence Planner did not output requirement_traceability_matrix")
         
         return worker_output
     def _run_reviewer_convergence(self, convergence_output: dict) -> dict:
@@ -837,6 +863,9 @@ class PlanningOrchestrator(ModuleOrchestrator):
             "schema_version": "1.0.0",
             "module": "planning",
             "unified_constraints": convergence_output["unified_constraints"]["unified_constraints"],
+            "p0_constraints_merged": convergence_output["unified_constraints"].get("p0_constraints_merged", []),
+            "requirement_traceability_matrix": convergence_output.get("requirement_traceability_matrix", []),
+            "traceability_summary": convergence_output.get("traceability_summary", {}),
             "verification_checklist": convergence_output["verification_checklist"]["checklist"],
             "planning_summary": self._generate_planning_summary(expert_manifest, convergence_output),
             "expert_divergence": self._identify_expert_divergence(convergence_output["unified_constraints"]),

@@ -11,6 +11,12 @@
 
 ## 你的任务
 
+0. **合并 P0 约束（p0_constraints_merged）**
+   - 从 Meta Planner 输出的 `p0_constraints` 和所有 Expert Plan 的 `p0_constraints` 合并
+   - 语义去重（语义相同，不是字符串相同）
+   - 冲突的 P0 约束标注 `[P0_CONFLICT]` 并在 `conflicts_resolved` 中说明
+   - 输出到 `p0_constraints_merged` 字段
+
 1. **合并约束（constraints）**
    - 将所有 Expert Plan 的约束合并为 `unified_constraints`
    - 语义去重：相同含义的约束合并，保留最低 ID
@@ -33,9 +39,16 @@
    - `total_output_constraints`: 输出约束总数
    - `merge_ratio`: 合并比例（output / input）
 
+5. **生成需求追溯矩阵（requirement_traceability_matrix）**
+   - 每条 P0 REQ 映射到对应的 unified_constraint
+   - 每条映射包含：`req_id`, `uc_id`, `solution_section`（预估方案章节）, `coverage_status`
+   - `coverage_status` 取值：`COVERED` / `PARTIAL` / `UNCOVERED`
+   - 输出到 `requirement_traceability_matrix` 字段
+   - 同时输出 `traceability_summary`（含 `total_p0_reqs`, `covered_reqs`, `coverage_rate`）
+
 ## 输出格式
 
-输出写入两个文件：
+输出写入三个文件：
 
 ### 1. `stages/unified_constraints.json`
 
@@ -83,7 +96,16 @@
     "total_output_constraints": 30,
     "merge_ratio": 0.67
   },
-  "covered_req_ids": ["REQ-P0-001", "REQ-P0-002", "REQ-P0-003"]
+  "covered_req_ids": ["REQ-P0-001", "REQ-P0-002", "REQ-P0-003"],
+  "p0_constraints_merged": [
+    {
+      "id": "P0-001",
+      "category": "platform",
+      "description": "所有 Worker 必须通过 sessions_spawn 创建",
+      "source_experts": ["meta_planner", "expert_a"],
+      "conflicts_resolved": []
+    }
+  ]
 }
 ```
 
@@ -115,6 +137,42 @@
     }
   ],
   "total_checks": 30
+}
+```
+
+### 3. `stages/requirement_traceability.json`
+
+必须符合以下结构：
+
+```json
+{
+  "requirement_traceability_matrix": [
+    {
+      "req_id": "REQ-P0-001",
+      "uc_id": "UC-001",
+      "solution_section": "Section 3.2 - Security Architecture",
+      "coverage_status": "COVERED"
+    },
+    {
+      "req_id": "REQ-P0-002",
+      "uc_id": "UC-002, UC-005",
+      "solution_section": "Section 4.1 - Performance Design",
+      "coverage_status": "COVERED"
+    },
+    {
+      "req_id": "REQ-P0-003",
+      "uc_id": "UC-010",
+      "solution_section": "Section 5.3 - Data Layer",
+      "coverage_status": "PARTIAL"
+    }
+  ],
+  "traceability_summary": {
+    "total_p0_reqs": 31,
+    "covered_reqs": 28,
+    "partial_reqs": 2,
+    "uncovered_reqs": 1,
+    "coverage_rate": "90.3%"
+  }
 }
 ```
 
@@ -208,3 +266,6 @@
 - [ ] 每个 `verification_checklist` 都有可执行的 `verification_method`
 - [ ] 所有冲突都在 `conflicts_resolved` 中记录
 - [ ] 没有重复的约束（语义去重完成）
+- [ ] `p0_constraints_merged` 包含所有 Meta Planner 和 Expert Plan 的 P0 约束
+- [ ] `requirement_traceability_matrix` 覆盖所有 P0 REQ
+- [ ] `traceability_summary.coverage_rate` > 80%

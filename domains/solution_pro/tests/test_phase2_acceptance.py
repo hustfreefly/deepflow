@@ -28,7 +28,7 @@ from domains.solution_pro.compliance_checker import (
     THRESHOLD_WARNING,
 )
 from domains.solution_pro.information_conservation import InformationConservationValidator
-from domains.solution_pro.schemas.v2_schemas import DegradedFinalConvergenceSchema
+from domains.solution_pro.schemas.schemas import DegradedFinalConvergenceSchema
 
 
 # ---------------------------------------------------------------------------

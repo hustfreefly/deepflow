@@ -1,0 +1,23 @@
+{
+  "unified_constraints": [
+    {
+      "constraint_id": "UC-001",
+      "description": "Mock unified constraint",
+      "priority": "MUST",
+      "source_experts": [
+        "architecture_expert"
+      ],
+      "conflicts_resolved": []
+    }
+  ],
+  "rejected_constraints": [],
+  "meta": {
+    "total_expert_plans": 1,
+    "total_input_constraints": 1,
+    "total_output_constraints": 1,
+    "merge_ratio": 1.0
+  },
+  "covered_req_ids": [
+    "REQ-001"
+  ]
+}

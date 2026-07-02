@@ -27,7 +27,7 @@ import json
 
 # P0-2: Import GateAConfig for dynamic scoring (lazy import for standalone compatibility)
 try:
-    from .schemas.v2_schemas import GateAConfig
+    from .schemas.schemas import GateAConfig
 except ImportError:  # pragma: no cover - standalone execution
     GateAConfig = None  # type: ignore
 
@@ -290,19 +290,34 @@ def score_to_dict(score: HarnessScore) -> dict:
     }
 
 
-def validate_harness_output(output: dict) -> tuple[bool, str]:
+def _validate_harness_output_legacy(output: dict) -> tuple[bool, str]:
     """
     验证Worker输出的Harness格式是否正确
+    
+    V2: 优先使用 HarnessCheckV2 Pydantic schema（含契约笼子）
+    如果 V2 验证失败，尝试 V1 格式（向后兼容）
     
     Returns:
         (是否有效, 错误信息)
     """
-    required_fields = ["completeness", "necessity", "alignment", "global_impact", "overall_score", "decision"]
-    
     if "harness_check" not in output:
         return False, "缺少harness_check字段"
     
     hc = output["harness_check"]
+    
+    # V2 格式检测: 有 layer1_system_guardrails
+    if "layer1_system_guardrails" in hc:
+        try:
+            from .schemas.schemas import HarnessCheckV2
+            HarnessCheckV2(**hc)
+            return True, ""
+        except ImportError:
+            pass
+        except Exception as e:
+            return False, f"Harness Check V2 验证失败: {e}"
+    
+    # V1 格式（向后兼容）
+    required_fields = ["completeness", "necessity", "alignment", "global_impact", "overall_score", "decision"]
     
     for field in required_fields:
         if field not in hc:
@@ -320,6 +335,75 @@ def validate_harness_output(output: dict) -> tuple[bool, str]:
             return False, f"{dim}分数超出范围: {score}"
     
     return True, ""
+
+
+def validate_harness_output(harness_check: dict) -> tuple[bool, str]:
+    """
+    V2 专用验证函数（使用 Pydantic HarnessCheckV2 + 契约笼子）
+    
+    Args:
+        harness_check: harness_check 字段的内容（不是整个 stage output）
+    
+    Returns:
+        (是否有效, 错误信息)
+    """
+    try:
+        from .schemas.schemas import HarnessCheckV2
+        HarnessCheckV2(**harness_check)
+        return True, ""
+    except ImportError:
+        return False, "HarnessCheckV2 schema 未安装"
+    except Exception as e:
+        return False, f"Harness Check V2 验证失败: {e}"
+
+
+def harness_to_scores(harness_check: dict) -> dict:
+    """
+    V2 verdict → 数值映射（供 Gate A Layer 2 使用）
+    
+    Args:
+        harness_check: HarnessCheckV2 格式的 dict
+    
+    Returns:
+        {"completeness": 0.95, "necessity": 0.80, "alignment": 0.95, "global_impact": 0.95,
+         "overall_score": 0.91, "decision": "PASS"}
+    """
+    from .schemas.schemas import VERDICT_SCORE_MAP
+    
+    layer1 = harness_check.get("layer1_system_guardrails", {})
+    scores = {}
+    for dim in ["completeness", "necessity", "alignment", "global_impact"]:
+        dim_data = layer1.get(dim, {})
+        verdict = dim_data.get("verdict", "WEAK")
+        scores[dim] = VERDICT_SCORE_MAP.get(verdict, 0.50)
+    
+    # overall_score = weighted average
+    overall = (
+        scores["completeness"] * 0.30 +
+        scores["necessity"] * 0.20 +
+        scores["alignment"] * 0.30 +
+        scores["global_impact"] * 0.20
+    )
+    
+    # decision from overall_verdict
+    overall_verdict = harness_check.get("overall_verdict", "CONDITIONAL")
+    verdict_to_decision = {
+        "STRONG_PASS": "PASS",
+        "PASS": "PASS",
+        "CONDITIONAL": "WARNING",
+        "WARNING": "CRITICAL_WARNING",
+        "FAIL": "BLOCK_RECOMMENDATION",
+    }
+    decision = verdict_to_decision.get(overall_verdict, "WARNING")
+    
+    return {
+        "completeness": scores["completeness"],
+        "necessity": scores["necessity"],
+        "alignment": scores["alignment"],
+        "global_impact": scores["global_impact"],
+        "overall_score": round(overall, 2),
+        "decision": decision,
+    }
 
 
 # 便捷函数：从等级快速计算

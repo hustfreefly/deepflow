@@ -411,29 +411,43 @@ def validate_stage_output(output: dict, stage_name: str) -> Tuple[bool, str]:
         if not isinstance(hc, dict):
             return False, f"{stage_name} harness_check 必须是字典"
 
-        hc_required = ["completeness", "necessity", "alignment", "global_impact", "overall_score", "decision"]
-        for field in hc_required:
-            if field not in hc:
-                return False, f"{stage_name} harness_check 缺少: {field}"
+        # V2 格式检测: 有 layer1_system_guardrails
+        if "layer1_system_guardrails" in hc:
+            # V2 格式: 使用 Pydantic HarnessCheckV2 验证（含契约笼子）
+            try:
+                from .schemas.schemas import HarnessCheckV2
+                HarnessCheckV2(**hc)
+            except ImportError:
+                # schema 未安装，回退到基本检查
+                if "overall_verdict" not in hc:
+                    return False, f"{stage_name} harness_check V2 缺少 overall_verdict"
+            except Exception as e:
+                return False, f"{stage_name} harness_check V2 验证失败: {e}"
+        else:
+            # V1 格式（向后兼容）
+            hc_required = ["completeness", "necessity", "alignment", "global_impact", "overall_score", "decision"]
+            for field in hc_required:
+                if field not in hc:
+                    return False, f"{stage_name} harness_check 缺少: {field}"
 
-        # 检查 decision 值
-        valid_decisions = ["PASS", "PASS_WITH_CONDITIONS", "WARNING", "CRITICAL_WARNING", "BLOCK_RECOMMENDATION"]
-        if hc["decision"] not in valid_decisions:
-            return False, f"{stage_name} 无效的 decision: {hc['decision']}"
+            # 检查 decision 值
+            valid_decisions = ["PASS", "PASS_WITH_CONDITIONS", "WARNING", "CRITICAL_WARNING", "BLOCK_RECOMMENDATION"]
+            if hc["decision"] not in valid_decisions:
+                return False, f"{stage_name} 无效的 decision: {hc['decision']}"
 
-        # 检查分数范围
-        for dim in ["completeness", "necessity", "alignment", "global_impact"]:
-            if dim not in hc:
-                return False, f"{stage_name} harness_check 缺少维度: {dim}"
-            dim_data = hc[dim]
-            if isinstance(dim_data, dict):
-                score = dim_data.get("score")
-            else:
-                score = dim_data
-            if score is None:
-                return False, f"{stage_name} {dim} 缺少 score"
-            if not (0.0 <= score <= 1.0):
-                return False, f"{stage_name} {dim} 分数超出范围: {score}"
+            # 检查分数范围
+            for dim in ["completeness", "necessity", "alignment", "global_impact"]:
+                if dim not in hc:
+                    return False, f"{stage_name} harness_check 缺少维度: {dim}"
+                dim_data = hc[dim]
+                if isinstance(dim_data, dict):
+                    score = dim_data.get("score")
+                else:
+                    score = dim_data
+                if score is None:
+                    return False, f"{stage_name} {dim} 缺少 score"
+                if not (0.0 <= score <= 1.0):
+                    return False, f"{stage_name} {dim} 分数超出范围: {score}"
 
     req_ids = output.get("covered_req_ids")
     if not isinstance(req_ids, list):
@@ -584,7 +598,7 @@ def build_planner_task(session_id: str, topic: str, solution_type: str,
         living_spec: Living Spec(Spec Pro 产出,可选)
     """
     # 读取基础Prompt并注入Layer 2约束
-    base_prompt = read_prompt("solution/planner_v2_harness")
+    base_prompt = read_prompt("solution/planner_harness")
     prompt = inject_layer2_constraints(base_prompt, "planner", {})
     constraints_text = ", ".join(constraints) if constraints else "无"
     stakeholders_text = ", ".join(stakeholders) if stakeholders else "无"
@@ -723,7 +737,7 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
         living_spec: Living Spec(可选)
     """
     # 读取基础Prompt并注入Layer 2约束(使用默认)
-    base_prompt = read_prompt("solution/researcher_v2_harness")
+    base_prompt = read_prompt("solution/researcher_harness")
     worker_role = f"researcher_{expert_id}"
     prompt = inject_layer2_constraints(base_prompt, worker_role, {})
 
@@ -885,7 +899,7 @@ def build_auditor_task(session_id: str, topic: str, context: dict,
         living_spec: Living Spec(Spec Pro 产出,可选)
     """
     # 读取基础Prompt并注入Layer 2约束(使用默认)
-    base_prompt = read_prompt("solution/auditor_v2_harness")
+    base_prompt = read_prompt("solution/auditor_harness")
     prompt = inject_layer2_constraints(base_prompt, "auditor", {})
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
     prompt = prompt.replace("{{ TOPIC }}", topic)
@@ -974,7 +988,7 @@ def build_fixer_task(session_id: str, topic: str, context: dict,
     used by the 10-stage pipeline.
     """
     # 读取基础Prompt并注入Layer 2约束(使用默认)
-    base_prompt = read_prompt("solution/fixer_v2_harness")
+    base_prompt = read_prompt("solution/fixer_harness")
     prompt = inject_layer2_constraints(base_prompt, "fixer", {})
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
     prompt = prompt.replace("{{ TOPIC }}", topic)
@@ -1059,7 +1073,7 @@ def build_fixer_task_with_audit(session_id: str, topic: str, audit_path: str, li
 
     # Phase 2: 尝试从文件读取prompt(优先),失败则使用硬编码兜底
     try:
-        prompt = read_prompt("solution/fixer_v2_harness")
+        prompt = read_prompt("solution/fixer_harness")
         # 替换模板变量
         prompt = prompt.replace("{{TOPIC}}", topic)
         prompt = prompt.replace("{{ TOPIC }}", topic)
@@ -1233,7 +1247,7 @@ def build_reviewer_task(session_id: str, topic: str, review_type: str,
         living_spec: Living Spec(Spec Pro 产出,可选)
     """
     # 读取基础 Prompt 后注入 Layer 2 约束(使用默认)
-    base_prompt = read_prompt("solution/reviewer_v2_harness")
+    base_prompt = read_prompt("solution/reviewer_harness")
     worker_role = f"reviewer_{review_type}"
     prompt = inject_layer2_constraints(base_prompt, worker_role, {})
 
@@ -1379,7 +1393,7 @@ bb = BlackboardManager(session_id="{session_id}")
 # Stage 2, 5, 9: Harness V2(统一4维质量检查)
 # ============================================================
 
-def build_harness_v2_task(session_id: str, topic: str, worker_role: str,
+def build_harness_task(session_id: str, topic: str, worker_role: str,
                           layer2_constraints: list = None,
                           living_spec: dict = None) -> str:
     """构建 Harness V2 Task(通用Worker自评)
@@ -1395,17 +1409,17 @@ def build_harness_v2_task(session_id: str, topic: str, worker_role: str,
 
     # 根据角色选择Prompt
     prompt_map = {
-        "planner": "solution/planner_v2_harness",
-        "reviewer": "solution/reviewer_v2_harness",
-        "researcher": "solution/researcher_v2_harness",
-        "consolidator": "solution/consolidator_v2_harness",
-        "auditor": "solution/auditor_v2_harness",
-        "fixer": "solution/fixer_v2_harness",
-        "fixer_expert": "solution/fixer_expert_v2_harness",
-        "summarizer": "solution/summarizer_v2_harness"
+        "planner": "solution/planner_harness",
+        "reviewer": "solution/reviewer_harness",
+        "researcher": "solution/researcher_harness",
+        "consolidator": "solution/consolidator_harness",
+        "auditor": "solution/auditor_harness",
+        "fixer": "solution/fixer_harness",
+        "fixer_expert": "solution/fixer_expert_harness",
+        "summarizer": "solution/summarizer_harness"
     }
 
-    prompt_key = prompt_map.get(worker_role, "solution/harness_v2")
+    prompt_key = prompt_map.get(worker_role, "solution/harness")
     prompt = read_prompt(prompt_key)
 
     # 注入Layer 2约束
@@ -1569,7 +1583,7 @@ def build_harness_final_task(session_id: str, topic: str, living_spec: dict = No
 
 
 # 保留兼容入口:内部也统一走4维 Harness V3
-def build_harness_task(session_id: str, topic: str, current_solution: dict,
+def _build_harness_task_legacy(session_id: str, topic: str, current_solution: dict,
                        is_final: bool = False,
                        living_spec: dict = None) -> str:
     """构建 Harness V3 Task(兼容入口,统一4维评分)
@@ -1683,7 +1697,7 @@ def build_consolidator_task(session_id: str, topic: str,
         living_spec: Living Spec(Spec Pro 产出,可选)
     """
     # 读取基础Prompt并注入Layer 2约束(使用默认)
-    base_prompt = read_prompt("solution/consolidator_v2_harness")
+    base_prompt = read_prompt("solution/consolidator_harness")
     prompt = inject_layer2_constraints(base_prompt, "consolidator", {})
 
     # 整合策略
@@ -1789,7 +1803,7 @@ def build_fixer_expert_task(session_id: str, topic: str,
         living_spec: Living Spec(Spec Pro 产出,可选)
     """
     # 读取基础Prompt并注入Layer 2约束(使用默认)
-    base_prompt = read_prompt("solution/fixer_expert_v2_harness")
+    base_prompt = read_prompt("solution/fixer_expert_harness")
     prompt = inject_layer2_constraints(base_prompt, "fixer_expert", {})
 
     # 根据严重性确定修正策略
@@ -1893,7 +1907,7 @@ def build_summarizer_task(session_id: str, topic: str,
         living_spec: Living Spec(Spec Pro 产出,可选)
     """
     # 读取基础Prompt并注入Layer 2约束(使用默认)
-    base_prompt = read_prompt("solution/summarizer_v2_harness")
+    base_prompt = read_prompt("solution/summarizer_harness")
     prompt = inject_layer2_constraints(base_prompt, "summarizer", {})
 
     # 提取关键信息生成summary

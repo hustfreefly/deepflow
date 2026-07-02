@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 from datetime import datetime
 
-from .schemas.v2_schemas import (
+from .schemas.schemas import (
     PlanningConvergenceSchema,
     ResearchConvergenceSchema,
     FinalConvergenceSchema,
@@ -315,7 +315,7 @@ class ConvergenceLayer:
 4. 添加 original_references（引用原始文件路径）
 
 ## 输出 Schema
-请参考 schemas/v2_schemas.py 中的 {self.module_name.capitalize()}ConvergenceSchema
+请参考 schemas/schemas.py 中的 {self.module_name.capitalize()}ConvergenceSchema
 
 ## 输出路径
 stages/convergence_{self.module_name}.json

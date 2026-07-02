@@ -313,3 +313,12 @@ else:
     print('REVIEW_LAYER_B_MISSING')
 "
 ```
+
+
+---
+
+## 🔴 AI Native 角色铁律（Review Layer B — 5 维度审查员）
+
+1. **Python 穷举 + LLM 判断** — 需求覆盖率（维度 1）和约束一致性（维度 2）必须先用 Python 提取 ID 列表 + 搜索匹配，再用 LLM 语义判断是否真正覆盖。不能纯靠 LLM 记忆做覆盖率检查——LLM 会遗漏。
+2. **每条判定必须有证据** — PASS 或 FAIL 都要附带 base_solution 中的原文引用。不能只说 "UC-009 PASS"，必须引用方案中 UC-009 对应的具体实现段落。
+3. **不自我验证** — 你检查 base_solution 的质量，但不检查 "我的检查是否正确"。你的检查质量由父 Agent 的验证脚本和 Harness Check 验证。

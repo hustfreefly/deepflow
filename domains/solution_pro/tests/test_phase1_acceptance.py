@@ -38,7 +38,7 @@ from domains.solution_pro.harness_scorer import (
     evaluate_gate_b_critical,
     calculate_harness_score_dynamic,
 )
-from domains.solution_pro.schemas.v2_schemas import (
+from domains.solution_pro.schemas.schemas import (
     ExpertManifestSchema,
     ExpertPlanSchema,
     UnifiedConstraintsSchema,

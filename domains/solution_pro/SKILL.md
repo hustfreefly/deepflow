@@ -1,7 +1,7 @@
-# Solution Pro V2 — Agent 执行指南
+# Solution Pro — Agent 执行指南
 
 > **版本**: V5.1 | **最后更新**: 2026-07-01  
-> **架构**: MasterOrchestrator → Planning（三层）+ Research（多专家并行）+ ReviewQC（Fix Loop + Finding Ledger + 确定性检查）  
+> **架构**: Orchestrator → Planning（三层）+ Research（多专家并行）+ Summary（5+1 Phase 收敛）  
 > **V1 架构**: 固定多阶段管线方案（已归档，仅用于已有 session 续跑）  
 > **V3 改进**: 基于 E2E V3 质量评估，新增研究利用追踪 + Finding Ledger + 6 个确定性检查
 
@@ -15,7 +15,7 @@
 | 已有 V1 session 续跑 | V1 | 读取 `.stage_progress.json` 确认阶段，从断点继续 |
 | 不确定 | V2 | V2 是未来方向，V1 仅维护 |
 
-**判断方法**：检查 `blackboard/<session_id>/v2/master_state.json` 是否存在。存在 = V2 session。
+**判断方法**：检查 `blackboard/<session_id>/master_state.json` 是否存在。存在 = V2 session。
 
 ---
 
@@ -37,11 +37,13 @@ MasterOrchestrator（极简调度器，不做语义判断）
   │   ├── Stage 4: Consolidation → 批量去重 + 冲突检测 + 分层分类
   │   └── Stage 5: Convergence → research_convergence.json
   │
-  └── Module 3: ReviewQCOrchestrator（质量保障 + 最终收敛）
-      ├── Stage 1: Fix Loop → 检测并修复问题（最多 3 轮）
-      ├── Stage 2: Harness Check → 对抗性检查
-      ├── Stage 3: Final Review → 最终评审
-      └── Stage 4: Convergence → final_convergence.json
+  └── Module 3: SummaryOrchestrator（5+1 Phase 收敛）
+      ├── Phase 1: Base Synthesis → 基础方案
+      ├── Phase 2: Meta Summary Planner → 审查规划
+      ├── Phase 3: Parallel Analysis ×N → 多角度审查
+      ├── Phase 4: Fix Judge → Fix Agent → Harness Check
+      ├── Phase 5a: Document Generator → 方案文档
+      └── Phase 5b: JSON Extractor → final_solution.json
 ```
 
 **设计原则**：
@@ -73,62 +75,64 @@ frozen_spec = {
 }
 ```
 
-### Step 1: 初始化 Blackboard + MasterOrchestrator
+### Step 1: 启动管线（Agent 级 spawn）
 
 ```python
-from domains.solution_pro.master_orchestrator import MasterOrchestrator
-from domains.solution_pro.blackboard import BlackboardManager
+from domains.solution_pro import run_solution_pro
 
-# 1. 创建 Blackboard（自动配置 SolutionRegistry）
-session_id = "sol_{timestamp}"  # 或从 Spec Pro 继承
-bb = BlackboardManager(session_id)
-
-# 2. 保存 frozen_spec 到 Blackboard
-bb.write("data/frozen_spec.json", frozen_spec)
-
-# 3. 创建 MasterOrchestrator
-master = MasterOrchestrator(blackboard=bb, spawn_fn=spawn_fn)
-
-# 4. 运行 Pipeline
-result = master.run(
+# 1. 调用 run_solution_pro()，返回 spawn_params
+result = run_solution_pro(
     user_input="{用户原始需求描述}",
-    config={
-        "topic": "{TOPIC}",
-        "solution_type": "architecture",
-        "mode": "standard",
-        "domain": "backend_api",
-        "constraints": [...],
-    }
+    topic="{TOPIC}",
+    solution_type="architecture",
+    mode="standard",
+    domain="backend_api",
+    constraints=[...],
+    living_spec=frozen_spec,  # Step 0 准备的 spec
 )
+
+# 2. 启动 Orchestrator 子 Agent（Agent 级 spawn，无桥接问题）
+sessions_spawn(**result["spawn_params"])
+
+# 3. 等待完成（push-based，不轮询）
+sessions_yield()
 ```
 
 **接口说明**：
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `blackboard` | `BlackboardManager` | 黑板管理器，自动配置 SolutionRegistry |
-| `spawn_fn` | `Callable` | spawn 函数（由主 Agent 注入，通常是 `sessions_spawn`） |
-| `config` | `dict` | 可选配置，覆盖默认超时等 |
+| `user_input` | `str` | 用户原始需求描述（必填） |
+| `topic` | `str` | 主题（必填） |
+| `**kwargs` | `dict` | 其他配置（solution_type, mode, domain, constraints, living_spec 等） |
 
 **返回值**：
 ```python
 {
-    "status": "COMPLETE",          # COMPLETE | FAILED | DEGRADED
-    "planning": {...},             # Planning 模块输出
-    "research": {...},             # Research 模块输出
-    "review_qc": {...},            # ReviewQC 模块输出
-    "final_report": {...},         # 最终报告摘要
-    "metrics": {...},              # Pipeline 指标（耗时、降级模块等）
-    "degraded_modules": [...],     # 降级模块列表
+    "session_id": "sol_xxx",          # Session ID
+    "base_path": "blackboard/sol_xxx", # Blackboard 路径
+    "spawn_params": {                  # 直接传给 sessions_spawn
+        "runtime": "subagent",
+        "mode": "run",
+        "label": "solution_orchestrator",
+        "task": "...",                 # Orchestrator prompt（已填充变量）
+        "cwd": "/Users/allen/.openclaw/workspace/.deepflow",
+        "lightContext": True,
+    },
 }
 ```
+
+**关键说明**：
+- `run_solution_pro()` 内部自动创建 Blackboard、初始化 session_dir、读取 orchestrator.md 模板并填充变量
+- **不需要手动创建 MasterOrchestrator** — Agent 级 spawn 无需 spawn_fn 桥接
+- 子 Agent 会自动读取 `orchestrator.md` 并按 Planning → Research → Summary 顺序执行
 
 ### Step 2: 向用户发送启动通知
 
 ```
-✅ 已启动 DeepFlow Solution Pro V2 管线
+✅ 已启动 DeepFlow Solution Pro 管线
 📋 主题: {TOPIC}
-🏗️ 架构: Planning（三层）→ Research（多专家并行）→ ReviewQC（Fix Loop + 收敛）
+🏗️ 架构: Planning（三层）→ Research（多专家并行）→ Summary（5+1 Phase 收敛）
 ⏱️ 预计: 20-40 分钟
 💬 期间你可以继续问我其他问题，完成后我会通知你
 ```
@@ -254,7 +258,7 @@ Step 2.5: Research Convergence
   └── 输出: research_convergence.json
 ```
 
-### Module 3: ReviewQC（质量保障 + 最终收敛）
+### Module 3: Summary（5+1 Phase 收敛）
 
 ```
 Step 3.1: Fix Loop（最多 3 轮）
@@ -345,20 +349,20 @@ blackboard/<session_id>/
 | `harness_agent.md` | Planning | Gate A + Gate B 评估 |
 | `research_expert_base.md` | Research | Research Expert 基础模板 |
 | `consolidator.md` | Research | 研究成果整合 |
-| `fixer_expert_v2_harness.md` | ReviewQC | Fix Loop 修复 |
+| `fixer_expert_harness.md` | ReviewQC | Fix Loop 修复 |
 | `harness_v3.md` | ReviewQC | Harness 对抗性检查 |
-| `reviewer_v2_harness.md` | ReviewQC | 最终评审 |
+| `reviewer_harness.md` | ReviewQC | 最终评审 |
 | `summarizer.md` | ReviewQC | 最终总结 |
 | `orchestrator_completion.md` | Master | 完成处理 |
-| `planner_v2_harness.md` | Planning | Planner Harness 验证 |
-| `researcher_v2_harness.md` | Research | Researcher Harness 验证 |
-| `reviewer_v2_harness.md` | ReviewQC | Reviewer Harness 验证 |
-| `summarizer_v2_harness.md` | ReviewQC | Summarizer Harness 验证 |
-| `fixer_v2_harness.md` | ReviewQC | Fixer Harness 验证 |
-| `consolidator_v2_harness.md` | Research | Consolidator Harness 验证 |
+| `planner_harness.md` | Planning | Planner Harness 验证 |
+| `researcher_harness.md` | Research | Researcher Harness 验证 |
+| `reviewer_harness.md` | ReviewQC | Reviewer Harness 验证 |
+| `summarizer_harness.md` | ReviewQC | Summarizer Harness 验证 |
+| `fixer_harness.md` | ReviewQC | Fixer Harness 验证 |
+| `consolidator_harness.md` | Research | Consolidator Harness 验证 |
 | `ai_native_cognitive_base.md` | 通用 | AI Native 认知基础 |
 | `harness_scoring.md` | 通用 | Harness 评分逻辑 |
-| `auditor_v2_harness.md` | 通用 | Auditor Harness 验证 |
+| `auditor_harness.md` | 通用 | Auditor Harness 验证 |
 
 ### V1 专用（仅用于已有 V1 session 续跑）
 
@@ -378,7 +382,7 @@ blackboard/<session_id>/
 
 ## 📐 Schema 文件清单
 
-### V2 Schema（`schemas/v2_schemas.py`）
+### V2 Schema（`schemas/schemas.py`）
 
 | Schema | 用途 | 对应 Stage |
 |--------|------|-----------|
@@ -402,11 +406,11 @@ V1 Schema 定义在 `task_builder.py` 中的 `STAGE_OUTPUT_SCHEMA`，此处不�
 ## 🔄 断点续跑（V2）
 
 V2 使用双层 State 验证：
-- `v2/master_state.json`: 模块级完成状态
+- `master_state.json`: 模块级完成状态
 - `v2/{module}_output.json`: 模块输出文件
 
 **续跑流程**：
-1. 检查 `v2/master_state.json` 中 `completed_modules` 列表
+1. 检查 `master_state.json` 中 `completed_modules` 列表
 2. 对每个未完成模块，检查对应输出文件是否存在
 3. 双层验证通过 → 跳过该模块，加载已有输出
 4. 只运行未完成的模块
@@ -421,12 +425,12 @@ V2 使用双层 State 验证：
 | Research | 15 min | `skip_with_degraded_flag`（跳过，标记 degraded=true） |
 | ReviewQC | 10 min | `degraded_final_convergence`（使用 DegradedFinalConvergenceSchema） |
 
-超时配置可通过 `config.module_timeouts` 覆盖：
+超时配置可通过 kwargs 覆盖：
 ```python
-master = MasterOrchestrator(
-    blackboard=bb,
-    spawn_fn=spawn_fn,
-    config={"module_timeouts": {"planning": 600, "research": 1200}}
+result = run_solution_pro(
+    user_input="...",
+    topic="...",
+    module_timeouts={"planning": 600, "research": 1200},
 )
 ```
 
@@ -482,7 +486,7 @@ except:
 - **V2 架构设计**: `blackboard/plan_pro_sp_v2_redesign/plan_v2_final.md`
 - **V2 开发计划**: `blackboard/plan_pro_sp_v2_redesign/development_plan_v2.md`
 - **代码文件索引**: 见 [_overview.md](_overview.md)
-- **Schema 契约**: 见 `schemas/v2_schemas.py`
+- **Schema 契约**: 见 `schemas/schemas.py`
 - **V1 文档**: 见 `prompts/v1/pipeline_orchestrator.md`（V1 Orchestrator 指令）
 
 ## 🆕 V3 改进（2026-07-01）

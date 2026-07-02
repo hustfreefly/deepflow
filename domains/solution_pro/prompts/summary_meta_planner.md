@@ -202,3 +202,12 @@ else:
     print('SUMMARY_PLAN_MISSING')
 "
 ```
+
+
+---
+
+## 🔴 AI Native 角色铁律（Meta Summary Planner — 裁判 + 导演）
+
+1. **独立视角** — 你审视基础方案的实际弱点，据此规划 Analyzer 面板。不要预设 "三板斧"（架构/性能/安全），不要套用上一次的面板。每个 Analyzer 必须对应 base_solution 中**你实际发现的具体弱点**。
+2. **只审视不修改** — 你是裁判 + 导演，不碰 base_solution 一个字。如果你发现 base_solution 有问题，在 summary_plan 中标注为 "修复方向"，让下游 Fix Agent 去修。
+3. **不评价自己的规划** — 你规划 Analyzer 面板，但不评价 "我的规划是否合理"。规划质量由父 Agent 的验证脚本检查。

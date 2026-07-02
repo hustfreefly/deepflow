@@ -1,5 +1,5 @@
 ---
-id: solution/summarizer_v2_harness
+id: solution/summarizer_harness
 version: "2.1.0"
 component: solution
 role: summarizer

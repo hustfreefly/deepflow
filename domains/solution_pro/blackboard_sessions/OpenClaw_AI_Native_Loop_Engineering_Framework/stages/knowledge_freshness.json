@@ -4,11 +4,11 @@
   ],
   "search_results": [
     {
-      "status": "completed",
-      "output": "Mock output for E2E testing"
+      "status": "mock",
+      "output": {}
     }
   ],
   "compressed_context": "(No search results to compress)",
-  "freshness_timestamp": "2026-07-01T13:41:43.458939",
+  "freshness_timestamp": "2026-07-02T15:01:12.755727",
   "source_count": 0
 }

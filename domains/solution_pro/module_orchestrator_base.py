@@ -1,7 +1,7 @@
 """
 Module Orchestrator 基类
 
-Version: 1.0.0
+Version: 1.1.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-28
 
@@ -16,6 +16,11 @@ Date: 2026-06-28
 - 代码控制流程（确定性逻辑）
 - LLM 负责内容（Stage 内部）
 - 不直接调用 OpenClaw（由主 Agent spawn）
+
+V1.1.0 变更 (2026-07-02):
+- 新增 _load_p0_constraints_prompt_block() — P0 约束注入到 Worker prompt
+- 新增 _get_system_soft_constraints() — 系统级软约束
+- 新增 _load_requirement_traceability_prompt_block() — 需求追溯矩阵注入
 """
 
 import json
@@ -125,9 +130,6 @@ class ModuleOrchestrator:
                 session_info = self.spawn_fn(task=task)
         
         # Step 3: 如果 spawn_fn 直接返回了有效 worker 输出（同步模式）
-        # 判断逻辑：非 None 的 dict，且不含 session_id → 视为同步返回的 worker 输出
-        # 注意：此处用宽松检查（只排除 session_id），不用 _is_valid_worker_output（更严格）
-        # 原因：mock spawn_fn 可能返回 {"status": "PASS"} 等简单 dict，需接受
         if isinstance(session_info, dict) and "session_id" not in session_info:
             try:
                 self.blackboard.write(output_path, session_info)
@@ -171,16 +173,11 @@ class ModuleOrchestrator:
         2. 含 session_id → session metadata（异步 spawn 返回）
         3. 所有 key 都是 metadata key → 无效（无实际 worker 输出）
         4. 其他 → 有效 worker 输出
-        
-        注意：如果未来有 spawn_fn 合法返回 {"session_id": ..., "output": {...}}，
-        此方法会错误拒绝。当前无此场景。
         """
         if not isinstance(data, dict):
             return False
-        # 含 session_id → 一定是 session metadata（异步 spawn 返回）
         if "session_id" in data:
             return False
-        # 全是 metadata key → 不是有效 worker 输出
         spawn_metadata_keys = {"session_id", "status", "label", "runtime", "mode", "taskName"}
         if set(data.keys()).issubset(spawn_metadata_keys):
             return False
@@ -197,7 +194,7 @@ class ModuleOrchestrator:
                 return state
         except Exception:
             pass
-        
+
         # 初始化新 state
         state = {
             "module_name": self.module_name,
@@ -205,7 +202,7 @@ class ModuleOrchestrator:
             "current_stage": None,
             "completed_stages": [],
             "failed_stages": [],
-            "retry_count": {},  # {stage_name: count}
+            "retry_count": {},
             "convergence_generated": False,
         }
         try:
@@ -221,60 +218,25 @@ class ModuleOrchestrator:
         self.blackboard.write(state_path, self.state)
     
     def stage_sequence(self) -> list[dict]:
-        """
-        定义模块内的 Stage 序列（子类必须实现）
-        
-        Returns:
-            Stage 列表，每个 Stage 是 dict，包含：
-            - name: Stage 名称
-            - worker_type: Worker 类型（如 "meta_planner", "expert_planner"）
-            - gate_check: 是否需要 Gate check（可选，默认 False）
-            - parallel: 是否并行执行（可选，默认 False）
-            - max_workers: 并行 Worker 最大数量（可选）
-        
-        Example:
-            return [
-                {"name": "data_collection", "worker_type": "data_collector"},
-                {"name": "requirements", "worker_type": "requirements_analyzer"},
-                {"name": "meta_planning", "worker_type": "meta_planner", "gate_check": True},
-                {"name": "expert_planning", "worker_type": "expert_planner", "parallel": True, "max_workers": 5},
-                {"name": "convergence_planning", "worker_type": "convergence_planner", "gate_check": True},
-            ]
-        """
+        """定义模块内的 Stage 序列（子类必须实现）"""
         raise NotImplementedError("Subclass must implement stage_sequence()")
     
     def generate_convergence(self) -> dict:
-        """
-        生成收敛点文件（子类必须实现）
-        
-        Returns:
-            收敛点数据（dict）
-        """
+        """生成收敛点文件（子类必须实现）"""
         raise NotImplementedError("Subclass must implement generate_convergence()")
     
     def execute_stage(self, stage: dict) -> dict:
-        """
-        执行单个 Stage
-        
-        Args:
-            stage: Stage 配置 dict
-        
-        Returns:
-            Stage 输出数据（dict）
-        """
+        """执行单个 Stage"""
         stage_name = stage["name"]
         worker_type = stage["worker_type"]
         
         logger.info(f"Executing stage: {stage_name} (worker: {worker_type})")
         
-        # 更新 state
         self.state["current_stage"] = stage_name
         self._save_state()
         
-        # 构建 Worker task（子类可覆盖）
         task = self._build_worker_task(stage)
         
-        # Spawn Worker — spawn_fn 必须存在
         if not self.spawn_fn:
             raise ValueError(f"spawn_fn is required for stage '{stage_name}' — no local execution allowed")
         
@@ -284,11 +246,9 @@ class ModuleOrchestrator:
             label=f"{self.module_name}_{stage_name}",
         )
         
-        # 读取 Worker 输出
         output_path = STAGE_PATH_REGISTRY.get(stage_name, f"stages/{stage_name}.json")
         output = self.blackboard.read(output_path)
         
-        # 更新 state
         if stage_name not in self.state["completed_stages"]:
             self.state["completed_stages"].append(stage_name)
         self._save_state()
@@ -297,16 +257,7 @@ class ModuleOrchestrator:
         return output
     
     def _build_worker_task(self, stage: dict) -> str:
-        """
-        构建 Worker task（子类可覆盖）
-        
-        Args:
-            stage: Stage 配置 dict
-        
-        Returns:
-            Worker task 字符串
-        """
-        # 默认实现：简单 task 模板
+        """构建 Worker task（子类可覆盖）"""
         stage_name = stage["name"]
         worker_type = stage["worker_type"]
         
@@ -327,33 +278,14 @@ class ModuleOrchestrator:
         return task
     
     def _execute_local(self, stage: dict) -> dict:
-        """
-        已废弃 — execute_stage 现在要求 spawn_fn，不再调用此方法
-        
-        Args:
-            stage: Stage 配置 dict
-        
-        Returns:
-            Stage 输出数据（dict）
-        """
-        # 默认实现：返回空 dict
+        """已废弃 — execute_stage 现在要求 spawn_fn"""
         logger.warning(f"Local execution not implemented for {stage['name']}, returning empty dict")
         return {}
     
     def run_harness_agent(self, stage_name: str, stage_output: dict) -> dict:
-        """
-        调用 Harness Agent 做 Gate check
-        
-        Args:
-            stage_name: Stage 名称
-            stage_output: Stage 输出数据
-        
-        Returns:
-            Harness Agent 输出（包含 gate_a, gate_b, final_verdict）
-        """
+        """调用 Harness Agent 做 Gate check"""
         logger.info(f"Running Harness Agent for stage: {stage_name}")
         
-        # 读取 Gate 配置（从 meta_planning 输出）
         try:
             expert_manifest = self.blackboard.read("stages/meta_planning.json")
             gate_a_config = expert_manifest.get("gate_a", {})
@@ -365,7 +297,6 @@ class ModuleOrchestrator:
             gate_b_config = {}
             verdict_policy = {}
         
-        # Spawn Harness Agent — spawn_fn 必须存在
         if not self.spawn_fn:
             raise ValueError(f"spawn_fn is required for harness evaluation of '{stage_name}' — no local fallback allowed")
         
@@ -376,7 +307,6 @@ class ModuleOrchestrator:
             label=f"harness_{stage_name}",
         )
         
-        # 读取 Harness Agent 输出
         harness_output = self.blackboard.read(f"stages/harness_{stage_name}.json")
         
         return harness_output
@@ -441,48 +371,30 @@ stages/harness_{stage_name}.json
         
         logger.error(f"Gate check failed for stage: {stage_name}, verdict: {final_verdict}")
         
-        # 更新 state
         if stage_name not in self.state["failed_stages"]:
             self.state["failed_stages"].append(stage_name)
         
-        # 增加 retry 计数
         retry_count = self.state["retry_count"].get(stage_name, 0)
         self.state["retry_count"][stage_name] = retry_count + 1
         self._save_state()
         
-        # 如果 retry 次数 < 2，可以重试（子类可覆盖）
         max_retries = stage.get("max_retries", 2)
         if retry_count < max_retries:
             logger.warning(f"Retrying stage: {stage_name} (attempt {retry_count + 1}/{max_retries})")
-            # 重试逻辑由子类决定
         else:
             logger.error(f"Stage failed after {max_retries} retries: {stage_name}")
             raise RuntimeError(f"Stage {stage_name} failed after {max_retries} retries")
     
     def read_upstream_convergence(self, convergence_file: str) -> dict:
-        """
-        读取上游模块的收敛点文件（V2 新增）
-        
-        Args:
-            convergence_file: 上游收敛点文件路径（Blackboard 相对路径）
-        
-        Returns:
-            收敛点数据（dict）
-        
-        Raises:
-            FileNotFoundError: 如果收敛点文件不存在
-            ValueError: 如果 schema 验证失败
-        """
+        """读取上游模块的收敛点文件（V2 新增）"""
         logger.info(f"Reading upstream convergence: {convergence_file}")
         
         try:
-            # 从 Blackboard 读取收敛点（使用 read_json 获取 dict）
             convergence_data = self.blackboard.read_json(convergence_file)
             
             if convergence_data is None:
                 raise FileNotFoundError(f"Convergence file not found: {convergence_file}")
             
-            # 验证 schema（如果可用）
             if hasattr(self, 'validate_convergence_schema'):
                 try:
                     self.validate_convergence_schema(convergence_data)
@@ -497,49 +409,34 @@ stages/harness_{stage_name}.json
         except Exception as e:
             logger.error(f"Failed to read upstream convergence: {e}")
             raise
+
     
     def write_convergence(self, convergence_data: dict) -> str:
-        """
-        写入当前模块的收敛点文件（V2 新增，两阶段写入）
-        
-        Args:
-            convergence_data: 收敛点数据（dict）
-        
-        Returns:
-            收敛点文件路径（str）
-        """
+        """写入当前模块的收敛点文件（V2 新增，两阶段写入）"""
         convergence_path = f"{self.module_name}_convergence.json"
         processing_path = f"{convergence_path}.processing"
         
         logger.info(f"Writing convergence (two-phase): {convergence_path}")
         
         try:
-            # Phase 1: 写入 .processing 临时文件（使用 write_json）
-            # 注意：Blackboard 可能没有 write_json，使用 write 写入 JSON 字符串
-            import json
             processing_json = json.dumps(convergence_data, ensure_ascii=False, indent=2)
             self.blackboard.write(processing_path, processing_json)
             logger.debug(f"Phase 1 complete: wrote to {processing_path}")
             
-            # Phase 2: 重命名为最终文件（原子操作）
-            # 注意：Blackboard 可能不支持 rename，需要读取后重新写入
-            # 这里简化为直接写入最终文件（实际实现可能需要文件系统操作）
             convergence_json = json.dumps(convergence_data, ensure_ascii=False, indent=2)
             self.blackboard.write(convergence_path, convergence_json)
             logger.debug(f"Phase 2 complete: wrote to {convergence_path}")
             
-            # 清理临时文件（如果存在）
             try:
                 self.blackboard.delete(processing_path)
             except Exception:
-                pass  # 临时文件可能已不存在
+                pass
             
             logger.info(f"Convergence written successfully: {convergence_path}")
             return convergence_path
             
         except Exception as e:
             logger.error(f"Failed to write convergence: {e}")
-            # 清理临时文件
             try:
                 self.blackboard.delete(processing_path)
             except Exception:
@@ -549,8 +446,8 @@ stages/harness_{stage_name}.json
     def validate_stage_output(self, module_name: str, stage_name: str, output: dict) -> bool:
         """Validate stage output against V2 schema. Non-blocking on failure."""
         try:
-            from .check_contract import check_v2_contract
-            result = check_v2_contract(module_name, stage_name, output)
+            from .check_contract import check_contract
+            result = check_contract(module_name, stage_name, output)
             if not result.get("valid"):
                 logger.warning("Schema validation failed for %s/%s: %s",
                               module_name, stage_name, result.get("errors"))
@@ -558,11 +455,11 @@ stages/harness_{stage_name}.json
             logger.info("Schema validation passed for %s/%s", module_name, stage_name)
             return True
         except ImportError:
-            logger.debug("check_v2_contract not available, skipping validation")
-            return True  # fallback: skip validation
+            logger.debug("check_contract not available, skipping validation")
+            return True
         except Exception as e:
             logger.warning("Schema validation error for %s/%s: %s", module_name, stage_name, e)
-            return True  # fallback: skip validation on unexpected errors
+            return True
 
     def _execute_parallel(
         self,
@@ -571,22 +468,8 @@ stages/harness_{stage_name}.json
         per_task_timeout: int = 120,
         min_viable: int = None,
     ) -> list[dict]:
-        """
-        通用并行执行引擎（供 Phase 2 模块使用）
-        
-        Args:
-            tasks: [{"task_key": "...", "spawn_fn": fn, ...}]
-            max_workers: 最大并发数
-            per_task_timeout: 单任务超时（秒）
-            min_viable: 最小可行任务数（默认 len(tasks)）
-        
-        Returns:
-            成功执行的任务结果列表
-        """
+        """通用并行执行引擎（供 Phase 2 模块使用）"""
         from concurrent.futures import ThreadPoolExecutor, as_completed
-        import logging
-        
-        logger = logging.getLogger(__name__)
         
         if min_viable is None:
             min_viable = len(tasks)
@@ -620,6 +503,77 @@ stages/harness_{stage_name}.json
         
         return results
 
+    # ========================================================================
+    # P0 约束注入 + 需求追溯矩阵（Quality Improvement #1 + #3）
+    # ========================================================================
+
+    def _load_p0_constraints_prompt_block(self) -> str:
+        """从 blackboard 读取 P0 约束，格式化为 prompt 段落（改进 #1）"""
+        try:
+            p0_data = self.blackboard.read_json("stages/p0_constraints.json")
+            if not p0_data:
+                return "(Meta Planner 未识别 P0 约束)"
+            
+            constraints = p0_data.get("p0_constraints", [])
+            if not constraints:
+                return "(Meta Planner 未识别 P0 约束)"
+            
+            lines = []
+            for c in constraints:
+                lines.append(f"- **{c['id']}** [{c['category']}]: {c['description']}")
+                lines.append(f"  - 影响: {c.get('downstream_impact', 'N/A')}")
+            
+            return "\n".join(lines)
+        except Exception:
+            return "(P0 约束加载失败，请基于常识判断)"
+
+    def _get_system_soft_constraints(self) -> str:
+        """系统级软约束，自动追加到所有 Worker prompt（改进 #1）"""
+        return """
+## 系统级约束（自动注入，不可跳过）
+
+1. **可实现性**: 你的输出必须区分「设计意图」和「实现路径」。
+   - ❌ "使用微服务架构"（只有意图）
+   - ✅ "使用 3 个独立进程，通过 HTTP API 通信"（有实现路径）
+
+2. **P0 约束遵守**: 上游已注入 P0 约束列表。你的输出不得违反这些约束。
+   如果某个需求与 P0 冲突，标注 `[P0_CONFLICT: P0-XXX]` 并说明为什么。
+
+3. **环境感知**: 你的方案必须在声明的运行环境中可执行。
+   不要设计该环境不存在的机制。如果确实需要，标注 `[NEEDS_EXTENSION: 描述]`。
+"""
+
+    def _load_requirement_traceability_prompt_block(self) -> str:
+        """从 blackboard 读取需求追溯矩阵，格式化为 prompt 段落（改进 #3）"""
+        try:
+            trace_data = self.blackboard.read_json("stages/requirement_traceability.json")
+            if not trace_data:
+                return "(需求追溯矩阵未生成)"
+            
+            matrix = trace_data.get("requirement_traceability_matrix", [])
+            if not matrix:
+                return "(需求追溯矩阵为空)"
+            
+            lines = ["## 需求追溯矩阵（REQ → UC → Solution）", ""]
+            lines.append("| 需求 ID | 约束 ID | 方案章节 | 覆盖状态 |")
+            lines.append("|---------|---------|---------|---------|")
+            
+            for row in matrix:
+                req_id = row.get("req_id", "N/A")
+                uc_id = row.get("uc_id", "N/A")
+                section = row.get("solution_section", "N/A")
+                status = row.get("coverage_status", "N/A")
+                lines.append(f"| {req_id} | {uc_id} | {section} | {status} |")
+            
+            summary = trace_data.get("traceability_summary", {})
+            if summary:
+                lines.append("")
+                lines.append(f"**覆盖率**: {summary.get('coverage_rate', 'N/A')}")
+            
+            return "\n".join(lines)
+        except Exception:
+            return "(需求追溯矩阵加载失败)"
+
     def run(self) -> dict:
         """
         运行模块（执行所有 Stage + 生成收敛点）
@@ -638,52 +592,42 @@ stages/harness_{stage_name}.json
             for upstream_file in self.upstream_convergence_files:
                 try:
                     upstream_data = self.read_upstream_convergence(upstream_file)
-                    # 合并到 self.upstream_convergence（子类可通过 self.upstream_convergence 访问）
                     self.upstream_convergence.update(upstream_data)
                     logger.info(f"Loaded upstream convergence: {upstream_file}")
                 except Exception as e:
                     logger.warning(f"Failed to read upstream convergence: {e}")
-                    # 不阻断执行，上游收敛点可选
         
         # 执行所有 Stage
         stages = self.stage_sequence()
         for stage in stages:
             stage_name = stage["name"]
             
-            # 检查是否已完成（断点续跑）
             if stage_name in self.state["completed_stages"]:
                 logger.info(f"Skipping completed stage: {stage_name}")
                 continue
             
-            # 执行 Stage
             try:
                 output = self.execute_stage(stage)
                 
-                # V2: Schema validation (non-blocking)
                 if output is not None:
                     self.validate_stage_output(self.module_name, stage_name, output)
 
-                # Gate check（如果需要）
                 if stage.get("gate_check", False):
                     harness_output = self.run_harness_agent(stage_name, output)
                     final_verdict = harness_output.get("final_verdict", {}).get("final_verdict", "FAIL")
                     
                     if final_verdict != "PASS":
                         self._handle_gate_failure(stage, harness_output)
-                        # 如果 _handle_gate_failure 没有抛异常，继续执行
                 
             except Exception as e:
                 logger.error(f"Stage failed: {stage_name}, error: {e}")
                 raise
         
-        # 生成收敛点文件
         logger.info(f"Generating convergence for module: {self.module_name}")
         convergence = self.generate_convergence()
         
-        # V2: 使用两阶段写入收敛点
         convergence_path = self.write_convergence(convergence)
         
-        # 更新 state
         self.state["convergence_generated"] = True
         self._save_state()
         
@@ -700,18 +644,7 @@ def create_module_orchestrator(
     session_id: str,
     spawn_fn: Optional[Callable] = None,
 ) -> ModuleOrchestrator:
-    """
-    创建 Module Orchestrator 实例（工厂函数）
-    
-    Args:
-        module_name: 模块名称
-        session_id: Session ID
-        spawn_fn: spawn 函数
-    
-    Returns:
-        ModuleOrchestrator 实例（子类）
-    """
-    # 延迟导入，避免循环依赖
+    """创建 Module Orchestrator 实例（工厂函数）"""
     if module_name == "planning":
         from .planning_orchestrator import PlanningOrchestrator
         return PlanningOrchestrator(session_id, spawn_fn)

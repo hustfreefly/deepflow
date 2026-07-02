@@ -1,11 +1,11 @@
 """
-Solution Pro 模块入口，提供 run_solution_pro 和 run_solution_pro_v2 公共 API
+Solution Pro 模块入口，提供 run_solution_pro 和 run_solution_pro 公共 API
 
 Version: 3.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-28
 
-V3.0: 新增 V2 入口 run_solution_pro_v2()，使用 MasterOrchestrator 三模块架构
+V3.0: 新增 V2 入口 run_solution_pro()，使用 MasterOrchestrator 三模块架构
 V2.2: 迁移到 V6 BlackboardManager API
 
 ## 版本选择说明
@@ -14,9 +14,9 @@ V2.2: 迁移到 V6 BlackboardManager API
   - 适用于：已有 V1 流程、需要固定 10 阶段执行计划
   - 入口：run_solution_pro(topic, **kwargs)
 
-- **V2 (run_solution_pro_v2)**: 3 模块编排架构（Planning → Research → ReviewQC）
+- **run_solution_pro**: 3 模块编排架构（推荐）（Planning → Research → ReviewQC）
   - 适用于：新流程、需要模块化、断点续跑、降级策略
-  - 入口：run_solution_pro_v2(user_input, **kwargs)
+  - 入口：run_solution_pro(user_input, **kwargs)
   - 核心：MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator
 """
 
@@ -177,7 +177,7 @@ def run_solution_pro(topic: str, **kwargs):
     }
 
 
-def run_solution_pro_v2(user_input: str, **kwargs):
+def run_solution_pro(user_input: str, **kwargs):
     """
     Solution Pro V2 入口（Agent-centric 架构）
 
@@ -236,7 +236,7 @@ def run_solution_pro_v2(user_input: str, **kwargs):
             old_path.unlink()
 
     # 5. 读取 V2 Orchestrator prompt 模板并填充变量
-    prompt_path = pathlib.Path(__file__).parent / "prompts" / "v2_orchestrator.md"
+    prompt_path = pathlib.Path(__file__).parent / "prompts" / "orchestrator.md"
     prompt_template = prompt_path.read_text(encoding="utf-8")
 
     deepflow_root = str(Path(__file__).resolve().parent.parent.parent)
@@ -268,11 +268,12 @@ def run_solution_pro_v2(user_input: str, **kwargs):
         "spawn_params": {
             "runtime": "subagent",
             "mode": "run",
-            "label": "v2_solution_orchestrator",
+            "label": "solution_orchestrator",
             "task": orchestrator_prompt,
             "cwd": deepflow_root,
+            "lightContext": True,
         },
     }
 
 
-__all__ = ['run_solution_pro', 'run_solution_pro_v2']
+__all__ = ['run_solution_pro']

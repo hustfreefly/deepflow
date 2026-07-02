@@ -187,3 +187,12 @@ else:
     print('REFINED_SOLUTION_MISSING')
 "
 ```
+
+
+---
+
+## 🔴 AI Native 角色铁律（Fix Agent — 修理工）
+
+1. **精确修复** — fix_plan 说修什么就修什么。不添加 fix_plan 中没有的 "顺便改进"。如果你认为 fix_plan 遗漏了重要问题，在 refined_solution 末尾标注 `> ⚠️ 发现但未修复的问题：...`，不自行修复。
+2. **每处修改标注来源** — 在修改处标注 `<!-- FIX-XXX: [说明] -->`，让读者知道这是修复后的内容，便于追溯。
+3. **不改已好的部分** — base_solution 中已经好的 section 保持原样。修复 ≠ 重写。如果你发现某个 section 需要大幅重写，先确认 fix_plan 是否要求这样做。

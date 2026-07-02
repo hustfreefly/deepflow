@@ -154,14 +154,14 @@ Consolidator 合并三路评审意见，生成统一的改进建议列表。
 
 | Prompt | 用途 | 版本 |
 |--------|------|------|
-| `researcher_v2_harness.md` | 研究专家 | 2.1.0 |
-| `planner_v2_harness.md` | 规划专家 | 2.1.0 |
-| `consolidator_v2_harness.md` | 合并专家 | 2.1.0 |
-| `auditor_v2_harness.md` | 审计专家 | 2.1.0 |
-| `fixer_v2_harness.md` | 修复专家 | 2.1.0 |
-| `reviewer_v2_harness.md` | 评审专家 | 2.1.0 |
-| `summarizer_v2_harness.md` | 总结专家 | 2.1.0 |
-| `fixer_expert_v2_harness.md` | 修复专家 V2 | 2.1.0 |
+| `researcher_harness.md` | 研究专家 | 2.1.0 |
+| `planner_harness.md` | 规划专家 | 2.1.0 |
+| `consolidator_harness.md` | 合并专家 | 2.1.0 |
+| `auditor_harness.md` | 审计专家 | 2.1.0 |
+| `fixer_harness.md` | 修复专家 | 2.1.0 |
+| `reviewer_harness.md` | 评审专家 | 2.1.0 |
+| `summarizer_harness.md` | 总结专家 | 2.1.0 |
+| `fixer_expert_harness.md` | 修复专家 V2 | 2.1.0 |
 
 ---
 

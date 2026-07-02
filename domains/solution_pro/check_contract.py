@@ -25,7 +25,7 @@ import core.bootstrap
 
 from core.config.path_config import PathConfig
 
-def check_contract():
+def _check_contract_legacy():
     """
     验证 Solution 领域的契约合规性
     """
@@ -89,15 +89,15 @@ def check_contract():
     prompt_dir = str(PathConfig.resolve().base_dir / "domains/solution_pro/prompts/")
     required_prompts = [
         'v1/data_collection.md',
-        'planner_v2_harness.md',
-        'reviewer_v2_harness.md',
-        'researcher_v2_harness.md',
-        'consolidator_v2_harness.md',
-        'auditor_v2_harness.md',
-        'fixer_v2_harness.md',
-        'fixer_expert_v2_harness.md',
+        'planner_harness.md',
+        'reviewer_harness.md',
+        'researcher_harness.md',
+        'consolidator_harness.md',
+        'auditor_harness.md',
+        'fixer_harness.md',
+        'fixer_expert_harness.md',
         'v1/harness_v3.md',
-        'summarizer_v2_harness.md',
+        'summarizer_harness.md',
     ]
     for prompt in required_prompts:
         prompt_path = os.path.join(prompt_dir, prompt)
@@ -152,7 +152,7 @@ def check_contract():
 
 
 if __name__ == "__main__":
-    result = check_contract()
+    result = _check_contract_legacy()
     
     print("=" * 60)
     print("SOLUTION DOMAIN CONTRACT VALIDATION")
@@ -195,7 +195,7 @@ _V2_SCHEMA_MAP = {
 }
 
 
-def check_v2_contract(module_name: str, stage_name: str, output: dict) -> dict:
+def check_contract(module_name: str, stage_name: str, output: dict) -> dict:
     """V2 schema validation entry point.
 
     Args:
@@ -206,7 +206,7 @@ def check_v2_contract(module_name: str, stage_name: str, output: dict) -> dict:
     Returns:
         {"valid": bool, "errors": list[str], "stage": str}
     """
-    from domains.solution_pro.schemas.v2_schemas import (
+    from domains.solution_pro.schemas.schemas import (
         ExpertManifestSchema,
         ExpertPlanSchema,
         UnifiedConstraintsSchema,
