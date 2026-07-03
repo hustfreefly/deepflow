@@ -32,6 +32,8 @@ cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
 ```
 
 ```python
+import pathlib
+subagent_rules = pathlib.Path('prompts/_shared_subagent_rules.md').read_text()
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 ```

@@ -185,6 +185,7 @@ PlannerGate: Worker 数量 2-8 + DAG 无环 + solution_pro_refs + must_constrain
 WorkerGate: Schema 合规 + MUST 约束保留(LLM) + web_search 范围
 G1 InformationConservation: 需求无丢失 + 无新增
 G2 Completeness: REQ-ID 覆盖率 + 覆盖深度(LLM)
+G3 Harness: 工作包数量 3-15 + DAG 合理 + AC 可操作(≥2/WP)
 ```
 
 ---
@@ -206,4 +207,16 @@ cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 domains/ship_pro/test
 
 # 单元测试
 cd ~/.openclaw/workspace/.deepflow && python3 -m pytest domains/ship_pro/tests/test_ship_pro.py -v
+
+# 生成 JSON Schemas
+cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+from domains.ship_pro.contracts import get_planner_output_schema, get_worker_deliverable_schema, get_ship_package_schema
+import json
+from pathlib import Path
+d = Path('domains/ship_pro/contracts/schemas')
+d.mkdir(exist_ok=True)
+for name, fn in [('planner_output.json', get_planner_output_schema), ('worker_deliverable.json', get_worker_deliverable_schema), ('ship_package.json', get_ship_package_schema)]:
+    (d / name).write_text(json.dumps(fn(), indent=2, ensure_ascii=False))
+    print(f'Generated: {d / name}')
+"
 ```

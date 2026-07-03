@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "WorkPackage": {
+      "description": "工作包定义",
+      "properties": {
+        "id": {
+          "description": "工作包 ID（如 WP-001）",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "description": "工作包标题",
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "description": "工作包描述",
+          "title": "Description",
+          "type": "string"
+        },
+        "acceptance_criteria": {
+          "description": "验收标准列表",
+          "items": {
+            "type": "string"
+          },
+          "title": "Acceptance Criteria",
+          "type": "array"
+        },
+        "dependencies": {
+          "description": "依赖的其他工作包 ID 列表",
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependencies",
+          "type": "array"
+        },
+        "estimated_effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "预估工作量（自由格式）",
+          "title": "Estimated Effort"
+        },
+        "deliverables": {
+          "description": "交付物列表",
+          "items": {
+            "type": "string"
+          },
+          "title": "Deliverables",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "description"
+      ],
+      "title": "WorkPackage",
+      "type": "object"
+    }
+  },
+  "description": "Worker 的交付物",
+  "properties": {
+    "worker_role": {
+      "description": "Worker 角色名称",
+      "title": "Worker Role",
+      "type": "string"
+    },
+    "work_packages": {
+      "description": "工作包列表",
+      "items": {
+        "$ref": "#/$defs/WorkPackage"
+      },
+      "title": "Work Packages",
+      "type": "array"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "description": "元数据（自由格式）",
+      "title": "Metadata",
+      "type": "object"
+    },
+    "optional_suggestions": {
+      "description": "可选建议（不影响主交付物）",
+      "items": {
+        "type": "string"
+      },
+      "title": "Optional Suggestions",
+      "type": "array"
+    },
+    "web_search_logs": {
+      "description": "web_search 日志（如有使用）",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Web Search Logs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "worker_role"
+  ],
+  "title": "WorkerDeliverable",
+  "type": "object"
+}

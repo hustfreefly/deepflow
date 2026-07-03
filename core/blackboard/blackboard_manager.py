@@ -422,12 +422,24 @@ class BlackboardManager:
             return default
 
     def read_json(self, filename: str, subdir: Optional[str] = None, default: Optional[Dict] = None) -> Optional[Dict]:
-        """读取文件内容（JSON）"""
+        """读取文件内容（JSON）
+        
+        自动解包双重编码: 如果 json.loads() 结果是 str，再尝试一次 json.loads()。
+        这样无论文件是正常 dict、纯 markdown string、还是双重编码，
+        都能返回正确的结构化数据。
+        """
         raw = self.read(filename, subdir)
         if raw is None:
             return default
         try:
-            return json.loads(raw)
+            data = json.loads(raw)
+            # Auto-unwrap double-encoded JSON (str wrapping dict/list)
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except (json.JSONDecodeError, TypeError):
+                    pass  # Not double-encoded, return original str
+            return data
         except json.JSONDecodeError:
             return default
 
