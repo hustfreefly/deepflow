@@ -1,5 +1,5 @@
 """
-Ship Pro V6 - Planner Output Schema
+Ship Pro V8 - Planner Output Schema
 
 Phase 1 Planner 的结构化输出定义。
 遵循 AI Native 原则：
@@ -80,6 +80,12 @@ class PlannerOutput(BaseModel):
     
     # 整合策略（自由文本，不硬编码枚举）
     integration_strategy: str = Field(..., description="整合策略（自由描述）")
+    
+    # 延迟需求（Solution Pro 标记为 deferred/default 的 REQ-ID）
+    pending_req_ids: List[str] = Field(
+        default_factory=list,
+        description="Solution Pro 标记为 deferred/默认行为的 REQ-ID（不需显式 WP 覆盖，但需记录）"
+    )
 
 
 def get_planner_output_schema() -> Dict[str, Any]:

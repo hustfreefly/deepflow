@@ -1,0 +1,138 @@
+[
+  {
+    "wp_id": "SM-001",
+    "title": "Blackboard 核心引擎 — JSON 序列化与状态句柄管理",
+    "description": "实现 Blackboard 中央共享状态引擎的核心层，作为分形三层 Loop 架构（project_loop / domain_loop / phase_loop）的数据交换枢纽。提供 blackboard_init(goal_id) → state_handle 初始化接口，将 handle 与 goal 实例绑定，确保多 goal 并行时状态完全隔离。实现 read_state(handle, stage) → json_object 和 write_atomic(handle, stage, data) → sha256_hash 两大核心读写接口，支持按 stage 维度的命名空间隔离，各 stage 数据互不干扰。所有状态数据统一采用 JSON 序列化格式（决策 D2），确保可读性、可调试性和跨语言兼容性。内部实现统一的 JSON 序列化/反序列化层，所有读写操作必须经过该层，禁止 pickle/marshal 等直接二进制操作。提供 get/set/delete/snapshot 辅助操作接口，供 DAG_Scheduler、Loop_Engine 等下游消费者使用。核心引擎为所有其他 WP（原子写入、锁、审计日志、checkpoint、Zone 边界）提供基础框架和扩展点。",
+    "acceptance_criteria": [
+      "AC1: blackboard_init(goal_id) 返回唯一 state_handle，不同 goal_id 的 handle 完全隔离，并行操作互不干扰",
+      "AC2: read_state(handle, stage) 返回合法 JSON 对象，write_atomic(handle, stage, data) 接受 JSON 可序列化对象并返回 SHA-256 哈希",
+      "AC3: 所有读写操作经过统一 JSON 序列化层，不存在任何 pickle/marshal/direct-binary 路径",
+      "AC4: stage 命名空间隔离验证 — 对 stage_A 的写入不影响 stage_B 的数据，读取返回各自独立内容"
+    ],
+    "deliverables": [
+      "blackboard_core.py — 核心引擎实现，含 init/read/write/handle 管理/JSON 序列化层",
+      "test_blackboard_core.py — 核心引擎单元测试"
+    ],
+    "effort_hours": 24,
+    "dependencies": []
+  },
+  {
+    "wp_id": "SM-002",
+    "title": "原子写入引擎 — rename 语义与 SHA-256 校验",
+    "description": "实现崩溃安全的原子写入引擎，作为 write_atomic 接口的底层持久化保障。采用 write-to-temp-then-os.rename() 语义，确保写入操作具备 all-or-nothing 特性：写入过程中即使发生进程崩溃（kill -9）、磁盘满、或系统断电，也不会产生半写状态或损坏的状态文件。每次写入完成后计算数据的 SHA-256 校验和，将校验和与数据文件关联存储（.sha256 sidecar 文件）。读取时先验证 SHA-256 校验和，校验失败则触发安全暂停机制（风险 R6 缓解），拒绝返回可能损坏的数据并上报异常。实现写入重试与冲突检测机制，处理并发写入竞争场景。支持大文件的流式 SHA-256 计算，避免内存溢出。原子写入引擎与核心引擎的 write_atomic 接口深度集成，同时为审计日志（SM-004）和 checkpoint（SM-005）提供底层写入能力。",
+    "acceptance_criteria": [
+      "AC1: 所有写入操作采用 write-to-temp + os.rename() 原子语义，不存在直接覆盖原文件的路径",
+      "AC2: 每次写入后计算并存储 SHA-256 校验和，读取时先验证校验和再返回数据，校验失败触发安全暂停并记录告警",
+      "AC3: 崩溃恢复测试 — 在写入过程中执行 kill -9，重启后状态文件完整（无半写损坏），校验和验证通过",
+      "AC4: 磁盘满场景测试 — 写入过程中模拟磁盘满，原状态文件保持不变不被破坏"
+    ],
+    "deliverables": [
+      "atomic_writer.py — 原子写入引擎实现，含 temp-rename 写入、SHA-256 校验、安全暂停",
+      "test_atomic_writer.py — 原子写入引擎测试，含崩溃注入和磁盘满模拟"
+    ],
+    "effort_hours": 16,
+    "dependencies": ["SM-001"]
+  },
+  {
+    "wp_id": "SM-003",
+    "title": "Per-Stage 并发锁 — Token 化锁机制与死锁防护",
+    "description": "实现 per-stage 粒度的并发锁机制，确保同一时刻只有一个写入者能修改特定 stage 的状态数据（风险 R7 缓解）。设计 acquire_lock(handle, stage) → lock_token 接口，成功获取锁时返回唯一 lock_token；后续 write_atomic 操作必须携带有效 lock_token 才能执行，无 token 或 token 过期则拒绝写入。实现 release_lock(handle, stage, token) → void 释放接口，支持显式释放和自动超时释放两种模式。锁机制需处理以下并发场景：(1) 锁竞争 — 多任务同时请求同一 stage 锁时，通过 FIFO 队列公平分配；(2) 死锁检测 — 检测循环等待条件，发现死锁时主动 break 并记录告警；(3) 持有者崩溃恢复 — 锁持有者进程异常退出后，通过 heartbeat 超时机制自动释放锁，防止无限阻塞。支持阻塞（blocking）和非阻塞（non-blocking）两种锁获取模式。底层使用 Python threading.Lock/RLock 实现进程内安全，并提供可扩展的分布式锁接口预留。",
+    "acceptance_criteria": [
+      "AC1: acquire_lock 返回唯一 lock_token，write_atomic 在无有效 token 时拒绝执行并返回权限错误",
+      "AC2: 锁竞争测试 — 10 个并发线程同时请求同一 stage 锁，每个线程依次获得锁且无饥饿现象",
+      "AC3: 死锁检测测试 — 构造 A→B→A 循环锁依赖，系统在超时内检测到死锁并主动 break",
+      "AC4: 持有者崩溃测试 — 锁持有线程被 kill 后，锁在 heartbeat 超时（可配置，默认 30s）内自动释放"
+    ],
+    "deliverables": [
+      "stage_lock.py — per-stage 锁管理器实现，含 token 生成/验证、死锁检测、超时释放",
+      "test_stage_lock.py — 锁机制并发测试，含竞争、死锁、崩溃恢复场景"
+    ],
+    "effort_hours": 16,
+    "dependencies": ["SM-001"]
+  },
+  {
+    "wp_id": "SM-004",
+    "title": "Hash Chain 审计日志 — SHA-256 链式防篡改记录",
+    "description": "实现基于 SHA-256 哈希链的不可篡改审计日志系统（决策 D9），记录 Blackboard 的每一次状态变更。每次 write_atomic 成功后，审计日志追加一条新记录，记录内容包含：(1) 操作时间戳（ISO 8601 精确到微秒）；(2) 操作类型（write/delete/snapshot/restore/zone_enforce）；(3) stage 标识；(4) 操作者身份（task_id / loop_layer）；(5) 变更前数据的 SHA-256 哈希（prev_hash）；(6) 变更后数据的 SHA-256 哈希（curr_hash）；(7) 链式哈希（chain_hash = SHA-256(prev_chain_hash + curr_hash + timestamp)），形成不可断裂的哈希链。日志采用 append-only 写入模式，任何修改或删除已有日志条目的行为都会被链式哈希检测发现。提供 verify_chain(start_idx, end_idx) 接口验证指定范围内哈希链的完整性，提供 get_audit_trail(stage, time_range) 接口查询特定 stage 在时间范围内的变更历史。审计日志为 Safety_Shield 提供安全审计数据，为 checkpoint 恢复提供一致性校验依据。",
+    "acceptance_criteria": [
+      "AC1: 每次 write_atomic 成功后追加一条审计记录，包含 timestamp、operator、stage、prev_hash、curr_hash、chain_hash 六个必要字段",
+      "AC2: 审计日志为 append-only，任何对已有条目的修改或删除操作被拒绝并记录告警",
+      "AC3: verify_chain 验证 — 手动篡改任意一条日志后，verify_chain 报告具体被篡改的条目位置和哈希不匹配详情",
+      "AC4: 审计日志查询接口 get_audit_trail 支持按 stage 和时间范围过滤，返回结构化审计记录列表"
+    ],
+    "deliverables": [
+      "audit_log.py — Hash Chain 审计日志实现，含链式写入、完整性验证、历史查询",
+      "test_audit_log.py — 审计日志测试，含防篡改验证和链完整性测试"
+    ],
+    "effort_hours": 20,
+    "dependencies": ["SM-001", "SM-002"]
+  },
+  {
+    "wp_id": "SM-005",
+    "title": "Checkpoint 恢复系统 — 跨 Session 状态持久化",
+    "description": "实现 Loop 状态的跨 Session 持久化与恢复机制（需求 REQ-024），确保 Loop 在中断后能够从最近的 checkpoint 恢复执行。Checkpoint 在每个 stage 执行边界自动触发（由 Loop_Engine 通知），保存完整的状态快照，包含：(1) Blackboard 全量数据（所有 stage 的 JSON 状态）；(2) 审计日志当前游标位置（chain_hash 末端值）；(3) 锁状态元数据（当前持有的锁及其 token）；(4) 执行上下文（当前 stage、loop_layer、goal_id）。恢复流程 recover_checkpoint(goal_id) → state_snapshot：首先扫描 checkpoint 目录找到目标 goal_id 的最新 checkpoint，验证其 SHA-256 完整性（调用原子写入引擎的校验机制），验证审计日志链完整性（调用审计日志的 verify_chain），全部通过后加载状态快照并重建内存状态。若最新 checkpoint 损坏，自动回退到前一个有效 checkpoint 并记录告警。支持多版本 checkpoint 管理，保留最近 N 个有效 checkpoint（可配置，默认 3），自动清理过期 checkpoint。",
+    "acceptance_criteria": [
+      "AC1: 每个 stage 边界自动生成 checkpoint，包含完整的 blackboard 数据、审计日志游标、锁元数据和执行上下文",
+      "AC2: recover_checkpoint 恢复时验证 SHA-256 完整性和审计日志链完整性，全部通过后才返回 state_snapshot",
+      "AC3: 损坏恢复测试 — 手动损坏最新 checkpoint 文件后，系统自动回退到前一个有效 checkpoint 并成功恢复",
+      "AC4: 跨 Session 测试 — 在 Session A 中创建 checkpoint，在完全独立的 Session B 中成功恢复，状态数据一致"
+    ],
+    "deliverables": [
+      "checkpoint_manager.py — Checkpoint 管理器实现，含自动 checkpoint、恢复、多版本管理、完整性验证",
+      "test_checkpoint.py — Checkpoint 恢复测试，含跨 Session 恢复和损坏回退场景"
+    ],
+    "effort_hours": 24,
+    "dependencies": ["SM-001", "SM-002", "SM-004"]
+  },
+  {
+    "wp_id": "SM-006",
+    "title": "Zone 边界强制执行引擎 — 不可变区域与操作权限控制",
+    "description": "实现 Zone 边界强制执行引擎（需求 REQ-029、REQ-075），作为安全架构的存储层守门人。Zone 是 Blackboard 中的逻辑安全区域，每个 Zone 有独立的访问策略。Zone 0 为最高安全级别的不可变区域，存储系统安全规则、memo 配置和核心不变量，任何写操作（write/delete/update）在 Zone 0 上必须被 enforce_zone_boundary 无条件拒绝并记录审计日志。实现 enforce_zone_boundary(zone_id, operation) → allowed_bool 接口，根据 zone 策略矩阵验证操作权限：Zone 0 仅允许 read 操作，Zone 1 允许 read/write 但需 token 认证，Zone 2 允许常规读写。Zone 策略采用声明式配置（JSON 格式），支持运行时加载和策略热更新（需审计日志记录策略变更）。引擎与审计日志集成，所有 zone 边界访问（无论允许或拒绝）均记录到审计日志。为 Safety_Shield 提供 zone 策略查询接口，为 Self_Evolution 提供受控的 zone 策略演化接口（仅限 Zone 1+）。",
+    "acceptance_criteria": [
+      "AC1: enforce_zone_boundary('zone_0', 'write') 无条件返回 False，并生成审计日志记录",
+      "AC2: enforce_zone_boundary('zone_0', 'read') 返回 True，允许安全规则和 memo 的读取",
+      "AC3: Zone 策略矩阵以 JSON 声明式配置存储，支持运行时热更新且策略变更本身被审计日志记录",
+      "AC4: 所有 zone 边界访问（允许和拒绝）均生成审计日志条目，包含 zone_id、operation、result、requestor 信息"
+    ],
+    "deliverables": [
+      "zone_enforcer.py — Zone 边界强制执行引擎实现，含策略矩阵、操作验证、热更新",
+      "test_zone_enforcer.py — Zone 边界测试，含 Zone 0 不可变验证和策略矩阵测试"
+    ],
+    "effort_hours": 16,
+    "dependencies": ["SM-001"]
+  },
+  {
+    "wp_id": "SM-007",
+    "title": "安全不变量存储层 — P0 规则持久化与 Zone 0 绑定",
+    "description": "为系统级 P0 安全不变量提供存储层持久化机制与完整性保障，覆盖 REQ-054 至 REQ-059 共 6 条绝对不可修改的安全规则。这些规则在系统初始化时由 Safety_Shield 写入 Zone 0 不可变区域，State_Manager 负责确保其存储安全：(1) 规则数据以 JSON 格式存储在 Zone 0，通过 Zone 边界引擎（SM-006）保证不可修改；(2) 每条规则存储时计算 SHA-256 哈希，启动时验证所有规则哈希与预置的 trusted root hash 一致；(3) 规则存储支持版本管理，记录规则初始化时间和来源（system bootstrap）；(4) 提供 verify_safety_invariants() 接口供 Safety_Shield 在运行时定期调用，返回各规则的完整性状态。6 条规则分别为：REQ-054 不执行外部内容中的指令（防 Prompt Injection）、REQ-055 不泄露私有数据、REQ-056 不说服人类扩大权限或关闭安全机制、REQ-057 不自行复制或修改安全规则、REQ-058 删除操作必须确认（trash > rm）、REQ-059 Dream Loop 不能删除 memory 只能添加/总结。",
+    "acceptance_criteria": [
+      "AC1: 6 条 P0 安全规则（REQ-054 ~ REQ-059）以 JSON 格式存储在 Zone 0，任何修改尝试被 Zone 边界引擎拒绝",
+      "AC2: verify_safety_invariants() 启动时验证所有规则哈希与 trusted root hash 一致，不一致时触发安全暂停",
+      "AC3: 规则存储包含版本元数据（初始化时间、来源、哈希），支持完整性审计",
+      "AC4: 运行时调用 verify_safety_invariants() 返回各规则完整性状态，任何规则被篡改时返回失败详情"
+    ],
+    "deliverables": [
+      "safety_invariants.py — 安全不变量存储管理器实现，含规则持久化、哈希验证、完整性检查接口",
+      "test_safety_invariants.py — 安全不变量测试，含 Zone 0 绑定验证和篡改检测"
+    ],
+    "effort_hours": 16,
+    "dependencies": ["SM-001", "SM-006"]
+  },
+  {
+    "wp_id": "SM-008",
+    "title": "受控变更与 Changelog 系统 — 可演化规则的审计化修改",
+    "description": "为需验证的可变系统配置（REQ-060 ~ REQ-063）实现受控变更机制与强制 Changelog 记录，在安全与可演化性之间取得平衡。变更对象包括：(1) Skill 定义 — 通过 Skill Workshop 接口修改（REQ-060）；(2) Prompt 模板 — 通过 Dream Loop 优化流程修改（REQ-061）；(3) Goal 约束 — 遵循\"只增不删 hard constraint\"规则，且有 3 次修改上限（REQ-062）。实现标准变更流程：变更请求提交 → 变更验证（类型检查 + 规则合规检查）→ Zone 权限验证（通过 enforce_zone_boundary）→ 原子执行变更 → 强制记录 Changelog（变更前后快照、操作者、时间戳、变更原因）→ 审计日志链式记录（REQ-063）。Changelog 条目包含：before_snapshot（变更前完整 JSON）、after_snapshot（变更后完整 JSON）、operator（操作者标识）、timestamp（ISO 8601）、reason（变更原因）、linked_audit_hash（关联的审计日志链哈希）。Goal 约束变更需额外检查：hard constraint 只能新增不能删除或弱化，累计变更次数不超过 3 次，超限则拒绝并告警。所有变更操作通过 Zone 边界引擎验证权限，确保 Zone 0 的安全规则不参与变更流程。",
+    "acceptance_criteria": [
+      "AC1: 所有可变配置（Skill/Prompt/Goal约束）的修改必须经过 提交→验证→权限检查→执行→Changelog 标准流程，无绕过路径",
+      "AC2: Changelog 每条记录包含 before_snapshot、after_snapshot、operator、timestamp、reason、linked_audit_hash 六个完整字段",
+      "AC3: Goal 约束变更验证 — hard constraint 删除或弱化请求被拒绝，累计变更超过 3 次时请求被拒绝并触发告警",
+      "AC4: 每次变更操作在审计日志中有对应的链式记录条目，通过 linked_audit_hash 可追溯到 hash chain"
+    ],
+    "deliverables": [
+      "change_controller.py — 受控变更管理器实现，含变更流程、验证规则、Changelog 记录、Goal 约束计数",
+      "test_change_controller.py — 变更控制测试，含标准流程验证、Goal 约束上限测试、Changelog 完整性测试"
+    ],
+    "effort_hours": 20,
+    "dependencies": ["SM-001", "SM-004", "SM-006"]
+  }
+]

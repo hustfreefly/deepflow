@@ -1,5 +1,5 @@
 """
-Ship Pro V6 - Contracts Package
+Ship Pro V8 - Contracts Package
 
 导出所有契约定义和 Gate 实现。
 """

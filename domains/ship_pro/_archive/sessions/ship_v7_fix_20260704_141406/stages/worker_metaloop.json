@@ -1,0 +1,58 @@
+{
+  "worker_role": "MetaLoop",
+  "wp_id_prefix": "META",
+  "work_packages": [
+    {
+      "id": "META-001",
+      "title": "Thompson Sampling Backend for Parameter Tuning",
+      "description": "Thompson Sampling module replacing Optuna with posterior distributions.",
+      "dependencies": [],
+      "estimated_effort": "8h"
+    },
+    {
+      "id": "META-002",
+      "title": "LLM-as-Optimizer Interface for Parameter Suggestion",
+      "description": "LLM-as-Optimizer replacing traditional optimization frameworks (D5).",
+      "dependencies": [],
+      "estimated_effort": "6h"
+    },
+    {
+      "id": "META-003",
+      "title": "ParameterSafetyGuard with Bounds, Cooling, and Amplitude Limits",
+      "description": "Safety guard: hard bounds, cooling period, ±50% amplitude limits (R9).",
+      "dependencies": [],
+      "estimated_effort": "4h"
+    },
+    {
+      "id": "META-004",
+      "title": "Execution Metrics Collector for Feedback Loop",
+      "description": "Metrics collection for quality gate rates, token consumption, iteration counts.",
+      "dependencies": [],
+      "estimated_effort": "6h"
+    },
+    {
+      "id": "META-005",
+      "title": "MetaLoopEngine Integration",
+      "description": "Integration of Thompson Sampling + LLM-as-Optimizer + Safety Guard.",
+      "dependencies": [
+        "META-001",
+        "META-002",
+        "META-003",
+        "META-004"
+      ],
+      "estimated_effort": "8h"
+    },
+    {
+      "id": "META-006",
+      "title": "Integration Tests — Safe Parameter Adjustment",
+      "description": "Tests for safe parameter adjustment within bounds and Thompson Sampling convergence.",
+      "dependencies": [
+        "META-005"
+      ],
+      "estimated_effort": "6h"
+    }
+  ],
+  "metadata": {
+    "total_estimated_effort": "38h"
+  }
+}

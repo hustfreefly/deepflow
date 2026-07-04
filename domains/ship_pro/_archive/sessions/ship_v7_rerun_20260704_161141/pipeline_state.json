@@ -1,0 +1,31 @@
+{
+  "run_id": "run_20260704_161214",
+  "status": "running",
+  "stages": {
+    "planner": {
+      "status": "completed",
+      "started_at": "2026-07-04T16:12:28.554474",
+      "completed_at": "2026-07-04T16:19:04.478835",
+      "retry_count": 0,
+      "updated_at": "2026-07-04T16:19:04.478825"
+    },
+    "build": {
+      "status": "running",
+      "started_at": "2026-07-04T16:19:20.344058",
+      "completed_at": null,
+      "retry_count": 0,
+      "updated_at": "2026-07-04T16:19:20.344046"
+    },
+    "shipper": {
+      "status": "running",
+      "started_at": "2026-07-04T16:28:30.427945",
+      "completed_at": null,
+      "retry_count": 0,
+      "updated_at": "2026-07-04T16:28:30.427932"
+    }
+  },
+  "created_at": "2026-07-04T16:12:14.789384",
+  "updated_at": "2026-07-04T16:28:30.427952",
+  "fix_rounds": 0,
+  "max_fix_rounds": 2
+}

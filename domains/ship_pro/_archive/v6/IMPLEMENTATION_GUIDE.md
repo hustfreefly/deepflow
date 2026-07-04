@@ -1,4 +1,4 @@
-# Ship Pro V6 实现指南
+# Ship Pro 实现指南
 
 > **版本**: 6.0.0  
 > **日期**: 2026-07-03  
@@ -8,13 +8,13 @@
 
 ## 实现概览
 
-Ship Pro V6 已按照 AI Native 原则和契约笼子方法完成核心实现。
+Ship Pro 已按照 AI Native 原则和契约笼子方法完成核心实现。
 
 ### 完成的工作
 
 #### 1. 契约定义（Phase 1）✅
 
-**文件**: `domains/ship_pro/v6/contracts/`
+**文件**: `domains/ship_pro/contracts/`
 
 - `planner_output.py` - PlannerOutput + WorkerSpec Schema
 - `worker_deliverable.py` - WorkerDeliverable + WorkPackage Schema
@@ -31,7 +31,7 @@ Ship Pro V6 已按照 AI Native 原则和契约笼子方法完成核心实现。
 
 #### 2. 状态管理（Phase 2）✅
 
-**文件**: `domains/ship_pro/v6/orchestrator/state_manager.py`
+**文件**: `domains/ship_pro/orchestrator/state_manager.py`
 
 - PipelineState Pydantic Schema
 - State Machine 规则（合法/非法状态转换）
@@ -47,7 +47,7 @@ failed → running (重试)
 
 #### 3. Orchestrator 核心（Phase 3）✅
 
-**文件**: `domains/ship_pro/v6/orchestrator/ship_orchestrator.py`
+**文件**: `domains/ship_pro/orchestrator/ship_orchestrator.py`
 
 - Phase 1: Planner spawn + verify
 - Phase 2: Workers spawn + verify（拓扑排序分层执行）
@@ -62,7 +62,7 @@ failed → running (重试)
 
 #### 4. 测试验证（Phase 4）✅
 
-**文件**: `domains/ship_pro/v6/tests/test_ship_pro_v6.py`
+**文件**: `domains/ship_pro/tests/test_ship_pro.py`
 
 - Schema 验证测试（3 个）
 - Gate 验证测试（5 个）
@@ -83,7 +83,7 @@ failed → running (重试)
 
 ### 1. Prompt 设计（高优先级）⏳
 
-**文件**: `domains/ship_pro/v6/prompts/`
+**文件**: `domains/ship_pro/prompts/`
 
 - `planner.md` - Planner prompt 模板
 - `worker_base.md` - Worker prompt 基础模板
@@ -97,7 +97,7 @@ failed → running (重试)
 
 ### 2. Agent 层实现（高优先级）⏳
 
-**文件**: `domains/ship_pro/v6/agent/`
+**文件**: `domains/ship_pro/agent/`
 
 - `ship_agent.py` - 主 Agent（调用 Orchestrator + sessions_spawn）
 - `watcher.py` - Watcher（监控进度）
@@ -110,7 +110,7 @@ failed → running (重试)
 
 ### 3. 集成测试（中优先级）⏳
 
-**文件**: `domains/ship_pro/v6/tests/integration/`
+**文件**: `domains/ship_pro/tests/integration/`
 
 - 端到端测试（真实 LLM 调用）
 - 信息守恒测试（G2 语义判断）
@@ -139,7 +139,7 @@ failed → running (重试)
 
 ### 与 Solution Pro V2 的对称性
 
-| Solution Pro V2 | Ship Pro V6 | 说明 |
+| Solution Pro V2 | Ship Pro | 说明 |
 |----------------|-------------|------|
 | Planning/Research/Summary | Planner/Workers/Consolidator | 3 Phase 对称 |
 | ModuleOrchestrator | ShipOrchestrator | 编排器对称 |
@@ -155,7 +155,7 @@ failed → running (重试)
 
 ```python
 from pathlib import Path
-from domains.ship_pro.v6.orchestrator import ShipOrchestrator
+from domains.ship_pro.orchestrator import ShipOrchestrator
 
 blackboard_path = Path("blackboard/my_project")
 orchestrator = ShipOrchestrator(blackboard_path)

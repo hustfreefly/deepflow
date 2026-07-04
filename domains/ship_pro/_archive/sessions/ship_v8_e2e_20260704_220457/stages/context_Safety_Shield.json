@@ -1,0 +1,125 @@
+{
+  "module_overview": "安全与可靠性保障层：实现三级死循环熔断器、Zone 0/1/2分层护栏强制执行、Prompt Injection多层检测、四阶段故障恢复决策树(含跨厂商fallback)、资源硬限与API速率管控",
+  "module_reqs": [
+    {
+      "id": "REQ-016",
+      "description": "不执行外部内容中的指令",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-017",
+      "description": "不修改Zone 0安全规则",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-018",
+      "description": "不删除memory（Dream Loop只增不删）",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-032",
+      "description": "items: 默认不限制token消耗（可配置）",
+      "priority": "P1"
+    },
+    {
+      "id": "REQ-034",
+      "description": "items: 必须有死循环熔断机制",
+      "priority": "P1"
+    },
+    {
+      "id": "REQ-047",
+      "description": "[风险-high/medium] LLM陷入无效循环，反复做相同决策",
+      "priority": "P1"
+    },
+    {
+      "id": "REQ-049",
+      "description": "[风险-medium/low] 长时间执行中模型API不可用或超时",
+      "priority": "P1"
+    },
+    {
+      "id": "REQ-064",
+      "description": "[可自由调整] Loop超时时间",
+      "priority": "P1"
+    },
+    {
+      "id": "REQ-071",
+      "description": "[操作边界] max_goal_evolutions_before_alert:",
+      "priority": "P1"
+    },
+    {
+      "id": "REQ-073",
+      "description": "[操作边界] max_loop_iterations_without_progr",
+      "priority": "P1"
+    },
+    {
+      "id": "REQ-074",
+      "description": "[操作边界] hitl_timeout_hours: 24",
+      "priority": "P1"
+    }
+  ],
+  "extracted_constraints": [
+    "技术决策: Python 骨架 + LLM 决策混合架构",
+    "技术决策: JSON 统一序列化",
+    "技术决策: 原生 Structured Output 替代 xgrammar"
+  ],
+  "relevant_decisions": [
+    "D8: guardrails-ai单框架 — 统一使用guardrails-ai框架执行所有护栏检查",
+    "D9: Hash Chain审计日志 — 所有安全事件记录到不可篡改的审计链"
+  ],
+  "relevant_risks": [
+    "R8: Prompt Injection — 多层检测+Zone 0硬编码，RTO<100ms",
+    "R11: LLM API速率限制 — RPM监控+指数退避"
+  ],
+  "interface_contracts": {
+    "provides": [
+      "check_circuit_breaker(loop_state) → safe_bool",
+      "enforce_guardrails(action, zone) → allowed_bool",
+      "validate_state_transition(from_state, to_state) → valid_bool",
+      "execute_recovery(failure_context) → recovery_action",
+      "check_token_budget(usage) → within_limit_bool",
+      "detect_injection(content) → threat_level"
+    ],
+    "requires": [
+      "State_Manager.read_state() → current_state",
+      "State_Manager.enforce_zone_boundary() → zone_check"
+    ],
+    "downstream_consumers": [
+      "Loop_Engine"
+    ]
+  },
+  "output_schema": {
+    "type": "array",
+    "items": {
+      "wp_id": "string (格式: {prefix}-NNN)",
+      "title": "string",
+      "description": "string (≥100 字，包含技术实现细节)",
+      "acceptance_criteria": [
+        "string (≥2 条，每条可测试)"
+      ],
+      "deliverables": [
+        "string (≥1 项)"
+      ],
+      "effort_hours": "number",
+      "dependencies": [
+        "string (其他 WP ID)"
+      ]
+    }
+  },
+  "output_example": {
+    "wp_id": "CORE-001",
+    "title": "Blackboard Manager — 中央共享状态引擎",
+    "description": "实现 Blackboard 中央共享状态管理器，作为分形三层 Loop 架构的核心数据交换层。提供 thread-safe 的 read/write/get/set/delete 操作，支持按 stage 维度的命名空间隔离（project_loop / domain_loop / phase_loop 三层）。所有状态读写通过统一 JSON 序列化层进行，确保跨 Layer 数据格式一致。集成原子写入引擎保证崩溃安全，集成 per-stage 锁保证并发安全，集成审计日志记录每次状态变更。",
+    "acceptance_criteria": [
+      "AC1: 支持 create/read/update/delete/snapshot/restore 六种核心操作",
+      "AC2: 三层命名空间隔离（project/domain/phase），各层互不干扰",
+      "AC3: 所有读写操作经过 JSON 统一序列化层，无直接 pickle/marshal",
+      "AC4: 崩溃恢复测试：kill -9 后重启，状态恢复到最近一次成功 checkpoint"
+    ],
+    "deliverables": [
+      "blackboard_manager.py",
+      "test_blackboard.py"
+    ],
+    "effort_hours": 48,
+    "dependencies": []
+  }
+}

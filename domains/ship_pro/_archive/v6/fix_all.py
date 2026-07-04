@@ -15,7 +15,7 @@ import re
 
 def fix_state_manager():
     """修复 StateManager 中的 StageState 定义"""
-    file_path = Path('domains/ship_pro/v6/orchestrator/state_manager.py')
+    file_path = Path('domains/ship_pro/orchestrator/state_manager.py')
     if not file_path.exists():
         print(f"❌ {file_path} not found")
         return False
@@ -42,7 +42,7 @@ def fix_state_manager():
 
 def fix_gates():
     """修复 Gates 中的缺失方法"""
-    file_path = Path('domains/ship_pro/v6/contracts/gates.py')
+    file_path = Path('domains/ship_pro/contracts/gates.py')
     if not file_path.exists():
         print(f"❌ {file_path} not found")
         return False
@@ -108,7 +108,7 @@ def fix_gates():
 
 def fix_ship_package_schema():
     """修复 ShipPackage schema"""
-    file_path = Path('domains/ship_pro/v6/contracts/ship_package.py')
+    file_path = Path('domains/ship_pro/contracts/ship_package.py')
     if not file_path.exists():
         print(f"❌ {file_path} not found")
         return False
@@ -136,11 +136,11 @@ def fix_ship_package_schema():
 def regenerate_schemas():
     """重新生成 JSON schemas"""
     try:
-        from domains.ship_pro.v6.contracts.planner_output import PlannerOutput
-        from domains.ship_pro.v6.contracts.worker_deliverable import WorkerDeliverable
-        from domains.ship_pro.v6.contracts.ship_package import ShipPackage
+        from domains.ship_pro.contracts.planner_output import PlannerOutput
+        from domains.ship_pro.contracts.worker_deliverable import WorkerDeliverable
+        from domains.ship_pro.contracts.ship_package import ShipPackage
         
-        schema_dir = Path('domains/ship_pro/v6/contracts/schemas')
+        schema_dir = Path('domains/ship_pro/contracts/schemas')
         schema_dir.mkdir(exist_ok=True)
         
         schemas = {
@@ -195,8 +195,8 @@ def main():
     print("=" * 80)
     print()
     print("Next steps:")
-    print("  1. Run dry run: python3 domains/ship_pro/v6/tests/dry_run.py")
-    print("  2. Run unit tests: python3 -m pytest domains/ship_pro/v6/tests/ -v")
+    print("  1. Run dry run: python3 domains/ship_pro/tests/dry_run.py")
+    print("  2. Run unit tests: python3 -m pytest domains/ship_pro/tests/ -v")
     print()
 
 

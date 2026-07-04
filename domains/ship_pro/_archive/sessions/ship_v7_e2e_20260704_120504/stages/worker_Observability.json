@@ -1,0 +1,278 @@
+{
+  "worker_role": "Observability",
+  "wp_id_prefix": "OBS",
+  "work_packages": [
+    {
+      "id": "OBS-001",
+      "title": "Structured Logging with Correlation ID Propagation",
+      "description": "Implement StructuredLogger that emits JSON-formatted log entries with: (a) correlation_id propagated across all components within a single request/task lifecycle using contextvars, (b) monotonic timestamps (time.monotonic_ns()) for ordering immune to wall-clock skew (R13), (c) component tag identifying the emitting subsystem (e.g. 'loop_engine', 'quality_gate', 'dag_scheduler'), (d) standard severity levels (DEBUG/INFO/WARN/ERROR/CRITICAL). The logger wraps Python's stdlib logging and adds a JSON formatter. A context manager injects correlation_id into the async task context so all downstream calls inherit it automatically. This is the foundational observability layer — every other subsystem (metrics, tracing, audit) depends on it for consistent log correlation.",
+      "acceptance_criteria": [
+        "Every log line is valid JSON parseable by json.loads() with fields: timestamp_iso, monotonic_ns, severity, component, correlation_id, message",
+        "correlation_id is auto-generated (UUID4) at entry points and propagated via contextvars to all child tasks/coroutines without explicit passing",
+        "monotonic_ns uses time.monotonic_ns() — verified by injecting clock skew and confirming log ordering is preserved",
+        "component tag is set per-module via logger.bind(component='x') or adapter pattern — at least 5 distinct components emit tagged logs in integration test",
+        "Severity filtering works: setting level=WARN suppresses DEBUG/INFO entries",
+        "Logger handles concurrent writes from multiple async tasks without interleaving or data loss (1000 concurrent log entries test)",
+        "Integration test: run a 3-component mock task, capture stdout, assert every line is valid JSON with matching correlation_id"
+      ],
+      "dependencies": [],
+      "estimated_effort": "8h",
+      "deliverables": [
+        "structured_logger.py — StructuredLogger class with JSON formatter, correlation ID context manager, monotonic timestamp injection",
+        "test_structured_logger.py — unit + integration tests covering JSON format, correlation propagation, concurrency safety"
+      ]
+    },
+    {
+      "id": "OBS-002",
+      "title": "Prometheus-Compatible Metrics Exporter",
+      "description": "Implement MetricsExporter that exposes a Prometheus-compatible /metrics HTTP endpoint (using prometheus_client library). Tracked metrics: (a) loop_iterations_total — Counter per loop layer (project/domain/phase) with status label (completed/failed/interrupted), (b) token_consumption_total — Counter with model_name and direction (input/output) labels, (c) quality_gate_decisions_total — Counter with outcome label (pass/reject/conditional), (d) circuit_breaker_state — Gauge per component (0=closed, 1=half-open, 2=open), (e) operation_latency_seconds — Histogram with operation label and configurable buckets. The exporter runs as a lightweight aiohttp/uvicorn endpoint on a configurable port (default 9090). Metrics are registered at module import time to avoid race conditions. Token consumption counters are updated by the LLM adapter layer (integration point documented, not implemented here).",
+      "acceptance_criteria": [
+        "GET /metrics returns Prometheus text exposition format (Content-Type: text/plain; version=0.0.4)",
+        "loop_iterations_total counter increments correctly — verified by simulating 10 loop iterations and scraping endpoint",
+        "token_consumption_total tracks input/output separately with model label — verified by recording 500 input + 200 output tokens and asserting metric values",
+        "quality_gate_decisions_total records pass/reject/conditional — verified by simulating 3 outcomes and checking counter labels",
+        "circuit_breaker_state reflects state transitions (closed→open→half-open→closed) — verified by programmatic state changes and scraping",
+        "operation_latency_seconds histogram records duration with correct bucket distribution — verified by injecting known delays (10ms, 50ms, 200ms) and checking bucket counts",
+        "Endpoint responds within 50ms under normal load (no metric computation blocking)",
+        "Integration test: start exporter, simulate all metric types, scrape and parse output, assert all expected metrics present with correct values"
+      ],
+      "dependencies": [
+        "OBS-001"
+      ],
+      "estimated_effort": "10h",
+      "deliverables": [
+        "metrics_exporter.py — MetricsExporter class with Prometheus registry, HTTP endpoint, metric registration helpers",
+        "test_metrics_exporter.py — unit + integration tests covering all metric types, endpoint format, latency"
+      ]
+    },
+    {
+      "id": "OBS-003",
+      "title": "OpenTelemetry Distributed Tracing",
+      "description": "Implement TraceSpanManager that creates OpenTelemetry-compatible trace spans for cross-component request tracking. Uses the opentelemetry-sdk with OTLP exporter (configurable endpoint). Each top-level task (loop iteration, DAG task execution, Quality Gate evaluation) creates a parent span; sub-operations (LLM calls, file I/O, inter-component messages) create child spans. Span attributes include: correlation_id (linking to OBS-001 logs), component name, operation type, token usage, and status (OK/ERROR). Context propagation uses OpenTelemetry's W3C TraceContext format. When OTLP endpoint is unreachable, spans are buffered locally (max 1000 spans) and retried with exponential backoff. The manager provides both decorator and context-manager interfaces for flexible instrumentation.",
+      "acceptance_criteria": [
+        "TraceSpanManager creates spans with correct parent-child relationships — verified by creating a 3-level span tree and asserting parent_span_id linkage",
+        "Each span contains attributes: correlation_id, component, operation, status — verified by inspecting span data in test",
+        "Decorator interface (@trace_span('operation_name')) correctly wraps async functions and records duration + status",
+        "Context manager interface (async with trace_span('op')) correctly handles exceptions (records ERROR status + exception attributes)",
+        "W3C TraceContext headers are injectable/extractable — verified by simulating cross-component handoff",
+        "OTLP export failure triggers local buffering (max 1000 spans) with retry — verified by blocking OTLP endpoint and confirming spans are queued, then flushed on reconnect",
+        "Span export does not block the main async event loop (export runs in background thread/task)",
+        "Integration test: simulate a full loop iteration with 5 sub-operations, verify trace structure with correct span count and hierarchy"
+      ],
+      "dependencies": [
+        "OBS-001"
+      ],
+      "estimated_effort": "12h",
+      "deliverables": [
+        "trace_span_manager.py — TraceSpanManager with OTLP export, decorator/context-manager interfaces, buffering fallback",
+        "test_trace_span_manager.py — unit + integration tests covering span hierarchy, attributes, buffering, async safety"
+      ]
+    },
+    {
+      "id": "OBS-004",
+      "title": "guardrails-ai Input/Output Validation Framework (D8)",
+      "description": "Implement GuardrailsManager as the single validation framework (per decision D8) using the guardrails-ai library. Provides configurable guardrail rules for both LLM input sanitization and output validation. The manager loads rule configurations from a YAML file (guardrails_config.yaml) supporting: (a) input guards — toxic content detection, PII redaction, prompt injection pre-filtering, max token length enforcement, (b) output guards — JSON schema conformance validation, hallucination detection (configurable confidence threshold), sensitive data leak prevention, format enforcement. Rules are composable: each guardrail is a named rule that can be enabled/disabled per-component. The manager exposes validate_input(text, rules=['rule_a','rule_b']) and validate_output(text, schema, rules=['rule_c']) APIs. Validation results include pass/fail status, triggered rule names, and remediation suggestions. Integrates with OBS-001 for structured logging of all validation decisions.",
+      "acceptance_criteria": [
+        "GuardrailsManager loads rule configuration from YAML — verified by loading a test config with 5 rules and asserting all are registered",
+        "validate_input() runs configured input guards and returns ValidationResult with pass/fail + triggered rules — verified by testing toxic content, PII, and length violations",
+        "validate_output() checks JSON schema conformance and returns structured error on mismatch — verified by testing valid/invalid JSON against a schema",
+        "Rules can be enabled/disabled per-call via rules parameter — verified by calling with subset of rules and confirming only those execute",
+        "Each validation decision is logged via OBS-001 StructuredLogger with component='guardrails', rule_name, outcome, latency_ms",
+        "Validation latency < 50ms per rule for text inputs up to 4000 tokens — benchmark test with 100 samples",
+        "Guardrail rule addition requires only YAML config change (no code modification) — verified by adding a new custom regex rule in config and confirming it executes",
+        "Integration test: configure 3 input + 2 output rules, run 20 test cases (10 pass, 10 fail), assert correct classification"
+      ],
+      "dependencies": [
+        "OBS-001"
+      ],
+      "estimated_effort": "14h",
+      "deliverables": [
+        "guardrails_manager.py — GuardrailsManager class with YAML config loading, validate_input/validate_output APIs, rule registry",
+        "guardrails_config.yaml — default rule configuration with input guards (toxic, PII, length) and output guards (schema, leak prevention)",
+        "test_guardrails_manager.py — unit + integration tests covering rule loading, validation logic, per-call rule selection, latency"
+      ]
+    },
+    {
+      "id": "OBS-005",
+      "title": "Hash Chain Audit Log (D9)",
+      "description": "Implement HashChainAuditLog — a tamper-evident append-only audit log (per decision D9: Hash Chain only, no Merkle tree complexity). Each log entry contains: timestamp, event_type, actor, payload (arbitrary JSON), and prev_hash (SHA-256 of the previous entry's serialized form). The first entry uses a configurable genesis hash. Entries are persisted to a JSONL file (audit_log.jsonl) with atomic append (write + fsync). Verification API: verify_chain() walks the entire file recomputing hashes and reports the first mismatch (if any). The log supports querying by event_type, actor, and time range. File rotation: when audit log exceeds 100MB, rotate to audit_log.jsonl.N with chain continuity (last hash of old file = prev_hash of first entry in new file). Integrates with OBS-001 for structured logging of chain verification results.",
+      "acceptance_criteria": [
+        "Each entry in audit_log.jsonl contains: timestamp, event_type, actor, payload, prev_hash, entry_hash — verified by reading 10 entries and validating structure",
+        "entry_hash = SHA-256(timestamp + event_type + actor + json.dumps(payload, sort_keys=True) + prev_hash) — verified by recomputing and comparing",
+        "verify_chain() returns (valid=True, checked=N) for an unmodified log — verified by writing 100 entries and running verification",
+        "verify_chain() detects tampering: modifying any entry's payload causes verification failure at that entry — verified by manual file edit and re-verification",
+        "Atomic append: crash during write does not produce partial entries — verified by killing process mid-write and confirming last entry is either complete or absent (no partial JSON)",
+        "Query API: get_entries(event_type='quality_gate', start_time=..., end_time=...) returns correct filtered results",
+        "File rotation at 100MB: rotation preserves chain continuity — verified by forcing rotation and confirming prev_hash linkage across files",
+        "Integration test: write 50 entries, verify chain, tamper with entry #30, verify chain fails at #30, confirm detection"
+      ],
+      "dependencies": [
+        "OBS-001"
+      ],
+      "estimated_effort": "10h",
+      "deliverables": [
+        "hash_chain_audit_log.py — HashChainAuditLog class with append, verify_chain, query, rotation APIs",
+        "test_hash_chain_audit_log.py — unit + integration tests covering hash chaining, tamper detection, atomic append, rotation, query"
+      ]
+    },
+    {
+      "id": "OBS-006",
+      "title": "Multi-Layer Prompt Injection Detection with Zone 0 Hardcoding (R8)",
+      "description": "Implement PromptInjectionDetector with three defense layers (per R8, RTO < 100ms): Layer 1 — Input sanitization: regex-based detection of known injection patterns (role override, instruction injection, delimiter manipulation, encoding tricks) with configurable pattern library. Layer 2 — Zone 0 hardcoding: critical system prompts are stored as frozen string constants (not loaded from external files or LLM-generated) and compared against runtime prompts to detect unauthorized modification. Any deviation triggers CRITICAL alert. Layer 3 — Output validation: detect data exfiltration attempts in LLM output (unusual URL patterns, base64-encoded content, credential-like strings, system file paths). Each layer returns a confidence score (0.0-1.0); combined score above configurable threshold (default 0.7) blocks the request. All detections are logged via OBS-001 and recorded in OBS-005 audit log. Performance: total detection pipeline must complete within 100ms for inputs up to 4000 tokens.",
+      "acceptance_criteria": [
+        "Layer 1 detects ≥ 95% of known injection patterns in test suite (50+ patterns including role override, delimiter injection, encoding bypass) — verified by running test suite and asserting detection rate",
+        "Layer 1 false positive rate < 2% on benign inputs — verified by running 200 normal user messages through detector",
+        "Layer 2 Zone 0 verification detects any modification to frozen system prompts — verified by mutating a prompt constant and confirming CRITICAL alert fires within 10ms",
+        "Layer 3 detects output exfiltration patterns: URLs not in allowlist, base64 blobs > 100 chars, credential-like strings (API key formats), /etc/passwd paths — verified by 20 test cases",
+        "Combined detection pipeline latency < 100ms for 4000-token input — benchmark with 100 samples of varying length",
+        "Confidence threshold is configurable via config parameter; lowering threshold catches more but increases false positives — verified by testing thresholds 0.3/0.5/0.7/0.9 on same input set",
+        "All detection events are logged to OBS-001 (component='prompt_injection_detector') and recorded in OBS-005 audit log with event_type='injection_detection'",
+        "Integration test: run 100 inputs (50 clean, 50 malicious), assert ≥ 95% detection rate, < 2% false positive rate, < 100ms p99 latency"
+      ],
+      "dependencies": [
+        "OBS-001",
+        "OBS-005"
+      ],
+      "estimated_effort": "16h",
+      "deliverables": [
+        "prompt_injection_detector.py — PromptInjectionDetector with 3-layer detection, confidence scoring, configurable thresholds",
+        "injection_patterns.yaml — configurable pattern library for Layer 1 (50+ patterns)",
+        "zone0_prompts.py — frozen system prompt constants with hash verification for Layer 2",
+        "test_prompt_injection_detector.py — unit + integration tests covering all layers, latency benchmarks, false positive rate"
+      ]
+    },
+    {
+      "id": "OBS-007",
+      "title": "RPM Rate Limit Monitor with Exponential Backoff (R11)",
+      "description": "Implement RateLimitMonitor that tracks LLM API request rates (requests per minute) and enforces configurable RPM limits per provider. The monitor maintains a sliding window counter (60-second window) of API calls. When usage exceeds 80% of configured RPM limit, it logs a WARN and emits a metric via OBS-002. When usage exceeds 95%, it proactively delays new requests using a token bucket. On receiving HTTP 429 (rate limited) from the API, it triggers exponential backoff: initial_delay * 2^attempt (capped at max_delay=60s) with jitter (±25% randomization). The backoff state is per-provider. The monitor exposes: acquire() async context manager (blocks until request is allowed), get_current_rpm() for status queries, and record_429() for backoff activation. Integrates with OBS-001 for logging and OBS-002 for metrics (rpm_utilization_percent, backoff_events_total).",
+      "acceptance_criteria": [
+        "Sliding window RPM counter accurately tracks requests — verified by sending 100 requests over 60s and asserting counter matches",
+        "80% threshold triggers WARN log — verified by sending requests at 80% of limit and confirming WARN appears in structured logs",
+        "95% threshold triggers proactive delay — verified by sending requests at 96% of limit and confirming requests are queued (not rejected)",
+        "429 response triggers exponential backoff: delays are 1s, 2s, 4s, 8s... (±25% jitter) — verified by mocking 3 consecutive 429s and measuring actual delays",
+        "Backoff caps at max_delay=60s — verified by triggering 10 consecutive 429s and asserting no delay exceeds 85s (60s + 25% jitter)",
+        "Per-provider isolation: backoff on provider A does not affect provider B — verified by triggering 429 on mock provider A while provider B requests proceed normally",
+        "acquire() releases correctly after use (no semaphore leak) — verified by 1000 acquire/release cycles and checking counter returns to 0",
+        "Integration test: configure 10 RPM limit, send 12 requests in 60s, verify first 10 proceed, 11th is delayed, 429 triggers backoff"
+      ],
+      "dependencies": [
+        "OBS-001",
+        "OBS-002"
+      ],
+      "estimated_effort": "10h",
+      "deliverables": [
+        "rate_limit_monitor.py — RateLimitMonitor with sliding window, token bucket, exponential backoff, per-provider state",
+        "test_rate_limit_monitor.py — unit + integration tests covering RPM tracking, thresholds, backoff timing, provider isolation"
+      ]
+    },
+    {
+      "id": "OBS-008",
+      "title": "Disk Space Management with Version Cleanup (R12)",
+      "description": "Implement DiskSpaceManager that monitors disk usage for the framework's working directories (state files, audit logs, trace buffers, model outputs) and enforces a 1GB total alert threshold (per R12). The manager runs a periodic check (configurable interval, default 5 minutes) that: (a) scans configured directories and sums total size, (b) if total > 1GB, logs CRITICAL alert and optionally triggers automatic cleanup, (c) cleanup follows version retention policy: keep last N versions (configurable, default 10) of state files, delete oldest first, (d) audit logs are never auto-deleted (tamper-evidence requirement from D9) but rotated files older than 30 days can be compressed. The manager exposes: check_disk_usage() for on-demand queries, cleanup(dry_run=True) for preview, and cleanup(dry_run=False) for execution. Integrates with OBS-001 for logging and OBS-002 for disk_usage_bytes metric.",
+      "acceptance_criteria": [
+        "Periodic scan correctly sums directory sizes — verified by creating files of known sizes and asserting total matches within 1% tolerance",
+        "1GB threshold triggers CRITICAL log alert — verified by creating 1.1GB of test data and confirming alert fires",
+        "Version cleanup retains last N versions (configurable) and deletes oldest — verified by creating 20 versioned state files, running cleanup with keep=10, asserting exactly 10 newest remain",
+        "Audit log files are never auto-deleted — verified by running cleanup and confirming all audit_log.jsonl* files are untouched",
+        "Rotated audit logs older than 30 days are compressed (gzip) — verified by creating old rotated files and confirming compression after cleanup",
+        "dry_run=True reports what would be deleted without actually deleting — verified by running dry_run and confirming file count unchanged",
+        "Cleanup does not delete files currently held open by the framework (file lock check) — verified by holding a file open and confirming cleanup skips it",
+        "Integration test: create 1.5GB of mixed test data, run cleanup, verify total < 1GB, verify audit logs intact, verify correct versions retained"
+      ],
+      "dependencies": [
+        "OBS-001",
+        "OBS-002"
+      ],
+      "estimated_effort": "8h",
+      "deliverables": [
+        "disk_space_manager.py — DiskSpaceManager with periodic scanning, version cleanup, audit log protection, compression",
+        "test_disk_space_manager.py — unit + integration tests covering size calculation, cleanup policy, audit log protection, dry run"
+      ]
+    },
+    {
+      "id": "OBS-009",
+      "title": "LLM Model Version Pinning and Verification Testing (R14)",
+      "description": "Implement ModelVersionPinner that enforces LLM model version pinning (per R14) to prevent silent behavior changes from upstream model updates. The pinner maintains a model registry (model_registry.yaml) mapping logical model names (e.g. 'primary_llm', 'judge_llm', 'embedding_model') to exact version identifiers (e.g. 'qwen3.7-plus-2026-06-28', 'gpt-4o-2026-05-13'). On initialization, it verifies: (a) the configured model version matches the registry entry, (b) the model API responds correctly (health check with a fixed test prompt and expected output pattern). If version mismatch is detected, it logs CRITICAL alert and refuses to initialize (fail-safe). Periodic re-verification (configurable, default daily) checks if the API is still returning the pinned version. The pinner exposes: get_pinned_version(role), verify_model_health(role), and list_registry(). Integrates with OBS-001 for logging and OBS-005 for recording version verification events in audit log.",
+      "acceptance_criteria": [
+        "Model registry YAML maps logical roles to exact version strings — verified by loading registry with 3 roles and asserting all entries present",
+        "Initialization fails with clear error if configured model version != registry version — verified by setting mismatched version and asserting RuntimeError with descriptive message",
+        "Health check sends fixed test prompt and validates response matches expected pattern — verified by mocking API with correct/incorrect responses",
+        "Version mismatch during periodic re-verification triggers CRITICAL log + audit log entry — verified by simulating version change and confirming both logs",
+        "get_pinned_version('primary_llm') returns exact version string — verified by querying each registered role",
+        "list_registry() returns full registry as dict — verified by asserting all roles and versions present",
+        "Registry modification requires explicit update_registry(role, new_version) call with audit log entry — verified by updating and confirming audit trail",
+        "Integration test: configure 3 models, verify all pass health check, change one version in config, verify detection and fail-safe trigger"
+      ],
+      "dependencies": [
+        "OBS-001",
+        "OBS-005"
+      ],
+      "estimated_effort": "8h",
+      "deliverables": [
+        "model_version_pinner.py — ModelVersionPinner with registry loading, version verification, health check, periodic re-verification",
+        "model_registry.yaml — default model registry with role-to-version mappings",
+        "test_model_version_pinner.py — unit + integration tests covering registry loading, version mismatch detection, health check, audit logging"
+      ]
+    }
+  ],
+  "metadata": {
+    "total_work_packages": 9,
+    "total_estimated_effort_hours": 106,
+    "dependency_graph": {
+      "OBS-001": [],
+      "OBS-002": [
+        "OBS-001"
+      ],
+      "OBS-003": [
+        "OBS-001"
+      ],
+      "OBS-004": [
+        "OBS-001"
+      ],
+      "OBS-005": [
+        "OBS-001"
+      ],
+      "OBS-006": [
+        "OBS-001",
+        "OBS-005"
+      ],
+      "OBS-007": [
+        "OBS-001",
+        "OBS-002"
+      ],
+      "OBS-008": [
+        "OBS-001",
+        "OBS-002"
+      ],
+      "OBS-009": [
+        "OBS-001",
+        "OBS-005"
+      ]
+    },
+    "implementation_priority": [
+      "OBS-001 (foundation — all others depend on it)",
+      "OBS-002, OBS-003, OBS-004, OBS-005 (parallel — all depend only on OBS-001)",
+      "OBS-006, OBS-007, OBS-008, OBS-009 (parallel — depend on OBS-001 + one peer)"
+    ],
+    "solution_decisions_covered": {
+      "D8": "OBS-004 (guardrails-ai single framework)",
+      "D9": "OBS-005 (Hash Chain audit log)",
+      "R8": "OBS-006 (Prompt Injection detection, RTO < 100ms)",
+      "R11": "OBS-007 (RPM rate limit + exponential backoff)",
+      "R12": "OBS-008 (Disk space management + 1GB alert)",
+      "R13": "OBS-001 (monotonic timestamps for clock skew resilience)",
+      "R14": "OBS-009 (LLM model version pinning + verification)"
+    },
+    "cross_cutting_concerns": [
+      "All components integrate with OBS-001 StructuredLogger for consistent log correlation",
+      "Security-relevant events (OBS-004, OBS-005, OBS-006, OBS-009) write to audit log",
+      "Metrics-exposing components (OBS-002, OBS-007, OBS-008) register metrics with Prometheus exporter",
+      "All components are async-safe (no blocking calls in async context)"
+    ]
+  },
+  "optional_suggestions": [
+    "Consider adding a Grafana dashboard JSON template as a companion deliverable for OBS-002 — pre-configured panels for all key metrics would reduce operational setup time",
+    "OBS-006's injection pattern library (injection_patterns.yaml) should be version-controlled separately and updatable via CI/CD pipeline to respond to new attack vectors without framework redeployment",
+    "OBS-003 trace export buffering could benefit from a persistent WAL (write-ahead log) for crash recovery — current design buffers in memory (1000 span limit) which may lose traces on hard crash"
+  ]
+}

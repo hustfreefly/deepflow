@@ -1,21 +1,94 @@
 """
-Ship Pro V6 - Orchestrator
+Ship Pro V8 - Orchestrator (纯工具库)
 
-契约笼子的"执行"阶段：Orchestrator 核心实现。
-遵循 AI Native 原则：
-- Python 做验证（Gate 检查、状态管理）
-- Agent 做调度（spawn/yield/状态机转换）
-- spawn_fn 是 Agent tool，不是 Python callback
+V8 变更（基于专家评审决策书 V8_DECISIONS.md）：
+- 移除 REQ-ID 前置追踪（本末倒置，违反 AI Native 4.1）
+- Worker prompt 增加质量优先级锚定
+- 新增 prepare_completeness_judge_task()（后置 LLM Judge 语义验证）
+- 状态转换宽松化（warn instead of raise on same-state transitions）
+- ShipOrchestrator 降级为纯工具库（Agent 做调度决策）
 
 核心流程：
-Phase 1: Planner (LLM 动态决策) → PlannerGate 验证
-Phase 2: Workers × N (LLM 执行) → WorkerGate 验证（per worker）
-Phase 3: Consolidator (LLM 整合) → InformationConservationGate + CompletenessGate + HarnessV3
+Phase 1: Planner → PlannerGate 验证
+Phase 2: Workers × N → MUST Judge → WorkerGate 验证
+Phase 3: Consolidator → InfoConservationJudge + CompletenessJudge + HarnessJudge → 最终验证
 """
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import json
 import logging
+import re
+
+
+def extract_json_from_completion(text: str) -> Optional[Dict[str, Any]]:
+    """
+    从子 Agent 完成事件的文本中提取 JSON。
+    
+    自动处理：
+    - ```json ... ``` markdown 包裹
+    - 前后多余文字
+    - JSON 截断（尝试补全括号）
+    
+    Returns:
+        解析后的 dict，或 None（如果提取失败）
+    """
+    if not text or not isinstance(text, str):
+        return None
+    
+    text = text.strip()
+    
+    # 尝试 1: 直接解析
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    
+    # 尝试 2: 提取 ```json ... ``` 代码块
+    match = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1).strip())
+        except (json.JSONDecodeError, TypeError):
+            pass
+    
+    # 尝试 3: 找第一个 { 到最后一个 } 的子串
+    start = text.find('{')
+    end = text.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        json_str = text[start:end + 1]
+        try:
+            return json.loads(json_str)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    elif start != -1:
+        # 没有 } 或 } 在 { 之前 — 可能是截断的 JSON
+        json_str = text[start:]
+    else:
+        json_str = None
+    
+    # 尝试 4: 截断修复 — 尝试补全未闭合的括号
+    if json_str:
+        open_braces = json_str.count('{') - json_str.count('}')
+        open_brackets = json_str.count('[') - json_str.count(']')
+        
+        # 移除尾部逗号
+        fixed = re.sub(r',[\s]*$', '', json_str)
+        # 补全括号
+        if open_brackets > 0:
+            fixed += ']' * open_brackets
+        if open_braces > 0:
+            fixed += '}' * open_braces
+        
+        try:
+            result = json.loads(fixed)
+            logger.warning("JSON 截断修复成功（结果可能不完整）")
+            return result
+        except (json.JSONDecodeError, TypeError):
+            pass
+    
+    logger.warning(f"JSON 提取失败: text[:200] = {text[:200]}")
+    return None
+
 
 from ..contracts import (
     PlannerGate,
@@ -31,58 +104,41 @@ logger = logging.getLogger(__name__)
 
 class ShipOrchestrator:
     """
-    Ship Pro V6 Orchestrator
+    Ship Pro V8 Orchestrator（纯工具库）
     
     职责：
-    1. 管理 pipeline_state.json（单一真相源）
-    2. 调用 Gate 验证每个阶段的输出
-    3. 提供 spawn 参数（由 Agent 层调用 sessions_spawn）
-    4. 管理状态转换（state machine）
+    1. 提供 prepare_* 方法（返回 spawn 参数）
+    2. 提供 verify_* 方法（Gate 验证）
+    3. 提供 prepare_*_judge_tasks 方法（LLM Judge 任务声明）
+    4. 管理 Blackboard 状态（宽松模式）
     
     注意：
-    - 本类不调用 sessions_spawn（那是 Agent 的职责）
-    - 本类只返回 spawn 参数（dict），由 Agent 层实际调用
+    - 本类不调用 sessions_spawn（那是 Dispatcher Agent 的职责）
+    - 状态转换不再强制校验（由 Dispatcher Agent 自主决定）
     """
     
     def __init__(self, blackboard_path: Path):
-        """
-        初始化 Orchestrator
-        
-        Args:
-            blackboard_path: Blackboard 目录路径
-        """
         from .state_manager import StateManager
         
         self.blackboard_path = Path(blackboard_path)
         self.state_manager = StateManager(blackboard_path)
         self.state = self.state_manager.state
         
-        logger.info(f"ShipOrchestrator initialized: {blackboard_path}")
+        logger.info(f"ShipOrchestrator V8 initialized: {blackboard_path}")
     
     # ========================================================================
     # Phase 1: Planner
     # ========================================================================
     
     def prepare_planner_spawn(self, solution_pro_output: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        准备 Planner 的 spawn 参数。
-        
-        Args:
-            solution_pro_output: Solution Pro 的输出（final_solution.json）
-        
-        Returns:
-            spawn_params: 传递给 sessions_spawn 的参数 dict
-        """
+        """准备 Planner 的 spawn 参数。"""
         from ..contracts import get_planner_output_schema
         
-        # 更新状态
         self.state_manager.update_stage("planner", "running")
         
-        # 构建 prompt
         schema = get_planner_output_schema()
         prompt = self._build_planner_prompt(solution_pro_output, schema)
         
-        # 返回 spawn 参数
         return {
             "runtime": "subagent",
             "mode": "run",
@@ -91,23 +147,16 @@ class ShipOrchestrator:
             "thinking": "high",
         }
     
-    def verify_planner_output(self, planner_output: Dict[str, Any], solution_pro_output: Dict[str, Any] = None) -> GateResult:
-        """
-        验证 Planner 输出（契约笼子）。
-        
-        1. PlannerGate 结构验证（含 wp_id_prefix）
-        2. CompletenessGate REQ-ID 覆盖率（如提供 solution_pro_output）
-        """
+    def verify_planner_output(self, planner_output: Dict[str, Any], 
+                               solution_pro_output: Dict[str, Any] = None) -> GateResult:
+        """验证 Planner 输出（PlannerGate 结构验证）。"""
         result = PlannerGate.check(planner_output)
         if not result.passed:
             logger.warning(f"PlannerGate failed: {result.issues}")
             return result
         
-        if solution_pro_output:
-            g2 = CompletenessGate.check(solution_pro_output, planner_output)
-            if not g2.passed:
-                logger.warning(f"CompletenessGate failed: {g2.issues}")
-                return g2
+        # V8: CompletenessGate 不再在 Planner 级别做 REQ-ID 字符串匹配
+        # 改为后置 LLM Judge 语义验证（见 prepare_completeness_judge_task）
         
         self.state_manager.update_stage("planner", "completed")
         self.state_manager.write_stage("planner_output", planner_output)
@@ -118,27 +167,16 @@ class ShipOrchestrator:
     # Phase 2: Workers
     # ========================================================================
     
-    def prepare_workers_spawn(self, planner_output: Dict[str, Any], solution_pro_output: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        准备所有 Worker 的 spawn 参数。
-        
-        Args:
-            planner_output: Planner 的输出
-            solution_pro_output: Solution Pro 的输出
-        
-        Returns:
-            List of spawn_params（每个 Worker 一个）
-        """
+    def prepare_workers_spawn(self, planner_output: Dict[str, Any], 
+                               solution_pro_output: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """准备所有 Worker 的 spawn 参数。"""
         from ..contracts import get_worker_deliverable_schema
         
-        # 更新状态
         self.state_manager.update_stage("build", "running")
         
-        # 拓扑排序（分层执行）
         workers = planner_output["workers"]
         execution_layers = self._topological_sort(workers)
         
-        # 为每个 Worker 构建 spawn 参数
         spawn_params_list = []
         schema = get_worker_deliverable_schema()
         
@@ -157,12 +195,10 @@ class ShipOrchestrator:
         logger.info(f"Prepared {len(spawn_params_list)} workers in {len(execution_layers)} layers")
         return spawn_params_list
     
-    def verify_worker_output(self, worker_spec: Dict[str, Any], worker_output: Dict[str, Any],
+    def verify_worker_output(self, worker_spec: Dict[str, Any], 
+                               worker_output: Dict[str, Any],
                                judge_results: Dict[str, Any] = None) -> GateResult:
-        """
-        验证 Worker 输出（契约笼子三步模式 Step 3）。
-        judge_results 必须包含 worker_must_{role} 的结果（如 MUST 约束非空）。
-        """
+        """验证 Worker 输出（WorkerGate）。"""
         result = WorkerGate.check(worker_spec, worker_output, judge_results=judge_results)
         
         if result.passed:
@@ -183,21 +219,11 @@ class ShipOrchestrator:
     # ========================================================================
     
     def prepare_consolidator_spawn(self, planner_output: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        准备 Consolidator 的 spawn 参数。
-        
-        Args:
-            planner_output: Planner 的输出
-        
-        Returns:
-            spawn_params
-        """
+        """准备 Consolidator 的 spawn 参数。"""
         from ..contracts import get_ship_package_schema
         
-        # 更新状态
         self.state_manager.update_stage("shipper", "running")
         
-        # 读取所有 Worker 输出
         worker_outputs = {}
         for worker_spec in planner_output["workers"]:
             stage_name = f"worker_{worker_spec['role']}"
@@ -205,7 +231,6 @@ class ShipOrchestrator:
             if worker_output:
                 worker_outputs[worker_spec["role"]] = worker_output
         
-        # 构建 prompt
         schema = get_ship_package_schema()
         prompt = self._build_consolidator_prompt(planner_output, worker_outputs, schema)
         
@@ -217,26 +242,69 @@ class ShipOrchestrator:
             "thinking": "high",
         }
     
+
+    def validate_ship_package_structure(self, ship_package: Dict[str, Any],
+                                          planner_output: Dict[str, Any]) -> Dict[str, Any]:
+        """V8: 验证 ShipPackage 结构完整性（契约铁律）。
+        
+        确保 Consolidator 输出了完整的 work_packages 数组，
+        而不是只有统计摘要。
+        
+        Returns: {"valid": bool, "issues": [...], "expected_wp_count": int, "actual_wp_count": int}
+        """
+        issues = []
+        wps = ship_package.get("work_packages", [])
+        
+        # 计算预期 WP 数量
+        expected_count = 0
+        for worker_spec in planner_output.get("workers", []):
+            stage_name = f"worker_{worker_spec['role']}"
+            worker_output = self.state_manager.read_stage(stage_name)
+            if worker_output:
+                expected_count += len(worker_output.get("work_packages", []))
+        
+        actual_count = len(wps)
+        
+        if actual_count == 0:
+            issues.append(f"work_packages 数组为空（预期 {expected_count} 个 WP）")
+        elif actual_count < expected_count * 0.8:
+            issues.append(f"work_packages 数量不足：{actual_count}/{expected_count}（丢失 {expected_count - actual_count} 个）")
+        
+        # 检查统计摘要反模式
+        if "total_work_packages" in ship_package and actual_count == 0:
+            issues.append("统计摘要反模式：有 total_work_packages 字段但无实际 WP 内容")
+        
+        # 检查每个 WP 必需字段
+        required_fields = ["id", "title", "description"]
+        for i, wp in enumerate(wps):
+            missing = [f for f in required_fields if not wp.get(f)]
+            if missing:
+                issues.append(f"WP #{i} ({wp.get('id', '?')}): 缺少必需字段 {missing}")
+        
+        valid = len(issues) == 0
+        return {
+            "valid": valid,
+            "issues": issues,
+            "expected_wp_count": expected_count,
+            "actual_wp_count": actual_count,
+        }
+
     def verify_ship_package(self, solution_pro_output: Dict[str, Any],
                                ship_package: Dict[str, Any],
                                planner_output: Dict[str, Any] = None,
                                judge_results: Dict[str, Any] = None) -> Dict[str, GateResult]:
-        """
-        验证 Ship Package（契约笼子三步模式 Step 3）。
-        
-        G1: judge_results["info_conservation"] 必须存在
-        G2: planner_output 必须提供
-        G3: judge_results["harness_v3"] 必须存在
-        """
+        """验证 Ship Package（三个 Gate）。"""
         if planner_output is None:
-            raise ValueError("契约笼子违规: planner_output 必须提供")
+            raise ValueError("planner_output 必须提供")
         
         results = {}
         results["information_conservation"] = InformationConservationGate.check(
             solution_pro_output, ship_package, judge_results=judge_results
         )
+        # V8: CompletenessGate 改为接受 judge_results（LLM Judge 语义验证）
         results["completeness"] = CompletenessGate.check(
-            solution_pro_output, planner_output
+            solution_pro_output, planner_output,
+            judge_results=judge_results
         )
         results["harness_v3"] = HarnessV3.check(
             ship_package, judge_results=judge_results
@@ -253,20 +321,14 @@ class ShipOrchestrator:
         
         return results
     
+    # ========================================================================
+    # Judge Task Preparation
+    # ========================================================================
+    
     def prepare_gate_judge_tasks(self, solution_pro_output: Dict[str, Any],
                                    ship_package: Dict[str, Any],
                                    planner_output: Dict[str, Any] = None) -> List[Dict[str, Any]]:
-        """
-        契约笼子 Step 1: 声明所有 Gate 需要的 LLM Judge 任务。
-        
-        Agent 层拿到这些 task 后 spawn Judge 子 Agent，
-        收集结果后传给 verify_ship_package(judge_results=...)。
-        
-        Returns:
-            List of {name, prompt, expected_output} — 每个 Gate 一个 Judge 任务
-        """
-        from ..contracts import InformationConservationGate, HarnessV3
-        
+        """准备 Gate 级 LLM Judge 任务（含 CompletenessJudge）。"""
         tasks = []
         
         # G1: 信息守恒 Judge
@@ -278,6 +340,16 @@ class ShipOrchestrator:
             "expected_output": '{"passed": true/false, "issues": [...], "conservation_rate": 0.0-1.0}'
         })
         
+        # G2: V8 新增 — 完整性语义 Judge（替代字符串匹配 CompletenessGate）
+        if planner_output:
+            tasks.append({
+                "name": "completeness",
+                "prompt": self._build_completeness_judge_prompt(
+                    solution_pro_output, planner_output, ship_package
+                ),
+                "expected_output": '{"passed": true/false, "issues": [...], "coverage_rate": 0.0-1.0}'
+            })
+        
         # G3: Harness V3 Judge
         tasks.append({
             "name": "harness_v3",
@@ -285,17 +357,12 @@ class ShipOrchestrator:
             "expected_output": '{"passed": true/false, "score": 0-10, "issues": [...]}'
         })
         
-        logger.info(f"Prepared {len(tasks)} gate judge tasks")
+        logger.info(f"Prepared {len(tasks)} gate judge tasks (V8 with completeness judge)")
         return tasks
     
     def prepare_worker_judge_tasks(self, planner_output: Dict[str, Any],
                                      worker_outputs: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        契约笼子 Step 1 (Worker 级): 声明所有 Worker 的 MUST 约束 Judge 任务。
-        
-        Returns:
-            List of {name, prompt} — 每个有 MUST 约束的 Worker 一个
-        """
+        """准备 Worker 级 MUST 约束 Judge 任务。"""
         from ..contracts import WorkerGate
         
         tasks = []
@@ -313,46 +380,106 @@ class ShipOrchestrator:
         return tasks
     
     # ========================================================================
+    # V8: Completeness Judge Prompt Builder
+    # ========================================================================
+    
+    def _build_completeness_judge_prompt(self, solution_pro_output: Dict[str, Any],
+                                          planner_output: Dict[str, Any],
+                                          ship_package: Dict[str, Any]) -> str:
+        """
+        V8: 构建完整性语义 Judge prompt。
+        替代 V8 的 CompletenessGate 字符串匹配。
+        """
+        req_ids = solution_pro_output.get('covered_req_ids', [])
+        work_packages = ship_package.get('work_packages', [])
+        
+        return f"""你是 Ship Pro V8 的完整性验证 Judge。
+
+## 任务
+
+验证 ShipPackage 中的 Work Packages 是否语义覆盖了 Solution Pro 的所有需求。
+
+## 注意
+- 你做的是**语义验证**，不是字符串匹配
+- 即使 WP 中没有显式出现 REQ-ID，只要 WP 的内容语义上解决了该需求，就算覆盖
+- 关注需求的**实质**，不是标签
+
+## 输入
+
+### Solution Pro 的 covered_req_ids（{len(req_ids)} 个）
+{json.dumps(req_ids, indent=2, ensure_ascii=False)}
+
+### Solution Pro 关键决策（key_decisions）
+{json.dumps(solution_pro_output.get('key_decisions', []), indent=2, ensure_ascii=False)}
+
+### Solution Pro 风险缓解（risk_mitigations）
+{json.dumps(solution_pro_output.get('risk_mitigations', []), indent=2, ensure_ascii=False)}
+
+### ShipPackage 的 Work Packages（{len(work_packages)} 个）
+{json.dumps(work_packages, indent=2, ensure_ascii=False)}
+
+### Planner 的 Worker 分配
+{json.dumps([{{"role": w["role"], "objective": w.get("objective", w.get("task_description", ""))}} for w in planner_output.get("workers", [])], indent=2, ensure_ascii=False)}
+
+## 评估维度
+
+1. **需求覆盖**：每个 key_decision 是否被至少一个 WP 语义覆盖？
+2. **风险覆盖**：每个 risk_mitigation 是否被至少一个 WP 的 acceptance_criteria 或 description 覆盖？
+3. **架构覆盖**：Solution Pro 的 architecture 核心组件是否都有对应 WP？
+
+## 输出格式
+
+```json
+{{
+  "passed": true/false,
+  "coverage_rate": 0.0-1.0,
+  "issues": [
+    {{
+      "severity": "CRITICAL/MAJOR/MINOR",
+      "dimension": "requirement/risk/architecture",
+      "description": "具体问题描述"
+    }}
+  ],
+  "covered_decisions": ["D1", "D2", ...],
+  "uncovered_decisions": ["D5", ...],
+  "covered_risks": ["R1", "R2", ...],
+  "uncovered_risks": ["R3", ...]
+}}
+```
+
+## 判断标准
+- coverage_rate >= 0.8 且无 CRITICAL issue → passed = true
+- 否则 → passed = false
+
+请直接输出 JSON。"""
+    
+    # ========================================================================
     # Helper Methods
     # ========================================================================
     
     def _topological_sort(self, workers: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
-        """
-        拓扑排序（Kahn 算法），返回分层执行顺序。
-        
-        Args:
-            workers: Worker 规格列表
-        
-        Returns:
-            List of layers（每层是一个 Worker 列表）
-        """
+        """拓扑排序（Kahn 算法），返回分层执行顺序。"""
         worker_map = {w["role"]: w for w in workers}
         depends_on_map = {w["role"]: w.get("depends_on", []) for w in workers}
         
-        # 计算入度
         in_degree = {role: 0 for role in worker_map}
         for role, deps in depends_on_map.items():
             for dep in deps:
                 if dep in in_degree:
                     in_degree[role] += 1
         
-        # 分层拓扑排序
         layers = []
         remaining = set(worker_map.keys())
         
         while remaining:
-            # 找出所有入度为 0 的节点
             current_layer = [role for role in remaining if in_degree[role] == 0]
             
             if not current_layer:
-                # 存在环，打破它（选择入度最小的节点）
                 current_layer = [min(remaining, key=lambda r: in_degree[r])]
                 logger.warning(f"Cycle detected, breaking at: {current_layer}")
             
-            # 添加到当前层
             layers.append([worker_map[role] for role in current_layer])
             
-            # 更新入度
             for role in current_layer:
                 remaining.remove(role)
                 for other_role, deps in depends_on_map.items():
@@ -362,13 +489,20 @@ class ShipOrchestrator:
         return layers
     
     def _build_planner_prompt(self, solution_pro_output: Dict[str, Any], schema: Dict[str, Any]) -> str:
-        """构建 Planner prompt"""
-        req_ids = solution_pro_output.get('covered_req_ids', [])
-        prompt = f"""你是 Ship Pro V6 的 Planner。
+        """V8: 构建 Planner prompt（移除 REQ-ID 分配要求）"""
+        pending_req_ids = solution_pro_output.get('pending_req_ids', [])
+        prompt = f"""你是 Ship Pro V8 的 Planner。
 
 ## 你的任务
 
-分析 Solution Pro 的输出，规划如何将其拆解为可执行的工作包。
+分析 Solution Pro 的输出，规划如何将其拆解为高质量的、可执行的工作包。
+
+## 质量优先级
+
+你优先保证拆解方案的**深度、可行性和架构合理性**：
+- 每个 Worker 的角色定位必须清晰、不重叠
+- 每个 Worker 的任务描述必须具体到可执行级别
+- 依赖关系必须反映真实的架构依赖
 
 ## Solution Pro 输出
 
@@ -400,16 +534,23 @@ class ShipOrchestrator:
 
 1. Worker 数量：2 <= N <= 8
 2. 依赖图必须是无环 DAG
-3. 每个 Worker 必须有约束引用（must_constraints 或 solution_pro_refs）
+3. 每个 Worker 必须有约束引用（must_constraints）
 4. 角色名称自由命名（不需要从允许列表中选择）
-5. **REQ-ID 分配**：每个 Worker 必须有 covered_req_ids，列出它覆盖的 Solution Pro REQ-ID。
-   Solution Pro 的 covered_req_ids 中的所有 REQ-ID 必须被至少一个 Worker 覆盖。
-   不允许遗漏任何 REQ-ID。
-   
-   **必须覆盖的 REQ-IDs**:
-   {chr(10).join(f'   - {rid}' for rid in req_ids) if req_ids else '   (无 REQ-ID 需要覆盖)'}
-6. **WP ID 前缀**：每个 Worker 必须有 wp_id_prefix（2-6 个字母，如 CORE、LOOP、QG）。
+5. **WP ID 前缀**：每个 Worker 必须有 wp_id_prefix（2-6 个字母，如 CORE、LOOP、QG）。
    该 Worker 生成的所有 WP ID 必须以此为前缀（如 CORE-001、LOOP-002）。
+6. **透传 pending_req_ids**：Solution Pro 中标记为 deferred 的 REQ-IDs 直接透传到 pending_req_ids 字段。
+   不需要为这些 REQ-ID 分配 Worker。
+   
+   延迟 REQ-IDs:
+   {chr(10).join(f'   - {rid}' for rid in pending_req_ids) if pending_req_ids else '   (无延迟 REQ-ID)'}
+
+## 输出控制（重要）
+
+如果你的输出超过 8000 字符，请先写入文件再确认：
+1. 用 exec 写入: `cat > /tmp/planner_output.json << 'JSONEOF'\n...\nJSONEOF`
+2. 然后只输出: `{{"status": "written", "path": "/tmp/planner_output.json"}}`
+
+如果输出不超过 8000 字符，直接输出 JSON 即可。
 
 ## 输出
 
@@ -418,18 +559,42 @@ class ShipOrchestrator:
         return prompt
     
     def _build_worker_prompt(self, worker_spec: Dict[str, Any], solution_pro_output: Dict[str, Any], schema: Dict[str, Any]) -> str:
-        """构建 Worker prompt"""
+        """V8: 构建 Worker prompt（质量优先级锚定，无 REQ-ID 追踪，精简 context）"""
         wp_id_prefix = worker_spec.get('wp_id_prefix', 'WP')
-        prompt = f"""你是 Ship Pro V6 的 Worker: {worker_spec['role']}
+        
+        # 精简 Solution Pro context — 只保留 Worker 需要的字段
+        relevant_context = {
+            k: v for k, v in solution_pro_output.items()
+            if k not in ('implementation_plan', 'success_metrics')
+        }
+        
+        prompt = f"""你是 Ship Pro V8 的 Worker: {worker_spec['role']}
+
+## 质量优先级（最高优先级）
+
+你优先保证 Work Package 的**深度、可行性和架构合理性**，而非机械覆盖需求数量。
+
+### 每个 WP 的硬性最小要求（代码层会验证，不满足即拒绝）
+
+| 字段 | 最小要求 | 示例 |
+|------|---------|------|
+| description | ≥100 字符 | 说清楚做什么、为什么这么做、技术边界、与其他模块的接口 |
+| acceptance_criteria | ≥2 条 | 每条必须是可测试的具体标准（“系统能运行”不算， “API 响应时间 <200ms”算） |
+| deliverables | ≥1 项 | 明确列出交付物（如“Python 模块”“配置文件”“测试脚本”） |
+
+**禁止行为**：
+- ❌ 不要输出一句话的 description（如“实现 XX 功能”）
+- ❌ 不要跳过 acceptance_criteria（没有 AC 的 WP 无法验收）
+- ❌ 不要跳过 deliverables（没有交付物的 WP 无法执行）
 
 ## 你的任务
 
 {worker_spec['task_description']}
 
-## Solution Pro 输出（参考）
+## Solution Pro 参考信息（精简）
 
 ```json
-{json.dumps(solution_pro_output, indent=2, ensure_ascii=False)}
+{json.dumps(relevant_context, indent=2, ensure_ascii=False)}
 ```
 
 ## 约束笼子
@@ -443,9 +608,15 @@ class ShipOrchestrator:
 - 只生成交付物，不讨论方案优劣
 - 不修改其他 Worker 的产出
 
-### 输出边界
+### 输出边界（契约笼子 — 违反即拒绝）
 - 输出必须符合 WorkerDeliverable Schema
 - 额外建议标记为 optional_suggestion
+- **你只输出 Work Package JSON 描述，不生成实际代码实现**
+- WP 描述的是“做什么”和“验收标准”，不是“怎么做”
+- ❌ 不要写 Python/JS/任何语言的实现代码
+- ❌ 不要创建项目目录结构
+- ❌ 不要运行测试
+- ✅ 只输出符合 Schema 的 JSON
 
 ## WP ID 前缀规则（契约笼子 — 违反即拒绝）
 
@@ -475,12 +646,25 @@ class ShipOrchestrator:
         return prompt
     
     def _build_consolidator_prompt(self, planner_output: Dict[str, Any], worker_outputs: Dict[str, Any], schema: Dict[str, Any]) -> str:
-        """构建 Consolidator prompt"""
-        prompt = f"""你是 Ship Pro V6 的 Consolidator。
+        """V8: 构建 Consolidator prompt"""
+        # 计算预期 WP 总数（用于信息守恒验证）
+        expected_wp_count = sum(
+            len(wo.get("work_packages", []))
+            for wo in worker_outputs.values()
+        )
+
+        prompt = f"""你是 Ship Pro V8 的 Consolidator。
 
 ## 你的任务
 
-整合所有 Worker 的产出，生成最终的 Ship Package。
+将 {len(worker_outputs)} 个 Worker 的 **全部 work_packages** 合并为一个完整的 Ship Package。
+
+## ⚠️ 信息守恒铁律（最高优先级）
+
+1. **必须合并所有 WP**：遍历每个 Worker 输出的 `work_packages` 数组，将所有 WP 原样合并到 ShipPackage 的 `work_packages` 字段中。
+2. **保留完整字段**：每个 WP 必须保留全部字段（id, title, description, acceptance_criteria, dependencies, estimated_effort, deliverables）。不得删减任何字段。
+3. **不得摘要化**：不得用统计数字（如 `total_work_packages: 40`）替代实际 WP 内容。
+4. **预期数量**：你应该合并 **{expected_wp_count} 个 Work Package** 到输出中。如果数量不匹配，说明你丢失了 WP。
 
 ## Planner 的整合策略
 
@@ -503,7 +687,17 @@ class ShipOrchestrator:
 
 ### 输出边界
 - 输出必须符合 ShipPackage Schema
+- `work_packages` 数组必须包含所有 Worker 的全部 WP（共 {expected_wp_count} 个）
 - optional_suggestion 物理隔离到 metadata.optional_suggestions
+
+### 延迟需求透传
+- Planner 输出中有 pending_req_ids
+- 你必须在 metadata.pending_req_ids 中透传这个列表
+
+## ❌ 禁止行为
+- ❌ 不要只输出统计摘要（如 `total_work_packages: 40`）而省略实际 WP 内容
+- ❌ 不要用 `workers: [{{role, wp_count}}]` 摘要替代完整 WP 数组
+- ❌ 不要截断任何 WP 的 description 或 acceptance_criteria
 
 ## 输出格式（JSON Schema）
 
@@ -513,6 +707,375 @@ class ShipOrchestrator:
 
 ## 输出
 
-请直接输出 JSON，不要包含其他文字。
+请直接输出 JSON，不要包含其他文字。确保 `work_packages` 数组包含全部 {expected_wp_count} 个 WP。
 """
         return prompt
+
+    # ========================================================================
+    # V8: 三层验证架构（契约笼子）
+    # ========================================================================
+
+    def validate_all_worker_outputs_l1(self, blackboard_path: str = None) -> Dict[str, Any]:
+        """V8 Layer 1: 确定性硬拦截
+        
+        读取所有 worker_*.json 文件 → Pydantic Schema + 内容深度验证
+        
+        契约笼子：
+        - 无 worker 文件 → raise ValueError
+        - Schema 失败 → raise ValueError  
+        - AC<2 / desc<100 / deliverables<1 → raise ValueError
+        - 不使用 judge_results（那是 Layer 2 的职责）
+        """
+        from ..contracts.worker_deliverable import WorkerDeliverable, WorkPackage
+        
+        bp = Path(blackboard_path) if blackboard_path else self.blackboard_path
+        stages_dir = bp / "stages"
+        worker_files = sorted(stages_dir.glob("worker_*.json"))
+        
+        # 契约笼子：必须有 worker 输出
+        if not worker_files:
+            raise ValueError(f"契约笼子: 未找到任何 worker 输出文件 ({stages_dir}/worker_*.json)")
+        
+        results = {"all_passed": True, "workers": {}, "failures": []}
+        
+        for f in worker_files:
+            worker_name = f.stem.replace("worker_", "")
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+                
+                # 格式兼容：Worker 可能输出 JSON 数组或 WorkerDeliverable 对象
+                if isinstance(data, list):
+                    wps = data
+                elif isinstance(data, dict) and "work_packages" in data:
+                    WorkerDeliverable.model_validate(data)
+                    wps = data.get("work_packages", [])
+                else:
+                    raise ValueError(f"未知输出格式: type={type(data).__name__}")
+                
+                # 字段名/类型兼容
+                for wp in wps:
+                    if "wp_id" in wp and "id" not in wp:
+                        wp["id"] = wp.pop("wp_id")
+                    if "effort_hours" in wp and "estimated_effort" not in wp:
+                        wp["estimated_effort"] = wp.pop("effort_hours")
+                    # 类型兼容：estimated_effort 可能是 int，Schema 期望 str
+                    if "estimated_effort" in wp and not isinstance(wp["estimated_effort"], str):
+                        wp["estimated_effort"] = str(wp["estimated_effort"])
+                
+                # Layer 1a: Pydantic Schema（每个 WP 单独验证）
+                for wp in wps:
+                    WorkPackage.model_validate(wp)
+                
+                # Layer 1b: 内容深度
+                wp_issues = []
+                for wp in wps:
+                    wp_id = wp.get("id", "?")
+                    desc = wp.get("description", "")
+                    acs = wp.get("acceptance_criteria", [])
+                    dels = wp.get("deliverables", [])
+                    
+                    if len(desc) < 100:
+                        wp_issues.append(f"{wp_id}: description {len(desc)} chars < 100")
+                    if len(acs) < 2:
+                        wp_issues.append(f"{wp_id}: AC {len(acs)} 条 < 2")
+                    if len(dels) < 1:
+                        wp_issues.append(f"{wp_id}: deliverables 为空")
+                
+                if wp_issues:
+                    results["all_passed"] = False
+                    results["failures"].append({"worker": worker_name, "issues": wp_issues})
+                else:
+                    results["workers"][worker_name] = {
+                        "wp_count": len(wps),
+                        "status": "L1_PASS"
+                    }
+                    
+            except Exception as e:
+                results["all_passed"] = False
+                results["failures"].append({"worker": worker_name, "error": str(e)})
+        
+        # 契约笼子：L1 失败直接 raise
+        if not results["all_passed"]:
+            failure_summary = "; ".join(
+                f"{f['worker']}: {f.get('issues', f.get('error', '?'))}"
+                for f in results["failures"]
+            )
+            raise ValueError(f"契约笼子 L1 验证失败: {failure_summary}")
+        
+        return results
+
+    def prepare_judge_spawn_all(self, blackboard_path: str = None) -> List[Dict[str, Any]]:
+        """V8 Layer 2: 为所有 Worker 准备 Judge spawn params
+        
+        读取 planner_output + worker outputs → 构建 MUST 约束 Judge prompts
+        
+        契约笼子：
+        - 无 planner_output → raise ValueError
+        - Worker 有 must_constraints 但无对应 Judge → 不 spawn（由 merge 检测）
+        """
+        bp = Path(blackboard_path) if blackboard_path else self.blackboard_path
+        stages_dir = bp / "stages"
+        
+        # 读取 planner output
+        planner_path = stages_dir / "planner_output.json"
+        if not planner_path.exists():
+            raise ValueError(f"契约笼子: planner_output.json 不存在 ({planner_path})")
+        
+        planner_output = json.loads(planner_path.read_text(encoding="utf-8"))
+        workers = planner_output.get("workers", [])
+        
+        judge_params = []
+        for worker_spec in workers:
+            role = worker_spec.get("role", "unknown")
+            must_constraints = worker_spec.get("must_constraints", [])
+            
+            if not must_constraints:
+                continue  # 无 MUST 约束，不需要 Judge
+            
+            # 读取 worker output
+            worker_path = stages_dir / f"worker_{role}.json"
+            if not worker_path.exists():
+                continue  # Worker 未产出，跳过（merge 会检测）
+            
+            worker_output = json.loads(worker_path.read_text(encoding="utf-8"))
+            
+            # 构建 Judge prompt
+            judge_prompt = WorkerGate.build_judge_prompt(worker_spec, worker_output)
+            
+            judge_params.append({
+                "runtime": "subagent",
+                "mode": "run",
+                "label": f"judge_must_{role}",
+                "task": judge_prompt,
+                "thinking": "medium",
+            })
+        
+        logger.info(f"Prepared {len(judge_params)} Judge spawn params")
+        return judge_params
+
+    def merge_gate_results(self, blackboard_path: str = None,
+                           l1_results: Dict[str, Any] = None,
+                           judge_verdicts: Dict[str, Any] = None) -> Dict[str, Any]:
+        """V8 Layer 3: 综合决策
+        
+        合并 L1 确定性结果 + L2 Judge 语义结果 → PASS / FAIL
+        
+        契约笼子：
+        - L1 未通过 → 不可能进入 L3（已在 L1 raise）
+        - L2 Judge 缺失 must_constraints 的 Worker → raise ValueError
+        """
+        bp = Path(blackboard_path) if blackboard_path else self.blackboard_path
+        stages_dir = bp / "stages"
+        
+        # 读取 planner output 获取 must_constraints 信息
+        planner_path = stages_dir / "planner_output.json"
+        planner_output = json.loads(planner_path.read_text(encoding="utf-8")) if planner_path.exists() else {}
+        workers = planner_output.get("workers", [])
+        
+        # 检查 Judge 覆盖
+        judge_verdicts = judge_verdicts or {}
+        missing_judges = []
+        l2_issues = []
+        
+        for worker_spec in workers:
+            role = worker_spec.get("role", "unknown")
+            must_constraints = worker_spec.get("must_constraints", [])
+            
+            if must_constraints:
+                task_name = f"worker_must_{role}"
+                if task_name not in judge_verdicts:
+                    missing_judges.append(role)
+                else:
+                    verdict = judge_verdicts[task_name]
+                    if not verdict.get("passed", False):
+                        l2_issues.extend(verdict.get("issues", [f"{role}: MUST 约束未通过"]))
+        
+        # 契约笼子：Judge 缺失
+        if missing_judges:
+            raise ValueError(
+                f"契约笼子 L3: 以下 Worker 有 MUST 约束但缺少 Judge 结果: {missing_judges}"
+            )
+        
+        # 综合决策
+        passed = (l1_results or {}).get("all_passed", False) and len(l2_issues) == 0
+        
+        result = {
+            "passed": passed,
+            "l1_passed": (l1_results or {}).get("all_passed", False),
+            "l2_issues": l2_issues,
+            "missing_judges": missing_judges,
+            "worker_count": len(workers),
+        }
+        
+        logger.info(f"Gate merge: L1={'PASS' if result['l1_passed'] else 'FAIL'}, "
+                   f"L2 issues={len(l2_issues)}, Final={'PASS' if passed else 'FAIL'}")
+        return result
+
+    def prepare_consolidator_spawn_v8(self, blackboard_path: str = None) -> Dict[str, Any]:
+        """V8 Consolidator spawn（6 步法）
+        
+        读取所有 worker outputs → 构建 6 步法 Consolidator prompt
+        """
+        bp = Path(blackboard_path) if blackboard_path else self.blackboard_path
+        stages_dir = bp / "stages"
+        
+        # 收集 worker 输出文件路径
+        worker_files = sorted(stages_dir.glob("worker_*.json"))
+        if not worker_files:
+            raise ValueError(f"契约笼子: 无 worker 输出文件")
+        
+        worker_file_paths = ", ".join(str(f) for f in worker_files)
+        solution_pro_input_path = str(bp / "solution_pro_input.json")
+        output_path = str(stages_dir / "ship_package.json")
+        
+        # 读取 consolidator prompt 模板
+        prompt_template_path = Path(__file__).parent.parent / "prompts" / "consolidator.md"
+        if prompt_template_path.exists():
+            prompt = prompt_template_path.read_text(encoding="utf-8")
+            prompt = prompt.replace("{stages_dir}", str(stages_dir))
+            prompt = prompt.replace("{solution_pro_input_path}", solution_pro_input_path)
+            prompt = prompt.replace("{output_path}", output_path)
+            prompt = prompt.replace("{worker_file_paths}", worker_file_paths)
+            prompt = prompt.replace("{solution_name}", "Ship Pro V8 Output")
+        else:
+            # fallback: 内嵌 prompt
+            prompt = f"""你是 ShipPackage 装配师。
+
+## 输入
+- Worker 输出文件: {worker_file_paths}
+- Solution Pro 输入: {solution_pro_input_path}
+
+## 6 步法
+1. 收集: read 所有 worker_*.json
+2. 去重: 同 REQ-ID 多 WP → 保留更详细的
+3. 冲突检测: 约束矛盾
+4. 依赖图: 跨 Worker WP 依赖
+5. 统计: WP 数/effort/覆盖率
+6. 组装: write 到 {output_path}
+
+## 禁止
+- ❌ 修改 WP 内容
+- ❌ 添加新 WP
+- ❌ 产出实际代码"""
+        
+        return {
+            "runtime": "subagent",
+            "mode": "run",
+            "label": "ship_consolidator_v8",
+            "task": prompt,
+            "thinking": "high",
+        }
+
+    def validate_ship_package_v8(self, blackboard_path: str = None) -> Dict[str, Any]:
+        """V8 ShipPackage L1 验证
+        
+        契约笼子：
+        - ship_package.json 不存在 → raise ValueError
+        - work_packages 为空 → raise ValueError
+        - WP 缺少必需字段 → raise ValueError
+        """
+        bp = Path(blackboard_path) if blackboard_path else self.blackboard_path
+        stages_dir = bp / "stages"
+        
+        sp_path = stages_dir / "ship_package.json"
+        if not sp_path.exists():
+            raise ValueError(f"契约笼子: ship_package.json 不存在 ({sp_path})")
+        
+        ship_package = json.loads(sp_path.read_text(encoding="utf-8"))
+        wps = ship_package.get("work_packages", [])
+        
+        if not wps:
+            raise ValueError("契约笼子: ship_package.json 中 work_packages 为空")
+        
+        # 检查必需字段（WorkPackage Schema 使用 'id' 而非 'wp_id'）
+        required_fields = ["id", "title", "description", "acceptance_criteria", "deliverables"]
+        for wp in wps:
+            missing = [f for f in required_fields if not wp.get(f)]
+            if missing:
+                raise ValueError(
+                    f"契约笼子: WP {wp.get('id', '?')} 缺少字段 {missing}"
+                )
+        
+        return {
+            "valid": True,
+            "wp_count": len(wps),
+            "total_effort": sum(wp.get("effort_hours", 0) for wp in wps),
+        }
+
+
+def build_ship_pro_input(
+    frozen_spec_path: str,
+    supplemental_path: str = None,
+    output_path: str = None
+) -> Dict[str, Any]:
+    """V8: 自动构建 Ship Pro 输入 — 信息守恒提取
+    
+    从 Solution Pro 的 frozen_spec.json 提取完整 requirements/guardrails，
+    合并人工补充的 key_decisions/architecture/risk_mitigations。
+    
+    解决信息流断裂：frozen_spec (28KB) → solution_pro_input (8KB) 的 71% 丢失。
+    
+    Args:
+        frozen_spec_path: Solution Pro 的 frozen_spec.json 路径
+        supplemental_path: 可选的人工补充字段文件（key_decisions, architecture 等）
+        output_path: 可选的输出路径（保存合并后的 JSON）
+    
+    Returns:
+        合并后的 Ship Pro 输入字典
+    """
+    from pathlib import Path
+    
+    # 1. 加载 frozen_spec（Solution Pro 完整输出）
+    frozen_path = Path(frozen_spec_path)
+    if not frozen_path.exists():
+        raise FileNotFoundError(f"frozen_spec not found: {frozen_spec_path}")
+    
+    with open(frozen_path) as f:
+        frozen = json.load(f)
+    
+    merged = {}
+    
+    # 2. 保留 frozen_spec 全部字段（requirements, guardrails, requirement_groups 等）
+    for k, v in frozen.items():
+        merged[k] = v
+    
+    # 3. 合并人工补充字段（如果有）
+    if supplemental_path:
+        supp_path = Path(supplemental_path)
+        if supp_path.exists():
+            with open(supp_path) as f:
+                supplemental = json.load(f)
+            
+            supplement_keys = [
+                'key_decisions', 'must_constraints', 'architecture',
+                'risk_mitigations', 'implementation_plan', 'constraints_satisfied',
+                'solution_name', 'covered_req_ids', 'pending_req_ids'
+            ]
+            for k in supplement_keys:
+                if k in supplemental and k not in merged:
+                    merged[k] = supplemental[k]
+    
+    # 4. 验证信息守恒
+    req_count = len(merged.get('requirements', []))
+    has_guardrails = 'guardrails' in merged and merged['guardrails']
+    has_key_decisions = 'key_decisions' in merged and len(merged.get('key_decisions', [])) > 0
+    
+    if req_count == 0:
+        raise ValueError(f"信息守恒违规: requirements 为空 (frozen_spec 应包含 REQ 列表)")
+    
+    logging.info(
+        f"build_ship_pro_input: {req_count} REQs, "
+        f"guardrails={'✅' if has_guardrails else '❌'}, "
+        f"key_decisions={'✅' if has_key_decisions else '❌'}, "
+        f"total={len(json.dumps(merged, ensure_ascii=False))} chars"
+    )
+    
+    # 5. 保存（如果指定了输出路径）
+    if output_path:
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with open(out, 'w') as f:
+            json.dump(merged, f, indent=2, ensure_ascii=False)
+        logging.info(f"Saved merged Ship Pro input to: {output_path}")
+    
+    return merged

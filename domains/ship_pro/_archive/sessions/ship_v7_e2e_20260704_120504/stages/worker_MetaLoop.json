@@ -1,0 +1,111 @@
+{
+  "worker_role": "MetaLoop",
+  "wp_id_prefix": "META",
+  "work_packages": [
+    {
+      "id": "META-001",
+      "title": "Thompson Sampling Backend for Parameter Tuning",
+      "description": "Implement single Thompson Sampling (D6) as the sole parameter tuning mechanism, replacing Optuna. Maintains posterior distributions (Beta distributions for bounded parameters, Normal distributions for continuous parameters) over parameter effectiveness. Each tunable parameter has an associated posterior that is updated based on observed rewards (execution quality metrics). Sampling from posteriors balances exploration (trying less-tested parameter values) vs exploitation (using values known to perform well). This is a lightweight, dependency-free implementation using only numpy/scipy for distribution sampling and update.",
+      "acceptance_criteria": [
+        "ThompsonSampler class supports registering tunable parameters with type (bounded_discrete, bounded_continuous), prior distribution config, and hard bounds",
+        "sample() method returns one sampled value per registered parameter from its current posterior distribution",
+        "update(parameter_name, reward: float) method updates the posterior distribution for a single parameter using Bayesian update rules (Beta-Bernoulli for discrete bins, Normal-Normal for continuous)",
+        "Posterior distributions are serializable to/from JSON for checkpoint persistence",
+        "Convergence test: after 200+ reward observations favoring a specific parameter region, sampled values concentrate (>80%) within ±10% of the optimal region",
+        "No dependency on Optuna, hyperopt, or any external optimization framework"
+      ],
+      "dependencies": [],
+      "estimated_effort": "12h",
+      "deliverables": [
+        "thompson_sampler.py — ThompsonSampler class with register/sample/update/persist methods",
+        "tests/test_thompson_sampler.py — Unit tests including convergence validation"
+      ]
+    },
+    {
+      "id": "META-002",
+      "title": "LLM-as-Optimizer Interface for Parameter Suggestion",
+      "description": "Implement LLMOptimizer (D5) replacing traditional optimization frameworks. Uses structured prompt to analyze execution metrics (Quality Gate pass rates, token consumption per task, loop iteration counts, failure/retry counts) and suggest parameter adjustments. The LLM receives a snapshot of recent execution performance + current parameter values + Thompson Sampling posteriors summary, then outputs structured JSON with suggested adjustments. This is a suggestion layer — all suggestions pass through ParameterSafetyGuard before application. The prompt enforces Role+Context+Constraints+Output schema pattern per AI Native principles (4.1).",
+      "acceptance_criteria": [
+        "LLMOptimizer class accepts execution_metrics dict (quality_gate_pass_rate, avg_token_consumption, avg_loop_iterations, failure_count, retry_count) and current_params dict",
+        "build_prompt() method generates a structured prompt with: role (parameter optimization expert), context (current metrics + parameter state), constraints (safety bounds reference), output schema (JSON with parameter_name, suggested_value, reasoning, confidence)",
+        "parse_response() method validates LLM output against expected JSON schema using Pydantic, rejects malformed responses",
+        "suggest() method returns List[ParameterSuggestion] where each suggestion includes parameter_name, suggested_value, reasoning, confidence_score (0-1)",
+        "Handles LLM failures gracefully: timeout, malformed JSON, or out-of-bounds suggestions return empty list with logged warning (no crash)",
+        "Prompt template is stored as a separate constant, not hardcoded in logic flow"
+      ],
+      "dependencies": [],
+      "estimated_effort": "12h",
+      "deliverables": [
+        "llm_optimizer.py — LLMOptimizer class with build_prompt/parse_response/suggest methods + prompt template",
+        "models.py — ParameterSuggestion Pydantic model for structured output",
+        "tests/test_llm_optimizer.py — Unit tests with mocked LLM responses (valid, malformed, out-of-bounds)"
+      ]
+    },
+    {
+      "id": "META-003",
+      "title": "Parameter Safety Guard (Bounds + Cooling + Amplitude)",
+      "description": "Implement ParameterSafetyGuard enforcing R9 constraints: hard upper/lower bounds on all tunable parameters, cooling period between adjustments to prevent oscillation, and ±50% amplitude limits per adjustment cycle. This is the last line of defense — no parameter change bypasses this guard. Hard bounds are absolute (clamp or reject). Cooling period is a configurable minimum time interval (default: 5 minutes) between consecutive adjustments to the same parameter. Amplitude limit caps any single adjustment to ±50% of the parameter's current value (prevents drastic jumps). All guard actions are logged with reason for audit trail.",
+      "acceptance_criteria": [
+        "ParameterSafetyGuard class initialized with parameter_specs dict: {param_name: {lower_bound, upper_bound, cooling_period_seconds, current_value}}",
+        "validate(suggestions: List[ParameterSuggestion]) returns List[ValidatedAdjustment] where each adjustment is guaranteed within hard bounds (clamped), within amplitude limits (clamped to ±50% of current value), and respects cooling period (rejected if too soon)",
+        "Cooling period tracked per-parameter with monotonic timestamps; adjustment to a parameter rejected if last adjustment was < cooling_period_seconds ago",
+        "Amplitude limit: |suggested_value - current_value| / current_value <= 0.5; values exceeding this are clamped to the boundary",
+        "All rejections and clamps logged with structured reason (which constraint triggered, original vs adjusted value)",
+        "apply(adjustments) atomically updates current values and cooling timestamps after validation passes",
+        "Unit test: suggestion of value 10x current → clamped to 1.5x current (±50% limit)",
+        "Unit test: suggestion within cooling period → rejected with reason",
+        "Unit test: suggestion outside hard bounds → clamped to bound"
+      ],
+      "dependencies": [],
+      "estimated_effort": "8h",
+      "deliverables": [
+        "safety_guard.py — ParameterSafetyGuard class with validate/apply methods + constraint checking logic",
+        "tests/test_safety_guard.py — Unit tests for hard bounds, cooling period, amplitude limits, and combined scenarios"
+      ]
+    },
+    {
+      "id": "META-004",
+      "title": "MetaLoopEngine — Integration + Metrics Collector",
+      "description": "Implement MetaLoopEngine as the orchestrating class that ties together Thompson Sampling, LLM-as-Optimizer, and ParameterSafetyGuard into a closed feedback loop. Also implements the execution metrics collector that feeds the loop. The engine exposes: (1) record_metrics(execution_id, metrics_dict) to ingest execution data, (2) optimize_cycle() to run one full optimization cycle (collect metrics → LLM suggests → safety guard validates → Thompson Sampling updates posteriors → apply safe adjustments), (3) get_current_params() for other components to read tuned parameters. The metrics collector aggregates raw execution data into summary statistics (rolling window of last N executions) that feed the LLM optimizer prompt.",
+      "acceptance_criteria": [
+        "MetaLoopEngine class initialized with config: parameter_specs, llm_client, optimization_interval_seconds, metrics_window_size (default: 50 executions)",
+        "record_metrics(execution_id, metrics) stores metrics in a bounded rolling window (deque with maxlen); metrics include quality_gate_pass_rate, token_consumption, loop_iterations, failure_count, retry_count, timestamp",
+        "optimize_cycle() executes the full loop: aggregate metrics → call LLMOptimizer.suggest() → call ParameterSafetyGuard.validate() → call ThompsonSampler.update() with reward signal derived from metrics → call ParameterSafetyGuard.apply() → log audit entry",
+        "get_current_params() returns dict of current tuned parameter values, thread-safe",
+        "Metrics aggregation produces summary dict with rolling averages, min/max, trend direction for each metric",
+        "Full cycle audit trail: each optimize_cycle() generates audit entry with timestamp, metrics_summary, suggestions_received, suggestions_applied, suggestions_rejected, rejection_reasons",
+        "Integration test: 10-cycle optimization with simulated metrics showing convergence",
+        "Integration test: safety guard rejects out-of-bounds suggestions, verified no parameter exceeds hard bounds"
+      ],
+      "dependencies": [
+        "META-001",
+        "META-002",
+        "META-003"
+      ],
+      "estimated_effort": "16h",
+      "deliverables": [
+        "meta_loop_engine.py — MetaLoopEngine class with record_metrics/optimize_cycle/get_current_params",
+        "metrics_collector.py — MetricsCollector with rolling window aggregation",
+        "audit.py — Audit logger for optimization cycles",
+        "tests/test_meta_loop_engine.py — Integration tests for full optimization loop",
+        "tests/test_metrics_collector.py — Unit tests for metrics aggregation"
+      ]
+    }
+  ],
+  "metadata": {
+    "total_estimated_effort": "48h",
+    "solution_phase_alignment": "Phase 4 (Dream Loop + Meta-Loop)",
+    "key_design_decisions_referenced": [
+      "D5: LLM-as-Optimizer 替代 Optuna",
+      "D6: 单一 Thompson Sampling"
+    ],
+    "risk_coverage": {
+      "R9_Meta-Loop_unsafe_parameters": "META-003 ParameterSafetyGuard (hard bounds + cooling + ±50% amplitude)"
+    }
+  },
+  "optional_suggestions": [
+    "Consider adding a 'dry_run' mode to optimize_cycle() that logs what would change without applying, useful for debugging and validation",
+    "Thompson Sampling posterior distributions could be visualized via metrics exporter (Observability worker) for monitoring convergence",
+    "LLM-as-Optimizer prompt could include few-shot examples of good vs bad parameter suggestions to improve suggestion quality"
+  ]
+}

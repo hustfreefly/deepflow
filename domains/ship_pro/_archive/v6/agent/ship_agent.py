@@ -1,5 +1,5 @@
 """
-Ship Pro V6 - Agent Layer
+Ship Pro - Agent Layer
 
 Agent 层负责：
 1. 调用 Orchestrator 的各个方法
@@ -16,14 +16,14 @@ from typing import Dict, Any, Optional
 import json
 import logging
 
-from .orchestrator import ShipOrchestrator
+from ..orchestrator import ShipOrchestrator
 
 logger = logging.getLogger(__name__)
 
 
 class ShipAgent:
     """
-    Ship Pro V6 Agent 层
+    Ship Pro Agent 层
     
     职责：
     1. 加载 Solution Pro 输出
@@ -166,7 +166,7 @@ class ShipAgent:
             # 验证当前层的 Worker 输出
             for spawn_params in layer_params:
                 # 提取 role（从 label 中）
-                role = spawn_params['label'].replace('ship_v6_worker_', '')
+                role = spawn_params['label'].replace('ship_worker_', '')
                 
                 # 读取 Worker 输出
                 worker_output = self.orchestrator.state_manager.read_stage(f"worker_{role}")
@@ -326,12 +326,12 @@ class ShipAgent:
     
     def run(self) -> Dict[str, Any]:
         """
-        运行完整的 Ship Pro V6 流程
+        运行完整的 Ship Pro 流程
         
         Returns:
             ship_package: 最终的交付物
         """
-        logger.info("🚀 Starting Ship Pro V6")
+        logger.info("🚀 Starting Ship Pro")
         
         try:
             # Phase 1: Planner
@@ -343,9 +343,9 @@ class ShipAgent:
             # Phase 3: Consolidator
             ship_package = self.run_phase3_consolidator(planner_output, worker_outputs)
             
-            logger.info("✅ Ship Pro V6 completed successfully")
+            logger.info("✅ Ship Pro completed successfully")
             return ship_package
             
         except Exception as e:
-            logger.error(f"❌ Ship Pro V6 failed: {e}")
+            logger.error(f"❌ Ship Pro failed: {e}")
             raise

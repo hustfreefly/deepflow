@@ -1,0 +1,151 @@
+{
+  "worker_role": "LoopEngine",
+  "wp_id_prefix": "LOOP",
+  "work_packages": [
+    {
+      "id": "LOOP-001",
+      "title": "FractalLoopEngine 三层嵌套核心与超时强制",
+      "description": "实现分形三层 Loop 引擎的核心骨架。Layer 1 Project Loop（外 Loop，战略规划，超时 8h+）、Layer 2 Domain Loop（中 Loop，战术协调，超时 2h）、Layer 3 Phase Loop（内 Loop，执行优化，超时 30min）。每层 Loop 支持嵌套调用：外层 Loop 启动内层 Loop，内层 Loop 完成后结果回传外层。每层有独立的超时强制机制（monotonic clock），超时后触发优雅退出流程（保存当前状态 → 触发 checkpoint → 向上层报告超时事件）。采用 JSON 统一序列化（D2）进行状态持久化，支持原子 rename 写入防止状态文件损坏。每层 Loop 定义清晰的 enter/tick/exit 生命周期钩子，为 InterruptPropagator 和 DAGScheduler 提供集成点。",
+      "acceptance_criteria": [
+        "FractalLoopEngine 类可实例化并支持三层嵌套启动（Project → Domain → Phase）",
+        "每层 Loop 有独立的 monotonic clock 超时检测，超时后触发优雅退出",
+        "Layer 1 超时 8h+，Layer 2 超时 2h，Layer 3 超时 30min，均可配置",
+        "每层 Loop 生命周期钩子（enter/tick/exit）可被外部注册回调",
+        "状态序列化使用 JSON + 原子 rename，崩溃恢复后状态一致",
+        "单元测试：三层嵌套端到端执行，验证结果逐层回传",
+        "单元测试：每层超时触发后状态正确保存并可恢复"
+      ],
+      "dependencies": [],
+      "estimated_effort": "24h（3天）— 核心骨架设计 + 三层嵌套逻辑 + 超时机制 + 状态序列化 + 单元测试",
+      "deliverables": [
+        "fractal_loop_engine.py — FractalLoopEngine 主类",
+        "loop_layer.py — LoopLayer 基类（enter/tick/exit 生命周期）",
+        "loop_config.py — 三层超时配置与 Loop 参数定义",
+        "state_persistence.py — JSON 原子写入 + 崩溃恢复",
+        "tests/test_fractal_loop_engine.py — 嵌套执行 + 超时 + 崩溃恢复测试"
+      ]
+    },
+    {
+      "id": "LOOP-002",
+      "title": "InterruptPropagator 级联中断与状态保存",
+      "description": "实现中断传播机制，支持外层 Loop 的中断信号级联传播到所有内层 Loop。中断类型包括：用户主动终止（TERMINATE）、超时触发（TIMEOUT）、故障恢复触发（RECOVERY）。传播方向为自顶向下：Project Loop → Domain Loop → Phase Loop。每层接收到中断后：(1) 停止接受新任务，(2) 等待当前执行中的任务完成或强制终止（可配置），(3) 保存当前状态到 checkpoint，(4) 向上层返回终止状态码和保存点。状态保存包含：当前 Loop 层级、已完成任务列表、进行中任务的断点信息、Blackboard 快照。支持中断超时（默认 30s），超时后强制终止所有子任务。",
+      "acceptance_criteria": [
+        "InterruptPropagator 支持三种中断类型：TERMINATE、TIMEOUT、RECOVERY",
+        "中断信号从外层 Loop 级联传播到所有内层 Loop，延迟 < 100ms",
+        "每层接收到中断后停止接受新任务并处理进行中任务",
+        "中断后状态完整保存（Loop 层级、已完成/进行中任务、Blackboard 快照）",
+        "支持中断超时（默认 30s），超时后强制终止所有子任务",
+        "中断恢复：从 checkpoint 恢复后可从中断点继续执行",
+        "单元测试：三层嵌套中断级联，验证所有层均收到中断信号",
+        "单元测试：中断后状态保存与恢复一致性"
+      ],
+      "dependencies": [
+        "LOOP-001"
+      ],
+      "estimated_effort": "16h（2天）— 中断传播逻辑 + 状态保存/恢复 + 中断超时机制 + 单元测试",
+      "deliverables": [
+        "interrupt_propagator.py — InterruptPropagator 主类",
+        "interrupt_types.py — 中断类型枚举与中断上下文定义",
+        "checkpoint_manager.py — 中断状态保存与恢复管理",
+        "tests/test_interrupt_propagator.py — 级联中断 + 状态保存/恢复测试"
+      ]
+    },
+    {
+      "id": "LOOP-003",
+      "title": "DAGScheduler 优先级队列与拓扑排序调度",
+      "description": "实现 DAG 调度引擎，基于 Solution Pro D4 决策（简单优先级队列 + 拓扑排序）。核心功能：(1) 任务图构建：接收任务节点和有向依赖边，构建 DAG；(2) 拓扑排序：Kahn 算法检测环依赖并生成执行顺序；(3) 优先级队列：同层级（无依赖关系）的任务按优先级排序，优先级由任务元数据中的 priority 字段决定（数值越小优先级越高）；(4) 就绪队列管理：每次调度时找出所有依赖已满足的任务，按优先级入队；(5) 任务状态机：PENDING → READY → RUNNING → COMPLETED/FAILED；(6) 失败处理：任务失败后标记下游任务为 BLOCKED，触发 re-planning 事件。调度引擎为纯确定性组件，不含 LLM 调用。",
+      "acceptance_criteria": [
+        "DAGScheduler 接受任务节点列表和依赖边列表构建 DAG",
+        "拓扑排序（Kahn 算法）正确检测环依赖并抛出 DAGCycleError",
+        "同层级任务按 priority 字段排序（数值越小优先级越高）",
+        "任务状态机完整：PENDING → READY → RUNNING → COMPLETED/FAILED",
+        "任务失败后下游任务自动标记为 BLOCKED",
+        "调度引擎为纯确定性组件，无 LLM 调用",
+        "单元测试：线性链、菱形依赖、扇出/扇入拓扑排序正确",
+        "单元测试：环依赖检测、失败传播、优先级排序验证"
+      ],
+      "dependencies": [],
+      "estimated_effort": "20h（2.5天）— DAG 构建 + Kahn 拓扑排序 + 优先级队列 + 状态机 + 失败传播 + 单元测试",
+      "deliverables": [
+        "dag_scheduler.py — DAGScheduler 主类",
+        "dag_graph.py — DAG 构建 + Kahn 拓扑排序 + 环检测",
+        "priority_queue.py — 优先级队列实现",
+        "task_state.py — 任务状态机与状态转换",
+        "tests/test_dag_scheduler.py — 拓扑排序 + 优先级 + 失败传播测试"
+      ]
+    },
+    {
+      "id": "LOOP-004",
+      "title": "并发限制器与死锁检测",
+      "description": "实现两个关键运行时保障机制。(1) 并发限制器：全局最大 6 个并行任务执行（Solution Pro 明确约束）。使用 asyncio.Semaphore 实现，DAGScheduler 在分发任务前必须获取 semaphore。支持动态调整上限（通过配置热更新，不需要重启）。提供活跃任务追踪列表，支持查询当前并发数和等待队列长度。(2) 死锁检测：周期性检查 DAG 中是否存在所有就绪任务都在等待外部资源（LLM API、人工审批等）的情况。检测方法：当就绪队列非空但所有就绪任务在等待外部资源超过阈值（默认 5min），判定为死锁。死锁触发后发出 re-planning 事件，由上层 Loop 决策是否跳过/替换/重试。包含断路器机制：连续 3 次死锁触发后进入冷却期（默认 10min），冷却期内不再触发 re-planning。",
+      "acceptance_criteria": [
+        "并发限制器全局最大 6 个并行任务，超出任务排队等待",
+        "并发上限支持配置热更新（运行时调整，不需重启）",
+        "提供活跃任务追踪：当前并发数、等待队列长度、活跃任务列表",
+        "死锁检测：就绪队列非空但所有任务等待外部资源 > 5min 判定死锁",
+        "死锁触发 re-planning 事件，包含死锁原因和等待资源信息",
+        "断路器：连续 3 次死锁后进入 10min 冷却期",
+        "单元测试：并发限制验证（提交 10 任务，最多 6 并行）",
+        "单元测试：死锁检测触发 + 断路器状态转换"
+      ],
+      "dependencies": [
+        "LOOP-003"
+      ],
+      "estimated_effort": "12h（1.5天）— Semaphore 并发限制 + 死锁检测逻辑 + 断路器 + 单元测试",
+      "deliverables": [
+        "concurrency_limiter.py — 并发限制器（Semaphore + 任务追踪）",
+        "deadlock_detector.py — 死锁检测 + 断路器",
+        "tests/test_concurrency_and_deadlock.py — 并发限制 + 死锁检测 + 断路器测试"
+      ]
+    },
+    {
+      "id": "LOOP-005",
+      "title": "集成测试：嵌套 Loop + 中断级联 + DAG 并行调度",
+      "description": "端到端集成测试，验证所有组件协同工作的正确性。测试场景：(1) 三层嵌套 Loop 完整执行流程：Project Loop 启动 → Domain Loop 启动 → Phase Loop 执行 DAG 调度任务 → 结果逐层回传 → 各层正常退出；(2) 中断级联：在 Phase Loop 执行中触发中断 → 中断传播到 Domain Loop → 传播到 Project Loop → 所有层状态保存 → 从 checkpoint 恢复继续执行；(3) DAG 并行调度：构建包含 10+ 任务的 DAG（含并行分支），验证最多 6 并发执行、优先级排序正确、依赖关系遵守；(4) 死锁场景：构造所有任务等待外部资源的场景，验证死锁检测触发 re-planning；(5) 超时场景：Phase Loop 超时 → 触发中断 → 状态保存 → Project Loop 决策重新规划；(6) 崩溃恢复：模拟进程崩溃 → 从 checkpoint 恢复 → 验证状态一致性。",
+      "acceptance_criteria": [
+        "集成测试 1：三层嵌套完整执行，结果逐层回传，各层正常退出",
+        "集成测试 2：中断从 Phase Loop 级联到 Project Loop，状态完整保存和恢复",
+        "集成测试 3：10+ 任务 DAG 并行调度，max 6 并发，优先级和依赖正确",
+        "集成测试 4：死锁场景检测触发 re-planning 事件",
+        "集成测试 5：Phase Loop 超时触发中断和状态保存",
+        "集成测试 6：模拟崩溃后从 checkpoint 恢复，状态一致",
+        "所有集成测试可独立运行，也可作为完整 suite 运行",
+        "测试覆盖率：核心路径 100%，异常路径 80%+"
+      ],
+      "dependencies": [
+        "LOOP-001",
+        "LOOP-002",
+        "LOOP-003",
+        "LOOP-004"
+      ],
+      "estimated_effort": "16h（2天）— 集成测试设计 + Mock 外部依赖 + 6 个测试场景实现 + 覆盖率验证",
+      "deliverables": [
+        "tests/integration/test_nested_loop_execution.py — 三层嵌套执行测试",
+        "tests/integration/test_interrupt_cascading.py — 中断级联测试",
+        "tests/integration/test_dag_parallel_scheduling.py — DAG 并行调度测试",
+        "tests/integration/test_deadlock_and_recovery.py — 死锁 + 崩溃恢复测试",
+        "tests/integration/conftest.py — 集成测试 fixtures 和 Mock"
+      ]
+    }
+  ],
+  "metadata": {
+    "total_estimated_effort": "88h（11天）",
+    "solution_phase_alignment": "Phase 2（分形 Loop + DAG 调度）",
+    "key_design_decisions_referenced": [
+      "D2: JSON 统一序列化",
+      "D4: 简单优先级队列 + 拓扑排序"
+    ],
+    "component_count": 5,
+    "test_scenarios": 6,
+    "risk_coverage": {
+      "R5_DAG_deadlock": "LOOP-004 死锁检测 + 断路器",
+      "R7_race_condition": "LOOP-004 并发限制器 Semaphore",
+      "R15_user_interrupt": "LOOP-002 InterruptPropagator 级联中断"
+    }
+  },
+  "optional_suggestions": [
+    "建议 LOOP-001 的 LoopLayer 基类预留 Dream Loop 集成接口（空闲时触发反思），虽然 Dream Loop 属于 Phase 4 范围，但接口预留可减少后续改造成本",
+    "建议 DAGScheduler 的任务元数据支持 tags 字段，便于后续 Quality Gate 和可观测性组件按标签过滤和追踪",
+    "建议并发限制器的上限值从配置文件读取而非硬编码，便于不同部署环境调整"
+  ]
+}

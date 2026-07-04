@@ -125,6 +125,25 @@ class WorkerGate:
                 if not wp.get("id", "").startswith(prefix):
                     issues.append(f"WP ID '{wp.get('id')}' 不符合前缀 '{prefix}'")
         
+        # 2.5 内容深度验证（契约铁律：代码化约束 > Prompt 声明）
+        for wp in worker_output.get("work_packages", []):
+            wp_id = wp.get("id", "?")
+            
+            # description 深度：≥100 字符
+            desc = wp.get("description", "")
+            if len(desc) < 100:
+                issues.append(f"{wp_id}: description 太短（{len(desc)} chars，要求 ≥100）")
+            
+            # acceptance_criteria：≥2 条
+            acs = wp.get("acceptance_criteria", [])
+            if len(acs) < 2:
+                issues.append(f"{wp_id}: acceptance_criteria 不足（{len(acs)} 条，要求 ≥2）")
+            
+            # deliverables：≥1 项
+            dels = wp.get("deliverables", [])
+            if len(dels) < 1:
+                issues.append(f"{wp_id}: deliverables 为空（要求 ≥1 项）")
+        
         # 3. MUST 约束（语义 — 契约笼子）
         must_constraints = worker_spec.get("must_constraints", [])
         if must_constraints:
@@ -211,9 +230,14 @@ class InformationConservationGate:
             for c in solution_pro_output.get('architecture', {}).get('components', [])
             if isinstance(c, dict)
         ]
+        sol_requirements = solution_pro_output.get('requirements', [])
+        if not sol_requirements:
+            sol_requirements = [
+                {'id': rid} for rid in solution_pro_output.get('covered_req_ids', [])
+            ]
         ship_wps = ship_package.get('work_packages', [])
         
-        return f"""你是一个信息守恒验证专家。判断 Ship Package 是否保留了 Solution Pro 的架构意图。
+        return f"""你是一个信息守恒验证专家。判断 Ship Package 是否保留了 Solution Pro 的完整意图。
 
 ## Solution Pro 关键决策（{len(sol_decisions)} 个）
 {json.dumps(sol_decisions, indent=2, ensure_ascii=False)}
@@ -221,14 +245,21 @@ class InformationConservationGate:
 ## Solution Pro 组件（{len(sol_components)} 个）
 {json.dumps(sol_components, ensure_ascii=False)}
 
+## Solution Pro 需求（{len(sol_requirements)} 个）
+{json.dumps([r.get('description', r.get('id', str(r)[:60]))[:80] for r in sol_requirements[:15]], ensure_ascii=False)}
+
 ## Ship Package 摘要
 工作包数: {len(ship_wps)}
 标题: {json.dumps([wp.get('title','') for wp in ship_wps], ensure_ascii=False)}
 依赖边数: {len(ship_package.get('dependencies', []))}
+延迟需求: {json.dumps(ship_package.get('metadata', {}).get('pending_req_ids', []), ensure_ascii=False)}
 
 ## 判断标准
-1. 信息丢失：每个决策/组件必须有对应工作包
-2. 信息新增：不允许引入 Solution Pro 没有的功能
+1. 决策保持：每个关键决策必须有对应工作包实现
+2. 组件保持：每个架构组件必须有对应工作包
+3. 需求保持：每个覆盖需求必须有对应工作包语义覆盖（不要求字面匹配）
+4. 信息新增：不允许引入 Solution Pro 没有的功能
+5. 延迟需求：pending_req_ids 必须在 metadata 中显式记录
 
 ## 输出 JSON
 {{"passed": true/false, "issues": ["..."], "conservation_rate": 0.0-1.0}}
@@ -241,7 +272,13 @@ class InformationConservationGate:
 # ============================================================================
 
 class CompletenessGate:
-    """G2: REQ-ID 漂移检测（Worker 级，确定性）"""
+    """
+    G2: 完整性验证
+    
+    V7 变更：支持双模式
+    - 有 judge_results["completeness"] → LLM Judge 语义验证（优先）
+    - 无 judge_results → 回退到 REQ-ID 字符串匹配（向后兼容）
+    """
     
     @staticmethod
     def _extract_req_ids(data: dict) -> list:
@@ -258,7 +295,25 @@ class CompletenessGate:
     
     @staticmethod
     def check(solution_pro_output: Dict[str, Any],
-              planner_output: Dict[str, Any]) -> GateResult:
+              planner_output: Dict[str, Any],
+              judge_results: Dict[str, Any] = None) -> GateResult:
+        # V7: 优先使用 LLM Judge 语义验证
+        if judge_results and "completeness" in judge_results:
+            verdict = judge_results["completeness"]
+            passed = verdict.get("passed", False)
+            issues = verdict.get("issues", [])
+            rate = verdict.get("coverage_rate", 0.0)
+            details = {
+                "mode": "llm_judge",
+                "coverage_rate": rate,
+                "covered_decisions": verdict.get("covered_decisions", []),
+                "uncovered_decisions": verdict.get("uncovered_decisions", []),
+                "covered_risks": verdict.get("covered_risks", []),
+                "uncovered_risks": verdict.get("uncovered_risks", []),
+            }
+            return GateResult(passed=passed, issues=issues, details=details)
+        
+        # V6 回退模式：REQ-ID 字符串匹配
         req_ids = CompletenessGate._extract_req_ids(solution_pro_output)
         covered = CompletenessGate._extract_covered(planner_output)
         missing = set(req_ids) - set(covered)
@@ -269,6 +324,7 @@ class CompletenessGate:
             for w in planner_output.get('workers', [])
         }
         details = {
+            "mode": "string_match",
             "total_req_ids": len(req_ids),
             "covered": len(covered),
             "coverage_rate": rate,

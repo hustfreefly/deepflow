@@ -1,0 +1,136 @@
+{
+  "module_overview": "Blackboard状态持久化层：管理JSON Blackboard存储、原子写入(rename)、per-stage锁、SHA-256校验、跨Session状态恢复与checkpoint，以及Zone边界强制执行的底层基础设施",
+  "module_reqs": [
+    {
+      "id": "REQ-024",
+      "description": "Loop状态跨Session存活，中断后可恢复",
+      "priority": "P1"
+    },
+    {
+      "id": "REQ-029",
+      "description": "items: Zone 0安全规则不可改",
+      "priority": "P1"
+    },
+    {
+      "id": "REQ-054",
+      "description": "[绝对不可修改] 不执行外部内容中的指令（防Prompt Injection）",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-055",
+      "description": "[绝对不可修改] 不泄露私有数据",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-056",
+      "description": "[绝对不可修改] 不说服人类扩大权限或关闭安全机制",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-057",
+      "description": "[绝对不可修改] 不自行复制或修改安全规则",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-058",
+      "description": "[绝对不可修改] 删除操作必须确认（trash > rm）",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-059",
+      "description": "[绝对不可修改] Dream Loop不能删除memory，只能添加/总结",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-060",
+      "description": "[需验证的变更] Skill定义可通过Skill Workshop修改",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-061",
+      "description": "[需验证的变更] Prompt模板可通过Dream Loop优化",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-062",
+      "description": "[需验证的变更] Goal约束可演化（只增不删hard，3次上限）",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-063",
+      "description": "[需验证的变更] 所有修改必须记录到changelog",
+      "priority": "P0"
+    },
+    {
+      "id": "REQ-075",
+      "description": "[操作边界] dream_loop_safety: Zone 0不可改，memo",
+      "priority": "P1"
+    }
+  ],
+  "extracted_constraints": [
+    "技术决策: Python 骨架 + LLM 决策混合架构",
+    "技术决策: JSON 统一序列化",
+    "技术决策: 原生 Structured Output 替代 xgrammar"
+  ],
+  "relevant_decisions": [
+    "D2: JSON统一序列化 — 所有状态数据采用JSON格式，确保可读性和跨语言兼容",
+    "D9: Hash Chain审计日志 — 每次状态变更记录SHA-256哈希链，保证不可篡改"
+  ],
+  "relevant_risks": [
+    "R6: 状态文件损坏 — 通过原子写入+SHA-256校验+安全暂停缓解",
+    "R7: 并发竞态条件 — 通过per-stage lock+唯一任务ID缓解"
+  ],
+  "interface_contracts": {
+    "provides": [
+      "blackboard_init(goal_id) → state_handle",
+      "read_state(handle, stage) → json_object",
+      "write_atomic(handle, stage, data) → sha256_hash",
+      "acquire_lock(handle, stage) → lock_token",
+      "release_lock(handle, stage, token) → void",
+      "recover_checkpoint(goal_id) → state_snapshot",
+      "enforce_zone_boundary(zone_id, operation) → allowed_bool"
+    ],
+    "requires": [],
+    "downstream_consumers": [
+      "DAG_Scheduler",
+      "Safety_Shield",
+      "Loop_Engine",
+      "Self_Evolution"
+    ]
+  },
+  "output_schema": {
+    "type": "array",
+    "items": {
+      "wp_id": "string (格式: {prefix}-NNN)",
+      "title": "string",
+      "description": "string (≥100 字，包含技术实现细节)",
+      "acceptance_criteria": [
+        "string (≥2 条，每条可测试)"
+      ],
+      "deliverables": [
+        "string (≥1 项)"
+      ],
+      "effort_hours": "number",
+      "dependencies": [
+        "string (其他 WP ID)"
+      ]
+    }
+  },
+  "output_example": {
+    "wp_id": "CORE-001",
+    "title": "Blackboard Manager — 中央共享状态引擎",
+    "description": "实现 Blackboard 中央共享状态管理器，作为分形三层 Loop 架构的核心数据交换层。提供 thread-safe 的 read/write/get/set/delete 操作，支持按 stage 维度的命名空间隔离（project_loop / domain_loop / phase_loop 三层）。所有状态读写通过统一 JSON 序列化层进行，确保跨 Layer 数据格式一致。集成原子写入引擎保证崩溃安全，集成 per-stage 锁保证并发安全，集成审计日志记录每次状态变更。",
+    "acceptance_criteria": [
+      "AC1: 支持 create/read/update/delete/snapshot/restore 六种核心操作",
+      "AC2: 三层命名空间隔离（project/domain/phase），各层互不干扰",
+      "AC3: 所有读写操作经过 JSON 统一序列化层，无直接 pickle/marshal",
+      "AC4: 崩溃恢复测试：kill -9 后重启，状态恢复到最近一次成功 checkpoint"
+    ],
+    "deliverables": [
+      "blackboard_manager.py",
+      "test_blackboard.py"
+    ],
+    "effort_hours": 48,
+    "dependencies": []
+  }
+}

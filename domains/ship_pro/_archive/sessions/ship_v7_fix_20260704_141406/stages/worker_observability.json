@@ -1,0 +1,60 @@
+{
+  "worker_role": "Observability",
+  "wp_id_prefix": "OBS",
+  "work_packages": [
+    {
+      "id": "OBS-001",
+      "title": "StructuredLogger with Correlation ID Propagation",
+      "description": "JSON-formatted logs with correlation IDs, monotonic timestamps, component tags.",
+      "dependencies": [],
+      "estimated_effort": "6h"
+    },
+    {
+      "id": "OBS-002",
+      "title": "MetricsExporter with Prometheus-Compatible Endpoint",
+      "description": "Prometheus-compatible metrics endpoint for loop iterations, token consumption, gate rates.",
+      "dependencies": [],
+      "estimated_effort": "8h"
+    },
+    {
+      "id": "OBS-003",
+      "title": "TraceSpanManager for OpenTelemetry-Compatible Distributed Tracing",
+      "description": "OpenTelemetry-compatible trace spans for cross-component request tracking.",
+      "dependencies": [
+        "OBS-001"
+      ],
+      "estimated_effort": "8h"
+    },
+    {
+      "id": "OBS-004",
+      "title": "GuardrailsManager using guardrails-ai Framework (D8)",
+      "description": "Input/output validation using guardrails-ai single framework.",
+      "dependencies": [],
+      "estimated_effort": "6h"
+    },
+    {
+      "id": "OBS-005",
+      "title": "HashChainAuditLog with SHA-256 Chaining (D9)",
+      "description": "Tamper-evident append-only audit log with SHA-256 hash chaining.",
+      "dependencies": [],
+      "estimated_effort": "5h"
+    },
+    {
+      "id": "OBS-006",
+      "title": "PromptInjectionDetector with Multi-Layer Defense + Zone 0",
+      "description": "Multi-layer prompt injection detection with Zone 0 hardcoding (R8, RTO <100ms).",
+      "dependencies": [],
+      "estimated_effort": "6h"
+    },
+    {
+      "id": "OBS-007",
+      "title": "RateLimitMonitor + Disk Management + Version Pinning",
+      "description": "RPM rate limit monitoring with exponential backoff, disk cleanup, model version pinning.",
+      "dependencies": [],
+      "estimated_effort": "4h"
+    }
+  ],
+  "metadata": {
+    "total_estimated_effort": "43h"
+  }
+}

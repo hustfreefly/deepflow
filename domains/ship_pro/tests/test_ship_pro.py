@@ -125,14 +125,14 @@ def sample_worker_output():
             {
                 "id": "ARCH-001",
                 "title": "实现 DAG 调度引擎",
-                "description": "实现基于拓扑排序的 DAG 调度引擎",
+                "description": "实现基于拓扑排序的 DAG 调度引擎，支持多 Worker 并行执行、优先级队列调度、超时强制中断机制。引擎需要与 LoopEngine 三层嵌套架构集成，支持动态任务插入和优先级重排。每个任务节点必须有唯一 ID，支持任务依赖的传递性解析和循环检测。",
                 "acceptance_criteria": [
                     "支持并行执行",
                     "依赖关系正确解析"
                 ],
                 "dependencies": [],
                 "estimated_effort": "5 人天",
-                "deliverables": ["dag_engine.py", "test_dag_engine.py"]
+                "deliverables": ["dag_engine.py", "test_dag_engine.py"],
             }
         ],
         "metadata": {},
@@ -151,14 +151,14 @@ def sample_ship_package():
             {
                 "id": "WP-001",
                 "title": "实现 DAG 调度引擎",
-                "description": "实现基于拓扑排序的 DAG 调度引擎",
+                "description": "实现基于拓扑排序的 DAG 调度引擎，支持多 Worker 并行执行、优先级队列调度、超时强制中断机制。引擎需要与 LoopEngine 三层嵌套架构集成，支持动态任务插入和优先级重排。每个任务节点必须有唯一 ID，支持任务依赖的传递性解析和循环检测。",
                 "acceptance_criteria": [
                     "支持并行执行",
                     "依赖关系正确解析"
                 ],
                 "dependencies": [],
                 "estimated_effort": "5 人天",
-                "deliverables": ["dag_engine.py", "test_dag_engine.py"]
+                "deliverables": ["dag_engine.py", "test_dag_engine.py"],
             }
         ],
         "dependency_graph": {
@@ -266,12 +266,28 @@ class TestStateManager:
         state_mgr.update_stage("planner", "completed")
         assert state_mgr.state.stages["planner"].status == "completed"
     
-    def test_state_transition_invalid(self, temp_blackboard):
-        """非法状态转换测试"""
+    def test_state_transition_relaxed(self, temp_blackboard):
+        """V7: 宽松状态转换 — 不 raise，只 warn"""
         state_mgr = StateManager(temp_blackboard)
         
-        with pytest.raises(StateTransitionError):
-            state_mgr.update_stage("planner", "completed")  # pending → completed 非法
+        # V7: pending -> completed 不再 raise，而是 warn 并执行
+        state_mgr.update_stage("planner", "completed")
+        assert state_mgr.state.stages["planner"].status == "completed"
+    
+    def test_state_transition_same_skip(self, temp_blackboard):
+        """V7: 同状态转换静默跳过"""
+        state_mgr = StateManager(temp_blackboard)
+        state_mgr.update_stage("planner", "running")
+        # 再次设置 running — 应该静默跳过
+        state_mgr.update_stage("planner", "running")
+        assert state_mgr.state.stages["planner"].status == "running"
+    
+    def test_state_auto_create_unknown(self, temp_blackboard):
+        """V7: 自动创建未知阶段"""
+        state_mgr = StateManager(temp_blackboard)
+        state_mgr.update_stage("custom_phase", "running")
+        assert "custom_phase" in state_mgr.state.stages
+        assert state_mgr.state.stages["custom_phase"].status == "running"
     
     def test_state_persistence(self, temp_blackboard):
         """状态持久化测试"""

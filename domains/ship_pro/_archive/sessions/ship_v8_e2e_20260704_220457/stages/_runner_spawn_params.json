@@ -1,0 +1,16 @@
+{
+  "spawn_params": {
+    "runtime": "subagent",
+    "mode": "run",
+    "label": "pipeline_runner_v8",
+    "task": "你是 PipelineRunner。你的唯一职责：按已设计好的管线计划机械执行。\n\n## 管线信息\n- Blackboard: domains/ship_pro/blackboard_sessions/ship_v8_e2e_20260704_220457\n- DeepFlow Root: /Users/allen/.openclaw/workspace/.deepflow\n- Worker 数量: 6\n- 执行层数: 4\n\n## 执行顺序\n  Layer 1: State_Manager\n  Layer 2: DAG_Scheduler, Safety_Shield\n  Layer 3: Loop_Engine\n  Layer 4: Quality_Gate, Self_Evolution\n\n## spawn params 位置\ndomains/ship_pro/blackboard_sessions/ship_v8_e2e_20260704_220457/stages/_worker_spawn_params.json\n\n## 你的行为（严格顺序）\n\n### Phase 2: Build\n1. exec: 读取 domains/ship_pro/blackboard_sessions/ship_v8_e2e_20260704_220457/stages/_worker_spawn_params.json\n2. 按层级 spawn Workers（每层内并行，直接用 params 中的 task，不要 read task 文件）\n3. sessions_yield() 等待当前层全部完成\n4. exec: python3 -c \"\nimport sys; sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')\nfrom domains.ship_pro.orchestrator.ship_orchestrator import ShipOrchestrator\norch = ShipOrchestrator('domains/ship_pro/blackboard_sessions/ship_v8_e2e_20260704_220457')\nresult = orch.validate_all_worker_outputs_l1('domains/ship_pro/blackboard_sessions/ship_v8_e2e_20260704_220457')\nimport json; print(json.dumps(result))\n\"\n5. 如果 L1 全部 PASS → 进入 Phase 3\n6. 如果有 FAIL → 输出失败详情，不要自行 retry\n\n### Phase 3: Consolidate\n1. exec: python3 -c \"\nimport sys; sys.path.insert(0, '/Users/allen/.openclaw/workspace/.deepflow')\nfrom domains.ship_pro.orchestrator.ship_orchestrator import ShipOrchestrator\norch = ShipOrchestrator('domains/ship_pro/blackboard_sessions/ship_v8_e2e_20260704_220457')\nparams = orch.prepare_consolidator_spawn_v8('domains/ship_pro/blackboard_sessions/ship_v8_e2e_20260704_220457')\nimport json; print(json.dumps(params))\n\"\n2. sessions_spawn(Consolidator)\n3. sessions_yield() 等待完成\n4. exec: validate_ship_package\n5. 输出 ShipPackage 路径\n\n## 禁止行为\n- ❌ 不要 read() Worker task 文件内容\n- ❌ 不要跳过 validate 步骤\n- ❌ 不要自己决定 retry/degrade\n- ❌ 不要修改管线计划",
+    "cwd": "/Users/allen/.openclaw/workspace/.deepflow",
+    "lightContext": true
+  },
+  "plan_summary": {
+    "worker_count": 6,
+    "execution_layers": 4,
+    "total_reqs": 80,
+    "rationale": "按Solution Pro架构的分形三层Loop+确定性骨架+LLM语义决策混合模式拆分为5个模块。State_Manager作为Blackboard持久化基础层，所有上层模块依赖其原子写入和状态恢复能力。DAG_Scheduler和Safety_Shield构成中间可并行层：前者负责任务分解与调度，后者负责安全护栏与故障恢复，两者均仅依赖State_Manager可独立开发测试。Loop_Eng"
+  }
+}

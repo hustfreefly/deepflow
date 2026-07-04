@@ -1,0 +1,124 @@
+[
+  {
+    "wp_id": "SE-001",
+    "title": "Dream Loop 反思引擎 — GRADE 框架自动反思历史执行",
+    "description": "实现 Dream Loop 核心反思引擎，在 Loop 空闲时自动触发对历史执行的反思分析。引擎接收来自 Loop_Engine.terminate_loop() 返回的 execution_history 作为输入，使用 GRADE 框架（Goal回顾 → Rule提取 → Action分析 → Decision评估 → Evidence总结）五维度对执行历史进行结构化分析。反思过程通过 LLM 调用完成，使用原生 Structured Output 确保输出格式为严格的 JSON insight 列表。每个 insight 包含：insight_type（success/failure/neutral）、category（pattern/anti_pattern/optimization/risk）、confidence_score（0.0-1.0）、source_execution_id、description、recommended_action 等字段。引擎需支持空闲检测机制：仅在无活跃 Loop 执行时启动反思，避免与正常执行竞争资源。反思结果以 list[insight] 格式返回，供下游 write_insight_to_memory 消费。技术实现采用 Python 骨架 + LLM 决策混合架构，GRADE 框架的五个维度分别对应五个 prompt 模板，每个模板使用 JSON 统一序列化。",
+    "acceptance_criteria": [
+      "AC1: run_dream_reflection(execution_history) 接口能正确接收 execution_history 输入，返回 list[insight]，每个 insight 包含 insight_type/category/confidence_score/source_execution_id/description/recommended_action 六个必填字段，缺失任一字段则视为失败",
+      "AC2: GRADE 框架五维度（Goal/Rule/Action/Decision/Evidence）分析完整覆盖，每个维度生成独立的结构化分析结果，最终合并为 insight 列表",
+      "AC3: 空闲检测机制正常工作——当存在活跃 Loop 执行时，反思任务不启动；当检测到空闲状态后，在可配置延迟（默认 30s）后自动触发反思",
+      "AC4: LLM 调用使用原生 Structured Output，输出严格遵循预定义 JSON Schema，无 xgrammar 依赖；当 LLM 输出格式异常时，能自动重试（最多 3 次）并在最终失败时优雅降级返回空列表"
+    ],
+    "deliverables": [
+      "dream_loop_reflection.py — Dream Loop 反思引擎主模块，包含 run_dream_reflection 接口和 GRADE 框架 prompt 模板",
+      "grade_framework.py — GRADE 五维度分析器，封装 Goal/Rule/Action/Decision/Evidence 的结构化分析逻辑",
+      "idle_detector.py — 空闲状态检测器，监控 Loop 执行状态并触发反思",
+      "test_dream_loop.py — 反思引擎单元测试，覆盖正常反思、空输入、LLM 异常、空闲检测等场景"
+    ],
+    "effort_hours": 32,
+    "dependencies": []
+  },
+  {
+    "wp_id": "SE-002",
+    "title": "Insight 持久化 — 写入现有 Memory 系统",
+    "description": "实现 write_insight_to_memory(insight) → void 接口，将 Dream Loop 产生的 insight 持久化到现有 memory 系统中。根据决策 D7（增强现有 memory 系统），不新建独立存储引擎，而是复用 State_Manager.write_atomic() 进行原子写入。insight 数据通过 JSON 统一序列化后写入 memory 命名空间下的专用 insight 存储区，写入路径格式为 memory/insights/{timestamp}_{insight_type}_{source_execution_id}.json。每次写入包含完整的 insight 元数据（产生时间、来源执行 ID、GRADE 维度标签、confidence_score）。写入操作保证原子性——通过 State_Manager.write_atomic() 的 write-then-rename 策略确保不会出现半写状态。支持批量写入模式：当 Dream Loop 一次反思产生多条 insight 时，批量写入共享同一事务上下文。写入后触发 memory 索引更新，确保后续检索能发现新 insight。并发安全通过 State_Manager 内置锁机制保证，多 insight 写入按 FIFO 顺序串行化。",
+    "acceptance_criteria": [
+      "AC1: write_insight_to_memory(insight) 接口能正确将单个 insight 持久化到 memory 系统，写入后可通过 State_Manager 读取完整 insight 内容，字段无损",
+      "AC2: 原子写入保证——模拟写入过程中 kill -9，重启后 memory 中不存在半写状态的 insight 文件（通过 write-then-rename 策略验证）",
+      "AC3: 批量写入场景下，10 条 insight 全部写入成功后，memory 中可检索到全部 10 条；写入过程中若某条失败，不影响已成功写入的其他 insight",
+      "AC4: insight 存储路径遵循 memory/insights/{timestamp}_{insight_type}_{source_execution_id}.json 命名规范，时间戳精度到秒，文件名无特殊字符冲突"
+    ],
+    "deliverables": [
+      "insight_persistence.py — Insight 持久化模块，包含 write_insight_to_memory 接口和批量写入逻辑",
+      "insight_schema.py — Insight 数据结构定义与 JSON Schema 校验",
+      "test_insight_persistence.py — 持久化单元测试，覆盖单条写入、批量写入、原子性验证、路径规范校验"
+    ],
+    "effort_hours": 16,
+    "dependencies": [
+      "SE-001"
+    ]
+  },
+  {
+    "wp_id": "SE-003",
+    "title": "Meta-Loop 参数优化器 — Thompson Sampling + LLM-as-Optimizer",
+    "description": "实现 optimize_params(performance_data) → param_update 接口，构成 Meta-Loop 的核心参数优化能力。根据决策 D5（LLM-as-Optimizer 替代 Optuna），使用 LLM 本身作为参数优化器，无需外部优化框架。优化器接收 performance_data（包含历史参数配置与对应执行效果指标），通过 Thompson Sampling 维护各参数候选的贝叶斯后验分布进行采样选择，然后将采样结果连同历史性能数据一起提交给 LLM 进行智能优化决策。LLM 分析当前参数表现趋势，结合 Thompson Sampling 的探索信号，输出 param_update 建议（包含目标参数名、新值、变更原因、预期收益）。可优化参数范围包括：timeout 配置、重试策略参数（max_retries/retry_delay/backoff_factor）、模型选择参数（model_id/temperature）。param_update 输出为结构化 JSON，包含 changes 列表（每项含 param_name/current_value/proposed_value/rationale/expected_improvement）。优化器内置性能数据缓存，支持增量更新——每次优化后自动将 (param_config, performance_result) 对追加到历史数据中。",
+    "acceptance_criteria": [
+      "AC1: optimize_params(performance_data) 接口能正确接收性能数据并返回 param_update 结构，param_update 包含 changes 列表，每项变更含 param_name/current_value/proposed_value/rationale/expected_improvement 五个必填字段",
+      "AC2: Thompson Sampling 实现正确——维护每个参数候选值的 Beta 分布（alpha/beta），根据历史成功/失败次数更新后验分布，采样结果作为 LLM 优化的候选输入",
+      "AC3: LLM-as-Optimizer 调用使用原生 Structured Output，输出严格遵循 param_update JSON Schema；当 LLM 返回不可解析结果时，回退到 Thompson Sampling 纯采样结果（不变更参数值）",
+      "AC4: 性能数据缓存支持增量追加，100 轮优化循环后历史数据完整保留，无数据丢失或覆盖；缓存数据结构为 JSON 统一序列化"
+    ],
+    "deliverables": [
+      "meta_loop_optimizer.py — Meta-Loop 参数优化器主模块，包含 optimize_params 接口",
+      "thompson_sampler.py — Thompson Sampling 实现，维护参数候选的 Beta 分布后验",
+      "llm_optimizer.py — LLM-as-Optimizer 封装，构建优化 prompt 并解析结构化输出",
+      "performance_cache.py — 性能数据增量缓存，存储 (param_config, performance_result) 历史对",
+      "test_meta_loop.py — 优化器单元测试，覆盖正常优化、LLM 异常回退、Thompson Sampling 分布更新等场景"
+    ],
+    "effort_hours": 40,
+    "dependencies": []
+  },
+  {
+    "wp_id": "SE-004",
+    "title": "参数安全边界验证 — Safety Shield 集成",
+    "description": "实现 validate_param_bounds(proposed_change) → safe_bool 接口，作为所有参数调整的安全守门人。该接口在参数变更生效前进行强制校验，确保所有参数调整限定在预定义安全边界内。校验引擎接收 proposed_change（来自 Meta-Loop 的 param_update），逐项检查每个参数变更是否超出安全边界。安全边界定义包括：timeout 范围（1s-300s）、max_retries 范围（0-10）、retry_delay 范围（0.1s-60s）、backoff_factor 范围（1.0-5.0）、temperature 范围（0.0-2.0）、model_id 白名单（仅允许预注册的模型标识）。校验逻辑分三层：第一层为硬边界检查（hard_min/hard_max），超出则直接拒绝；第二层为软边界检查（soft_min/soft_max），超出则标记为 warning 但仍允许通过（需更高权限确认）；第三层为变更幅度检查（max_delta_per_step），单次变更幅度不得超过预定义阈值，防止参数剧烈跳变。校验结果 safe_bool 为三态：true（安全通过）、false（硬边界拒绝）、warning（软边界告警）。与 Safety_Shield.validate_param_bounds() 的集成通过委托调用实现，本模块在 Safety_Shield 基础上增加 Self_Evolution 特有的变更幅度检查层。",
+    "acceptance_criteria": [
+      "AC1: validate_param_bounds(proposed_change) 接口对每个参数变更返回三态结果（true/false/warning），hard boundary 超出时返回 false 并附带拒绝原因，soft boundary 超出时返回 warning 并附带告警详情",
+      "AC2: 变更幅度检查生效——单次 timeout 变更超过 max_delta_per_step（默认 30s）时返回 false，即使新值在 hard_min/hard_max 范围内",
+      "AC3: model_id 白名单校验生效——尝试设置未注册的 model_id 时返回 false，已注册 model_id 返回 true",
+      "AC4: 与 Safety_Shield.validate_param_bounds() 的委托调用链路正常——本模块的校验逻辑在 Safety_Shield 基础校验之后执行，两层校验结果合并，任一为 false 则最终为 false"
+    ],
+    "deliverables": [
+      "param_bounds_validator.py — 参数安全边界验证主模块，包含 validate_param_bounds 接口和三层校验逻辑",
+      "safety_bounds_config.json — 安全边界配置文件，定义各参数的 hard/soft 边界和 max_delta_per_step",
+      "test_param_bounds.py — 边界验证单元测试，覆盖硬边界拒绝、软边界告警、变更幅度限制、白名单校验等场景"
+    ],
+    "effort_hours": 20,
+    "dependencies": [
+      "SE-003"
+    ]
+  },
+  {
+    "wp_id": "SE-005",
+    "title": "探索 vs 利用比例控制器 — 动态 Exploration Ratio 管理",
+    "description": "实现 get_exploration_ratio() → ratio_float 接口，为 Meta-Loop 参数优化提供动态探索与利用比例控制。该控制器管理 epsilon 值（0.0-1.0），决定 Meta-Loop 在参数优化时选择 Thompson Sampling 探索新参数配置 vs 利用当前最优配置的概率。默认采用 epsilon-greedy 策略，初始 epsilon=0.3（30% 探索），随优化轮次增加按可配置衰减率（默认 0.995）指数衰减，下限为 epsilon_min=0.05（保留 5% 基础探索率防止陷入局部最优）。支持三种策略模式：epsilon_greedy（标准衰减）、ucb（Upper Confidence Bound，基于不确定性自动调整）、adaptive（基于最近 N 轮性能趋势动态调整——性能持续改善时降低探索率，性能停滞或下降时提高探索率）。比例控制器与 Thompson Sampling 深度集成：当 ratio 偏向探索时，Thompson Sampling 增加采样多样性；当 ratio 偏向利用时，Thompson Sampling 聚焦于当前最优候选附近。控制器状态持久化为 JSON，确保重启后恢复上次比例值。",
+    "acceptance_criteria": [
+      "AC1: get_exploration_ratio() 接口返回 0.0-1.0 范围内的 float 值，精度到小数点后 4 位；默认 epsilon-greedy 策略下，初始调用返回 0.3，连续调用 100 次后值按 0.995 衰减率正确递减",
+      "AC2: 三种策略模式（epsilon_greedy/ucb/adaptive）均可正常切换，切换后 ratio 值平滑过渡（不跳变超过 0.1）",
+      "AC3: epsilon 下限保护生效——无论衰减多少轮次，ratio 值始终 >= epsilon_min（默认 0.05）",
+      "AC4: 控制器状态持久化正常——模拟进程重启后，get_exploration_ratio() 返回重启前的正确 ratio 值，衰减轮次计数器不丢失"
+    ],
+    "deliverables": [
+      "exploration_controller.py — 探索比例控制器主模块，包含 get_exploration_ratio 接口和三种策略实现",
+      "exploration_state.json — 持久化状态文件，存储当前 ratio、衰减轮次、策略模式等",
+      "test_exploration_controller.py — 控制器单元测试，覆盖衰减正确性、下限保护、策略切换、持久化恢复等场景"
+    ],
+    "effort_hours": 24,
+    "dependencies": []
+  },
+  {
+    "wp_id": "SE-006",
+    "title": "Dream Loop + Meta-Loop 持续自我优化编排器",
+    "description": "实现 Dream Loop 与 Meta-Loop 的协调编排层，将反思引擎（SE-001）、Insight 持久化（SE-002）、参数优化器（SE-003）、安全边界验证（SE-004）、探索比例控制器（SE-005）串联为完整的持续自我优化闭环。编排器负责两大核心流程的生命周期管理：(1) Dream Loop 流程——检测空闲 → 获取 execution_history → 运行 GRADE 反思 → 将 insight 写入 memory → 从 insight 中提取可量化信号反馈给 Meta-Loop；(2) Meta-Loop 流程——收集性能数据 → 获取 exploration_ratio → 运行 Thompson Sampling + LLM 优化 → 验证参数安全边界 → 应用安全参数变更。两个 Loop 通过共享的 insight-to-performance 信号通道连接：Dream Loop 产出的 insight 中的 recommended_action 如果涉及参数调整，自动转化为 Meta-Loop 的性能数据输入。编排器实现 Human Review Gate 机制（对应风险 R4）：当 insight 的 recommended_action 标记为 high_risk 或 confidence_score < 0.5 时，变更进入 pending 状态，需人工确认后才生效。所有编排状态通过 JSON 统一序列化，支持优雅关闭和重启恢复。",
+    "acceptance_criteria": [
+      "AC1: Dream Loop 完整流程可执行——从空闲检测到 insight 写入 memory 全链路跑通，端到端延迟 < 60s（不含 LLM 响应时间）",
+      "AC2: Meta-Loop 完整流程可执行——从性能数据收集到安全参数变更应用全链路跑通，参数变更经过 validate_param_bounds 校验后才生效",
+      "AC3: Human Review Gate 生效——confidence_score < 0.5 或 high_risk 标记的 insight 产生的参数变更进入 pending 状态，不会自动应用；人工确认后变更正常生效",
+      "AC4: 编排器优雅关闭与重启——模拟 kill -9 后重启，编排器恢复到最近一次成功 checkpoint 的状态，不重复执行已完成的反思/优化周期，不遗漏未完成的 pending 变更"
+    ],
+    "deliverables": [
+      "self_evolution_orchestrator.py — 持续自我优化编排器主模块，协调 Dream Loop 和 Meta-Loop 的完整生命周期",
+      "human_review_gate.py — Human Review Gate 模块，管理 pending 状态变更和人工确认流程",
+      "evolution_checkpoint.py — 编排状态持久化与恢复模块，支持优雅关闭和重启",
+      "test_self_evolution_orchestrator.py — 编排器集成测试，覆盖完整流程、Human Review Gate、崩溃恢复等场景"
+    ],
+    "effort_hours": 36,
+    "dependencies": [
+      "SE-001",
+      "SE-002",
+      "SE-003",
+      "SE-004",
+      "SE-005"
+    ]
+  }
+]

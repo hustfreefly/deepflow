@@ -1,5 +1,5 @@
 """
-Ship Pro V6 - Worker Deliverable Schema
+Ship Pro V8 - Worker Deliverable Schema
 
 Phase 2 Worker 的输出定义。
 遵循 AI Native 原则：
@@ -12,15 +12,22 @@ from typing import List, Optional, Dict, Any
 
 
 class WorkPackage(BaseModel):
-    """工作包定义"""
+    """工作包定义
+    
+    契约铁律：不可信的约束不是约束。
+    acceptance_criteria 和 deliverables 不再是可选项——没有它们，WP 无法验收。
+    """
     
     id: str = Field(..., description="工作包 ID，格式: {prefix}-NNN（如 CORE-001, LOOP-002）")
     title: str = Field(..., description="工作包标题")
-    description: str = Field(..., description="工作包描述")
+    description: str = Field(
+        ..., min_length=100,
+        description="工作包描述（≥100 字符，必须说清楚做什么、为什么这么做、技术边界）"
+    )
     
     acceptance_criteria: List[str] = Field(
-        default_factory=list,
-        description="验收标准列表"
+        ..., min_length=2,
+        description="验收标准列表（≥2 条，每条必须可测试）"
     )
     
     dependencies: List[str] = Field(
@@ -34,8 +41,8 @@ class WorkPackage(BaseModel):
     )
     
     deliverables: List[str] = Field(
-        default_factory=list,
-        description="交付物列表"
+        ..., min_length=1,
+        description="交付物列表（≥1 项，不能为空）"
     )
 
 

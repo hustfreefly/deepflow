@@ -1,0 +1,1135 @@
+{
+  "ship_package_version": "v9",
+  "solution": "Ship Pro V8 Output",
+  "work_packages": [
+    {
+      "title": "DAG 分解引擎 — 目标到任务图的智能拆解",
+      "description": "实现 decompose_goal(goal) → task_dag 接口，将高层目标智能分解为带有显式依赖关系的有向无环图（DAG）。引擎需分析目标语义，识别可并行的子任务与必须串行执行的子任务，为每个节点计算最早可执行时间。集成 LLM 决策层（Python 骨架 + LLM 决策混合架构），使用原生 Structured Output 保证输出格式为合法 JSON DAG。内置环检测算法（DFS-based cycle detection），在生成阶段即杜绝环形依赖。遵循 REQ-030 约束：Hermes 作为对等协作伙伴建模为外部依赖节点而非子 Worker 任务，DAG 中明确标注节点类型（internal_worker vs external_peer）。遵循 REQ-052 的 Orchestrator→Worker 架构模式，分解结果需包含任务元数据（预估复杂度、所需能力标签、优先级权重）。集成 REQ-036 端到端完成率追踪入口，每个 DAG 实例携带全局 completion_status 字段。通过 State_Manager.write_atomic() 持久化 DAG 结构，保证崩溃安全（JSON 统一序列化）。",
+      "acceptance_criteria": [
+        "AC1: decompose_goal() 输出合法 DAG，经拓扑验证无环，每个节点包含 dependencies、task_type（internal_worker/external_peer）、priority_weight、capability_tags 字段",
+        "AC2: 环检测在 DAG 生成阶段执行，若检测到环则抛出明确异常并触发 LLM 重新规划，不返回部分结果",
+        "AC3: Hermes 相关任务节点标记为 external_peer 类型，不参与 Worker 分配流程，仅作为依赖等待节点",
+        "AC4: DAG 结构通过 State_Manager.write_atomic() 持久化，kill -9 重启后可从 JSON 恢复完整 DAG 图结构",
+        "AC5: 分解结果包含全局 completion_status 字段（默认 'in_progress'），支持 REQ-036 端到端完成率追踪"
+      ],
+      "deliverables": [
+        "dag_decomposer.py — 核心分解引擎，含 LLM 决策接口与环检测",
+        "dag_models.py — DAG/TaskNode 数据结构定义（JSON 序列化 schema）",
+        "test_dag_decomposer.py — 单元测试覆盖分解正确性、环检测、Hermes 节点建模"
+      ],
+      "effort_hours": 40,
+      "dependencies": [],
+      "source_worker": "DAG_Scheduler",
+      "id": "DAG-001"
+    },
+    {
+      "title": "优先级调度器 — 拓扑排序 + 优先级队列 + 并发控制",
+      "description": "实现 get_ready_tasks(dag) → list[task] 接口，基于优先级队列 + 拓扑排序（D4 决策）进行任务调度。调度器维护每个任务的拓扑入度（in-degree），当某任务的所有前置依赖状态变为 'completed' 时，将其入度归零并加入就绪队列。就绪队列按 priority_weight 降序排列，相同优先级按 FIFO 顺序保证确定性。实现并发门控：通过原子计数器追踪当前 active workers 数量，硬上限为 set_max_concurrency(n) 设定的值（默认 6，REQ-033），get_ready_tasks 返回数量受限于 available_slots = max_concurrency - active_count。集成死锁检测（R5 风险缓解）：周期性扫描所有非完成状态任务，若存在循环等待（如 A 等待 B、B 等待 A 且均非 ready）则触发死锁告警并通知重新规划。调度频率通过配置参数 schedule_interval_ms 控制（REQ-068），支持动态调整。通过 State_Manager.read_state() 获取最新 task_progress 作为调度输入。",
+      "acceptance_criteria": [
+        "AC1: get_ready_tasks() 仅返回所有前置依赖状态为 completed 的任务，且返回数量 ≤ max_concurrency - active_workers",
+        "AC2: 就绪队列按 priority_weight 降序排列，同优先级任务严格按入队时间 FIFO 排序，100 次调用结果完全确定",
+        "AC3: 死锁检测在每次调度周期执行，若检测到循环等待则在 ≤1 个调度周期内发出告警事件",
+        "AC4: set_max_concurrency(n) 立即生效，下一次 get_ready_tasks 调用即按新上限裁剪返回数量",
+        "AC5: 调度频率 schedule_interval_ms 可在运行时动态调整，调整后下一个调度周期即按新频率执行"
+      ],
+      "deliverables": [
+        "priority_scheduler.py — 核心调度引擎，含拓扑排序、优先级队列、并发门控、死锁检测",
+        "test_priority_scheduler.py — 单元测试覆盖拓扑就绪判断、并发裁剪、死锁检测、优先级排序"
+      ],
+      "effort_hours": 36,
+      "dependencies": [
+        "DAG-001"
+      ],
+      "source_worker": "DAG_Scheduler",
+      "id": "DAG-002"
+    },
+    {
+      "title": "Worker 分配引擎 — 能力匹配 + 模型选择 + 动态分配",
+      "description": "实现 assign_worker(task, worker_profile) → assignment 接口，将就绪任务匹配到最优可用 Worker。构建 Worker Profile Registry，每个 profile 包含：worker_id、model_type（REQ-066，可自由调整 Worker 模型选择）、capability_tags、current_load、historical_success_rate、avg_completion_time。分配策略引擎支持三种模式：(1) capability_match — 优先匹配任务所需 capability_tags 与 Worker 能力标签的交集最大的 Worker；(2) performance_weighted — 按 historical_success_rate 加权选择，成功率高的 Worker 优先；(3) round_robin — 均匀分配，避免某些 Worker 过载。策略可通过配置切换。assign_worker 输出 assignment 对象包含 task_id、worker_id、model_type、assigned_at、deadline。每次分配结果通过 State_Manager.write_atomic() 持久化。分配历史记录写入 history log，作为 adjust_allocation(history) → new_allocation 的输入（REQ-013），支持基于历史表现的反馈闭环：当某类任务在某 Worker 上连续失败或超时，自动降低该 Worker 对此类任务的分配权重。",
+      "acceptance_criteria": [
+        "AC1: assign_worker() 返回的 assignment 包含 task_id、worker_id、model_type、assigned_at，且 worker 的 capability_tags 与 task 的 capability_tags 交集非空（capability_match 模式下）",
+        "AC2: Worker Profile Registry 支持运行时增删 Worker，新增 Worker 在下一个分配周期即可被选中",
+        "AC3: 三种分配策略（capability_match/performance_weighted/round_robin）可通过配置热切换，切换后立即生效",
+        "AC4: adjust_allocation() 接收最近 N 条 assignment 历史，输出新的分配权重向量，连续失败 3 次的 Worker-任务类型组合权重降低 ≥50%"
+      ],
+      "deliverables": [
+        "worker_assigner.py — 分配引擎，含三种策略实现与分配历史记录",
+        "worker_registry.py — Worker Profile 注册表，含能力标签与性能指标管理",
+        "allocation_adjuster.py — 动态分配调整器，基于历史反馈调整权重",
+        "test_worker_assigner.py — 单元测试覆盖策略匹配、动态调整、Profile 增删"
+      ],
+      "effort_hours": 44,
+      "dependencies": [
+        "DAG-002"
+      ],
+      "source_worker": "DAG_Scheduler",
+      "id": "DAG-003"
+    },
+    {
+      "title": "失败追踪与自动恢复引擎 — 重试/切换/上报三级机制",
+      "description": "实现 track_failure(task_id, error) → failure_count 接口及 REQ-006（子 Agent 失败时自动分析/重试/切换/上报）的完整闭环。track_failure 接收 task_id 和 error 对象，原子递增该 task 的 failure_count 并持久化到 State_Manager。失败处理三级机制：(1) Retry — 当 failure_count ≤ max_retry_count（REQ-065，可自由调整重试次数）时，自动将任务状态重置为 'ready' 并重新入队，支持配置重试策略（立即重试 / 指数退避 / 固定间隔）；(2) Switch — 当 failure_count > max_retry_count 且 < max_worker_failures_before_escalation（REQ-072）时，触发 Worker 切换：标记当前 Worker 对该任务类型为不可用，调用 assign_worker 重新分配到其他 Worker；(3) Escalate — 当同一任务的累计 failure_count 达到 max_worker_failures_before_escalation 阈值时，生成 escalation_event 并通过事件通道上报给上层（Loop_Engine 消费），包含完整失败上下文（task_id、所有尝试过的 worker_id、error 摘要、failure_count）。失败分析模块对每次 error 进行模式分类（timeout/capability_mismatch/transient/systemic），分类结果影响重试策略选择和 Worker 切换决策。",
+      "acceptance_criteria": [
+        "AC1: track_failure() 原子递增 failure_count，返回值包含当前 count 和建议动作（retry/switch/escalate）",
+        "AC2: Retry 阶段按配置策略（立即/指数退避/固定间隔）将任务重新入队，退避参数可通过配置调整",
+        "AC3: Switch 阶段自动将失败 Worker 加入该任务类型的黑名单，并在下一个调度周期重新分配",
+        "AC4: Escalate 阶段生成的 escalation_event 包含 task_id、所有尝试过的 worker_id 列表、error 摘要、failure_count，通过事件通道发出",
+        "AC5: 错误模式分类（timeout/capability_mismatch/transient/systemic）准确率在测试集上 ≥80%，且分类结果影响后续重试策略"
+      ],
+      "deliverables": [
+        "failure_tracker.py — 失败追踪核心，含原子计数、三级决策、事件生成",
+        "failure_analyzer.py — 错误模式分类器，分析 error 并输出分类标签",
+        "retry_strategy.py — 重试策略引擎，支持立即/指数退避/固定间隔三种模式",
+        "test_failure_handler.py — 单元测试覆盖三级机制触发条件、分类准确性、escalation 事件格式"
+      ],
+      "effort_hours": 40,
+      "dependencies": [
+        "DAG-003"
+      ],
+      "source_worker": "DAG_Scheduler",
+      "id": "DAG-004"
+    },
+    {
+      "title": "配置管理与操作边界执行器 — 全局参数 + 运行时约束",
+      "description": "构建 DAG_Scheduler 的集中式配置管理与操作边界执行层，覆盖所有可调参数（REQ-065/066/067/068）和操作边界（REQ-070/072）。配置管理器提供统一 ConfigStore，采用 JSON 统一序列化格式，包含以下可配置项：max_concurrency（默认 6，REQ-067 并行度/并发度）、max_retry_count（REQ-065 重试次数）、worker_model_preference（REQ-066 Worker 模型选择）、schedule_interval_ms（REQ-068 调度频率）、assignment_strategy（分配策略选择）、retry_strategy（重试策略选择）、max_active_goals（REQ-070，默认 5）、max_worker_failures_before_escalation（REQ-072）。操作边界执行器在运行时强制约束：(1) 当 active_goals 数量达到 max_active_goals=5 时，新的 decompose_goal 请求被排队等待而非拒绝，返回 pending 状态；(2) 当单个 Worker 的 failure_count 达到 max_worker_failures_before_escalation 时，自动触发 escalation 流程。配置支持运行时热加载（通过文件监听或显式 reload 调用），非敏感参数调整无需重启服务。所有配置变更写入审计日志，记录 who/what/when/before/after。",
+      "acceptance_criteria": [
+        "AC1: ConfigStore 加载后所有参数可通过 get_config(key) 访问，缺失 key 返回预定义默认值，不抛异常",
+        "AC2: max_active_goals=5 边界在 decompose_goal 入口检查，第 6 个并发 goal 进入 pending 队列，待现有 goal 完成后自动唤醒",
+        "AC3: max_worker_failures_before_escalation 阈值在 track_failure 中检查，达到阈值时自动触发 escalation 事件",
+        "AC4: 配置热加载在 ≤2 个调度周期内生效，无需服务重启，且变更写入审计日志",
+        "AC5: 所有配置值经过 schema 验证，非法值（如 max_concurrency < 1 或 max_active_goals < 1）被拒绝并回滚到上一个合法值"
+      ],
+      "deliverables": [
+        "config_manager.py — 集中式配置管理器，含 ConfigStore、schema 验证、热加载",
+        "boundary_enforcer.py — 操作边界执行器，含 max_active_goals 门控与 failure 阈值检查",
+        "config_schema.json — 配置 schema 定义文件，含默认值与合法范围",
+        "test_config_manager.py — 单元测试覆盖配置加载、验证、热加载、边界执行"
+      ],
+      "effort_hours": 28,
+      "dependencies": [],
+      "source_worker": "DAG_Scheduler",
+      "id": "DAG-005"
+    },
+    {
+      "title": "分形三层 Loop 核心编排器 — Project/Domain/Phase 嵌套执行引擎",
+      "description": "实现分形三层 Loop 嵌套编排引擎，作为 Loop_Engine 模块的核心骨架。外层 Project Loop 负责整体目标生命周期管理（目标接收→分解→执行→交付→终止），中层 Domain Loop 负责按领域维度将任务分组并协调跨领域依赖，内层 Phase Loop 负责单领域内具体任务的逐步执行。三层 Loop 共享统一的生命周期协议（start/pause/resume/terminate），每层 Loop 维护独立的迭代状态机（running/paused/waiting/completed/failed），通过 State_Manager.blackboard_init() 获取状态句柄并在每层 Loop 的每次迭代开始时读取最新黑板状态。Loop 引擎通过 DAG_Scheduler.decompose_goal() 获取任务 DAG 并在 Project Loop 层进行拓扑排序调度，Domain Loop 层按领域分组并行执行无依赖任务，Phase Loop 层串行执行有前置依赖的任务链。所有三层 Loop 的迭代边界处设置 checkpoint 点，确保崩溃后可从最近 checkpoint 恢复。集成 Safety_Shield.check_circuit_breaker() 在每层 Loop 迭代开始前进行安全校验，校验不通过则暂停当前层并向上层传播中断信号。",
+      "acceptance_criteria": [
+        "AC1: 支持 Project Loop → Domain Loop → Phase Loop 三层嵌套启动，每层可独立 start/pause/resume/terminate，生命周期状态转换符合状态机定义（running↔paused→completed/failed）",
+        "AC2: 三层 Loop 各自维护独立迭代计数器，每层迭代边界自动触发 checkpoint 持久化，模拟 kill -9 后可从最近 checkpoint 恢复执行",
+        "AC3: Project Loop 层集成 DAG_Scheduler.decompose_goal() 进行任务拓扑排序，Domain Loop 层按领域分组并行执行无依赖任务，Phase Loop 层串行执行有前置依赖的任务链",
+        "AC4: 每层 Loop 迭代开始前调用 Safety_Shield.check_circuit_breaker()，校验失败时当前层暂停并向父层传播中断信号"
+      ],
+      "deliverables": [
+        "loop_orchestrator.py — 三层 Loop 编排器主实现",
+        "loop_state_machine.py — Loop 生命周期状态机",
+        "checkpoint_manager.py — 迭代边界 checkpoint 持久化",
+        "test_loop_orchestrator.py — 三层嵌套、生命周期、checkpoint 恢复测试"
+      ],
+      "effort_hours": 56,
+      "dependencies": [],
+      "source_worker": "Loop_Engine",
+      "id": "LOOP-001"
+    },
+    {
+      "title": "全 LLM 控制流架构 — 零 Python 控制流决策引擎",
+      "description": "实现全 LLM 控制流架构，确保 Loop_Engine 中所有控制流决策（分支、循环、回退、跳过、重试）均由 LLM 通过 Structured Output 做出，Python 层仅提供确定性骨架（状态读写、锁管理、IO 操作、进程调度）。设计统一的 LLM 决策协议：每次需要控制流决策时，构造包含当前黑板状态、任务上下文、历史决策记录的 prompt，调用 LLM 的 Structured Output 接口获取 JSON 格式的决策结果（包含 decision_type、action、reasoning、next_step 字段）。Python 骨架层仅负责：(1) 将决策结果路由到对应的执行器；(2) 执行决策结果的原子写入；(3) 超时/异常时触发安全回退（暂停并通知，而非自主决策）。实现决策上下文压缩器，在长上下文场景下（8小时+运行）对历史决策记录进行分层摘要，保留最近 N 次完整决策 + 更早决策的摘要，确保 LLM 在有限上下文窗口内保持决策一致性。集成原生 Structured Output 替代 xgrammar，使用 JSON Schema 约束 LLM 输出格式。",
+      "acceptance_criteria": [
+        "AC1: Python 代码中不存在 if/else/while/for 用于业务逻辑分支决策（仅允许用于骨架路由：将 LLM 决策结果分发到对应执行器），所有业务分支由 LLM Structured Output 驱动",
+        "AC2: LLM 决策协议输出标准 JSON，包含 decision_type（branch/loop/retry/skip/terminate）、action、reasoning、next_step 四个必填字段，通过原生 Structured Output + JSON Schema 约束",
+        "AC3: 决策上下文压缩器在历史决策超过上下文窗口 50% 时自动触发分层摘要，保留最近 10 次完整决策 + 更早决策的摘要，压缩后 LLM 决策一致性测试通过率 ≥ 90%"
+      ],
+      "deliverables": [
+        "llm_decision_engine.py — LLM 控制流决策引擎",
+        "decision_protocol.py — 统一决策协议与 JSON Schema 定义",
+        "context_compressor.py — 决策上下文分层压缩器",
+        "test_llm_control_flow.py — 零 Python 控制流验证测试、上下文压缩一致性测试"
+      ],
+      "effort_hours": 48,
+      "dependencies": [
+        "LOOP-001"
+      ],
+      "source_worker": "Loop_Engine",
+      "id": "LOOP-002"
+    },
+    {
+      "title": "自然语言入口与自适应出口 — 对话式需求澄清与格式自适应交付",
+      "description": "实现 Loop 入口的自然语言对话需求澄清模块和出口的格式自适应模块。入口侧：接收用户通过飞书或桌面 UI 下达的自然语言目标（对应 start_loop(goal) 接口），启动一轮宽松版需求澄清对话（参考业界 Spec Pro 实践但降低严格度），通过 1-3 轮对话明确：(1) 目标的核心意图和期望交付物；(2) 关键约束条件（时间、质量、范围）；(3) 是否需要人工审批节点。澄清过程由 LLM 驱动，Python 层仅负责消息收发和对话轮次计数。澄清完成后生成结构化 goal_spec（包含 intent、deliverables、constraints、approval_required 字段）作为 Project Loop 的输入。出口侧：根据 goal_spec 中的 deliverables 类型和任务执行结果，自适应选择交付格式——代码类产出物以 Git commit/PR 形式交付，文档类产出物以飞书文档/Markdown 文件交付，配置类产出物以 diff 形式交付，混合类产出物按类型拆分分别交付。出口模块不固定格式，由 LLM 根据任务类型和上下文决定最终交付形态。",
+      "acceptance_criteria": [
+        "AC1: start_loop(goal) 接口接收自然语言目标后，通过 1-3 轮对话完成需求澄清，生成结构化 goal_spec（intent/deliverables/constraints/approval_required 字段完整），澄清对话支持飞书和桌面 UI 两个通道",
+        "AC2: 出口模块根据 goal_spec.deliverables 类型自动选择交付格式（代码→Git PR、文档→飞书文档/Markdown、配置→diff、混合→拆分交付），LLM 决策选择格式的准确率在测试集上 ≥ 85%"
+      ],
+      "deliverables": [
+        "entry_dialogue.py — 自然语言入口对话澄清模块",
+        "exit_adapter.py — 自适应出口格式选择与交付模块",
+        "goal_spec_schema.py — 结构化 goal_spec 定义与校验",
+        "test_entry_exit.py — 入口对话、出口格式选择测试"
+      ],
+      "effort_hours": 36,
+      "dependencies": [
+        "LOOP-001"
+      ],
+      "source_worker": "Loop_Engine",
+      "id": "LOOP-003"
+    },
+    {
+      "title": "间歇式心跳与进度通知推送 — 定时+事件驱动双模式通知系统",
+      "description": "实现间歇式心跳机制与进度通知推送系统，满足用户「不频繁打扰」的核心诉求。心跳模块按可配置间隔（默认每小时一次）触发 send_heartbeat(handle) 调用，收集当前 Loop 三层状态快照（Project Loop 整体进度百分比、Domain Loop 各域完成情况、Phase Loop 当前执行任务详情），组装结构化 notification_payload 并通过飞书/桌面 UI 双通道推送。除定时心跳外，实现事件驱动的关键通知：当发生以下关键事件时立即推送通知（不受心跳间隔限制）：(1) 任务完成/失败；(2) Safety_Shield 触发断路器；(3) 需要人工审批的决策点（仅在开启审批模式时）；(4) Loop 层状态异常变更（如 Domain Loop 回退到上一阶段）。通知去重与合并机制：5 分钟内多个关键事件合并为一条汇总通知，避免频繁打扰。通知内容格式由 LLM 根据当前状态动态生成摘要，确保信息密度高且可读。整体设计遵循 REQ-015 约束：最多每小时一次常规通知 + 关键事件通知。",
+      "acceptance_criteria": [
+        "AC1: 定时心跳按可配置间隔（默认 60 分钟）触发，推送内容包含三层 Loop 状态快照（整体进度百分比、各域完成情况、当前任务详情），通过飞书和桌面 UI 双通道送达",
+        "AC2: 关键事件（任务完成/失败、断路器触发、审批请求、层状态异常）触发即时通知，不受心跳间隔限制；5 分钟内多个事件合并为一条汇总通知",
+        "AC3: 通知频率严格受控：常规心跳通知 ≤ 1 次/小时，关键事件通知在合并后 ≤ 实际事件数但同一 5 分钟窗口内 ≤ 1 条"
+      ],
+      "deliverables": [
+        "heartbeat_manager.py — 间歇式心跳调度与状态收集",
+        "notification_dispatcher.py — 双通道通知推送与去重合并",
+        "notification_formatter.py — LLM 驱动的通知内容摘要生成",
+        "test_heartbeat_notification.py — 心跳定时、事件驱动、去重合并测试"
+      ],
+      "effort_hours": 32,
+      "dependencies": [
+        "LOOP-001"
+      ],
+      "source_worker": "Loop_Engine",
+      "id": "LOOP-004"
+    },
+    {
+      "title": "跨层中断传播与优雅终止 — 分形 Loop 中断协议",
+      "description": "实现分形三层 Loop 之间的中断传播协议与优雅终止机制。当 propagate_interrupt(from_layer, to_layer) 被调用时，中断信号按以下规则传播：(1) 自上而下传播（Project→Domain→Phase）：当 Project Loop 决定终止时，向所有活跃 Domain Loop 发送中断信号，各 Domain Loop 中断其下所有 Phase Loop，每层在收到中断后完成当前正在执行的原子操作（不强制打断），然后进入 terminated 状态并向上层返回当前中间结果。(2) 自下而上传播（Phase→Domain→Project）：当 Phase Loop 遇到不可恢复错误（Safety_Shield 断路器触发、连续重试超限）时，向父 Domain Loop 上报失败，Domain Loop 根据 LLM 决策判断是否重试/跳过/上报 Project Loop，Project Loop 最终由 LLM 决策是否终止整体任务或重新规划。中断传播过程中所有中间状态通过 State_Manager.write_atomic() 原子写入黑板，确保中断后可追溯。优雅终止时 terminate_loop(handle) 收集三层所有中间结果，由 LLM 组装最终 partial_result 返回。",
+      "acceptance_criteria": [
+        "AC1: propagate_interrupt(from_layer, to_layer) 支持自上而下（Project→Domain→Phase）和自下而上（Phase→Domain→Project）双向传播，每层收到中断后完成当前原子操作再终止，不强制打断执行中的操作",
+        "AC2: 自下而上中断传播时，Domain Loop 通过 LLM 决策选择重试/跳过/上报 Project Loop，Project Loop 通过 LLM 决策选择终止/重新规划，决策过程记录在黑板中可追溯",
+        "AC3: terminate_loop(handle) 在优雅终止时收集三层所有中间结果并组装 partial_result，中断传播全程状态变更通过 State_Manager.write_atomic() 原子写入"
+      ],
+      "deliverables": [
+        "interrupt_propagator.py — 跨层中断传播协议实现",
+        "graceful_terminator.py — 优雅终止与中间结果收集",
+        "test_interrupt_propagation.py — 双向中断传播、优雅终止、状态追溯测试"
+      ],
+      "effort_hours": 32,
+      "dependencies": [
+        "LOOP-001"
+      ],
+      "source_worker": "Loop_Engine",
+      "id": "LOOP-005"
+    },
+    {
+      "title": "主动偏离检测与自纠正 — 任务主线保持引擎",
+      "description": "实现主动偏离检测与自纠正机制，确保 Loop 长时间运行时任务不跑偏（对应 REQ-005 和 REQ-014）。在每层 Loop 的每次迭代结束时，调用 LLM 执行偏离检测：将当前执行轨迹（已完成任务列表、中间产出物摘要、最近 N 次 LLM 决策记录）与原始 goal_spec 进行对比，由 LLM 判断当前执行方向是否偏离原始意图，输出偏离评估 JSON（包含 is_drifting: bool、drift_degree: 0-100、drift_description: string、correction_action: string|none）。当 drift_degree ≥ 70 时触发自纠正流程：LLM 生成纠正方案（调整后续任务优先级/重新分解剩余目标/回退到最近正确 checkpoint），纠正方案经 Safety_Shield.enforce_guardrails() 校验后执行。偏离检测的关键设计：(1) 不依赖用户判断，完全由 LLM 自主检测并纠正（满足 REQ-014「不停下来等人判断」）；(2) 纠正动作记录在黑板中，通过心跳通知告知用户（满足 REQ-015「不频繁打扰」）；(3) 连续 3 次纠正后仍未回到主线时，触发暂停并通知用户介入。",
+      "acceptance_criteria": [
+        "AC1: 每层 Loop 每次迭代结束时执行偏离检测，LLM 输出结构化偏离评估 JSON（is_drifting/drift_degree/drift_description/correction_action），检测延迟 ≤ 该次迭代耗时的 5%",
+        "AC2: drift_degree ≥ 70 时自动触发自纠正，纠正方案经 Safety_Shield.enforce_guardrails() 校验后执行，纠正过程不暂停等待用户确认",
+        "AC3: 连续 3 次自纠正后 drift_degree 仍 ≥ 70 时，Loop 暂停执行并通过心跳通知用户介入，暂停前保存完整执行轨迹到黑板"
+      ],
+      "deliverables": [
+        "drift_detector.py — LLM 驱动的偏离检测引擎",
+        "self_corrector.py — 自纠正方案生成与执行",
+        "test_drift_correction.py — 偏离检测准确率、自纠正有效性、连续纠正失败测试"
+      ],
+      "effort_hours": 40,
+      "dependencies": [
+        "LOOP-001",
+        "LOOP-002"
+      ],
+      "source_worker": "Loop_Engine",
+      "id": "LOOP-006"
+    },
+    {
+      "title": "目标分解与 DAG 调度编排 — 任务拓扑排序与 Worker 分配",
+      "description": "实现 Loop 引擎的目标分解与 DAG 调度编排层，作为 Project Loop 启动后的第一步核心操作。当 start_loop(goal) 完成入口对话澄清生成 goal_spec 后，调用 DAG_Scheduler.decompose_goal(goal_spec) 将结构化目标分解为有向无环图（DAG）形式的任务集合，每个节点代表一个原子任务，边代表任务间的依赖关系（前置完成/数据依赖/资源互斥）。分解过程由 LLM 驱动：LLM 分析 goal_spec 中的 deliverables 和 constraints，结合当前可用工具能力（openclaw/codex_cli/hermes/claude 等，对应 REQ-079），生成任务分解方案。DAG 调度器实现拓扑排序算法，支持：(1) 关键路径识别——找出最长依赖链并优先调度；(2) 并行度控制——根据可用 Worker 数量限制同时执行的任务数；(3) 动态重调度——当某个任务失败或超时时，由 LLM 决策是重试/跳过/重新分解剩余 DAG。调用 DAG_Scheduler.assign_worker(assignment) 将排序后的任务分配给具体 Worker（Agent），分配策略由 LLM 根据任务类型和 Worker 能力匹配。",
+      "acceptance_criteria": [
+        "AC1: DAG_Scheduler.decompose_goal(goal_spec) 生成有效 DAG（无环、所有依赖边可解析），DAG 节点包含 task_id/task_type/dependencies/estimated_complexity 字段",
+        "AC2: 拓扑排序支持关键路径优先调度、并行度限制（可配置最大并发 Worker 数），排序结果在测试用例上与预期调度顺序一致",
+        "AC3: 任务失败/超时时触发动态重调度，LLM 在 10 秒内输出重调度决策（重试/跳过/重新分解），重调度后 DAG 仍保持无环性"
+      ],
+      "deliverables": [
+        "dag_scheduler_integration.py — DAG 调度器与 Loop 引擎集成层",
+        "topology_sorter.py — 拓扑排序与关键路径识别",
+        "dynamic_rescheduler.py — LLM 驱动的动态重调度",
+        "test_dag_scheduling.py — DAG 生成、拓扑排序、动态重调度测试"
+      ],
+      "effort_hours": 40,
+      "dependencies": [
+        "LOOP-001",
+        "LOOP-002"
+      ],
+      "source_worker": "Loop_Engine",
+      "id": "LOOP-007"
+    },
+    {
+      "title": "可配置人工审批门 — 可选审批与全自动模式切换",
+      "description": "实现可配置的人工审批门机制（对应 REQ-023），作为 Loop 引擎在「全自动运行」与「人工把关」之间的灵活切换方案。默认模式下（approval_required=false），Loop 全自动运行，所有决策由 LLM 自主做出并执行，仅通过心跳通知告知用户关键决策（满足 REQ-015 不频繁打扰）。当用户在入口对话中要求开启审批模式（approval_required=true）或配置了特定审批规则时，Loop 在以下决策点暂停执行并推送审批请求通知：(1) 目标分解方案确认——DAG 生成后等待用户确认任务分解是否合理；(2) 高风险操作执行前——涉及文件删除、外部 API 调用、资源创建等不可逆操作前；(3) 偏离纠正确认——当自纠正方案的影响范围超过阈值时。审批请求通过飞书/桌面 UI 推送，包含决策上下文摘要和推荐选项，用户可批准/拒绝/修改。审批等待期间 Loop 进入 waiting 状态（非 paused），心跳仍在后台运行但频率降低为每 2 小时一次。审批超时（可配置，默认 30 分钟）后自动回退到全自动模式并记录回退原因。",
+      "acceptance_criteria": [
+        "AC1: 默认全自动模式（approval_required=false）下 Loop 无任何审批阻塞，所有决策自主执行；开启审批模式后在配置的决策点暂停等待审批",
+        "AC2: 审批请求通知包含决策上下文摘要和推荐选项，支持批准/拒绝/修改三种响应；审批等待期间 Loop 状态为 waiting，心跳频率降为每 2 小时一次",
+        "AC3: 审批超时（默认 30 分钟，可配置）后自动回退到全自动模式，回退原因记录在黑板中并通过下一次心跳通知用户"
+      ],
+      "deliverables": [
+        "approval_gate.py — 可配置审批门控逻辑",
+        "approval_notification.py — 审批请求推送与响应处理",
+        "test_approval_gate.py — 全自动/审批模式切换、超时回退测试"
+      ],
+      "effort_hours": 24,
+      "dependencies": [
+        "LOOP-003",
+        "LOOP-004"
+      ],
+      "source_worker": "Loop_Engine",
+      "id": "LOOP-008"
+    },
+    {
+      "title": "Hermes 对等协作与工具集成适配层 — 多 Agent 协作与工具调用统一接口",
+      "description": "实现 Hermes 对等协作协议与多工具集成适配层，作为 Loop 引擎与外部执行能力之间的桥梁。Hermes 对等协作：当 Domain Loop 识别到某个任务需要跨领域协作时（如前端任务需要后端 API 配合），通过 Hermes 协议向对应领域的 Loop 实例发起协作请求，协作请求包含：任务描述、期望接口规格、时间约束。Hermes 协作采用异步消息传递模式，请求方 Domain Loop 不阻塞等待，而是将协作任务纳入自身 DAG 继续执行，收到响应后动态调整执行计划。工具集成适配层为 Loop 引擎提供统一的工具调用接口，屏蔽 openclaw/codex_cli/hermes/claude 等不同工具的能力差异：每个工具注册为标准 ToolAdapter（包含 tool_id/capabilities/input_schema/output_schema），Loop 引擎通过 DAG_Scheduler.assign_worker() 分配任务时，由 LLM 根据任务类型和 ToolAdapter.capabilities 匹配最佳工具。适配层处理工具调用的超时、重试、错误转换，将工具原生错误格式统一转换为 Loop 引擎可识别的标准错误码。",
+      "acceptance_criteria": [
+        "AC1: Hermes 对等协作支持跨 Domain Loop 实例的异步协作请求与响应，协作请求在 5 秒内发出，响应处理不阻塞请求方 Loop 的正常执行",
+        "AC2: 工具集成适配层支持注册 ToolAdapter（tool_id/capabilities/input_schema/output_schema），LLM 通过 assign_worker() 分配任务时能根据 capabilities 匹配工具，匹配准确率在测试集上 ≥ 90%",
+        "AC3: 工具调用超时（可配置，默认 5 分钟）、重试（最多 3 次）、错误格式统一转换为标准错误码，适配层异常不导致 Loop 引擎崩溃"
+      ],
+      "deliverables": [
+        "hermes_collaboration.py — Hermes 对等协作协议实现",
+        "tool_adapter_registry.py — 工具适配层注册与调用统一接口",
+        "test_hermes_tooling.py — 协作请求/响应、工具匹配、超时重试测试"
+      ],
+      "effort_hours": 36,
+      "dependencies": [
+        "LOOP-001",
+        "LOOP-007"
+      ],
+      "source_worker": "Loop_Engine",
+      "id": "LOOP-009"
+    },
+    {
+      "title": "长时运行一致性与 8 小时自主运行保障 — 上下文管理与持久化引擎",
+      "description": "实现 Loop 引擎在 8 小时+ 长时运行场景下的一致性保障机制（对应 REQ-035、REQ-044、REQ-050、REQ-051）。核心挑战：LLM 在长上下文中可能丢失决策一致性（忘记早期决策、重复执行已完成任务、偏离原始目标）。解决方案分三层：(1) 分层记忆系统——短期记忆（当前 Phase Loop 迭代的完整上下文）、中期记忆（当前 Domain Loop 的任务摘要与关键决策）、长期记忆（Project Loop 的目标、约束、里程碑进度），每层记忆在 Loop 迭代时自动维护，通过 State_Manager 持久化到黑板；(2) 上下文窗口管理——当单次 LLM 调用的上下文超过模型窗口的 60% 时，触发记忆压缩：短期记忆保留原文，中期记忆压缩为摘要，长期记忆仅保留关键里程碑和决策结论，压缩算法由 LLM 执行但受 Python 层的 token 计数约束；(3) 决策一致性校验——每 100 次 LLM 决策后，执行一次一致性自检：将最近 10 次决策与长期记忆中的目标/约束对比，检测是否存在矛盾决策，发现矛盾时触发回退纠正。整体保障 Loop 引擎在无人工干预情况下稳定运行 ≥ 8 小时。",
+      "acceptance_criteria": [
+        "AC1: 分层记忆系统（短期/中期/长期）在每层 Loop 迭代时自动维护，记忆持久化通过 State_Manager 写入黑板，模拟 8 小时运行（加速测试）后记忆总大小 ≤ 模型上下文窗口的 60%",
+        "AC2: 上下文压缩在 token 超过窗口 60% 时触发，压缩后 LLM 决策一致性自检通过率 ≥ 90%（测试方法：100 次决策后对比长期记忆中的目标/约束）",
+        "AC3: Loop 引擎在模拟 8 小时连续运行测试中无崩溃、无内存泄漏、无状态丢失，总 LLM 调用次数 ≥ 500 次的情况下决策一致性保持"
+      ],
+      "deliverables": [
+        "layered_memory.py — 分层记忆系统（短期/中期/长期）",
+        "context_window_manager.py — 上下文窗口管理与 token 计数约束",
+        "consistency_checker.py — 决策一致性自检与矛盾检测",
+        "test_long_running.py — 8 小时模拟运行、记忆压缩、一致性校验测试"
+      ],
+      "effort_hours": 48,
+      "dependencies": [
+        "LOOP-002",
+        "LOOP-006"
+      ],
+      "source_worker": "Loop_Engine",
+      "id": "LOOP-010"
+    },
+    {
+      "title": "三层质量验证管线：Schema校验 + LLM Judge + 合并决策",
+      "description": "实现三层质量验证管线作为 Quality_Gate 的核心验证引擎，覆盖 REQ-002 和 REQ-020 所要求的关键节点质量验证体系基础能力。第一层：基于 Pydantic 的结构化 Schema 校验，使用模型原生 Structured Output（技术决策 D3）对 artifact 进行格式合规性验证，输出字段级错误列表和整体合规布尔值。第二层：LLM Judge 评估，使用同模型族但严格隔离评估上下文（技术决策 D10）对 artifact 进行多维度质量评分，支持自定义评估 criteria，输出各维度分数及总体评分。第三层：合并决策引擎，将 Schema 校验的结构化结果与 LLM Judge 的语义评分通过加权融合策略合并为最终 verdict（pass/fail/conditional_pass），融合权重可配置。暴露三个标准接口：validate_schema(artifact, schema) → validation_result、judge_with_llm(artifact, criteria) → judgment_score、merge_decisions(schema_result, llm_result) → final_verdict。依赖 State_Manager.read_state() 获取 current_artifact 作为输入源。",
+      "acceptance_criteria": [
+        "AC1: validate_schema 接口接受 artifact 和 schema 参数，返回包含 is_valid(布尔)、errors(字段级错误列表)、validated_at(时间戳) 的 validation_result 对象",
+        "AC2: judge_with_llm 接口接受 artifact 和 criteria 参数，返回包含 dimension_scores(各维度分数Map)、overall_score(0-1浮点数)、judge_reasoning(评估理由字符串) 的 judgment_score 对象",
+        "AC3: merge_decisions 接口接受 schema_result 和 llm_result，通过可配置权重融合输出 final_verdict，verdict 取值为 pass/fail/conditional_pass 三态之一",
+        "AC4: LLM Judge 评估上下文与主 Loop 上下文严格隔离，Judge 调用无法访问 Loop 内部状态（D10 同模型族严格隔离）",
+        "AC5: 三层管线端到端延迟在单 artifact 场景下 ≤ 30秒（含 LLM Judge 调用），Schema 校验层单独延迟 ≤ 100ms"
+      ],
+      "deliverables": [
+        "quality_pipeline.py — 三层验证管线主实现",
+        "schema_validator.py — Pydantic Schema 校验层",
+        "llm_judge.py — LLM Judge 评估层（含上下文隔离）",
+        "decision_merger.py — 合并决策引擎",
+        "test_quality_pipeline.py — 三层管线单元测试与集成测试"
+      ],
+      "effort_hours": 28,
+      "dependencies": [],
+      "source_worker": "Quality_Gate",
+      "id": "QG-001"
+    },
+    {
+      "title": "方向偏离检测引擎：Embedding + Goal Tree + IDS 混合策略",
+      "description": "实现方向偏离检测引擎（覆盖 REQ-007 关键节点方向偏离检测），采用 Embedding 语义相似度 + Goal Tree 目标匹配 + IDS 异常检测三种方法的混合策略，量化当前执行状态相对于预期目标的偏离程度。Embedding 层：将当前 artifact 和 goal 描述编码为向量，计算余弦相似度，低于阈值则判定语义偏离。Goal Tree 层：将 goal 分解为树形目标结构（根目标→子目标→可验证指标），逐层检查当前 artifact 对各层级目标的覆盖度，输出树形匹配报告。IDS 层：借鉴入侵检测系统的异常检测思路，建立'正常执行轨迹'的基线特征（如 artifact 变更幅度分布、迭代方向变化频率），当实时指标偏离基线超过统计阈值时触发告警。三层信号通过加权融合输出综合 deviation_score（0-1，0=完全对齐，1=完全偏离）。当 deviation_score 超过可配置阈值时，触发自动纠偏机制：生成纠偏 prompt 注入 Loop 上下文，引导 LLM 回到正确方向，无需人工介入（REQ-004/REQ-021）。暴露接口：detect_deviation(current_state, goal_tree) → deviation_score。",
+      "acceptance_criteria": [
+        "AC1: detect_deviation 接口接受 current_state 和 goal_tree 参数，返回包含 deviation_score(0-1浮点数)、embedding_similarity(余弦相似度)、goal_coverage(目标覆盖率0-1)、ids_anomaly_flag(布尔值)、deviation_details(各层分析详情) 的 deviation_score 对象",
+        "AC2: Goal Tree 支持至少 3 层目标分解（根目标→子目标→可验证指标），每层独立输出覆盖率",
+        "AC3: IDS 基线支持在线更新，新 artifact 的特征数据在检测后自动纳入基线统计",
+        "AC4: 当 deviation_score 超过阈值时，自动生成纠偏 prompt 并注入 Loop 上下文，纠偏 prompt 包含偏离维度、偏离程度、建议修正方向",
+        "AC5: 单次偏离检测端到端延迟 ≤ 5秒（不含 LLM 纠偏 prompt 生成），Embedding 计算单独延迟 ≤ 500ms"
+      ],
+      "deliverables": [
+        "deviation_detector.py — 方向偏离检测引擎主实现",
+        "embedding_analyzer.py — Embedding 语义相似度分析",
+        "goal_tree_matcher.py — Goal Tree 目标匹配与覆盖率计算",
+        "ids_monitor.py — IDS 异常检测模块（基线建立与偏离告警）",
+        "test_deviation_detector.py — 偏离检测单元测试与集成测试"
+      ],
+      "effort_hours": 28,
+      "dependencies": [
+        "QG-001"
+      ],
+      "source_worker": "Quality_Gate",
+      "id": "QG-002"
+    },
+    {
+      "title": "关键节点质量门控机制：可配置门控点 + 断路器 + 风险防控",
+      "description": "实现在关键节点执行质量验证和方向偏离检测的门控机制（直接响应 REQ-002 和 REQ-020，类似 DeepFlow Harness 门控但独立实现）。门控点可配置：系统预定义若干默认门控点（如 artifact 首次生成、迭代输出、最终交付前），同时支持通过配置文件自定义门控位置和触发条件。每个门控点执行完整的三层验证管线（QG-001）和方向偏离检测（QG-002），根据综合结果决定 pass（继续执行）、fail（终止并报错）、conditional_pass（附带修复建议继续）。集成断路器模式（对应风险 R1）：连续 N 次 fail 后触发断路器，自动终止当前 Loop 并上报，防止无效重试消耗资源。门控结果记录完整审计日志，包含时间戳、artifact 快照、验证结果、决策理由。本 WP 同时解决 REQ-048（子Agent返回结果质量低但主Loop误判为通过）的风险：通过强制子Agent返回结果经过独立质量评估（由 LLM Judge 以独立上下文评判），防止主 Loop 因信息偏差而误判。",
+      "acceptance_criteria": [
+        "AC1: 支持配置门控点的触发条件（artifact_type、loop_layer、phase），至少支持 3 种触发模式：每次产出触发、每 N 轮触发、仅最终交付触发",
+        "AC2: 门控决策输出三态结果（pass/fail/conditional_pass），conditional_pass 必须附带修复建议和剩余允许重试次数",
+        "AC3: 断路器在连续 fail 达到可配置阈值（默认 3 次）后自动触发，终止当前 Loop 并输出断路器报告（含失败原因链）",
+        "AC4: 子Agent返回结果必须经过独立质量评估路径，主 Loop 不可绕过门控直接采纳子Agent输出",
+        "AC5: 门控审计日志记录每次门控的完整上下文（artifact_id、验证结果、决策路径、耗时），支持事后查询和回放"
+      ],
+      "deliverables": [
+        "gate_controller.py — 关键节点门控控制器主实现",
+        "circuit_breaker.py — 断路器模式实现",
+        "gate_config.py — 门控点配置管理（默认+自定义）",
+        "audit_logger.py — 门控审计日志模块",
+        "test_gate_controller.py — 门控机制单元测试与集成测试"
+      ],
+      "effort_hours": 20,
+      "dependencies": [
+        "QG-001",
+        "QG-002"
+      ],
+      "source_worker": "Quality_Gate",
+      "id": "QG-003"
+    },
+    {
+      "title": "多引擎迭代协调与质量收敛控制",
+      "description": "实现 DeepFlow 管线级别的多引擎迭代 + 多轮 Review 质量保证体系（REQ-019），区别于单次 Agent 输出模式。多引擎迭代协调：管理多个执行引擎（可为不同 LLM 或不同策略）的迭代调度，每轮迭代后由质量验证管线（QG-001）评估产出质量，由门控机制（QG-003）决定是否继续迭代。质量收敛检测：定义收敛条件（如连续 N 轮质量分数变化 < 阈值 ε），收敛后自动停止迭代并输出最优 artifact；未收敛但达到最大轮次时强制停止并标记为'未收敛'。迭代策略集成 Thompson Sampling（技术决策 D6）：在多引擎场景下，将每个引擎视为一个臂，根据历史质量评分更新 posterior 分布，通过 Thompson Sampling 选择下一轮引擎，平衡探索与利用。最大迭代轮次可配置（默认 max_rounds=5），超限时触发降级策略（如降低质量标准或切换至更简单引擎）。本 WP 直接支撑 REQ-038（一次跑通率）：通过合理的收敛判断和引擎选择，提升首次路径正确的概率，减少无效重试。",
+      "acceptance_criteria": [
+        "AC1: 支持多引擎迭代调度，至少管理 3 个并行引擎，每轮通过 Thompson Sampling 选择下一轮执行引擎",
+        "AC2: 质量收敛检测支持可配置收敛条件：连续 N 轮（默认 2 轮）质量分数变化 < ε（默认 0.05）时判定收敛",
+        "AC3: 达到最大迭代轮次（可配置，默认 5 轮）时强制停止，输出结果标记 convergence_status 为 converged/unconverged/terminated",
+        "AC4: 迭代过程中每轮的引擎选择、质量评分、收敛判断结果均记录到 loop_context，支持事后分析",
+        "AC5: 单次迭代周期（执行→验证→决策→下一轮启动）额外开销 ≤ 10秒（不含引擎执行本身的时间）"
+      ],
+      "deliverables": [
+        "iteration_coordinator.py — 多引擎迭代协调器主实现",
+        "convergence_detector.py — 质量收敛检测模块",
+        "thompson_sampler.py — Thompson Sampling 引擎选择策略",
+        "iteration_config.py — 迭代参数配置（轮次、收敛阈值、降级策略）",
+        "test_iteration_coordinator.py — 迭代协调单元测试与集成测试"
+      ],
+      "effort_hours": 32,
+      "dependencies": [
+        "QG-001",
+        "QG-003"
+      ],
+      "source_worker": "Quality_Gate",
+      "id": "QG-004"
+    },
+    {
+      "title": "质量保证指标体系与多轮 Review 防误判机制",
+      "description": "实现质量保证的度量、监控与防误判机制，解决两个关键风险：REQ-046（跑了很多轮但最终质量差）和 REQ-048（子Agent返回结果质量低但主Loop误判为通过）。质量趋势分析：跟踪每轮迭代的质量分数序列，检测质量停滞（连续多轮无明显提升）和质量退化（后轮分数低于前轮）两种异常模式，当检测到异常时提前终止迭代并输出诊断报告，避免'跑了很多轮但最终质量差'的资源浪费。独立质量复审：对子Agent返回结果实施独立于主 Loop 的质量复审，复审使用不同的评估 prompt 和隔离上下文（D10），防止主 Loop 因信息偏差或上下文污染而误判子Agent产出质量。多轮 Review 机制：在关键门控点（QG-003）执行多轮 Review（默认 2 轮），每轮 Review 由不同的 prompt 策略驱动，多轮 Review 结果取交集（所有轮次均 pass 才最终 pass），降低单次 Review 的随机误差。质量指标暴露接口：evaluate_quality(artifact, quality_dims) → quality_report，输出包含各维度分数、趋势分析结果、Review 轮次详情、最终 verdict 的完整质量报告。",
+      "acceptance_criteria": [
+        "AC1: 质量趋势分析能检测两种异常模式：停滞（连续 3 轮质量分数变化 < 0.02）和退化（当前轮分数比前一轮低 > 0.1），检测后输出异常类型和建议动作",
+        "AC2: 独立质量复审路径与主 Loop 评估路径完全隔离，使用不同 prompt 策略，隔离度通过测试验证（复审结果不受主 Loop 上下文影响）",
+        "AC3: 多轮 Review 默认执行 2 轮，仅当所有轮次均判定 pass 时最终 verdict 为 pass，任一轮次 fail 则触发额外 Review 或降级为 conditional_pass",
+        "AC4: evaluate_quality 接口返回完整 quality_report，包含 dimension_scores、trend_analysis(stagnation/decline/normal)、review_rounds(各轮详情)、final_verdict",
+        "AC5: 质量指标数据持久化到 loop_context，支持跨迭代查询，可用于事后分析和策略调优"
+      ],
+      "deliverables": [
+        "quality_metrics.py — 质量指标收集与计算主实现",
+        "trend_analyzer.py — 质量趋势分析（停滞/退化检测）",
+        "independent_reviewer.py — 独立质量复审模块（隔离上下文）",
+        "multi_round_reviewer.py — 多轮 Review 执行器",
+        "test_quality_metrics.py — 质量指标与防误判机制单元测试与集成测试"
+      ],
+      "effort_hours": 28,
+      "dependencies": [
+        "QG-001",
+        "QG-003"
+      ],
+      "source_worker": "Quality_Gate",
+      "id": "QG-005"
+    },
+    {
+      "title": "三级死循环熔断器",
+      "description": "实现三级递进式死循环熔断机制，覆盖 REQ-034（死循环熔断）、REQ-047（LLM 无效循环检测）、REQ-073（max_loop_iterations_without_progress 操作边界）。第一级：循环迭代计数器，跟踪 Loop Engine 每次迭代，当迭代次数超过可配置阈值 max_loop_iterations_without_progress 时触发 Warning 级别告警；第二级：语义重复检测器，对连续 N 次 LLM 输出的决策动作进行语义相似度比对（基于 embedding cosine similarity），当相似度超过 0.95 阈值时判定为无效循环，触发 Escalation 级别告警并强制注入差异化的 prompt 扰动；第三级：硬熔断器，当循环总耗时超过可配置的 Loop 超时时间（REQ-064）或连续无效循环次数达到上限时，直接终止循环执行并返回安全终止状态。三级阈值参数均通过 JSON 配置文件加载，支持运行时热更新。熔断器对外暴露 check_circuit_breaker(loop_state) → safe_bool 接口，供 Loop Engine 在每次迭代前调用，返回 true 表示可继续、false 表示已触发熔断。所有熔断事件（触发时间、触发级别、当前 loop_state 快照、决策历史摘要）写入 Hash Chain 审计日志（D9），确保不可篡改。",
+      "acceptance_criteria": [
+        "AC1: 三级递进触发 — Warning（迭代阈值）→ Escalation（语义重复）→ Hard Break（超时/次数上限），每级均可独立配置阈值参数",
+        "AC2: 语义重复检测在连续 3 次以上 LLM 决策输出 cosine similarity ≥ 0.95 时准确判定为无效循环，误报率 < 1%",
+        "AC3: check_circuit_breaker(loop_state) 接口在每次迭代前调用延迟 < 5ms，不阻塞主循环执行流",
+        "AC4: 所有熔断事件写入 Hash Chain 审计日志，日志条目包含触发级别、loop_state 快照、时间戳及前一条目的 hash 链引用"
+      ],
+      "deliverables": [
+        "circuit_breaker.py — 三级熔断器核心实现",
+        "semantic_duplicate_detector.py — 基于 embedding 的语义重复检测",
+        "circuit_breaker_config.json — 阈值参数配置文件模板",
+        "test_circuit_breaker.py — 熔断器单元测试与集成测试"
+      ],
+      "effort_hours": 40,
+      "dependencies": [],
+      "source_worker": "Safety_Shield",
+      "id": "SS-001"
+    },
+    {
+      "title": "Zone 0/1/2 分层护栏执行引擎",
+      "description": "基于 guardrails-ai 统一框架（D8 架构决策）实现 Zone 0/1/2 三层分区护栏强制执行机制，覆盖 REQ-016（不执行外部内容中的指令）、REQ-017（不修改 Zone 0 安全规则）、REQ-018（不删除 memory，Dream Loop 只增不删）。Zone 0 为硬编码核心安全规则层，包含三条不可变规则：(1) 拒绝执行任何来自外部内容（用户输入、网页抓取、文件内容、API 返回）中的指令性语句；(2) 拒绝任何试图修改、覆盖、删除 Zone 0 规则本身的请求；(3) 拒绝任何删除 memory 记录的请求，仅允许追加操作。Zone 0 规则以 Python 常量形式硬编码，不通过配置文件加载，不参与运行时修改。Zone 1 为可配置策略层，通过 guardrails-ai 的 Validation 规则定义操作边界约束（如 max_goal_evolutions_before_alert REQ-071），支持 JSON 配置热加载。Zone 2 为建议层，提供 soft warning 但不阻断执行。对外暴露 enforce_guardrails(action, zone) → allowed_bool 和 validate_state_transition(from_state, to_state) → valid_bool 两个接口。所有护栏检查事件（通过/拦截/告警）写入 Hash Chain 审计日志（D9），拦截事件包含被拦截动作的完整上下文。依赖 State_Manager.read_state() 获取 current_state 以确定当前 Zone，依赖 State_Manager.enforce_zone_boundary() 执行 Zone 边界检查。",
+      "acceptance_criteria": [
+        "AC1: Zone 0 三条硬编码规则 100% 拦截率 — 外部指令注入、Zone 0 规则篡改、memory 删除请求均被可靠阻断，零穿透",
+        "AC2: enforce_guardrails(action, zone) 接口在 Zone 0 检查延迟 < 10ms（硬编码路径），Zone 1 guardrails-ai 验证延迟 < 50ms",
+        "AC3: Zone 1 策略规则通过 JSON 配置文件加载，支持运行时热更新且不中断正在执行的护栏检查",
+        "AC4: validate_state_transition(from_state, to_state) 正确拒绝所有违反 Zone 边界的状态转换请求，并通过 Hash Chain 审计日志记录每次验证结果"
+      ],
+      "deliverables": [
+        "guardrail_engine.py — Zone 分层护栏核心实现（基于 guardrails-ai）",
+        "zone0_rules.py — Zone 0 硬编码安全规则（三条不可变规则）",
+        "zone1_policy_config.json — Zone 1 可配置策略规则模板",
+        "state_transition_validator.py — 状态转换合法性验证器",
+        "test_guardrail_engine.py — 护栏引擎单元测试（含 Zone 0 穿透测试）"
+      ],
+      "effort_hours": 48,
+      "dependencies": [],
+      "source_worker": "Safety_Shield",
+      "id": "SS-002"
+    },
+    {
+      "title": "Prompt Injection 多层检测系统",
+      "description": "实现多层 Prompt Injection 检测系统，覆盖 REQ-016（不执行外部内容中的指令）的主动检测维度，对应风险 R8（Prompt Injection — 多层检测 + Zone 0 硬编码，RTO < 100ms）。第一层：基于正则表达式和关键词的快速模式匹配，覆盖已知 Prompt Injection 攻击签名库（包括 direct injection 如 'ignore previous instructions'、'you are now'、'system prompt' 等模式，以及 jailbreak 尝试如 DAN 系列、developer mode 绕过等），该层延迟目标 < 5ms。第二层：基于 LLM 的语义分析层，对第一层未命中但语义可疑的内容进行意图分类（正常请求 / 指令注入 / 角色劫持 / 信息提取），使用独立的轻量级分类模型避免被注入攻击影响。第三层：上下文一致性校验，检测当前输入与历史对话上下文的语义连贯性，识别突然的语义跳转（可能是注入攻击信号）。三层检测采用 pipeline 架构，第一层命中即短路返回，仅在可疑情况下逐级深入。对外暴露 detect_injection(content) → threat_level 接口，threat_level 返回值为 none / low / medium / high / critical 五级。所有检测结果（含输入内容摘要、命中层级、判定依据）写入 Hash Chain 审计日志（D9）。整体检测 pipeline 端到端延迟 RTO < 100ms。",
+      "acceptance_criteria": [
+        "AC1: 对已知 Prompt Injection 攻击签名库的检出率 ≥ 99.5%，误报率 < 0.5%",
+        "AC2: 端到端检测延迟 RTO < 100ms（第一层快速路径 < 5ms，全 pipeline < 100ms）",
+        "AC3: detect_injection(content) 返回五级威胁等级（none/low/medium/high/critical），每级有明确的分数阈值定义",
+        "AC4: 所有检测结果写入 Hash Chain 审计日志，日志条目包含输入内容 hash、命中层级、威胁等级及判定依据摘要"
+      ],
+      "deliverables": [
+        "injection_detector.py — 多层 Prompt Injection 检测 pipeline 核心实现",
+        "injection_signatures.json — 已知攻击签名库（正则 + 关键词）",
+        "semantic_classifier.py — 基于 LLM 的语义意图分类器",
+        "test_injection_detector.py — 检测器单元测试（含对抗样本测试集）"
+      ],
+      "effort_hours": 36,
+      "dependencies": [],
+      "source_worker": "Safety_Shield",
+      "id": "SS-003"
+    },
+    {
+      "title": "四阶段故障恢复决策树与跨厂商 Fallback",
+      "description": "实现四阶段递进式故障恢复决策树，覆盖 REQ-049（长时间执行中模型 API 不可用或超时），对应风险 R11（LLM API 速率限制 — RPM 监控 + 指数退避）。四阶段递进逻辑：Stage 1 — Retry with Backoff：对 API 调用失败（网络超时、5xx 错误、速率限制 429）执行指数退避重试，初始间隔 1s，退避因子 2，最大重试次数可配置（默认 3 次），支持 jitter 避免 thundering herd；Stage 2 — Cross-Vendor Fallback：当主厂商（如 OpenAI）连续失败达到 Stage 1 重试上限后，自动切换到备用厂商（如 Anthropic → Google），切换过程保持当前 loop state 上下文不丢失，请求格式通过适配器模式转换为目标厂商 API 格式；Stage 3 — Safe State Transition：当所有可用厂商均不可用时，将系统状态安全迁移到预定义的 safe state（保存当前 blackboard snapshot、暂停循环执行、记录断点位置），确保不丢失已完成的工作成果；Stage 4 — Human Intervention：当自动恢复失败或 safe state 持续时间超过可配置阈值时，触发 HITL 告警通知人工介入，告警内容包含故障上下文、已尝试的恢复动作、当前状态快照。对外暴露 execute_recovery(failure_context) → recovery_action 接口，failure_context 包含错误类型、失败厂商、已重试次数、当前 loop state 等信息，recovery_action 为四阶段之一。跨厂商 fallback 支持 OpenAI / Anthropic / Google / 自定义厂商的注册与健康管理，维护厂商健康度评分（成功率、平均延迟、最近失败时间），优先选择健康度最高的厂商。所有故障事件与恢复动作写入 Hash Chain 审计日志（D9）。",
+      "acceptance_criteria": [
+        "AC1: 四阶段递进恢复完整覆盖 — Stage 1 指数退避重试 → Stage 2 跨厂商自动切换 → Stage 3 安全状态迁移 → Stage 4 HITL 告警，每阶段有明确的触发条件和超时阈值",
+        "AC2: 跨厂商 Fallback 切换延迟 < 5s（不含 API 调用时间），切换后请求格式正确转换，loop state 上下文零丢失",
+        "AC3: execute_recovery(failure_context) 接口根据 failure_context 自动选择正确的恢复阶段，不跳过阶段、不重复执行已完成阶段",
+        "AC4: 厂商健康度评分实时更新，新厂商注册后自动纳入 fallback 候选池，所有故障与恢复事件写入 Hash Chain 审计日志"
+      ],
+      "deliverables": [
+        "recovery_engine.py — 四阶段故障恢复决策树核心实现",
+        "vendor_fallback_manager.py — 跨厂商 Fallback 管理与健康度监控",
+        "vendor_adapter.py — 厂商 API 格式适配器（OpenAI/Anthropic/Google 接口转换）",
+        "recovery_config.json — 恢复策略参数配置文件模板",
+        "test_recovery_engine.py — 故障恢复单元测试（含模拟厂商不可用场景）"
+      ],
+      "effort_hours": 44,
+      "dependencies": [
+        "SS-001"
+      ],
+      "source_worker": "Safety_Shield",
+      "id": "SS-004"
+    },
+    {
+      "title": "资源硬限与 API 速率管控",
+      "description": "实现资源硬限与 API 速率管控系统，覆盖 REQ-032（默认不限制 token 消耗，可配置）、REQ-064（Loop 超时时间可配置）、REQ-074（hitl_timeout_hours: 24）。Token 预算管理子系统：实现 check_token_budget(usage) → within_limit_bool 接口，跟踪每次模型调用的 token 消耗（prompt_tokens + completion_tokens），累计计算当前 loop 会话的总 token 使用量；默认不设置硬限制（即 within_limit_bool 始终返回 true），但支持通过 JSON 配置文件设置 per-session / per-loop / per-day 三级 token 上限；当使用量达到配置上限的 80% 时触发 Warning 告警，达到 90% 时触发 Critical 告警并建议 Loop Engine 降低输出 token 长度，达到 100% 时阻断后续模型调用并触发资源不足恢复流程。API 速率管控子系统：实现 per-vendor 的 RPM（Requests Per Minute）和 TPM（Tokens Per Minute）监控，采用滑动窗口算法精确追踪；当检测到 429 响应时自动触发指数退避（初始 1s，因子 2，最大 60s），并动态下调该厂商的 RPM 配额至最近成功值的 80%；支持优先级队列，确保 Zone 0 安全检查相关的 API 调用拥有最高优先级，不被速率限制阻断。Loop 超时管控：实现全局 loop 计时器，当 loop 总执行时间超过可配置的超时阈值时通知 Loop Engine 终止；HITL 超时管控：当 HITL 等待时间超过 hitl_timeout_hours（默认 24 小时）时触发升级告警。所有资源使用事件（token 消耗、速率限制触发、超时事件）写入 Hash Chain 审计日志（D9）。",
+      "acceptance_criteria": [
+        "AC1: check_token_budget(usage) 在默认配置（无限制）下始终返回 true，配置上限后在 token 累计消耗达到 100% 时准确阻断并返回 false",
+        "AC2: API 速率管控在收到 429 响应后 100ms 内触发指数退避，动态下调 RPM 配额后不再次触发 429（恢复期成功率 > 95%）",
+        "AC3: Loop 超时和 HITL 超时（默认 24 小时）均通过 JSON 配置文件可配置，超时触发后准确通知 Loop Engine 并记录审计日志",
+        "AC4: 所有资源使用事件（token 消耗记录、速率限制触发、超时事件）写入 Hash Chain 审计日志，支持按时间范围查询资源使用统计"
+      ],
+      "deliverables": [
+        "token_budget_manager.py — Token 预算管理核心实现",
+        "api_rate_controller.py — API 速率管控（RPM/TPM 监控 + 指数退避）",
+        "timeout_manager.py — Loop 超时与 HITL 超时管控",
+        "resource_config.json — 资源限制参数配置文件模板",
+        "test_resource_manager.py — 资源管控单元测试（含速率限制模拟测试）"
+      ],
+      "effort_hours": 36,
+      "dependencies": [
+        "SS-001"
+      ],
+      "source_worker": "Safety_Shield",
+      "id": "SS-005"
+    },
+    {
+      "title": "Dream Loop 反思引擎 — GRADE 框架自动反思历史执行",
+      "description": "实现 Dream Loop 核心反思引擎，在 Loop 空闲时自动触发对历史执行的反思分析。引擎接收来自 Loop_Engine.terminate_loop() 返回的 execution_history 作为输入，使用 GRADE 框架（Goal回顾 → Rule提取 → Action分析 → Decision评估 → Evidence总结）五维度对执行历史进行结构化分析。反思过程通过 LLM 调用完成，使用原生 Structured Output 确保输出格式为严格的 JSON insight 列表。每个 insight 包含：insight_type（success/failure/neutral）、category（pattern/anti_pattern/optimization/risk）、confidence_score（0.0-1.0）、source_execution_id、description、recommended_action 等字段。引擎需支持空闲检测机制：仅在无活跃 Loop 执行时启动反思，避免与正常执行竞争资源。反思结果以 list[insight] 格式返回，供下游 write_insight_to_memory 消费。技术实现采用 Python 骨架 + LLM 决策混合架构，GRADE 框架的五个维度分别对应五个 prompt 模板，每个模板使用 JSON 统一序列化。",
+      "acceptance_criteria": [
+        "AC1: run_dream_reflection(execution_history) 接口能正确接收 execution_history 输入，返回 list[insight]，每个 insight 包含 insight_type/category/confidence_score/source_execution_id/description/recommended_action 六个必填字段，缺失任一字段则视为失败",
+        "AC2: GRADE 框架五维度（Goal/Rule/Action/Decision/Evidence）分析完整覆盖，每个维度生成独立的结构化分析结果，最终合并为 insight 列表",
+        "AC3: 空闲检测机制正常工作——当存在活跃 Loop 执行时，反思任务不启动；当检测到空闲状态后，在可配置延迟（默认 30s）后自动触发反思",
+        "AC4: LLM 调用使用原生 Structured Output，输出严格遵循预定义 JSON Schema，无 xgrammar 依赖；当 LLM 输出格式异常时，能自动重试（最多 3 次）并在最终失败时优雅降级返回空列表"
+      ],
+      "deliverables": [
+        "dream_loop_reflection.py — Dream Loop 反思引擎主模块，包含 run_dream_reflection 接口和 GRADE 框架 prompt 模板",
+        "grade_framework.py — GRADE 五维度分析器，封装 Goal/Rule/Action/Decision/Evidence 的结构化分析逻辑",
+        "idle_detector.py — 空闲状态检测器，监控 Loop 执行状态并触发反思",
+        "test_dream_loop.py — 反思引擎单元测试，覆盖正常反思、空输入、LLM 异常、空闲检测等场景"
+      ],
+      "effort_hours": 32,
+      "dependencies": [],
+      "source_worker": "Self_Evolution",
+      "id": "SE-001"
+    },
+    {
+      "title": "Insight 持久化 — 写入现有 Memory 系统",
+      "description": "实现 write_insight_to_memory(insight) → void 接口，将 Dream Loop 产生的 insight 持久化到现有 memory 系统中。根据决策 D7（增强现有 memory 系统），不新建独立存储引擎，而是复用 State_Manager.write_atomic() 进行原子写入。insight 数据通过 JSON 统一序列化后写入 memory 命名空间下的专用 insight 存储区，写入路径格式为 memory/insights/{timestamp}_{insight_type}_{source_execution_id}.json。每次写入包含完整的 insight 元数据（产生时间、来源执行 ID、GRADE 维度标签、confidence_score）。写入操作保证原子性——通过 State_Manager.write_atomic() 的 write-then-rename 策略确保不会出现半写状态。支持批量写入模式：当 Dream Loop 一次反思产生多条 insight 时，批量写入共享同一事务上下文。写入后触发 memory 索引更新，确保后续检索能发现新 insight。并发安全通过 State_Manager 内置锁机制保证，多 insight 写入按 FIFO 顺序串行化。",
+      "acceptance_criteria": [
+        "AC1: write_insight_to_memory(insight) 接口能正确将单个 insight 持久化到 memory 系统，写入后可通过 State_Manager 读取完整 insight 内容，字段无损",
+        "AC2: 原子写入保证——模拟写入过程中 kill -9，重启后 memory 中不存在半写状态的 insight 文件（通过 write-then-rename 策略验证）",
+        "AC3: 批量写入场景下，10 条 insight 全部写入成功后，memory 中可检索到全部 10 条；写入过程中若某条失败，不影响已成功写入的其他 insight",
+        "AC4: insight 存储路径遵循 memory/insights/{timestamp}_{insight_type}_{source_execution_id}.json 命名规范，时间戳精度到秒，文件名无特殊字符冲突"
+      ],
+      "deliverables": [
+        "insight_persistence.py — Insight 持久化模块，包含 write_insight_to_memory 接口和批量写入逻辑",
+        "insight_schema.py — Insight 数据结构定义与 JSON Schema 校验",
+        "test_insight_persistence.py — 持久化单元测试，覆盖单条写入、批量写入、原子性验证、路径规范校验"
+      ],
+      "effort_hours": 16,
+      "dependencies": [
+        "SE-001"
+      ],
+      "source_worker": "Self_Evolution",
+      "id": "SE-002"
+    },
+    {
+      "title": "Meta-Loop 参数优化器 — Thompson Sampling + LLM-as-Optimizer",
+      "description": "实现 optimize_params(performance_data) → param_update 接口，构成 Meta-Loop 的核心参数优化能力。根据决策 D5（LLM-as-Optimizer 替代 Optuna），使用 LLM 本身作为参数优化器，无需外部优化框架。优化器接收 performance_data（包含历史参数配置与对应执行效果指标），通过 Thompson Sampling 维护各参数候选的贝叶斯后验分布进行采样选择，然后将采样结果连同历史性能数据一起提交给 LLM 进行智能优化决策。LLM 分析当前参数表现趋势，结合 Thompson Sampling 的探索信号，输出 param_update 建议（包含目标参数名、新值、变更原因、预期收益）。可优化参数范围包括：timeout 配置、重试策略参数（max_retries/retry_delay/backoff_factor）、模型选择参数（model_id/temperature）。param_update 输出为结构化 JSON，包含 changes 列表（每项含 param_name/current_value/proposed_value/rationale/expected_improvement）。优化器内置性能数据缓存，支持增量更新——每次优化后自动将 (param_config, performance_result) 对追加到历史数据中。",
+      "acceptance_criteria": [
+        "AC1: optimize_params(performance_data) 接口能正确接收性能数据并返回 param_update 结构，param_update 包含 changes 列表，每项变更含 param_name/current_value/proposed_value/rationale/expected_improvement 五个必填字段",
+        "AC2: Thompson Sampling 实现正确——维护每个参数候选值的 Beta 分布（alpha/beta），根据历史成功/失败次数更新后验分布，采样结果作为 LLM 优化的候选输入",
+        "AC3: LLM-as-Optimizer 调用使用原生 Structured Output，输出严格遵循 param_update JSON Schema；当 LLM 返回不可解析结果时，回退到 Thompson Sampling 纯采样结果（不变更参数值）",
+        "AC4: 性能数据缓存支持增量追加，100 轮优化循环后历史数据完整保留，无数据丢失或覆盖；缓存数据结构为 JSON 统一序列化"
+      ],
+      "deliverables": [
+        "meta_loop_optimizer.py — Meta-Loop 参数优化器主模块，包含 optimize_params 接口",
+        "thompson_sampler.py — Thompson Sampling 实现，维护参数候选的 Beta 分布后验",
+        "llm_optimizer.py — LLM-as-Optimizer 封装，构建优化 prompt 并解析结构化输出",
+        "performance_cache.py — 性能数据增量缓存，存储 (param_config, performance_result) 历史对",
+        "test_meta_loop.py — 优化器单元测试，覆盖正常优化、LLM 异常回退、Thompson Sampling 分布更新等场景"
+      ],
+      "effort_hours": 40,
+      "dependencies": [],
+      "source_worker": "Self_Evolution",
+      "id": "SE-003"
+    },
+    {
+      "title": "参数安全边界验证 — Safety Shield 集成",
+      "description": "实现 validate_param_bounds(proposed_change) → safe_bool 接口，作为所有参数调整的安全守门人。该接口在参数变更生效前进行强制校验，确保所有参数调整限定在预定义安全边界内。校验引擎接收 proposed_change（来自 Meta-Loop 的 param_update），逐项检查每个参数变更是否超出安全边界。安全边界定义包括：timeout 范围（1s-300s）、max_retries 范围（0-10）、retry_delay 范围（0.1s-60s）、backoff_factor 范围（1.0-5.0）、temperature 范围（0.0-2.0）、model_id 白名单（仅允许预注册的模型标识）。校验逻辑分三层：第一层为硬边界检查（hard_min/hard_max），超出则直接拒绝；第二层为软边界检查（soft_min/soft_max），超出则标记为 warning 但仍允许通过（需更高权限确认）；第三层为变更幅度检查（max_delta_per_step），单次变更幅度不得超过预定义阈值，防止参数剧烈跳变。校验结果 safe_bool 为三态：true（安全通过）、false（硬边界拒绝）、warning（软边界告警）。与 Safety_Shield.validate_param_bounds() 的集成通过委托调用实现，本模块在 Safety_Shield 基础上增加 Self_Evolution 特有的变更幅度检查层。",
+      "acceptance_criteria": [
+        "AC1: validate_param_bounds(proposed_change) 接口对每个参数变更返回三态结果（true/false/warning），hard boundary 超出时返回 false 并附带拒绝原因，soft boundary 超出时返回 warning 并附带告警详情",
+        "AC2: 变更幅度检查生效——单次 timeout 变更超过 max_delta_per_step（默认 30s）时返回 false，即使新值在 hard_min/hard_max 范围内",
+        "AC3: model_id 白名单校验生效——尝试设置未注册的 model_id 时返回 false，已注册 model_id 返回 true",
+        "AC4: 与 Safety_Shield.validate_param_bounds() 的委托调用链路正常——本模块的校验逻辑在 Safety_Shield 基础校验之后执行，两层校验结果合并，任一为 false 则最终为 false"
+      ],
+      "deliverables": [
+        "param_bounds_validator.py — 参数安全边界验证主模块，包含 validate_param_bounds 接口和三层校验逻辑",
+        "safety_bounds_config.json — 安全边界配置文件，定义各参数的 hard/soft 边界和 max_delta_per_step",
+        "test_param_bounds.py — 边界验证单元测试，覆盖硬边界拒绝、软边界告警、变更幅度限制、白名单校验等场景"
+      ],
+      "effort_hours": 20,
+      "dependencies": [
+        "SE-003"
+      ],
+      "source_worker": "Self_Evolution",
+      "id": "SE-004"
+    },
+    {
+      "title": "探索 vs 利用比例控制器 — 动态 Exploration Ratio 管理",
+      "description": "实现 get_exploration_ratio() → ratio_float 接口，为 Meta-Loop 参数优化提供动态探索与利用比例控制。该控制器管理 epsilon 值（0.0-1.0），决定 Meta-Loop 在参数优化时选择 Thompson Sampling 探索新参数配置 vs 利用当前最优配置的概率。默认采用 epsilon-greedy 策略，初始 epsilon=0.3（30% 探索），随优化轮次增加按可配置衰减率（默认 0.995）指数衰减，下限为 epsilon_min=0.05（保留 5% 基础探索率防止陷入局部最优）。支持三种策略模式：epsilon_greedy（标准衰减）、ucb（Upper Confidence Bound，基于不确定性自动调整）、adaptive（基于最近 N 轮性能趋势动态调整——性能持续改善时降低探索率，性能停滞或下降时提高探索率）。比例控制器与 Thompson Sampling 深度集成：当 ratio 偏向探索时，Thompson Sampling 增加采样多样性；当 ratio 偏向利用时，Thompson Sampling 聚焦于当前最优候选附近。控制器状态持久化为 JSON，确保重启后恢复上次比例值。",
+      "acceptance_criteria": [
+        "AC1: get_exploration_ratio() 接口返回 0.0-1.0 范围内的 float 值，精度到小数点后 4 位；默认 epsilon-greedy 策略下，初始调用返回 0.3，连续调用 100 次后值按 0.995 衰减率正确递减",
+        "AC2: 三种策略模式（epsilon_greedy/ucb/adaptive）均可正常切换，切换后 ratio 值平滑过渡（不跳变超过 0.1）",
+        "AC3: epsilon 下限保护生效——无论衰减多少轮次，ratio 值始终 >= epsilon_min（默认 0.05）",
+        "AC4: 控制器状态持久化正常——模拟进程重启后，get_exploration_ratio() 返回重启前的正确 ratio 值，衰减轮次计数器不丢失"
+      ],
+      "deliverables": [
+        "exploration_controller.py — 探索比例控制器主模块，包含 get_exploration_ratio 接口和三种策略实现",
+        "exploration_state.json — 持久化状态文件，存储当前 ratio、衰减轮次、策略模式等",
+        "test_exploration_controller.py — 控制器单元测试，覆盖衰减正确性、下限保护、策略切换、持久化恢复等场景"
+      ],
+      "effort_hours": 24,
+      "dependencies": [],
+      "source_worker": "Self_Evolution",
+      "id": "SE-005"
+    },
+    {
+      "title": "Dream Loop + Meta-Loop 持续自我优化编排器",
+      "description": "实现 Dream Loop 与 Meta-Loop 的协调编排层，将反思引擎（SE-001）、Insight 持久化（SE-002）、参数优化器（SE-003）、安全边界验证（SE-004）、探索比例控制器（SE-005）串联为完整的持续自我优化闭环。编排器负责两大核心流程的生命周期管理：(1) Dream Loop 流程——检测空闲 → 获取 execution_history → 运行 GRADE 反思 → 将 insight 写入 memory → 从 insight 中提取可量化信号反馈给 Meta-Loop；(2) Meta-Loop 流程——收集性能数据 → 获取 exploration_ratio → 运行 Thompson Sampling + LLM 优化 → 验证参数安全边界 → 应用安全参数变更。两个 Loop 通过共享的 insight-to-performance 信号通道连接：Dream Loop 产出的 insight 中的 recommended_action 如果涉及参数调整，自动转化为 Meta-Loop 的性能数据输入。编排器实现 Human Review Gate 机制（对应风险 R4）：当 insight 的 recommended_action 标记为 high_risk 或 confidence_score < 0.5 时，变更进入 pending 状态，需人工确认后才生效。所有编排状态通过 JSON 统一序列化，支持优雅关闭和重启恢复。",
+      "acceptance_criteria": [
+        "AC1: Dream Loop 完整流程可执行——从空闲检测到 insight 写入 memory 全链路跑通，端到端延迟 < 60s（不含 LLM 响应时间）",
+        "AC2: Meta-Loop 完整流程可执行——从性能数据收集到安全参数变更应用全链路跑通，参数变更经过 validate_param_bounds 校验后才生效",
+        "AC3: Human Review Gate 生效——confidence_score < 0.5 或 high_risk 标记的 insight 产生的参数变更进入 pending 状态，不会自动应用；人工确认后变更正常生效",
+        "AC4: 编排器优雅关闭与重启——模拟 kill -9 后重启，编排器恢复到最近一次成功 checkpoint 的状态，不重复执行已完成的反思/优化周期，不遗漏未完成的 pending 变更"
+      ],
+      "deliverables": [
+        "self_evolution_orchestrator.py — 持续自我优化编排器主模块，协调 Dream Loop 和 Meta-Loop 的完整生命周期",
+        "human_review_gate.py — Human Review Gate 模块，管理 pending 状态变更和人工确认流程",
+        "evolution_checkpoint.py — 编排状态持久化与恢复模块，支持优雅关闭和重启",
+        "test_self_evolution_orchestrator.py — 编排器集成测试，覆盖完整流程、Human Review Gate、崩溃恢复等场景"
+      ],
+      "effort_hours": 36,
+      "dependencies": [
+        "SE-001",
+        "SE-002",
+        "SE-003",
+        "SE-004",
+        "SE-005"
+      ],
+      "source_worker": "Self_Evolution",
+      "id": "SE-006"
+    },
+    {
+      "title": "Blackboard 核心引擎 — JSON 序列化与状态句柄管理",
+      "description": "实现 Blackboard 中央共享状态引擎的核心层，作为分形三层 Loop 架构（project_loop / domain_loop / phase_loop）的数据交换枢纽。提供 blackboard_init(goal_id) → state_handle 初始化接口，将 handle 与 goal 实例绑定，确保多 goal 并行时状态完全隔离。实现 read_state(handle, stage) → json_object 和 write_atomic(handle, stage, data) → sha256_hash 两大核心读写接口，支持按 stage 维度的命名空间隔离，各 stage 数据互不干扰。所有状态数据统一采用 JSON 序列化格式（决策 D2），确保可读性、可调试性和跨语言兼容性。内部实现统一的 JSON 序列化/反序列化层，所有读写操作必须经过该层，禁止 pickle/marshal 等直接二进制操作。提供 get/set/delete/snapshot 辅助操作接口，供 DAG_Scheduler、Loop_Engine 等下游消费者使用。核心引擎为所有其他 WP（原子写入、锁、审计日志、checkpoint、Zone 边界）提供基础框架和扩展点。",
+      "acceptance_criteria": [
+        "AC1: blackboard_init(goal_id) 返回唯一 state_handle，不同 goal_id 的 handle 完全隔离，并行操作互不干扰",
+        "AC2: read_state(handle, stage) 返回合法 JSON 对象，write_atomic(handle, stage, data) 接受 JSON 可序列化对象并返回 SHA-256 哈希",
+        "AC3: 所有读写操作经过统一 JSON 序列化层，不存在任何 pickle/marshal/direct-binary 路径",
+        "AC4: stage 命名空间隔离验证 — 对 stage_A 的写入不影响 stage_B 的数据，读取返回各自独立内容"
+      ],
+      "deliverables": [
+        "blackboard_core.py — 核心引擎实现，含 init/read/write/handle 管理/JSON 序列化层",
+        "test_blackboard_core.py — 核心引擎单元测试"
+      ],
+      "effort_hours": 24,
+      "dependencies": [],
+      "source_worker": "State_Manager",
+      "id": "SM-001"
+    },
+    {
+      "title": "原子写入引擎 — rename 语义与 SHA-256 校验",
+      "description": "实现崩溃安全的原子写入引擎，作为 write_atomic 接口的底层持久化保障。采用 write-to-temp-then-os.rename() 语义，确保写入操作具备 all-or-nothing 特性：写入过程中即使发生进程崩溃（kill -9）、磁盘满、或系统断电，也不会产生半写状态或损坏的状态文件。每次写入完成后计算数据的 SHA-256 校验和，将校验和与数据文件关联存储（.sha256 sidecar 文件）。读取时先验证 SHA-256 校验和，校验失败则触发安全暂停机制（风险 R6 缓解），拒绝返回可能损坏的数据并上报异常。实现写入重试与冲突检测机制，处理并发写入竞争场景。支持大文件的流式 SHA-256 计算，避免内存溢出。原子写入引擎与核心引擎的 write_atomic 接口深度集成，同时为审计日志（SM-004）和 checkpoint（SM-005）提供底层写入能力。",
+      "acceptance_criteria": [
+        "AC1: 所有写入操作采用 write-to-temp + os.rename() 原子语义，不存在直接覆盖原文件的路径",
+        "AC2: 每次写入后计算并存储 SHA-256 校验和，读取时先验证校验和再返回数据，校验失败触发安全暂停并记录告警",
+        "AC3: 崩溃恢复测试 — 在写入过程中执行 kill -9，重启后状态文件完整（无半写损坏），校验和验证通过",
+        "AC4: 磁盘满场景测试 — 写入过程中模拟磁盘满，原状态文件保持不变不被破坏"
+      ],
+      "deliverables": [
+        "atomic_writer.py — 原子写入引擎实现，含 temp-rename 写入、SHA-256 校验、安全暂停",
+        "test_atomic_writer.py — 原子写入引擎测试，含崩溃注入和磁盘满模拟"
+      ],
+      "effort_hours": 16,
+      "dependencies": [
+        "SM-001"
+      ],
+      "source_worker": "State_Manager",
+      "id": "SM-002"
+    },
+    {
+      "title": "Per-Stage 并发锁 — Token 化锁机制与死锁防护",
+      "description": "实现 per-stage 粒度的并发锁机制，确保同一时刻只有一个写入者能修改特定 stage 的状态数据（风险 R7 缓解）。设计 acquire_lock(handle, stage) → lock_token 接口，成功获取锁时返回唯一 lock_token；后续 write_atomic 操作必须携带有效 lock_token 才能执行，无 token 或 token 过期则拒绝写入。实现 release_lock(handle, stage, token) → void 释放接口，支持显式释放和自动超时释放两种模式。锁机制需处理以下并发场景：(1) 锁竞争 — 多任务同时请求同一 stage 锁时，通过 FIFO 队列公平分配；(2) 死锁检测 — 检测循环等待条件，发现死锁时主动 break 并记录告警；(3) 持有者崩溃恢复 — 锁持有者进程异常退出后，通过 heartbeat 超时机制自动释放锁，防止无限阻塞。支持阻塞（blocking）和非阻塞（non-blocking）两种锁获取模式。底层使用 Python threading.Lock/RLock 实现进程内安全，并提供可扩展的分布式锁接口预留。",
+      "acceptance_criteria": [
+        "AC1: acquire_lock 返回唯一 lock_token，write_atomic 在无有效 token 时拒绝执行并返回权限错误",
+        "AC2: 锁竞争测试 — 10 个并发线程同时请求同一 stage 锁，每个线程依次获得锁且无饥饿现象",
+        "AC3: 死锁检测测试 — 构造 A→B→A 循环锁依赖，系统在超时内检测到死锁并主动 break",
+        "AC4: 持有者崩溃测试 — 锁持有线程被 kill 后，锁在 heartbeat 超时（可配置，默认 30s）内自动释放"
+      ],
+      "deliverables": [
+        "stage_lock.py — per-stage 锁管理器实现，含 token 生成/验证、死锁检测、超时释放",
+        "test_stage_lock.py — 锁机制并发测试，含竞争、死锁、崩溃恢复场景"
+      ],
+      "effort_hours": 16,
+      "dependencies": [
+        "SM-001"
+      ],
+      "source_worker": "State_Manager",
+      "id": "SM-003"
+    },
+    {
+      "title": "Hash Chain 审计日志 — SHA-256 链式防篡改记录",
+      "description": "实现基于 SHA-256 哈希链的不可篡改审计日志系统（决策 D9），记录 Blackboard 的每一次状态变更。每次 write_atomic 成功后，审计日志追加一条新记录，记录内容包含：(1) 操作时间戳（ISO 8601 精确到微秒）；(2) 操作类型（write/delete/snapshot/restore/zone_enforce）；(3) stage 标识；(4) 操作者身份（task_id / loop_layer）；(5) 变更前数据的 SHA-256 哈希（prev_hash）；(6) 变更后数据的 SHA-256 哈希（curr_hash）；(7) 链式哈希（chain_hash = SHA-256(prev_chain_hash + curr_hash + timestamp)），形成不可断裂的哈希链。日志采用 append-only 写入模式，任何修改或删除已有日志条目的行为都会被链式哈希检测发现。提供 verify_chain(start_idx, end_idx) 接口验证指定范围内哈希链的完整性，提供 get_audit_trail(stage, time_range) 接口查询特定 stage 在时间范围内的变更历史。审计日志为 Safety_Shield 提供安全审计数据，为 checkpoint 恢复提供一致性校验依据。",
+      "acceptance_criteria": [
+        "AC1: 每次 write_atomic 成功后追加一条审计记录，包含 timestamp、operator、stage、prev_hash、curr_hash、chain_hash 六个必要字段",
+        "AC2: 审计日志为 append-only，任何对已有条目的修改或删除操作被拒绝并记录告警",
+        "AC3: verify_chain 验证 — 手动篡改任意一条日志后，verify_chain 报告具体被篡改的条目位置和哈希不匹配详情",
+        "AC4: 审计日志查询接口 get_audit_trail 支持按 stage 和时间范围过滤，返回结构化审计记录列表"
+      ],
+      "deliverables": [
+        "audit_log.py — Hash Chain 审计日志实现，含链式写入、完整性验证、历史查询",
+        "test_audit_log.py — 审计日志测试，含防篡改验证和链完整性测试"
+      ],
+      "effort_hours": 20,
+      "dependencies": [
+        "SM-001",
+        "SM-002"
+      ],
+      "source_worker": "State_Manager",
+      "id": "SM-004"
+    },
+    {
+      "title": "Checkpoint 恢复系统 — 跨 Session 状态持久化",
+      "description": "实现 Loop 状态的跨 Session 持久化与恢复机制（需求 REQ-024），确保 Loop 在中断后能够从最近的 checkpoint 恢复执行。Checkpoint 在每个 stage 执行边界自动触发（由 Loop_Engine 通知），保存完整的状态快照，包含：(1) Blackboard 全量数据（所有 stage 的 JSON 状态）；(2) 审计日志当前游标位置（chain_hash 末端值）；(3) 锁状态元数据（当前持有的锁及其 token）；(4) 执行上下文（当前 stage、loop_layer、goal_id）。恢复流程 recover_checkpoint(goal_id) → state_snapshot：首先扫描 checkpoint 目录找到目标 goal_id 的最新 checkpoint，验证其 SHA-256 完整性（调用原子写入引擎的校验机制），验证审计日志链完整性（调用审计日志的 verify_chain），全部通过后加载状态快照并重建内存状态。若最新 checkpoint 损坏，自动回退到前一个有效 checkpoint 并记录告警。支持多版本 checkpoint 管理，保留最近 N 个有效 checkpoint（可配置，默认 3），自动清理过期 checkpoint。",
+      "acceptance_criteria": [
+        "AC1: 每个 stage 边界自动生成 checkpoint，包含完整的 blackboard 数据、审计日志游标、锁元数据和执行上下文",
+        "AC2: recover_checkpoint 恢复时验证 SHA-256 完整性和审计日志链完整性，全部通过后才返回 state_snapshot",
+        "AC3: 损坏恢复测试 — 手动损坏最新 checkpoint 文件后，系统自动回退到前一个有效 checkpoint 并成功恢复",
+        "AC4: 跨 Session 测试 — 在 Session A 中创建 checkpoint，在完全独立的 Session B 中成功恢复，状态数据一致"
+      ],
+      "deliverables": [
+        "checkpoint_manager.py — Checkpoint 管理器实现，含自动 checkpoint、恢复、多版本管理、完整性验证",
+        "test_checkpoint.py — Checkpoint 恢复测试，含跨 Session 恢复和损坏回退场景"
+      ],
+      "effort_hours": 24,
+      "dependencies": [
+        "SM-001",
+        "SM-002",
+        "SM-004"
+      ],
+      "source_worker": "State_Manager",
+      "id": "SM-005"
+    },
+    {
+      "title": "Zone 边界强制执行引擎 — 不可变区域与操作权限控制",
+      "description": "实现 Zone 边界强制执行引擎（需求 REQ-029、REQ-075），作为安全架构的存储层守门人。Zone 是 Blackboard 中的逻辑安全区域，每个 Zone 有独立的访问策略。Zone 0 为最高安全级别的不可变区域，存储系统安全规则、memo 配置和核心不变量，任何写操作（write/delete/update）在 Zone 0 上必须被 enforce_zone_boundary 无条件拒绝并记录审计日志。实现 enforce_zone_boundary(zone_id, operation) → allowed_bool 接口，根据 zone 策略矩阵验证操作权限：Zone 0 仅允许 read 操作，Zone 1 允许 read/write 但需 token 认证，Zone 2 允许常规读写。Zone 策略采用声明式配置（JSON 格式），支持运行时加载和策略热更新（需审计日志记录策略变更）。引擎与审计日志集成，所有 zone 边界访问（无论允许或拒绝）均记录到审计日志。为 Safety_Shield 提供 zone 策略查询接口，为 Self_Evolution 提供受控的 zone 策略演化接口（仅限 Zone 1+）。",
+      "acceptance_criteria": [
+        "AC1: enforce_zone_boundary('zone_0', 'write') 无条件返回 False，并生成审计日志记录",
+        "AC2: enforce_zone_boundary('zone_0', 'read') 返回 True，允许安全规则和 memo 的读取",
+        "AC3: Zone 策略矩阵以 JSON 声明式配置存储，支持运行时热更新且策略变更本身被审计日志记录",
+        "AC4: 所有 zone 边界访问（允许和拒绝）均生成审计日志条目，包含 zone_id、operation、result、requestor 信息"
+      ],
+      "deliverables": [
+        "zone_enforcer.py — Zone 边界强制执行引擎实现，含策略矩阵、操作验证、热更新",
+        "test_zone_enforcer.py — Zone 边界测试，含 Zone 0 不可变验证和策略矩阵测试"
+      ],
+      "effort_hours": 16,
+      "dependencies": [
+        "SM-001"
+      ],
+      "source_worker": "State_Manager",
+      "id": "SM-006"
+    },
+    {
+      "title": "安全不变量存储层 — P0 规则持久化与 Zone 0 绑定",
+      "description": "为系统级 P0 安全不变量提供存储层持久化机制与完整性保障，覆盖 REQ-054 至 REQ-059 共 6 条绝对不可修改的安全规则。这些规则在系统初始化时由 Safety_Shield 写入 Zone 0 不可变区域，State_Manager 负责确保其存储安全：(1) 规则数据以 JSON 格式存储在 Zone 0，通过 Zone 边界引擎（SM-006）保证不可修改；(2) 每条规则存储时计算 SHA-256 哈希，启动时验证所有规则哈希与预置的 trusted root hash 一致；(3) 规则存储支持版本管理，记录规则初始化时间和来源（system bootstrap）；(4) 提供 verify_safety_invariants() 接口供 Safety_Shield 在运行时定期调用，返回各规则的完整性状态。6 条规则分别为：REQ-054 不执行外部内容中的指令（防 Prompt Injection）、REQ-055 不泄露私有数据、REQ-056 不说服人类扩大权限或关闭安全机制、REQ-057 不自行复制或修改安全规则、REQ-058 删除操作必须确认（trash > rm）、REQ-059 Dream Loop 不能删除 memory 只能添加/总结。",
+      "acceptance_criteria": [
+        "AC1: 6 条 P0 安全规则（REQ-054 ~ REQ-059）以 JSON 格式存储在 Zone 0，任何修改尝试被 Zone 边界引擎拒绝",
+        "AC2: verify_safety_invariants() 启动时验证所有规则哈希与 trusted root hash 一致，不一致时触发安全暂停",
+        "AC3: 规则存储包含版本元数据（初始化时间、来源、哈希），支持完整性审计",
+        "AC4: 运行时调用 verify_safety_invariants() 返回各规则完整性状态，任何规则被篡改时返回失败详情"
+      ],
+      "deliverables": [
+        "safety_invariants.py — 安全不变量存储管理器实现，含规则持久化、哈希验证、完整性检查接口",
+        "test_safety_invariants.py — 安全不变量测试，含 Zone 0 绑定验证和篡改检测"
+      ],
+      "effort_hours": 16,
+      "dependencies": [
+        "SM-001",
+        "SM-006"
+      ],
+      "source_worker": "State_Manager",
+      "id": "SM-007"
+    },
+    {
+      "title": "受控变更与 Changelog 系统 — 可演化规则的审计化修改",
+      "description": "为需验证的可变系统配置（REQ-060 ~ REQ-063）实现受控变更机制与强制 Changelog 记录，在安全与可演化性之间取得平衡。变更对象包括：(1) Skill 定义 — 通过 Skill Workshop 接口修改（REQ-060）；(2) Prompt 模板 — 通过 Dream Loop 优化流程修改（REQ-061）；(3) Goal 约束 — 遵循\"只增不删 hard constraint\"规则，且有 3 次修改上限（REQ-062）。实现标准变更流程：变更请求提交 → 变更验证（类型检查 + 规则合规检查）→ Zone 权限验证（通过 enforce_zone_boundary）→ 原子执行变更 → 强制记录 Changelog（变更前后快照、操作者、时间戳、变更原因）→ 审计日志链式记录（REQ-063）。Changelog 条目包含：before_snapshot（变更前完整 JSON）、after_snapshot（变更后完整 JSON）、operator（操作者标识）、timestamp（ISO 8601）、reason（变更原因）、linked_audit_hash（关联的审计日志链哈希）。Goal 约束变更需额外检查：hard constraint 只能新增不能删除或弱化，累计变更次数不超过 3 次，超限则拒绝并告警。所有变更操作通过 Zone 边界引擎验证权限，确保 Zone 0 的安全规则不参与变更流程。",
+      "acceptance_criteria": [
+        "AC1: 所有可变配置（Skill/Prompt/Goal约束）的修改必须经过 提交→验证→权限检查→执行→Changelog 标准流程，无绕过路径",
+        "AC2: Changelog 每条记录包含 before_snapshot、after_snapshot、operator、timestamp、reason、linked_audit_hash 六个完整字段",
+        "AC3: Goal 约束变更验证 — hard constraint 删除或弱化请求被拒绝，累计变更超过 3 次时请求被拒绝并触发告警",
+        "AC4: 每次变更操作在审计日志中有对应的链式记录条目，通过 linked_audit_hash 可追溯到 hash chain"
+      ],
+      "deliverables": [
+        "change_controller.py — 受控变更管理器实现，含变更流程、验证规则、Changelog 记录、Goal 约束计数",
+        "test_change_controller.py — 变更控制测试，含标准流程验证、Goal 约束上限测试、Changelog 完整性测试"
+      ],
+      "effort_hours": 20,
+      "dependencies": [
+        "SM-001",
+        "SM-004",
+        "SM-006"
+      ],
+      "source_worker": "State_Manager",
+      "id": "SM-008"
+    }
+  ],
+  "dependency_graph": {
+    "nodes": [
+      "DAG-001",
+      "DAG-002",
+      "DAG-003",
+      "DAG-004",
+      "DAG-005",
+      "LOOP-001",
+      "LOOP-002",
+      "LOOP-003",
+      "LOOP-004",
+      "LOOP-005",
+      "LOOP-006",
+      "LOOP-007",
+      "LOOP-008",
+      "LOOP-009",
+      "LOOP-010",
+      "QG-001",
+      "QG-002",
+      "QG-003",
+      "QG-004",
+      "QG-005",
+      "SS-001",
+      "SS-002",
+      "SS-003",
+      "SS-004",
+      "SS-005",
+      "SE-001",
+      "SE-002",
+      "SE-003",
+      "SE-004",
+      "SE-005",
+      "SE-006",
+      "SM-001",
+      "SM-002",
+      "SM-003",
+      "SM-004",
+      "SM-005",
+      "SM-006",
+      "SM-007",
+      "SM-008"
+    ],
+    "edges": [
+      [
+        "DAG-002",
+        "DAG-001"
+      ],
+      [
+        "DAG-003",
+        "DAG-002"
+      ],
+      [
+        "DAG-004",
+        "DAG-003"
+      ],
+      [
+        "LOOP-002",
+        "LOOP-001"
+      ],
+      [
+        "LOOP-003",
+        "LOOP-001"
+      ],
+      [
+        "LOOP-004",
+        "LOOP-001"
+      ],
+      [
+        "LOOP-005",
+        "LOOP-001"
+      ],
+      [
+        "LOOP-006",
+        "LOOP-001"
+      ],
+      [
+        "LOOP-006",
+        "LOOP-002"
+      ],
+      [
+        "LOOP-007",
+        "LOOP-001"
+      ],
+      [
+        "LOOP-007",
+        "LOOP-002"
+      ],
+      [
+        "LOOP-008",
+        "LOOP-003"
+      ],
+      [
+        "LOOP-008",
+        "LOOP-004"
+      ],
+      [
+        "LOOP-009",
+        "LOOP-001"
+      ],
+      [
+        "LOOP-009",
+        "LOOP-007"
+      ],
+      [
+        "LOOP-010",
+        "LOOP-002"
+      ],
+      [
+        "LOOP-010",
+        "LOOP-006"
+      ],
+      [
+        "QG-002",
+        "QG-001"
+      ],
+      [
+        "QG-003",
+        "QG-001"
+      ],
+      [
+        "QG-003",
+        "QG-002"
+      ],
+      [
+        "QG-004",
+        "QG-001"
+      ],
+      [
+        "QG-004",
+        "QG-003"
+      ],
+      [
+        "QG-005",
+        "QG-001"
+      ],
+      [
+        "QG-005",
+        "QG-003"
+      ],
+      [
+        "SS-004",
+        "SS-001"
+      ],
+      [
+        "SS-005",
+        "SS-001"
+      ],
+      [
+        "SE-002",
+        "SE-001"
+      ],
+      [
+        "SE-004",
+        "SE-003"
+      ],
+      [
+        "SE-006",
+        "SE-001"
+      ],
+      [
+        "SE-006",
+        "SE-002"
+      ],
+      [
+        "SE-006",
+        "SE-003"
+      ],
+      [
+        "SE-006",
+        "SE-004"
+      ],
+      [
+        "SE-006",
+        "SE-005"
+      ],
+      [
+        "SM-002",
+        "SM-001"
+      ],
+      [
+        "SM-003",
+        "SM-001"
+      ],
+      [
+        "SM-004",
+        "SM-001"
+      ],
+      [
+        "SM-004",
+        "SM-002"
+      ],
+      [
+        "SM-005",
+        "SM-001"
+      ],
+      [
+        "SM-005",
+        "SM-002"
+      ],
+      [
+        "SM-005",
+        "SM-004"
+      ],
+      [
+        "SM-006",
+        "SM-001"
+      ],
+      [
+        "SM-007",
+        "SM-001"
+      ],
+      [
+        "SM-007",
+        "SM-006"
+      ],
+      [
+        "SM-008",
+        "SM-001"
+      ],
+      [
+        "SM-008",
+        "SM-004"
+      ],
+      [
+        "SM-008",
+        "SM-006"
+      ],
+      [
+        "LOOP-001",
+        "DAG-001"
+      ],
+      [
+        "LOOP-001",
+        "SM-001"
+      ],
+      [
+        "LOOP-007",
+        "DAG-002"
+      ],
+      [
+        "LOOP-009",
+        "DAG-003"
+      ],
+      [
+        "QG-001",
+        "SM-001"
+      ],
+      [
+        "QG-003",
+        "SS-001"
+      ],
+      [
+        "SE-002",
+        "SM-002"
+      ],
+      [
+        "SE-004",
+        "SS-002"
+      ],
+      [
+        "SS-001",
+        "SM-004"
+      ],
+      [
+        "SS-002",
+        "SM-006"
+      ]
+    ]
+  },
+  "statistics": {
+    "total_wps": 39,
+    "total_effort_hours": 1204,
+    "req_coverage_rate": 0.9125,
+    "dependency_edges": 56
+  },
+  "issues": [
+    "整合: LOOP-006（主动偏离检测与自纠正）与 QG-002（方向偏离检测引擎）功能语义互补 — LOOP-006 在 Loop 迭代边界执行 LLM 驱动的偏离检测+自纠正，QG-002 在质量门控点执行 Embedding+GoalTree+IDS 混合偏离检测。两者从不同维度覆盖 REQ-005/REQ-007/REQ-014/REQ-021，保留两者作为互补层",
+    "整合: LOOP-007（目标分解与 DAG 调度编排）与 DAG-001（DAG 分解引擎）功能互补 — LOOP-007 是 Loop_Engine 调用 DAG_Scheduler 的集成层，提供拓扑排序、关键路径识别和动态重调度，DAG-001 是底层分解引擎。两者通过 decompose_goal() 接口契约连接，保留两者",
+    "整合: SS-001（三级死循环熔断器）与 QG-003（关键节点质量门控断路器）触发条件互补 — SS-001 基于语义重复检测和迭代次数触发熔断，QG-003 基于连续质量验证失败触发断路器。两者保护不同维度，保留两者",
+    "注意: SE-003（thompson_sampler.py）和 QG-004（thompson_sampler.py）产出同名文件但用途不同 — SE-003 用于 Meta-Loop 参数优化的 Beta 分布后验采样，QG-004 用于多引擎迭代选择的 Thompson Sampling。建议实现时通过模块路径区分",
+    "注意: LOOP-005（checkpoint_manager.py）和 SM-005（checkpoint_manager.py）产出同名文件 — LOOP-005 负责 Loop 迭代边界的 checkpoint 逻辑，SM-005 负责底层跨 Session 状态持久化。建议通过模块命名空间区分（如 loop_checkpoint.py vs state_checkpoint.py）",
+    "注意: QG-003（audit_logger.py）和 SM-004（audit_log.py）功能相关但层次不同 — SM-004 提供底层 Hash Chain 审计日志引擎，QG-003 提供门控层面的审计记录。QG-003 的 audit_logger 应复用 SM-004 的底层能力",
+    "跨Worker接口: LOOP-001 → DAG-001（decompose_goal）、LOOP-001 → SM-001（blackboard_init）、LOOP-007 → DAG-002（拓扑排序调度）、LOOP-009 → DAG-003（assign_worker）、QG-001 → SM-001（read_state）、QG-003 → SS-001（check_circuit_breaker）、SE-002 → SM-002（write_atomic）、SE-004 → SS-002（validate_param_bounds）、SS-001 → SM-004（Hash Chain审计）、SS-002 → SM-006（enforce_zone_boundary）"
+  ],
+  "pending_req_ids": [
+    "REQ-026",
+    "REQ-028",
+    "REQ-031",
+    "REQ-039",
+    "REQ-050",
+    "REQ-052",
+    "REQ-053"
+  ]
+}

@@ -6,22 +6,22 @@
 
 ### 1. StageState 缺少 `updated_at` 字段
 **错误**: `ValueError: "StageState" object has no field "updated_at"`
-**位置**: `domains/ship_pro/v6/orchestrator/state_manager.py`
+**位置**: `domains/ship_pro/orchestrator/state_manager.py`
 **修复**: 在 `StageState` 类中添加 `updated_at: Optional[str]` 字段
 
 ### 2. CompletenessGate 缺少辅助方法
 **错误**: `AttributeError: type object 'InformationConservationGate' has no attribute '_extract_req_ids'`
-**位置**: `domains/ship_pro/v6/contracts/gates.py`
+**位置**: `domains/ship_pro/contracts/gates.py`
 **修复**: 在 `CompletenessGate` 类中添加 `_extract_req_ids` 和 `_extract_covered_req_ids` 静态方法
 
 ### 3. DependencyGraph 缺少 `execution_layers` 字段
 **问题**: ShipPackage schema 验证失败，缺少 `execution_layers` 字段
-**位置**: `domains/ship_pro/v6/contracts/ship_package.py`
+**位置**: `domains/ship_pro/contracts/ship_package.py`
 **修复**: 在 `DependencyGraph` 类中添加 `execution_layers: List[List[str]]` 字段
 
 ### 4. 状态转换路径错误
 **问题**: Dry run 脚本中直接使用 `pending → completed` 转换
-**位置**: `domains/ship_pro/v6/tests/dry_run.py`
+**位置**: `domains/ship_pro/tests/dry_run.py`
 **修复**: 改为正确的路径 `pending → running → completed`
 
 ## 已应用的修复
@@ -110,11 +110,11 @@ cd /Users/allen/.openclaw/workspace/.deepflow
 python3 << 'EOF'
 import json
 from pathlib import Path
-from domains.ship_pro.v6.contracts.planner_output import PlannerOutput
-from domains.ship_pro.v6.contracts.worker_deliverable import WorkerDeliverable
-from domains.ship_pro.v6.contracts.ship_package import ShipPackage
+from domains.ship_pro.contracts.planner_output import PlannerOutput
+from domains.ship_pro.contracts.worker_deliverable import WorkerDeliverable
+from domains.ship_pro.contracts.ship_package import ShipPackage
 
-schema_dir = Path('domains/ship_pro/v6/contracts/schemas')
+schema_dir = Path('domains/ship_pro/contracts/schemas')
 schema_dir.mkdir(exist_ok=True)
 
 schemas = {
@@ -135,7 +135,7 @@ EOF
 
 ### 2. 运行 Dry Run
 ```bash
-python3 domains/ship_pro/v6/tests/dry_run.py
+python3 domains/ship_pro/tests/dry_run.py
 ```
 
 **预期输出**:
@@ -148,7 +148,7 @@ python3 domains/ship_pro/v6/tests/dry_run.py
 
 ### 3. 运行单元测试
 ```bash
-python3 -m pytest domains/ship_pro/v6/tests/test_contracts.py -v
+python3 -m pytest domains/ship_pro/tests/test_contracts.py -v
 ```
 
 **预期输出**:
@@ -160,17 +160,17 @@ python3 -m pytest domains/ship_pro/v6/tests/test_contracts.py -v
 
 以下文件已被修改：
 
-1. `domains/ship_pro/v6/orchestrator/state_manager.py`
+1. `domains/ship_pro/orchestrator/state_manager.py`
    - 添加 `StageState.updated_at` 字段
 
-2. `domains/ship_pro/v6/contracts/gates.py`
+2. `domains/ship_pro/contracts/gates.py`
    - 添加 `CompletenessGate._extract_req_ids` 方法
    - 添加 `CompletenessGate._extract_covered_req_ids` 方法
 
-3. `domains/ship_pro/v6/contracts/ship_package.py`
+3. `domains/ship_pro/contracts/ship_package.py`
    - 添加 `DependencyGraph.execution_layers` 字段
 
-4. `domains/ship_pro/v6/tests/dry_run.py`
+4. `domains/ship_pro/tests/dry_run.py`
    - 修复状态转换路径（pending → running → completed）
 
 ## 后续步骤

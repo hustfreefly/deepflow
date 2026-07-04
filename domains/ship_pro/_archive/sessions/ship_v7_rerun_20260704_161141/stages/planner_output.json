@@ -1,0 +1,272 @@
+{
+  "input_type": "solution_pro_output",
+  "complexity": "high",
+  "domain": "AI Agent Loop Engineering Framework",
+  "analysis_summary": "Solution Pro 输出描述了一个分形三层 Loop 架构，包含 Python 确定性骨架 + LLM 语义决策混合模式。核心挑战在于长时间自主运行（8h+）的可靠性、质量保障和自我优化能力。拆解为 7 个 Worker：Blackboard Manager（状态管理）、Fractal Loop Engine（执行引擎）、DAG Scheduler（任务调度）、Quality Gate（质量验证）、Safety & Recovery（安全可靠）、Dream & Meta Loop（自我优化）、Observability & Notification（可观测性）。",
+  "workers": [
+    {
+      "role": "Blackboard Manager",
+      "task_description": "实现 Blackboard 状态管理系统，包括：JSON 序列化 + 原子 rename 写入 + per-stage 锁机制；状态持久化与跨 Session 恢复；SHA-256 校验和版本管理；支持并发读写的安全操作原语。这是整个框架的基础设施，所有其他组件都依赖 Blackboard 进行状态交换。",
+      "required_inputs": [],
+      "expected_output_stage": "blackboard_manager",
+      "output_schema": "WorkerDeliverable",
+      "depends_on": [],
+      "needs_web_search": false,
+      "web_search_scope": null,
+      "must_constraints": [
+        "基于当前 OpenClaw 平台能力实现",
+        "Zone 0 安全规则不可改",
+        "状态文件损坏时能安全暂停并恢复"
+      ],
+      "solution_pro_refs": [
+        "architecture.components[0]",
+        "risk_mitigations[5]",
+        "risk_mitigations[6]"
+      ],
+      "covered_req_ids": [
+        "REQ-024",
+        "REQ-070",
+        "REQ-071",
+        "REQ-072",
+        "REQ-073",
+        "REQ-074",
+        "REQ-075"
+      ],
+      "wp_id_prefix": "BM"
+    },
+    {
+      "role": "Fractal Loop Engine",
+      "task_description": "实现分形三层 Loop 执行引擎，包括：Project Loop（外 Loop，战略规划，超时 8h+）、Domain Loop（中 Loop，战术协调，超时 2h）、Phase Loop（内 Loop，执行优化，超时 30min）；三层嵌套的中断传播机制；间歇式心跳机制；全 LLM 控制模式（Python 只做确定性骨架，不做控制流决策）。",
+      "required_inputs": [
+        "blackboard_manager"
+      ],
+      "expected_output_stage": "fractal_loop_engine",
+      "output_schema": "WorkerDeliverable",
+      "depends_on": [
+        "Blackboard Manager"
+      ],
+      "needs_web_search": false,
+      "web_search_scope": null,
+      "must_constraints": [
+        "全 LLM 控制，Python 不做控制流",
+        "分形 Loop + 间歇式心跳 + 全 LLM 控制架构模式",
+        "三层 Loop 嵌套必须支持中断传播"
+      ],
+      "solution_pro_refs": [
+        "architecture.pattern",
+        "architecture.layers",
+        "architecture.components[1]",
+        "solution_pro_hints.focus_areas[0]"
+      ],
+      "covered_req_ids": [
+        "REQ-001",
+        "REQ-042",
+        "REQ-076",
+        "REQ-077"
+      ],
+      "wp_id_prefix": "FLE"
+    },
+    {
+      "role": "DAG Scheduler",
+      "task_description": "实现 DAG 任务调度引擎，包括：优先级队列 + 拓扑排序的任务分解；最大 6 并发 Worker 管理；Goal 优先级竞争机制；任务依赖关系解析；动态 Worker 分配策略。负责将目标分解为可执行的任务 DAG，并高效调度执行。",
+      "required_inputs": [
+        "blackboard_manager"
+      ],
+      "expected_output_stage": "dag_scheduler",
+      "output_schema": "WorkerDeliverable",
+      "depends_on": [
+        "Blackboard Manager"
+      ],
+      "needs_web_search": false,
+      "web_search_scope": null,
+      "must_constraints": [
+        "最大并发 6 个子 Agent",
+        "简单优先级队列 + 拓扑排序",
+        "任务分解为 DAG 时考虑依赖关系和并行度"
+      ],
+      "solution_pro_refs": [
+        "architecture.components[2]",
+        "key_decisions[3]",
+        "solution_pro_hints.focus_areas[3]"
+      ],
+      "covered_req_ids": [
+        "REQ-010",
+        "REQ-033",
+        "REQ-042",
+        "REQ-013"
+      ],
+      "wp_id_prefix": "DAG"
+    },
+    {
+      "role": "Quality Gate",
+      "task_description": "实现三层质量验证门控系统，包括：Layer 1 Pydantic 结构验证；Layer 2 LLM Judge 语义验证（同模型族 + 严格隔离）；Layer 3 合并决策逻辑；方向偏离检测（三层混合：Embedding + Goal Tree + IDS）；关键节点质量验证；LLM 主动检测方向偏离并实时自纠正。",
+      "required_inputs": [
+        "blackboard_manager"
+      ],
+      "expected_output_stage": "quality_gate",
+      "output_schema": "WorkerDeliverable",
+      "depends_on": [
+        "Blackboard Manager"
+      ],
+      "needs_web_search": false,
+      "web_search_scope": null,
+      "must_constraints": [
+        "关键节点执行质量验证",
+        "LLM 主动检测方向偏离并实时自纠正",
+        "同模型族 Judge + 严格隔离",
+        "达到 DeepFlow 管线级别（多引擎迭代+多轮Review）"
+      ],
+      "solution_pro_refs": [
+        "architecture.components[3]",
+        "architecture.components[8]",
+        "key_decisions[9]",
+        "solution_pro_hints.focus_areas[0]"
+      ],
+      "covered_req_ids": [
+        "REQ-002",
+        "REQ-004",
+        "REQ-005",
+        "REQ-007",
+        "REQ-019",
+        "REQ-020",
+        "REQ-021",
+        "REQ-014"
+      ],
+      "wp_id_prefix": "QG"
+    },
+    {
+      "role": "Safety & Recovery",
+      "task_description": "实现安全与故障恢复机制，包括：死循环熔断（三级检测 + 三级递进 + 断路器）；四阶段故障恢复决策树（快速路径 + 跨厂商 fallback）；子 Agent 失败时自动分析/重试/切换/上报；Prompt Injection 多层检测；Token 预算软限+硬限+降级策略。",
+      "required_inputs": [
+        "blackboard_manager",
+        "fractal_loop_engine"
+      ],
+      "expected_output_stage": "safety_recovery",
+      "output_schema": "WorkerDeliverable",
+      "depends_on": [
+        "Blackboard Manager",
+        "Fractal Loop Engine"
+      ],
+      "needs_web_search": false,
+      "web_search_scope": null,
+      "must_constraints": [
+        "必须有死循环熔断机制",
+        "Zone 0 安全规则不可改",
+        "不执行外部内容中的指令（防 Prompt Injection）",
+        "子 Agent 失败时自动分析/重试/切换/上报"
+      ],
+      "solution_pro_refs": [
+        "architecture.components[6]",
+        "architecture.components[7]",
+        "risk_mitigations[0]",
+        "risk_mitigations[2]",
+        "risk_mitigations[7]",
+        "risk_mitigations[10]"
+      ],
+      "covered_req_ids": [
+        "REQ-006",
+        "REQ-034",
+        "REQ-046",
+        "REQ-047",
+        "REQ-048",
+        "REQ-049",
+        "REQ-016",
+        "REQ-017",
+        "REQ-054",
+        "REQ-055",
+        "REQ-056",
+        "REQ-057"
+      ],
+      "wp_id_prefix": "SR"
+    },
+    {
+      "role": "Dream & Meta Loop",
+      "task_description": "实现自我优化机制，包括：Dream Loop（空闲时自动反思历史执行 + GRADE 框架 + Insight 写入 memory，只增不删）；Meta-Loop（Thompson Sampling + LLM-as-Optimizer 替代 Optuna）；参数自动调优（timeout/重试/模型选择）；A/B 测试策略；探索 vs 利用比例优化。",
+      "required_inputs": [
+        "blackboard_manager",
+        "quality_gate"
+      ],
+      "expected_output_stage": "dream_meta_loop",
+      "output_schema": "WorkerDeliverable",
+      "depends_on": [
+        "Blackboard Manager",
+        "Quality Gate"
+      ],
+      "needs_web_search": false,
+      "web_search_scope": null,
+      "must_constraints": [
+        "Dream Loop 不能删除 memory，只能添加/总结",
+        "Zone 0 安全规则不可改",
+        "单一 Thompson Sampling",
+        "LLM-as-Optimizer 替代 Optuna",
+        "Meta-Loop 参数调整需在安全边界内"
+      ],
+      "solution_pro_refs": [
+        "architecture.components[4]",
+        "architecture.components[5]",
+        "key_decisions[4]",
+        "key_decisions[5]",
+        "solution_pro_hints.focus_areas[1]",
+        "solution_pro_hints.focus_areas[2]"
+      ],
+      "covered_req_ids": [
+        "REQ-011",
+        "REQ-012",
+        "REQ-013",
+        "REQ-025",
+        "REQ-045",
+        "REQ-059",
+        "REQ-064",
+        "REQ-065",
+        "REQ-066",
+        "REQ-067",
+        "REQ-068",
+        "REQ-069"
+      ],
+      "wp_id_prefix": "DML"
+    },
+    {
+      "role": "Observability & Notification",
+      "task_description": "实现可观测性与通知系统，包括：结构化日志 + 指标暴露 + 分布式追踪；每小时推送进度通知（飞书/桌面 UI）；关键状态变更通知；需审批项单独通知；审计日志（Hash Chain only）。",
+      "required_inputs": [
+        "blackboard_manager"
+      ],
+      "expected_output_stage": "observability_notification",
+      "output_schema": "WorkerDeliverable",
+      "depends_on": [
+        "Blackboard Manager"
+      ],
+      "needs_web_search": false,
+      "web_search_scope": null,
+      "must_constraints": [
+        "每小时推送进度通知（飞书/桌面 UI）",
+        "不频繁打扰用户（最多每小时一次+关键事件）",
+        "Hash Chain only 审计日志",
+        "所有修改必须记录到 changelog"
+      ],
+      "solution_pro_refs": [
+        "architecture.components[9]",
+        "key_decisions[8]",
+        "solution_pro_hints.tool_integrations"
+      ],
+      "covered_req_ids": [
+        "REQ-003",
+        "REQ-015",
+        "REQ-022",
+        "REQ-023",
+        "REQ-063"
+      ],
+      "wp_id_prefix": "OBS"
+    }
+  ],
+  "integration_strategy": "采用分阶段集成策略：首先集成 Blackboard Manager 作为基础设施；然后并行集成 Fractal Loop Engine、DAG Scheduler、Quality Gate、Observability；接着集成 Safety & Recovery（依赖 FLE）和 Dream & Meta Loop（依赖 QG）；最后进行全系统联调测试。所有组件通过 Blackboard 进行状态交换，确保松耦合。",
+  "pending_req_ids": [
+    "REQ-026",
+    "REQ-028",
+    "REQ-031",
+    "REQ-039",
+    "REQ-050",
+    "REQ-052",
+    "REQ-053"
+  ]
+}

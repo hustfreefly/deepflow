@@ -1,5 +1,5 @@
 """
-Ship Pro V6 - ShipPackage Contract
+Ship Pro V8 - ShipPackage Contract
 
 定义 ShipPackage 的数据结构。
 """
@@ -27,8 +27,9 @@ class ShipPackage(BaseModel):
         description="解决方案名称"
     )
     work_packages: List[WorkPackage] = Field(
-        default_factory=list,
-        description="工作包列表"
+        ...,
+        min_length=1,
+        description="工作包列表（必须包含完整 WP，不允许空列表或摘要化）"
     )
     dependency_graph: DependencyGraph = Field(
         default_factory=DependencyGraph,

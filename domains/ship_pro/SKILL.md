@@ -1,209 +1,234 @@
-# Ship Pro — Agent 执行指南
+# Ship Pro V8.2 — Agent 执行指南
 
-> **架构**: AI Native（动态 Planner + Workers + Consolidator）  
+> **架构**: AI Native（PipelineDesigner + Orchestrator + Workers + Consolidator）  
 > **对标**: Solution Pro V2 镜像架构  
-> **状态**: 已实现，待 E2E 验证
+> **入口**: `run_ship_pro(project_name)` — Main Agent 唯一调用  
+> **状态**: V8.2 架构定型，E2E 验证通过
 
 ---
 
 ## 🏗️ 架构总览
 
 ```
-Phase 1: Planner (LLM 动态)
-  └─ 分析 Solution Pro 输出 → 决定 Worker 数量/角色/依赖 → PlannerOutput
-         ↓ PlannerGate 验证
-Phase 2: Workers (LLM + 固定编排)
-  └─ 拓扑排序 → 按层级 spawn Workers (同层并行) → WorkerGate 逐个验证
-         ↓
-Phase 3: Consolidator (LLM + 三层验证)
-  └─ 汇总 Worker 输出 → G1:信息守恒 → G2:完整性 → G3:交付质量 → ShipPackage
+Main Agent (depth-0)
+  └─ exec: run_ship_pro(project_name) → spawn_params
+  └─ sessions_spawn(**spawn_params) → Orchestrator 子 Agent
+  └─ 等待完成事件 → 拿到 ShipPackage
+
+Orchestrator (depth-1, 全权调度)
+  ├─ Phase 1: exec design_pipeline() → Designer prompt → spawn Designer LLM → PipelinePlan
+  ├─ Phase 2: exec prepare_runner_spawn() → Worker prompts → spawn Workers (分层并行)
+  │     └─ L1 确定性验证 (Schema + 内容深度)
+  │     └─ L2 LLM Judge 语义验证（待实现）
+  ├─ Phase 3: spawn Consolidator → ShipPackage
+  │     └─ L1 + L2 + L3 三层验证
+  └─ 输出最终报告
 ```
 
 ### 核心原则
 
 | 原则 | 说明 |
 |------|------|
-| **LLM 做决策** | Planner 动态决定 Worker 数量/角色/Prompt |
-| **Python 做验证** | Orchestrator Gate 检查、状态管理、拓扑排序 |
-| **契约笼子** | Pydantic Schema 约束每个阶段的输入输出 |
+| **Main Agent 只做一件事** | `run_ship_pro()` → spawn Orchestrator → 完事 |
+| **Orchestrator 全权负责** | 设计 → 执行 → 验证 → 报告，不回调 Main Agent |
+| **Python 做验证** | Gate 检查、状态管理、拓扑排序、JSON 提取 |
+| **LLM 做决策** | Worker 拆分、WP 设计、语义整合 |
+| **契约笼子** | Pydantic Schema + min_length 约束每个阶段的输入输出 |
 | **信息守恒** | Solution Pro 的需求不能丢失也不能新增 |
+| **cron wake 替代 sessions_yield** | 等待子 Agent 完成，避免空 turn |
+
+### 统一 Blackboard
+
+所有域的产出在同一个项目目录下：
+
+```
+.deepflow/blackboard/{project_name}/
+├── data/frozen_spec.json           ← Solution Pro 产出
+├── stages/solution_document.json   ← Solution Pro 产出（markdown）
+├── ship_pro/                       ← Ship Pro 写入
+│   ├── solution_pro_input.json     ← 合并后的输入
+│   ├── stages/
+│   │   ├── pipeline_plan.json      ← Designer 输出
+│   │   ├── context_*.json          ← Worker 上下文
+│   │   ├── worker_*.json           ← Worker 输出
+│   │   └── ship_package.json       ← 最终交付包
+│   └── ...
+```
 
 ---
 
-## 🚀 主 Agent 执行步骤
+## 🚀 使用方式
 
-### Step 1: 加载 Orchestrator 并准备 spawn 参数
-
-```bash
-cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 << 'EOF'
-from domains.ship_pro.orchestrator import ShipOrchestrator
-from pathlib import Path
-import json
-
-orchestrator = ShipOrchestrator(
-    blackboard_path=Path('<blackboard_path>'),
-    solution_pro_output_path=Path('<solution_pro_output_path>')
-)
-
-# Phase 1: Planner
-spawn_params = orchestrator.prepare_planner_spawn()
-print(json.dumps(spawn_params, indent=2, ensure_ascii=False))
-EOF
-```
-
-### Step 2: Spawn Planner + Yield
+### 标准流程（Main Agent 视角）
 
 ```python
-sessions_spawn(
-    runtime="subagent",
-    mode="run",
-    label="ship_planner",
-    task=spawn_params['task'],
-    cwd="/Users/allen/.openclaw/workspace/.deepflow",
-    lightContext=True,
-)
-sessions_yield()
+# Step 1: 启动（唯一一步）
+from domains.ship_pro import run_ship_pro
+result = run_ship_pro("项目名称")
+
+# Step 2: spawn Orchestrator
+sessions_spawn(**result["spawn_params"])
+
+# Step 3: 等待完成事件 → 读取 ShipPackage
+# ship_package.json 在 result["ship_pro_dir"]/stages/ 下
 ```
 
-### Step 3: 验证 Planner 输出
+### run_ship_pro() 做什么
 
-```bash
-cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 << 'EOF'
-from domains.ship_pro.orchestrator import ShipOrchestrator
-from pathlib import Path
-
-orchestrator = ShipOrchestrator(
-    blackboard_path=Path('<blackboard_path>'),
-    solution_pro_output_path=Path('<solution_pro_output_path>')
-)
-gate_result = orchestrator.verify_planner_output()
-print(f"PlannerGate: {'PASS' if gate_result.passed else 'FAIL'}")
-if not gate_result.passed:
-    for issue in gate_result.issues:
-        print(f"  - {issue}")
-EOF
-```
-
-### Step 4: Spawn Workers（按层级并行）
-
-```bash
-cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 << 'EOF'
-from domains.ship_pro.orchestrator import ShipOrchestrator
-from pathlib import Path
-import json
-
-orchestrator = ShipOrchestrator(
-    blackboard_path=Path('<blackboard_path>'),
-    solution_pro_output_path=Path('<solution_pro_output_path>')
-)
-
-# 获取所有 Worker 的 spawn 参数（按执行层级排序）
-worker_spawns = orchestrator.prepare_worker_spawns()
-for ws in worker_spawns:
-    print(f"Layer {ws['layer']}: {ws['label']}")
-print(json.dumps([{'label': w['label'], 'layer': w['layer']} for w in worker_spawns], indent=2))
-EOF
-```
-
-然后按层级 spawn：
-- 同层级的 Worker 可以并行 spawn
-- 每个 Worker 完成后用 `orchestrator.verify_worker_output(label)` 验证
-- 全部 Worker 完成后进入 Phase 3
-
-### Step 5: Spawn Consolidator + 三层 Gate
-
-```bash
-cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 << 'EOF'
-from domains.ship_pro.orchestrator import ShipOrchestrator
-from pathlib import Path
-
-orchestrator = ShipOrchestrator(
-    blackboard_path=Path('<blackboard_path>'),
-    solution_pro_output_path=Path('<solution_pro_output_path>')
-)
-
-# Consolidator spawn 参数
-spawn_params = orchestrator.prepare_consolidator_spawn()
-
-# Consolidator 完成后验证（三层 Gate）
-gate_results = orchestrator.verify_ship_package()
-for gr in gate_results:
-    status = "✅ PASS" if gr.passed else "❌ FAIL"
-    print(f"{status}: {gr.gate_name}")
-    if not gr.passed:
-        for issue in gr.issues[:3]:
-            print(f"  - {issue}")
-EOF
-```
+1. 定位统一 blackboard：`.deepflow/blackboard/{project_name}/`
+2. 自动发现 Solution Pro 输出（`data/frozen_spec.json`）
+3. 合并输入（frozen_spec + 可选 supplemental）
+4. 构建 Orchestrator prompt（含完整执行指令）
+5. 返回 `spawn_params`
 
 ---
 
-## 📂 文件结构
+## 📐 管线阶段
 
+### Phase 1: PipelineDesigner
+
+**执行者**: Orchestrator 通过 `exec` 调 Python
+
+```python
+from domains.ship_pro import design_pipeline
+result = design_pipeline("path/to/solution_pro_input.json", blackboard_base_dir="path/to/ship_pro/")
 ```
-domains/ship_pro/
-├── contracts/              # 契约定义
-│   ├── planner_output.py  # PlannerOutput + WorkerSpec
-│   ├── worker_deliverable.py # WorkerDeliverable + WorkPackage
-│   ├── ship_package.py    # ShipPackage + DependencyGraph
-│   ├── gates.py           # PlannerGate + WorkerGate + 三层 Gate
-│   └── schemas/           # JSON Schema (供 LLM 参考)
-├── orchestrator/           # 编排器
-│   ├── ship_orchestrator.py # 主编排器
-│   └── state_manager.py   # 状态管理 (pipeline_state.json)
-├── agent/                  # Agent 层
-│   └── ship_agent.py      # spawn_fn/yield_fn 调度
-├── prompts/                # Prompt 模板
-│   ├── planner.md         # Planner 角色 + 约束笼子
-│   ├── worker_base.md     # Worker 基础模板
-│   ├── consolidator.md    # Consolidator 角色 + 三层验证
-│   └── agent.md           # Agent 执行指南
-├── tests/                  # 测试
-│   ├── dry_run.py         # Dry Run 验证
-│   └── test_ship_pro.py   # 单元测试
-├── run_ship_pro.py        # 启动脚本
-├── _archive/              # 旧版本归档 (V3/V4/V5)
-└── SKILL.md               # 本文件
+
+**产出**: `pipeline_plan.json`
+- Workers 列表（role, covered_req_ids, interface_provides/requires）
+- Execution order（分层拓扑）
+- Rationale
+
+**约束**:
+- Worker 按**交付物模块**拆分（代码内聚性），4-6 个
+- 每个 REQ-ID 只能分配给一个 Worker
+- 每个 Worker 的 relevant_decisions ≤ 5, relevant_risks ≤ 3
+
+### Phase 2: Workers
+
+**执行者**: Orchestrator 通过 `sessions_spawn` 并行 spawn
+
+**Worker prompt**（6 段式，~2.5KB）：
+1. 角色 + 数据流（高注意力区）
+2. 模块概述
+3. 需求 + 架构约束 + 隐含约束
+4. 接口契约（provides / requires / downstream）
+5. 输出规范 + 紧凑示例
+6. 反模式护栏（高注意力区）
+
+**Worker 输出**: JSON 数组，每个 WP 包含：
+- `id`: WP-ID（如 SM-001）
+- `title`: 标题
+- `description`: ≥ 100 字
+- `acceptance_criteria`: ≥ 2 条
+- `deliverables`: ≥ 1 项
+- `estimated_effort`: "Nh" 格式
+- `covered_req_ids`: ["REQ-xxx"]
+- `dependencies`: ["WP-ID"]
+
+**L1 验证**（Python 确定性）：
+- Schema 合规（Pydantic）
+- 内容深度（description ≥ 100 字, AC ≥ 2, deliverables ≥ 1）
+- 字段映射兼容（wp_id→id, effort_hours→estimated_effort）
+
+### Phase 3: Consolidator
+
+**执行者**: Orchestrator 通过 `sessions_spawn` 启动
+
+**5 步法**：
+1. **收集** — 读取所有 worker_*.json，不丢弃任何 WP
+2. **语义整合** — 互补型合并、冲突型保留+标记、完全重复取优
+3. **冲突检测** — 约束矛盾、接口不兼容
+4. **依赖图** — 跨模块 WP 依赖（基于接口契约）
+5. **组装** — 生成 ShipPackage JSON
+
+**ShipPackage 输出**：
+```json
+{
+  "ship_package_version": "v8",
+  "work_packages": [...],
+  "dependency_graph": {"nodes": [...], "edges": [...]},
+  "statistics": {"total_wps", "total_effort_hours", "req_coverage_rate", "dependency_edges"},
+  "issues": [...],
+  "pending_req_ids": [...]
+}
 ```
+
+**L1 验证**: `validate_ship_package_v8()` — 检查 WP 完整性、非摘要化
 
 ---
 
 ## 🔒 契约笼子
 
-### 三层约束
+### Schema 约束
 
-| 层级 | 允许 | 禁止 |
-|------|------|------|
-| 任务边界 | 分析、规划、执行、汇总 | 修改 Solution Pro 输出、增删需求 |
-| 角色边界 | 专注于自己的角色任务 | 执行其他角色的任务 |
-| 输出边界 | 输出符合 Schema 的结构化数据 | 输出自由文本、解释决策 |
+| 模型 | 关键字段约束 |
+|------|-------------|
+| `WorkPackage` | description ≥ 100 字, AC ≥ 2, deliverables ≥ 1 |
+| `PlannerOutput` | workers 2-8 个, 每个 covered_req_ids 非空 |
+| `ShipPackage` | work_packages 非空, statistics 完整 |
 
-### Gate 验证链
+### Gate 验证
+
+| Gate | 层级 | 检查内容 |
+|------|------|---------|
+| PlannerGate | L1 确定性 | Schema 合规、REQ 全覆盖、无重叠分配 |
+| WorkerGate | L1 + L2 | Schema + 内容深度 + LLM 语义审查 |
+| InformationConservationGate | L1 + L2 | REQ 守恒率 ≥ 0.8 + LLM 语义漂移检测 |
+| CompletenessGate | L1 + L2 | AC 覆盖率 + LLM 判断是否可交付 |
+| HarnessV3 | L1 + L2 | 整体工程质量 1-10 评分 |
+
+---
+
+## 🛡️ 关键教训
+
+| 教训 | 说明 |
+|------|------|
+| **sessions_yield 是陷阱** | 子 Agent yield 后无法被 child 完成事件唤醒。用 cron wake 替代 |
+| **Worker prompt 不超载** | 2-3KB 最佳，REQ > 10 时只显示 ID，详情放 context.json |
+| **不 read task 文件** | spawn params 已含完整 task，read 是浪费 token |
+| **字段名必须一致** | Worker prompt 和 Schema 字段名对齐，L1 字段映射是 hack |
+| **语义整合非去重** | 重叠 WP 合并为更完整的 WP，不删除 |
+| **统一 blackboard** | 所有域共享项目目录，跨域信息流靠文件路径约定 |
+
+---
+
+## 📁 目录结构
 
 ```
-PlannerGate: Worker 数量 2-8 + DAG 无环 + solution_pro_refs + must_constraints
-WorkerGate: Schema 合规 + MUST 约束保留(LLM) + web_search 范围
-G1 InformationConservation: 需求无丢失 + 无新增
-G2 Completeness: REQ-ID 覆盖率 + 覆盖深度(LLM)
+domains/ship_pro/
+├── __init__.py              # V8.2 入口 (run_ship_pro, design_pipeline, prepare_runner_spawn)
+├── pipeline_designer.py     # PipelineDesigner + 上下文裁剪
+├── contracts/               # Pydantic Schema
+│   ├── gates.py             # Gate 验证逻辑
+│   ├── planner_output.py    # PipelinePlan 模型
+│   ├── ship_package.py      # ShipPackage 模型
+│   └── worker_deliverable.py # WorkPackage 模型
+├── orchestrator/            # 编排引擎
+│   ├── ship_orchestrator.py # L1/L2/L3 验证 + build_ship_pro_input
+│   └── state_manager.py     # 状态管理（宽松模式）
+├── prompts/
+│   └── consolidator.md      # Consolidator 模板
+├── tests/
+│   ├── test_ship_pro.py     # 19 个单元测试
+│   └── dry_run_v8.py        # V8 集成测试（已被 AgentDryRun Skill 替代）
+├── docs/
+│   └── V8_DECISIONS.md      # 架构决策文档
+├── README.md                # 项目说明
+└── SKILL.md                 # 本文件
 ```
 
 ---
 
-## 🔄 失败处理
+## 🔄 V8 兼容 API
 
-每个阶段最多重试 2 次：
-1. Gate 失败 → 生成 `fix_context`（含失败原因 + 修复建议）
-2. 将 `fix_context` 注入下一轮 prompt
-3. 超过重试次数 → 标记 `failed`，通知主 Agent
+以下旧 API 保留兼容，但推荐使用 `run_ship_pro()`：
+
+- `design_pipeline(solution_pro_output_path)` — 只执行 Phase 1
+- `prepare_runner_spawn(base_path, designer_output, solution_pro_input)` — 只准备 Worker params
+- `extract_json_from_completion(text)` — 从 LLM 输出提取 JSON
+- `build_ship_pro_input(frozen_spec_path, supplemental_path)` — 构建输入
 
 ---
 
-## 🧪 验证命令
-
-```bash
-# Dry Run
-cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 domains/ship_pro/tests/dry_run.py
-
-# 单元测试
-cd ~/.openclaw/workspace/.deepflow && python3 -m pytest domains/ship_pro/tests/test_ship_pro.py -v
-```
+*最后更新: 2026-07-04 V8.2*

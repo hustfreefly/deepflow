@@ -1,0 +1,58 @@
+{
+  "worker_role": "SafetyResilience",
+  "wp_id_prefix": "SAFE",
+  "work_packages": [
+    {
+      "id": "SAFE-001",
+      "title": "DeadLoopDetector — 三级死循环检测器",
+      "description": "Three-level dead-loop detection: iteration threshold, token anomaly, semantic similarity.",
+      "dependencies": [],
+      "estimated_effort": "8h"
+    },
+    {
+      "id": "SAFE-002",
+      "title": "CircuitBreaker — 断路器状态机",
+      "description": "Circuit breaker state machine: Closed/Open/Half-Open with exponential backoff cooling.",
+      "dependencies": [
+        "SAFE-001"
+      ],
+      "estimated_effort": "6h"
+    },
+    {
+      "id": "SAFE-003",
+      "title": "FaultRecoveryEngine — 四阶段故障恢复引擎 + 跨厂商 Fallback",
+      "description": "Four-stage fault recovery (detect→diagnose→recover→verify) with cross-vendor fallback (R3, RTO 2.5min).",
+      "dependencies": [],
+      "estimated_effort": "12h"
+    },
+    {
+      "id": "SAFE-004",
+      "title": "DirectionDeviationDetector — 三层混合方向偏离检测器",
+      "description": "Three-layer hybrid: Embedding similarity, Goal Tree comparison, IDS drift detection.",
+      "dependencies": [],
+      "estimated_effort": "10h"
+    },
+    {
+      "id": "SAFE-005",
+      "title": "Native Structured Output Validation (D3)",
+      "description": "Native Structured Output replacing xgrammar for LLM output validation.",
+      "dependencies": [],
+      "estimated_effort": "6h"
+    },
+    {
+      "id": "SAFE-006",
+      "title": "Integration Tests — Cross-Subsystem Safety",
+      "description": "Integration tests for dead-loop, circuit breaker, fault recovery, deviation detection.",
+      "dependencies": [
+        "SAFE-001",
+        "SAFE-002",
+        "SAFE-003",
+        "SAFE-004"
+      ],
+      "estimated_effort": "8h"
+    }
+  ],
+  "metadata": {
+    "total_estimated_effort": "50h"
+  }
+}
