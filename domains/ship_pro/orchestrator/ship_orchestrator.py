@@ -752,15 +752,18 @@ class ShipOrchestrator:
                 else:
                     raise ValueError(f"未知输出格式: type={type(data).__name__}")
                 
-                # 字段名/类型兼容
+                # 契约笼子：字段名自动映射（Workers 可能用 wp_id/effort_hours）
                 for wp in wps:
+                    # wp_id → id（双向别名）
                     if "wp_id" in wp and "id" not in wp:
-                        wp["id"] = wp.pop("wp_id")
-                    if "effort_hours" in wp and "estimated_effort" not in wp:
-                        wp["estimated_effort"] = wp.pop("effort_hours")
-                    # 类型兼容：estimated_effort 可能是 int，Schema 期望 str
-                    if "estimated_effort" in wp and not isinstance(wp["estimated_effort"], str):
-                        wp["estimated_effort"] = str(wp["estimated_effort"])
+                        wp["id"] = wp["wp_id"]
+                    # effort_hours 已是 Schema 原生字段（int），无需转换
+                    # 旧字段 estimated_effort (str) → 转为 effort_hours (int)
+                    if "estimated_effort" in wp and "effort_hours" not in wp:
+                        try:
+                            wp["effort_hours"] = int(str(wp["estimated_effort"]).replace("h", "").strip())
+                        except (ValueError, TypeError):
+                            pass
                 
                 # Layer 1a: Pydantic Schema（每个 WP 单独验证）
                 for wp in wps:
@@ -987,13 +990,16 @@ class ShipOrchestrator:
         if not wps:
             raise ValueError("契约笼子: ship_package.json 中 work_packages 为空")
         
-        # 检查必需字段（WorkPackage Schema 使用 'id' 而非 'wp_id'）
+        # 契约笼子：字段名自动映射 + 必需字段检查
         required_fields = ["id", "title", "description", "acceptance_criteria", "deliverables"]
         for wp in wps:
+            # wp_id → id 自动映射（Consolidator 可能输出 wp_id）
+            if "wp_id" in wp and "id" not in wp:
+                wp["id"] = wp["wp_id"]
             missing = [f for f in required_fields if not wp.get(f)]
             if missing:
                 raise ValueError(
-                    f"契约笼子: WP {wp.get('id', '?')} 缺少字段 {missing}"
+                    f"契约笼子: WP {wp.get('id', wp.get('wp_id', '?'))} 缺少字段 {missing}"
                 )
         
         return {

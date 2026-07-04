@@ -7,7 +7,7 @@ Phase 2 Worker 的输出定义。
 - 只约束必要字段（确保可验证性）
 - 支持多种交付物类型（工作包、AC、依赖图等）
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional, Dict, Any
 
 
@@ -18,7 +18,17 @@ class WorkPackage(BaseModel):
     acceptance_criteria 和 deliverables 不再是可选项——没有它们，WP 无法验收。
     """
     
-    id: str = Field(..., description="工作包 ID，格式: {prefix}-NNN（如 CORE-001, LOOP-002）")
+    id: str = Field(..., alias="wp_id", description="工作包 ID，格式: {prefix}-NNN（如 CORE-001, LOOP-002）。接受 wp_id 别名。")
+    
+    @model_validator(mode='before')
+    @classmethod
+    def _map_wp_id(cls, data):
+        if isinstance(data, dict):
+            if 'wp_id' in data and 'id' not in data:
+                data['id'] = data['wp_id']
+            elif 'id' in data and 'wp_id' not in data:
+                data['wp_id'] = data['id']
+        return data
     title: str = Field(..., description="工作包标题")
     description: str = Field(
         ..., min_length=100,
@@ -35,9 +45,14 @@ class WorkPackage(BaseModel):
         description="依赖的其他工作包 ID 列表"
     )
     
-    estimated_effort: Optional[str] = Field(
+    effort_hours: Optional[int] = Field(
         default=None,
-        description="预估工作量（自由格式）"
+        description="预估工时（小时）。Workers 输出 effort_hours 整数。"
+    )
+    
+    covered_req_ids: List[str] = Field(
+        default_factory=list,
+        description="本 WP 覆盖的需求 ID 列表（可选，用于信息守恒验证）"
     )
     
     deliverables: List[str] = Field(

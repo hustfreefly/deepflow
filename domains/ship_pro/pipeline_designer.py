@@ -126,7 +126,7 @@ class PipelineDesigner:
     
     # 高质量 WP 示例（嵌入每个 Worker 的 context.json）
     HIGH_QUALITY_WP_EXAMPLE = {
-        "wp_id": "CORE-001",
+        "id": "CORE-001",
         "title": "Blackboard Manager — 中央共享状态引擎",
         "description": "实现 Blackboard 中央共享状态管理器，作为分形三层 Loop 架构的核心数据交换层。提供 thread-safe 的 read/write/get/set/delete 操作，支持按 stage 维度的命名空间隔离（project_loop / domain_loop / phase_loop 三层）。所有状态读写通过统一 JSON 序列化层进行，确保跨 Layer 数据格式一致。集成原子写入引擎保证崩溃安全，集成 per-stage 锁保证并发安全，集成审计日志记录每次状态变更。",
         "acceptance_criteria": [
@@ -145,9 +145,12 @@ class PipelineDesigner:
         self.stages_dir = self.blackboard_path / "stages"
         self.stages_dir.mkdir(parents=True, exist_ok=True)
     
-    def design_pipeline(self, solution_pro_input: Dict[str, Any]) -> PipelinePlan:
+    def design_pipeline(self, solution_pro_input: Dict[str, Any], auto: bool = True) -> Dict[str, Any]:
         """
-        主入口：分析 Solution Pro → 设计拆分 → 返回 PipelinePlan
+        主入口：分析 Solution Pro → 设计拆分 → 返回 PipelinePlan 或 prompt
+        
+        auto=True: 尝试内部调用 LLM 直接生成 plan（省去 Orchestrator 重复分析）
+        auto=False: 只返回 prompt，由 Orchestrator 自行分析
         
         契约笼子：
         - 输入必须通过 validate_solution_pro_input
@@ -156,20 +159,74 @@ class PipelineDesigner:
         # 1. 验证输入（契约笼子）
         validated_input = validate_solution_pro_input(solution_pro_input)
         
-        # 2. 构建 PipelineDesigner prompt
-        prompt = self._build_designer_prompt(validated_input)
+        input_summary = {
+            "req_count": len(validated_input["requirements"]),
+            "decision_count": len(validated_input.get("key_decisions", [])),
+            "risk_count": len(validated_input.get("risk_mitigations", [])),
+        }
         
-        # 3. 返回 prompt（由调用者决定如何执行 LLM）
-        # 这里返回 prompt + 预期 schema，调用者可以用 exec 调 LLM 或用 mock
+        # 2. 尝试自动设计（契约笼子：确定性 LLM 调用，非 prompt 委托）
+        if auto:
+            auto_result = self._auto_design(validated_input)
+            if auto_result:
+                return {
+                    "plan": auto_result.model_dump(),
+                    "mode": "auto",
+                    "expected_schema": PipelinePlan.model_json_schema(),
+                    "input_summary": input_summary,
+                }
+            logger.warning("Auto-design failed, falling back to prompt mode")
+        
+        # 3. Fallback：返回 prompt（Orchestrator 自行分析）
+        prompt = self._build_designer_prompt(validated_input)
         return {
             "designer_prompt": prompt,
+            "mode": "prompt",
             "expected_schema": PipelinePlan.model_json_schema(),
-            "input_summary": {
-                "req_count": len(validated_input["requirements"]),
-                "decision_count": len(validated_input.get("key_decisions", [])),
-                "risk_count": len(validated_input.get("risk_mitigations", [])),
-            }
+            "input_summary": input_summary,
         }
+    
+    def _auto_design(self, validated_input: Dict[str, Any]) -> Optional[PipelinePlan]:
+        """内部调用 LLM 生成 PipelinePlan（契约笼子：确定性调用，失败不抛异常）"""
+        import os, urllib.request
+        
+        prompt = self._build_designer_prompt(validated_input)
+        api_key = os.environ.get("DASHSCOPE_API_KEY", "")
+        if not api_key:
+            return None
+        
+        try:
+            payload = json.dumps({
+                "model": "qwen-plus",
+                "input": {"messages": [
+                    {"role": "system", "content": "你是软件架构师，输出纯 JSON，不要 markdown 包裹。"},
+                    {"role": "user", "content": prompt}
+                ]},
+                "parameters": {"result_format": "message"}
+            }).encode("utf-8")
+            
+            req = urllib.request.Request(
+                "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                }
+            )
+            
+            with urllib.request.urlopen(req, timeout=120) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            
+            from .orchestrator.ship_orchestrator import extract_json_from_completion
+            content = result["output"]["choices"][0]["message"]["content"]
+            data = extract_json_from_completion(content)
+            if data is None:
+                return None
+            
+            return PipelinePlan(**data)
+        except Exception as e:
+            logger.warning(f"Auto-design LLM call failed: {e}")
+            return None
     
     def parse_designer_output(self, raw_output: str) -> PipelinePlan:
         """

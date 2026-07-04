@@ -33,6 +33,7 @@ Ship Pro V8.2 - 入口模块
   └── ...
 """
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -202,21 +203,37 @@ def design_pipeline(solution_pro_output_path: str, **kwargs) -> dict:
     shutil.copy2(str(input_path), str(dest_input))
 
     designer = PipelineDesigner(blackboard_path=session_dir)
-    designer_result = designer.design_pipeline(solution_pro_input)
-
-    prompt_path = session_dir / "stages" / "_designer_prompt.txt"
-    prompt_path.write_text(designer_result["designer_prompt"], encoding="utf-8")
+    designer_result = designer.design_pipeline(solution_pro_input, auto=kwargs.get("auto", False))
 
     deepflow_root = str(DEEPFLOW_ROOT)
 
-    return {
-        "session_id": session_id,
-        "base_path": str(session_dir),
-        "solution_pro_input": solution_pro_input,
-        "designer_prompt": designer_result["designer_prompt"],
-        "input_summary": designer_result["input_summary"],
-        "deepflow_root": deepflow_root,
-    }
+    # 双模式处理（契约笼子：确定性分支，不依赖 prompt 指令）
+    if designer_result.get("mode") == "auto":
+        # Auto mode: plan 已生成，直接保存
+        plan_path = session_dir / "stages" / "pipeline_plan.json"
+        plan_path.write_text(json.dumps(designer_result["plan"], ensure_ascii=False, indent=2), encoding="utf-8")
+        return {
+            "session_id": session_id,
+            "base_path": str(session_dir),
+            "solution_pro_input": solution_pro_input,
+            "plan": designer_result["plan"],
+            "mode": "auto",
+            "input_summary": designer_result["input_summary"],
+            "deepflow_root": deepflow_root,
+        }
+    else:
+        # Prompt mode: 返回 prompt 供 Orchestrator 分析
+        prompt_path = session_dir / "stages" / "_designer_prompt.txt"
+        prompt_path.write_text(designer_result["designer_prompt"], encoding="utf-8")
+        return {
+            "session_id": session_id,
+            "base_path": str(session_dir),
+            "solution_pro_input": solution_pro_input,
+            "designer_prompt": designer_result["designer_prompt"],
+            "mode": "prompt",
+            "input_summary": designer_result["input_summary"],
+            "deepflow_root": deepflow_root,
+        }
 
 
 def prepare_runner_spawn(
@@ -249,7 +266,7 @@ def prepare_runner_spawn(
         params = {
             "runtime": "subagent",
             "mode": "run",
-            "label": f"worker_{role.replace(' ', '_')}",
+            "label": re.sub(r'[^a-z0-9_-]', '_', f"worker_{role}".lower()),
             "task": prompt,
             "lightContext": True,
         }
@@ -327,14 +344,20 @@ def _build_orchestrator_prompt(
 exec: python3 -c "
 import sys; sys.path.insert(0, '{deepflow_root}')
 from domains.ship_pro import design_pipeline
-result = design_pipeline('{ship_pro_dir}/solution_pro_input.json', blackboard_base_dir='{ship_pro_dir}')
-import json; print(json.dumps(result['input_summary']))
+result = design_pipeline('{ship_pro_dir}/solution_pro_input.json', blackboard_base_dir='{ship_pro_dir}', auto=True)
+import json; print(json.dumps({{'mode': result.get('mode', 'prompt'), 'has_plan': 'plan' in result, 'input_summary': result['input_summary']}}))
 "
 
-拿到 designer_prompt 后（在 result 中），你需要自己分析 Solution Pro 输入并设计 Worker 拆分方案：
-1. read {ship_pro_dir}/solution_pro_input.json
-2. 按交付物模块（代码内聚性）拆分 Workers（4-6 个）
-3. 将 PipelinePlan JSON write 到 {ship_pro_dir}/stages/pipeline_plan.json
+**双模式处理（契约笼子：检查 mode 字段决定行为）**：
+
+A. `mode=auto`（design_pipeline 已自动调用 LLM 生成 plan）：
+   - 直接执行: exec python3 -c "import json; from domains.ship_pro import design_pipeline; r = design_pipeline('{ship_pro_dir}/solution_pro_input.json', blackboard_base_dir='{ship_pro_dir}', auto=True); open('{ship_pro_dir}/stages/pipeline_plan.json','w').write(json.dumps(r['plan'], ensure_ascii=False, indent=2))"
+   - 不要 read solution_pro_input.json（已在 Python 内部处理）
+
+B. `mode=prompt`（自动设计失败，回退到 LLM 手动分析）：
+   - read {ship_pro_dir}/solution_pro_input.json
+   - 按交付物模块（代码内聚性）拆分 Workers（4-6 个）
+   - 将 PipelinePlan JSON write 到 {ship_pro_dir}/stages/pipeline_plan.json
 
 PipelinePlan 格式：
 ```json
@@ -429,6 +452,7 @@ import json; print(json.dumps(result))
 
 ## 禁止行为
 - ❌ sessions_yield()（用 cron wake）
+- ❌ `exec sleep` + `process poll` 轮询等待（用 `cron wake` 每 30s 检查文件存在）
 - ❌ read() Worker task 文件
 - ❌ 跳过 validate 步骤
 - ❌ 自行 retry/degrade
