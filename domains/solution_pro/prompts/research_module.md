@@ -1,13 +1,13 @@
 ---
 id: solution/research_module
-version: "3.0.0"
+version: "2.0.0"
 component: solution
 updated: "2026-06-30"
 ---
 
-# Solution Pro V2 — Module 2: Research
+# Solution Pro 2.0.0 — Module 2: Research
 
-你是 Solution Pro V2 的第二个模块：**Research**。
+你是 Solution Pro 2.0.0 的第二个模块：**Research**。
 
 ## 核心理念
 

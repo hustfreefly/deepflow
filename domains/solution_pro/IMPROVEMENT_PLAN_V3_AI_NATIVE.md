@@ -1,19 +1,19 @@
-# Solution Pro V3 改进方案 — AI Native 修正版
+# Solution Pro 2.0.0 改进方案 — AI Native 修正版
 
-> **版本**: V2（AI Native 修正）| **日期**: 2026-07-01
-> **背景**: V1 方案（Fix 1/4/5）经 AI Native 自审，发现 Fix 1 是硬编码、Fix 4 是伪 AI Native
+> **版本**: 2.0.0（AI Native 修正）| **日期**: 2026-07-01
+> **背景**: 2.0.0 方案（Fix 1/4/5）经 AI Native 自审，发现 Fix 1 是硬编码、Fix 4 是伪 AI Native
 > **原则**: Code controls flow & format, LLM judges semantics (AGENTS.md Zone 4.3)
 
 ---
 
-## 自审结果：V1 方案的 AI Native 合规性
+## 自审结果：2.0.0 方案的 AI Native 合规性
 
 ### ❌ Fix 1（研究利用追踪）— 硬编码，违反 Zone 4.1
 
 **问题**: 用 `expert_id in solution_text` 和关键词匹配来判断"研究是否被利用"
 
 ```python
-# V1 实现（硬编码）
+# 2.0.0 实现（硬编码）
 expert_cited = expert_id in solution_text
 finding_keywords = [f[:20] for f in findings if len(f) > 5]
 expert_cited = any(kw.lower() in solution_text.lower() for kw in finding_keywords)
@@ -29,7 +29,7 @@ expert_cited = any(kw.lower() in solution_text.lower() for kw in finding_keyword
 **问题**: 代码正确强制了结构（每个 finding 必须有 decision + rationale），但 decision 本身的判断逻辑是硬编码
 
 ```python
-# V1 实现（伪 AI Native）
+# 2.0.0 实现（伪 AI Native）
 if entry["source"] in ("devil_advocate", "gap_analysis") and "unaddressed_findings" in fixed_types:
     entry["decision"] = "adopted"  # 代码直接赋值，不是 LLM 判断
 ```
@@ -52,7 +52,7 @@ if entry["source"] in ("devil_advocate", "gap_analysis") and "unaddressed_findin
 
 ---
 
-## V2 修正方案：三层 Gate 架构
+## 2.0.0 修正方案：三层 Gate 架构
 
 ### 架构总览
 
@@ -115,9 +115,9 @@ Pipeline Stage 完成
 {"verdict": "PASS|WEAK|FAIL", "evidence": "引用方案中的具体段落", "reasoning": "为什么判这个等级"}
 ```
 
-**与 V1 的区别**:
-- V1: `"stall detection" in solution_text` → True/False
-- V2: LLM 判断"方案是否真正设计了停滞检测机制，还是只写了'停滞检测'四个字"
+**与 2.0.0 的区别**:
+- 2.0.0: `"stall detection" in solution_text` → True/False
+- 2.0.0: LLM 判断"方案是否真正设计了停滞检测机制，还是只写了'停滞检测'四个字"
 
 #### 2b. Finding Decision Judge（替代 Fix 4 的代码赋值）
 
@@ -163,7 +163,7 @@ class SemanticGate:
             # spawn 独立 Judge（不同模型或同模型不同 session）
             judgment = spawn_fn(
                 task=f"Read prompt from file and execute: {prompt_path}",
-                # 不传大 prompt 作为 task（吸取 E2E V3 教训）
+                # 不传大 prompt 作为 task（吸取 E2E 2.0.0 教训）
             )
             judgments.append(judgment)
 
@@ -184,9 +184,9 @@ class SemanticGate:
 
 ---
 
-## V1 vs V2 对比
+## 2.0.0 vs 2.0.0 对比
 
-| 维度 | V1（当前实现） | V2（AI Native 修正） |
+| 维度 | 2.0.0（当前实现） | 2.0.0（AI Native 修正） |
 |------|--------------|---------------------|
 | **研究利用检查** | `keyword in text` 字符串匹配 | LLM-as-Judge 语义评估 |
 | **Finding 决策** | 代码赋值 decision | LLM 评估 rationale 合理性 |
@@ -199,12 +199,12 @@ class SemanticGate:
 
 ## 泛化性分析
 
-**V1 为什么不泛化**:
+**2.0.0 为什么不泛化**:
 - 关键词匹配依赖特定 expert 的 finding 措辞
 - 换一个领域（如"医疗系统"vs"AI Agent"），关键词完全不同
 - 每次换领域需要重写匹配规则 → 不可维护
 
-**V2 为什么泛化**:
+**2.0.0 为什么泛化**:
 - LLM-as-Judge 的 prompt 是领域无关的（"finding 是否被吸收"这个判断标准通用）
 - 确定性检查也是领域无关的（JSON 格式、文件存在性）
 - 换领域只需要换 frozen_spec + research，不需要改检查逻辑
@@ -220,4 +220,4 @@ class SemanticGate:
 
 ---
 
-*Created: 2026-07-01 | V2 AI Native 修正版*
+*Created: 2026-07-01 | 2.0.0 AI Native 修正版*

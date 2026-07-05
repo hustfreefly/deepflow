@@ -1,7 +1,7 @@
 """
 收敛层实现
 
-Version: 1.0.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-28
 
@@ -212,7 +212,7 @@ class ConvergenceLayer:
     
     def _read_directory_stages(self, dir_name: str) -> dict[str, dict]:
         """
-        读取 Blackboard 目录下所有 Stage 输出（V2 Phase 0a — P0-18）
+        读取 Blackboard 目录下所有 Stage 输出
 
         遍历 stages/{dir_name}/ 下所有 .json 文件，使用 BlackboardManager API
         （read_json）读取文件内容，返回 {stage_name: stage_output} dict。
@@ -330,10 +330,24 @@ stages/convergence_{self.module_name}.json
         
         # 根据模块名返回简化结构
         if self.module_name == "planning":
+            unified_constraints = stage_outputs.get("unified_constraints", {})
+            if isinstance(unified_constraints, list):
+                constraints = unified_constraints
+            elif isinstance(unified_constraints, dict):
+                constraints = unified_constraints.get("constraints", [])
+            else:
+                constraints = []
+            verification_checklist = stage_outputs.get("verification_checklist", {})
+            if isinstance(verification_checklist, dict):
+                checklist = verification_checklist.get("checklist", [])
+            elif isinstance(verification_checklist, list):
+                checklist = verification_checklist
+            else:
+                checklist = []
             return {
                 "module": "planning",
-                "unified_constraints": stage_outputs.get("unified_constraints", {}).get("constraints", []),
-                "verification_checklist": stage_outputs.get("verification_checklist", {}).get("checklist", []),
+                "unified_constraints": constraints,
+                "verification_checklist": checklist,
                 "planning_summary": "本地压缩摘要（测试模式）",
                 "expert_divergence": [],
                 "original_references": {},
@@ -521,7 +535,7 @@ stages/convergence_{self.module_name}.json
     
     def _evaluate_gate_a(self, compressed: dict, gate_a_config: dict) -> dict:
         """
-        Gate A 评估（代码计算）— V2 Phase 0b P0-3
+        Gate A 评估（代码计算）— Phase 0b P0-3
 
         使用 harness_scorer.calculate_harness_score_dynamic() 进行动态权重/阈值评分。
         从 gate_a_config 读取 weights 和 thresholds，从 compressed 数据计算四维度分数。
@@ -602,7 +616,7 @@ stages/convergence_{self.module_name}.json
         checklist_count = len(checklist) if isinstance(checklist, list) else 0
 
         # 1. Completeness: 约束数量 + 验证清单覆盖
-        #    基准：5 个约束 + 5 个验证项 = 满分
+        # 基准：5 个约束 + 5 个验证项 = 满分
         constraint_score = min(1.0, constraint_count / 5.0) if constraint_count > 0 else 0.0
         checklist_score = min(1.0, checklist_count / 5.0) if checklist_count > 0 else 0.0
         completeness = constraint_score * 0.6 + checklist_score * 0.4
@@ -612,7 +626,7 @@ stages/convergence_{self.module_name}.json
         completeness = round(min(1.0, completeness), 2)
 
         # 2. Necessity: 约束优先级分布
-        #    MUST 占比越高，必要性越高
+        # MUST 占比越高，必要性越高
         if constraint_count > 0 and isinstance(constraints, list):
             must_count = sum(1 for c in constraints if isinstance(c, dict) and c.get("priority") == "MUST")
             should_count = sum(1 for c in constraints if isinstance(c, dict) and c.get("priority") == "SHOULD")
@@ -629,7 +643,7 @@ stages/convergence_{self.module_name}.json
         necessity = round(min(1.0, necessity), 2)
 
         # 3. Alignment: 需求覆盖度
-        #    有 covered_req_ids 说明对齐度高
+        # 有 covered_req_ids 说明对齐度高
         if covered_reqs:
             alignment = min(1.0, 0.75 + len(covered_reqs) * 0.05)
         else:
@@ -637,7 +651,7 @@ stages/convergence_{self.module_name}.json
         alignment = round(alignment, 2)
 
         # 4. Global Impact: 信息守恒 + 元数据完整性
-        #    信息守恒 PASS + 有 meta 数据 = 高分
+        # 信息守恒 PASS + 有 meta 数据 = 高分
         conservation_status = conservation.get("status", "UNKNOWN")
         has_meta = "meta" in compressed or "original_references" in compressed
 
@@ -717,7 +731,7 @@ stages/convergence_{self.module_name}.json
         verdict_policy: Optional[dict] = None,
     ) -> dict:
         """
-        Gate B 评估 — 动态检查项（V2 Phase 0a — P0-4）
+        Gate B 评估 — 动态检查项
 
         对 gate_b_config 中的每项 dynamic_check 进行语义判定：
         - 优先通过 spawn_fn 调用 Harness Agent 进行 LLM 语义判定
@@ -782,7 +796,7 @@ stages/convergence_{self.module_name}.json
 
     def _evaluate_single_gate_b_check(self, check: dict, compressed: dict) -> dict:
         """
-        评估单个 Gate B 检查项（V2 Phase 0a — P0-4 辅助方法）
+        评估单个 Gate B 检查项
 
         优先使用 spawn_fn 调用 Harness Agent 做语义判定；
         不可用时 fallback 到本地启发式评估。

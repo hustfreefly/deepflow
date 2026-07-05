@@ -356,7 +356,7 @@ interface QualityScore {
   necessity: number;       // 0.0 - 1.0
   target_alignment: number; // 0.0 - 1.0
   overall: number;         // 0.0 - 1.0
-  warnings?: string[];     // Harness V2 warnings
+  warnings?: string[];     // Harness 2.0.0 warnings
 }
 
 interface StatusResponse {

@@ -1,5 +1,5 @@
 """
-UC Coverage Verifier — AI Native 版本（V2）
+UC Coverage Verifier — AI Native 版本
 
 核心理念：UC 覆盖验证是语义理解任务，只能由 LLM 做判断。
 
@@ -14,9 +14,9 @@ UC Coverage Verifier — AI Native 版本（V2）
 - ❌ 用 if/elif 分支来分类覆盖（硬编码 ≠ 语义判断）
 
 版本历史：
-- V1（已废弃）: 用 regex 匹配 UC ID → 8% 覆盖率 → 违反 4.1
-- V1.1（已废弃）: 用关键词提取匹配 → ~30% → 仍然是硬编码思维
-- V2（当前）: LLM-as-Judge 语义判断 → 代码只做 I/O
+- （已废弃）: 用 regex 匹配 UC ID → 8% 覆盖率 → 违反 4.1
+- （已废弃）: 用关键词提取匹配 → ~30% → 仍然是硬编码思维
+- （当前）: LLM-as-Judge 语义判断 → 代码只做 I/O
 """
 
 import json
@@ -64,7 +64,7 @@ class UCCoverageResult:
 
 class UCCoverageVerifier:
     """
-    UC 覆盖率验证器（AI Native V2）
+    UC 覆盖率验证器
     
     职责分工（能力正交）：
     

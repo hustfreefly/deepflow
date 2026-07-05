@@ -236,7 +236,7 @@ class ReviewQCOrchestrator(ModuleOrchestrator):
     def _build_finding_ledger(self, research_output: dict) -> list[dict]:
         """Fix 4: 构建 Finding Ledger — 追踪所有外部 finding 的处置状态。
         
-        E2E V3 发现: Devil Advocate 10 个 finding 中 3 个被完全忽略，
+        E2E 发现: Devil Advocate 10 个 finding 中 3 个被完全忽略，
         原因是 Fix Loop 没有强制要求对每个 finding 做显式决策。
         
         Ledger 要求每个 finding 必须有:
@@ -348,7 +348,13 @@ class ReviewQCOrchestrator(ModuleOrchestrator):
     def _check_constraint_consistency(self, output: dict, planning_output: dict) -> dict:
         """检查约束一致性"""
         # 简化实现：检查 unified_constraints 是否保留
-        planning_constraints = planning_output.get("unified_constraints", {}).get("constraints", [])
+        unified_constraints = planning_output.get("unified_constraints", {})
+        if isinstance(unified_constraints, list):
+            planning_constraints = unified_constraints
+        elif isinstance(unified_constraints, dict):
+            planning_constraints = unified_constraints.get("constraints", [])
+        else:
+            planning_constraints = []
         planning_ids = {c.get("constraint_id") for c in planning_constraints}
         
         output_str = str(output)

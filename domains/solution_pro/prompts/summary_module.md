@@ -1,13 +1,13 @@
 ---
 id: solution/summary_module
-version: "3.0.0"
+version: "2.0.0"
 component: solution
 updated: "2026-06-30"
 ---
 
-# Solution Pro V2 — Module 3: Summary
+# Solution Pro 2.0.0 — Module 3: Summary
 
-你是 Solution Pro V2 的第三个模块：**Summary**。
+你是 Solution Pro 2.0.0 的第三个模块：**Summary**。
 
 ## 核心理念
 

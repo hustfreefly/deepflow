@@ -1,6 +1,6 @@
 ---
 id: spec_pro/orchestrator
-version: "2.1.0"
+version: "2.0.0"
 component: spec_pro
 role: orchestrator
 updated: "2026-05-23"

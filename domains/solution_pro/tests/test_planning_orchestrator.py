@@ -1,7 +1,7 @@
 """
 Planning Orchestrator Tests
 
-Version: 1.0.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-28
 
@@ -18,14 +18,12 @@ import pytest
 import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 # Add .deepflow to sys.path
 deepflow_root = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(deepflow_root))
 
 from domains.solution_pro.planning_orchestrator import PlanningOrchestrator
-from domains.solution_pro.blackboard import BlackboardManager
 
 
 class MockBlackboard:
@@ -80,8 +78,6 @@ class TestPlanningOrchestrator:
         # Patch BlackboardManager to return our mock
         from domains.solution_pro import module_orchestrator_base
         
-        original_bb_class = module_orchestrator_base.BlackboardManager
-        
         def mock_bb_factory(session_id, base_dir=None):
             return mock_bb
         
@@ -89,7 +85,7 @@ class TestPlanningOrchestrator:
         
         # Write input files
         frozen_spec = {
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "project_name": "Test Project",
             "p0_req_ids": ["REQ-P0-001", "REQ-P0-002"],
             "requirements": [
@@ -100,7 +96,7 @@ class TestPlanningOrchestrator:
         mock_bb.write("frozen_spec.json", frozen_spec)
         
         structured_requirements = {
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "requirements": frozen_spec["requirements"],
         }
         mock_bb.write("structured_requirements.json", structured_requirements)
@@ -114,7 +110,7 @@ class TestPlanningOrchestrator:
             # Return mock output based on output_path
             if output_path == "stages/meta_planning.json":
                 return {
-                    "schema_version": "1.0.0",
+                    "schema_version": "2.0.0",
                     "task_profile": {
                         "domain": "backend_api",
                         "complexity": "high",
@@ -169,7 +165,7 @@ class TestPlanningOrchestrator:
             elif output_path.startswith("stages/expert_plans/"):
                 expert_name = output_path.split("/")[-1].replace(".json", "")
                 return {
-                    "schema_version": "1.0.0",
+                    "schema_version": "2.0.0",
                     "expert_name": expert_name,
                     "constraints": [
                         {
@@ -198,29 +194,26 @@ class TestPlanningOrchestrator:
             
             elif output_path == "stages/convergence_planning.json":
                 return {
-                    "schema_version": "1.0.0",
-                    "unified_constraints": {
-                        "schema_version": "1.0.0",
-                        "unified_constraints": [
-                            {
-                                "constraint_id": "UC-001",
-                                "description": "Unified constraint 1",
-                                "priority": "MUST",
-                                "source_experts": ["security_expert"],
-                                "conflicts_resolved": [],
-                            },
-                        ],
-                        "rejected_constraints": [],
-                        "meta": {
-                            "total_expert_plans": 2,
-                            "total_input_constraints": 2,
-                            "total_output_constraints": 1,
-                            "merge_ratio": 0.5,
+                    "schema_version": "2.0.0",
+                    "unified_constraints": [
+                        {
+                            "constraint_id": "UC-001",
+                            "description": "Unified constraint 1",
+                            "priority": "MUST",
+                            "source_experts": ["security_expert"],
+                            "conflicts_resolved": [],
                         },
-                        "covered_req_ids": ["REQ-P0-001"],
+                    ],
+                    "rejected_constraints": [],
+                    "meta": {
+                        "total_expert_plans": 2,
+                        "total_input_constraints": 2,
+                        "total_output_constraints": 1,
+                        "merge_ratio": 0.5,
                     },
+                    "covered_req_ids": ["REQ-P0-001"],
                     "verification_checklist": {
-                        "schema_version": "1.0.0",
+                        "schema_version": "2.0.0",
                         "checklist": [
                             {
                                 "check_id": "VC-001",
@@ -235,7 +228,7 @@ class TestPlanningOrchestrator:
             
             elif output_path == "stages/harness_planning.json":
                 return {
-                    "schema_version": "1.0.0",
+                    "schema_version": "2.0.0",
                     "gate_a": {
                         "score": 0.87,
                         "verdict": "PASS",
@@ -263,7 +256,7 @@ class TestPlanningOrchestrator:
             else:
                 # Reviewer outputs
                 return {
-                    "schema_version": "1.0.0",
+                    "schema_version": "2.0.0",
                     "reviewer": "reviewer",
                     "overall_verdict": "PASS",
                     "overall_score": 0.92,
@@ -342,7 +335,7 @@ class TestPlanningOrchestrator:
         
         assert "unified_constraints" in convergence_output
         assert "verification_checklist" in convergence_output
-        assert len(convergence_output["unified_constraints"]["unified_constraints"]) == 1
+        assert len(convergence_output["unified_constraints"]) == 1
         
         # Check blackboard
         saved_constraints = mock_blackboard.read("stages/unified_constraints.json")

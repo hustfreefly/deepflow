@@ -1,4 +1,4 @@
-# 评审报告：Solution Pro V2 LLM 路由重构方案
+# 评审报告：Solution Pro 2.0.0 LLM 路由重构方案
 
 > **评审日期**: 2026-06-29
 > **评审方式**: PlanMode Pro 多轮专家评审（3 轮，6 位专家）
@@ -9,7 +9,7 @@
 
 ## 1. 原始方案要点
 
-**方案核心**：将 Solution Pro V2 中所有"绕过 OpenClaw 直调 LLM API"的代码统一重构为走 `spawn_fn`（→ `sessions_spawn`），实现零额外 API Key。
+**方案核心**：将 Solution Pro 2.0.0 中所有"绕过 OpenClaw 直调 LLM API"的代码统一重构为走 `spawn_fn`（→ `sessions_spawn`），实现零额外 API Key。
 
 **5 个问题模块**：
 | # | 文件 | 问题 | 严重度 |
@@ -17,7 +17,7 @@
 | P1 | e2e_test_runner.py | Spawn Bridge 文件中转 | P0 |
 | P2 | compliance_checker.py | llm_judge_fn 来源不确定 | P1 |
 | P3 | harness_scorer.py | 同上 | P1 |
-| P4 | planner.py | V1 legacy 未清理 | P2 |
+| P4 | planner.py | 2.0.0 legacy 未清理 | P2 |
 | P5 | ai_native_auditor.py | llm_judge_fn 同类问题 | P1 |
 
 **原始方案关键设计**：
@@ -72,7 +72,7 @@
 
 ## 3. 采纳/不采纳清单
 
-### ✅ 采纳（已体现在 V3 方案中）
+### ✅ 采纳（已体现在 2.0.0 方案中）
 
 | # | 问题 | 修复内容 | 来源 |
 |---|------|---------|------|
@@ -103,13 +103,13 @@
 
 | # | 建议 | 不采纳理由 |
 |---|------|-----------|
-| 1 | 保留文件桥接模式 | V3 选择更干净的 depth-1 orchestrator 模式，文件桥接是 workaround |
+| 1 | 保留文件桥接模式 | 2.0.0 选择更干净的 depth-1 orchestrator 模式，文件桥接是 workaround |
 | 2 | asyncio.Semaphore 并发控制 | 改为串行分批更简单可靠，避免 sync/async 混合 |
 | 3 | SpawnResult 作为实际返回类型 | spawn_fn 实际返回 str，SpawnResult 仅用于文档化 |
 
 ---
 
-## 4. 最终修改后的方案要点（V3）
+## 4. 最终修改后的方案要点（2.0.0）
 
 ### 4.1 架构变更
 
@@ -125,7 +125,7 @@
 
 ### 4.2 核心代码变更
 
-1. **LLMJudgeAdapter**（V3 最终版）
+1. **LLMJudgeAdapter**（2.0.0 最终版）
    - 同步 `judge()` 方法（非 async）
    - spawn_fn 返回字符串，直接解析
    - 批量评估串行分批
@@ -145,7 +145,7 @@
        raise ValueError('spawn_fn required in prod')
    ```
 
-### 4.3 执行计划（V3）
+### 4.3 执行计划（2.0.0）
 
 | Phase | 内容 | 工作量 |
 |-------|------|--------|
@@ -153,7 +153,7 @@
 | Phase 1 | 定义 SpawnFn Protocol + LLMJudgeAdapter | 1h |
 | Phase 2 | 重构 3 个模块（compliance/harness/auditor） | 1.5h |
 | Phase 3 | 重写 e2e_test_runner | 1.5h |
-| Phase 4 | 移动 V1 legacy | 15min |
+| Phase 4 | 移动 2.0.0 legacy | 15min |
 | Phase 5 | 统一 mock_spawn_fn + 录制迁移 | 1h |
 | Phase 6 | E2E 验证 | 1h |
 | Phase 7 | 可观测性 + 文档 | 30min |
@@ -186,13 +186,13 @@
 | 原始 P2 问题 | 5 |
 | 最终 P0 残留 | 0 |
 | 最终评分 | 8/10 |
-| 方案版本 | V1 → V2 → V3 |
+| 方案版本 | 2.0.0 → 2.0.0 → 2.0.0 |
 | 工作量重估 | 4-5h → 7-8h |
 
 ---
 
 ## 7. 结论
 
-经过 3 轮 6 位专家的严格评审，方案从 V1（5/10）迭代到 V3（8/10）。所有 P0 问题已修复，架构清晰，符合 AI Native 原则。修复 prod spawn 校验（3 行代码）后即可合并执行。
+经过 3 轮 6 位专家的严格评审，方案从 2.0.0（5/10）迭代到 2.0.0（8/10）。所有 P0 问题已修复，架构清晰，符合 AI Native 原则。修复 prod spawn 校验（3 行代码）后即可合并执行。
 
-**建议**：按 V3 方案的 Phase 0-7 顺序执行，Phase 6 为关键验证点。Layer 2 语义验证作为后续 P1 优先级跟进。
+**建议**：按 2.0.0 方案的 Phase 0-7 顺序执行，Phase 6 为关键验证点。Layer 2 语义验证作为后续 P1 优先级跟进。

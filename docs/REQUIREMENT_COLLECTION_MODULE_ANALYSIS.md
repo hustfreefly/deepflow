@@ -28,7 +28,7 @@
 
 **Solution Pro 的质量天花板 = 输入需求的质量**
 
-当前 Solution Pro 10阶段管线已经非常成熟（Harness V2 质量门控、Layer 2 约束验证、多Agent并行审计），但它的输入只有一个 topic 字符串 + 可选的 constraints/stakeholders 列表。
+当前 Solution Pro 10阶段管线已经非常成熟（Harness 2.0.0 质量门控、Layer 2 约束验证、多Agent并行审计），但它的输入只有一个 topic 字符串 + 可选的 constraints/stakeholders 列表。
 
 **问题清单**:
 

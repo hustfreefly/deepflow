@@ -1,4 +1,4 @@
-# V3 Prompt 上下文膨胀 + 引用系统缺失 + DeepFlow 契约违反诊断
+# 2.0.0 Prompt 上下文膨胀 + 引用系统缺失 + DeepFlow 契约违反诊断
 
 > **版本**: 1.0.0
 > **日期**: 2026-06-29
@@ -7,9 +7,9 @@
 
 ---
 
-## 一、V3 vs V1 上下文传递方式对比
+## 一、2.0.0 vs 2.0.0 上下文传递方式对比
 
-### 1.1 V3 方式（v2_planning_module.md — Layer 2 Convergence）
+### 1.1 2.0.0 方式（v2_planning_module.md — Layer 2 Convergence）
 
 **问题：直接嵌入 expert 输出 JSON 到 prompt**
 
@@ -38,7 +38,7 @@
 - ❌ 上下文窗口被大量 JSON 占用，降低 LLM 推理质量
 - ❌ 不可扩展（expert 数量增加 → prompt 爆炸）
 
-### 1.2 V1 方式（convergence_planner.md）
+### 1.2 2.0.0 方式（convergence_planner.md）
 
 **方案：告诉 Worker 文件路径，让它自己读**
 
@@ -59,7 +59,7 @@
 
 ### 1.3 对比表
 
-| 维度 | V3 方式 | V1 方式 |
+| 维度 | 2.0.0 方式 | 2.0.0 方式 |
 |------|---------|---------|
 | **数据传递** | 嵌入 prompt | 文件路径引用 |
 | **Prompt 大小** | 15-28KB（含数据） | ~3KB（纯指令） |
@@ -72,9 +72,9 @@
 
 ## 二、DeepFlow 引用系统是什么
 
-### 2.1 V1 的 REQ-ID 引用系统
+### 2.1 2.0.0 的 REQ-ID 引用系统
 
-V1 有一套完整的**需求追溯引用系统**，核心是 REQ-ID：
+2.0.0 有一套完整的**需求追溯引用系统**，核心是 REQ-ID：
 
 ```
 frozen_spec.json
@@ -122,7 +122,7 @@ frozen_spec.json
    - 未覆盖的 P0 REQ 必须在 `rejected_constraints` 中说明原因
    - Harness Final 用此做需求覆盖度评估
 
-### 2.2 V1 引用系统的输出格式
+### 2.2 2.0.0 引用系统的输出格式
 
 **unified_constraints.json**：
 ```json
@@ -200,7 +200,7 @@ frozen_spec.json
 
 ---
 
-## 四、V3 违反的契约列表
+## 四、2.0.0 违反的契约列表
 
 ### 4.1 违反 RED-SOL-003：跨阶段状态传递必须通过 Blackboard
 
@@ -234,7 +234,7 @@ convergence_planner.md:
      ```
 ```
 
-### 4.2 违反引用系统契约（V1 convergence_planner.md 定义的输出格式）
+### 4.2 违反引用系统契约（2.0.0 convergence_planner.md 定义的输出格式）
 
 **违反方式**：
 ```
@@ -247,7 +247,7 @@ v2_planning_module.md Convergence 输出格式：
 }
 ```
 
-**V1 定义的输出格式**：
+**2.0.0 定义的输出格式**：
 ```json
 {
   "schema_version": "1.0.0",
@@ -282,7 +282,7 @@ v2_planning_module.md Convergence 输出格式：
 ### 4.3 违反开发流程契约（development_workflow.md）
 
 **违反方式**：
-- ❌ 未遵循"契约先行"原则（V3 prompt 没有引用场景契约）
+- ❌ 未遵循"契约先行"原则（2.0.0 prompt 没有引用场景契约）
 - ❌ 未定义 Phase 门禁验证
 - ❌ 未定义验证脚本
 
@@ -407,7 +407,7 @@ print('CONVERGENCE_WRITTEN')
 
 ### 5.2 恢复引用系统（优先级：P0）
 
-**问题**：V3 丢失了 V1 的 REQ-ID 引用系统
+**问题**：2.0.0 丢失了 2.0.0 的 REQ-ID 引用系统
 
 **修复方案**：在 Convergence Planner prompt 中明确要求输出格式
 
@@ -432,7 +432,7 @@ print('CONVERGENCE_WRITTEN')
 
 ### 5.3 补充 verification_checklist（优先级：P1）
 
-**问题**：V3 完全缺失验证清单生成
+**问题**：2.0.0 完全缺失验证清单生成
 
 **修复方案**：在 Convergence Planner 的输出中增加第二个文件
 
@@ -501,9 +501,9 @@ print('CONVERGENCE_WRITTEN')
 
 | 文件 | 路径 | 用途 |
 |------|------|------|
-| V3 Planning Module | `domains/solution_pro/prompts/v2_planning_module.md` | 当前问题文件 |
-| V1 Convergence Planner | `domains/solution_pro/prompts/convergence_planner.md` | 参考实现 |
-| V1 REQ 去重设计 | `domains/solution_pro/prompts/REQ_DEDUP_DESIGN.md` | 引用系统设计 |
+| 2.0.0 Planning Module | `domains/solution_pro/prompts/v2_planning_module.md` | 当前问题文件 |
+| 2.0.0 Convergence Planner | `domains/solution_pro/prompts/convergence_planner.md` | 参考实现 |
+| 2.0.0 REQ 去重设计 | `domains/solution_pro/prompts/REQ_DEDUP_DESIGN.md` | 引用系统设计 |
 | DeepFlow 契约系统规范 | `CONTRACTS.md` | 契约定义 |
 | Solution Pro 场景契约 | `cage/active/solution_v1.0.yaml` | 红线定义 |
 | 集成契约 | `contracts/integration/spec_to_solution.md` | 数据交接规范 |
@@ -514,12 +514,12 @@ print('CONVERGENCE_WRITTEN')
 
 ## 八、自检清单
 
-- [x] V3 上下文传递方式已分析
-- [x] V1 上下文传递方式已分析
+- [x] 2.0.0 上下文传递方式已分析
+- [x] 2.0.0 上下文传递方式已分析
 - [x] 对比表已生成
 - [x] DeepFlow 引用系统已描述
 - [x] DeepFlow 基础契约清单已列出
-- [x] V3 违反的契约已列出（含证据）
+- [x] 2.0.0 违反的契约已列出（含证据）
 - [x] 修复建议已给出（含代码示例）
 - [x] 修复优先级已排序
 

@@ -1,14 +1,14 @@
-# Ship Pro V8 Architecture Decision Document
+# Ship Pro 2.0.0 Architecture Decision Document
 
-> **版本**: V8.2 (Orchestrator 单入口 + 统一 Blackboard)  
+> **版本**: 2.0.0 (Orchestrator 单入口 + 统一 Blackboard)  
 > **日期**: 2026-07-04  
-> **状态**: GO（审计通过，R1 已修复，V8.2 架构定型）  
+> **状态**: GO（审计通过，R1 已修复，2.0.0 架构定型）  
 > **评审**: 3 位 Prompt 专家 + 1 位 AI Native 审计  
 > **Prompt 教训**: 10 条历史经验融入  
 
 ---
 
-## 1. V7 问题总结
+## 1. 2.0.0 问题总结
 
 | 层面 | 问题 | 根因 | 影响 |
 |------|------|------|------|
@@ -24,9 +24,9 @@
 
 ---
 
-## 2. V8 角色架构
+## 2. 2.0.0 角色架构
 
-### 2.1 角色清单（V8.2 简化为 5 个）
+### 2.1 角色清单（2.0.0 简化为 5 个）
 
 | 角色 | 职责 | 性质 | 深度 |
 |------|------|------|------|
@@ -36,9 +36,9 @@
 | **Consolidator** | 5 步法合并→write 文件 | LLM | depth-2 |
 | **Judge** | LLM 语义验证（质量/守恒/品质） | LLM | depth-2 |
 
-> V8.2 变更：PipelineRunner 被 Orchestrator 替代。Main Agent 只 spawn Orchestrator，不再参与管线执行。
+> 2.0.0 变更：PipelineRunner 被 Orchestrator 替代。Main Agent 只 spawn Orchestrator，不再参与管线执行。
 
-### 2.2 执行流（V8.2）
+### 2.2 执行流（2.0.0）
 
 ```
 Main Agent (depth-0)
@@ -116,14 +116,14 @@ Layer 3: 综合决策（Python 合并 L1+L2）
 | **ConsolidatorGate** | ShipPackage Schema + WP>0 | 信息守恒 rate | L1 PASS + rate≥0.7 |
 | **FinalGate** | REQ≥80% + 依赖图非空 | Completeness + HarnessV3 | L1 PASS + 综合≥6/10 |
 
-### 6.4 Judge 三步模式（复用 V7 gates.py）
+### 6.4 Judge 三步模式（复用 2.0.0 gates.py）
 
 ```python
-# Step 1: 构建 Judge prompt（V7 已有 build_judge_prompt）
+# Step 1: 构建 Judge prompt（2.0.0 已有 build_judge_prompt）
 judge_prompt = WorkerGate.build_judge_prompt(worker_spec, worker_output)
 # Step 2: spawn Judge Agent
 sessions_spawn(task=judge_prompt, label=f"judge_{role}")
-# Step 3: 合并结果（V7 check() 已支持 judge_results 参数）
+# Step 3: 合并结果（2.0.0 check() 已支持 judge_results 参数）
 gate_result = WorkerGate.check(worker_spec, worker_output, judge_results=verdict)
 ```
 
@@ -146,9 +146,9 @@ if not l1_passed:
 
 ---
 
-## 7. Orchestrator Prompt（V8.2 替代 PipelineRunner）
+## 7. Orchestrator Prompt（2.0.0 替代 PipelineRunner）
 
-V8.2 废弃了 PipelineRunner，改为 Orchestrator 子 Agent。
+2.0.0 废弃了 PipelineRunner，改为 Orchestrator 子 Agent。
 
 **区别**：
 - PipelineRunner 是薄 LLM，只能机械执行，遇问题就挂
@@ -183,20 +183,20 @@ PipelineDesigner 从 23KB Solution Pro 提取每个 Worker 的 ~2KB context.json
 
 ---
 
-## 9. V7→V8 变化
+## 9. 2.0.0→2.0.0 变化
 
-| 维度 | V7 | V8 | V8.2 |
+| 维度 | 2.0.0 | 2.0.0 | 2.0.0 |
 |------|-----|-----|------|
 | 设计/执行 | 一身兼 | Designer + Runner | Designer + **Orchestrator** |
 | Main Agent | 多步编排 | 多步编排 | **单步 spawn** |
 | Blackboard | 独立目录 | 独立目录 | **统一 blackboard** |
-| 拆分 | 按 REQ | 按交付物模块 | 同 V8 |
-| Worker 数 | 7 | 4-6 | 同 V8 |
-| Prompt | 11KB | 2-3KB | 同 V8 |
-| 示例 | 无 | 1 个高质量 WP | 同 V8 |
-| 接口 | 无 | Section 4 | 同 V8 |
-| 输出 | completion text | write 文件 | 同 V8 |
-| 验证 | 单层可跳过 | **三层契约笼子** | 同 V8 |
+| 拆分 | 按 REQ | 按交付物模块 | 同 2.0.0 |
+| Worker 数 | 7 | 4-6 | 同 2.0.0 |
+| Prompt | 11KB | 2-3KB | 同 2.0.0 |
+| 示例 | 无 | 1 个高质量 WP | 同 2.0.0 |
+| 接口 | 无 | Section 4 | 同 2.0.0 |
+| 输出 | completion text | write 文件 | 同 2.0.0 |
+| 验证 | 单层可跳过 | **三层契约笼子** | 同 2.0.0 |
 | Consolidator | 模糊 | 6 步法 | 5 步法（语义整合） |
 | 等待机制 | sessions_yield | sessions_yield | **cron wake** |
 
@@ -234,11 +234,11 @@ PipelineDesigner 从 23KB Solution Pro 提取每个 Worker 的 ~2KB context.json
 
 ---
 
-## 12. V8.2 决策记录（2026-07-04）
+## 12. 2.0.0 决策记录（2026-07-04）
 
 ### D1: Main Agent 单入口
 
-**问题**：V8 中 Main Agent 仍然需要 spawn Designer → spawn Runner → 手动接管挂掉的 Runner，本质上还在做编排工作。
+**问题**：2.0.0 中 Main Agent 仍然需要 spawn Designer → spawn Runner → 手动接管挂掉的 Runner，本质上还在做编排工作。
 
 **决策**：`run_ship_pro(project_name)` 返回单个 `spawn_params`，Main Agent 只做一次 `sessions_spawn`。
 
@@ -267,15 +267,15 @@ PipelineDesigner 从 23KB Solution Pro 提取每个 Worker 的 ~2KB context.json
 **理由**：
 - cron wake 每次触发都是一个新的 turn，不会被阻塞
 - 每个 wake turn 必须输出可见文字（避免 "visible content" 警告）
-- 这是 V7 E2E 中反复出现的致命问题
+- 这是 2.0.0 E2E 中反复出现的致命问题
 
 ### D4: Dispatcher 命名为 Orchestrator
 
 **理由**：与 Solution Pro 的 Orchestrator 模式对齐，语义更清晰。
 
-### V8.2 E2E 验证结果
+### 2.0.0 E2E 验证结果
 
-| 指标 | V7 | V8 E2E | V8.2 目标 |
+| 指标 | 2.0.0 | 2.0.0 E2E | 2.0.0 目标 |
 |------|-----|--------|----------|
 | Work Packages | 35 | 39 | 39 |
 | 总工时 | ~900h | 1,240h | - |
@@ -287,4 +287,4 @@ PipelineDesigner 从 23KB Solution Pro 提取每个 Worker 的 ~2KB context.json
 ---
 
 *R1 CRITICAL 已修复：三层验证架构 + 契约笼子（raise ValueError，不靠 Prompt）。*
-*V8.2 架构定型：Orchestrator 单入口 + 统一 blackboard + cron wake。*
+*2.0.0 架构定型：Orchestrator 单入口 + 统一 blackboard + cron wake。*

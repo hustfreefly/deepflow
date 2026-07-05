@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Real Solution Pro V2 pipeline runner with file-based spawn bridge.
+Real Solution Pro pipeline runner with file-based spawn bridge.
 
 The spawn bridge works as follows:
 1. Python orchestrator calls spawn_fn(task, mode, label)
@@ -104,7 +104,7 @@ def spawn_bridge(task: str, mode: str = "run", label: str = "") -> dict:
 # ============================================================
 
 def main():
-    print(f"🚀 Solution Pro V2 Real Run")
+    print
     print(f"   Session: {SESSION_ID}")
     print(f"   Living Spec: {LIVING_SPEC_PATH.name}")
     print(f"   Bridge: {BRIDGE_DIR}")

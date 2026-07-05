@@ -1,5 +1,5 @@
 """
-Observability — V1.0 PipelineEngine 可观测性组件
+Observability — PipelineEngine 可观测性组件
 
 职责：结构化日志 + 指标收集 + 全链路追踪
 设计：静态方法接口，零外部依赖，structlog 未安装时回退 stdlib logging。

@@ -87,7 +87,7 @@ def extract_blackboard_writes(session_file):
     return writes
 
 def main():
-    print("=== DeepFlow Blackboard 全量恢复 V2 ===\n")
+    print
     
     sessions = find_all_sessions()
     print(f"找到 {len(sessions)} 个 session 文件\n")

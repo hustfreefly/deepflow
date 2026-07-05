@@ -124,18 +124,18 @@ completion_handler.py → task_builder.py
 
 ---
 
-## 检查项 3: frozen_spec V2.0 消费方
+## 检查项 3: frozen_spec 2.0.0 消费方
 
 - 状态: ⚠️ 警告
 
-### 3.1 `_acceptance_from_frozen_spec` 处理 V2.0 字段 — ✅ 通过
+### 3.1 `_acceptance_from_frozen_spec` 处理 2.0.0 字段 — ✅ 通过
 
 `control_contract.py:137-176`:
 - ✅ 正确读取 `frozen_spec.json`
-- ✅ 优先使用 `requirement_groups` 组织输出（V2.0 新字段）
+- ✅ 优先使用 `requirement_groups` 组织输出（2.0.0 新字段）
 - ✅ 遍历每个 group 的 `req_ids`，从 `frozen["requirements"]` 查找对应 requirement
-- ✅ 正确提取 V2.0 字段: `id`, `description`, `priority`, `category`
-- ✅ Fallback 到扁平列表（向后兼容 V1.0）
+- ✅ 正确提取 2.0.0 字段: `id`, `description`, `priority`, `category`
+- ✅ Fallback 到扁平列表（向后兼容 2.0.0）
 
 **注意**: `_acceptance_from_frozen_spec` 为每个 group 添加了 `group` 和 `group_description` 字段，这些是 control_contract 的扩展字段，不属于 frozen_spec 结构本身。这是正确的处理方式。
 
@@ -156,11 +156,11 @@ STAGE_PATH_REGISTRY = {
 
 `orchestrator_agent.py` 的 `_inject_req_traceability()` 将此指令注入到**每一个** Worker 任务中。
 
-### 3.4 ⚠️ frozen_spec V2.0 字段未被充分利用
+### 3.4 ⚠️ frozen_spec 2.0.0 字段未被充分利用
 
-`frozen_spec.json` V2.0 新增的关键字段在下游消费情况:
+`frozen_spec.json` 2.0.0 新增的关键字段在下游消费情况:
 
-| V2.0 字段 | 消费方 | 状态 |
+| 2.0.0 字段 | 消费方 | 状态 |
 |---|---|---|
 | `version: "2.0"` | 无消费者检查此字段 | ⚠️ 未验证版本 |
 | `executive_summary` | `task_builder.py` 各 Worker 手动从 `living_spec.confirmed` 提取 | ⚠️ 重复逻辑 |
@@ -214,7 +214,7 @@ run_solution_pro(topic, **kwargs)
 | `task_builder.py` Workers | ⚠️ 从 living_spec.confirmed 手动构建 | ❌ 未消费 |
 | `completion_handler.py` | ❌ 未消费 | ❌ 未消费 |
 
-**问题**: `executive_summary` 被 `frozen_spec.py` 精心构建（指针+上下文模式），但下游 Worker 并没有消费它，而是各自从 `living_spec.confirmed` 重新拼接。这违背了 V2.0 的"指针 + 上下文"设计意图。
+**问题**: `executive_summary` 被 `frozen_spec.py` 精心构建（指针+上下文模式），但下游 Worker 并没有消费它，而是各自从 `living_spec.confirmed` 重新拼接。这违背了 2.0.0 的"指针 + 上下文"设计意图。
 
 ### 4.5 `design` stage 不在 Pipeline — ⚠️ 悬空代码
 
@@ -231,7 +231,7 @@ run_solution_pro(topic, **kwargs)
 2. **导入一致性良好**: 所有导入目标均存在，无缺失
 3. **无循环导入**: 依赖图是单向 DAG
 4. **"全局理解"注入一致**: 所有 Worker 使用相同的模板结构
-5. **frozen_spec V2.0 生成完整**: `executive_summary`, `requirement_groups`, `coverage_policy` 均正确构建
+5. **frozen_spec 2.0.0 生成完整**: `executive_summary`, `requirement_groups`, `coverage_policy` 均正确构建
 
 ### 🔴 关键问题
 
@@ -241,7 +241,7 @@ run_solution_pro(topic, **kwargs)
 | 2 | 每个 Worker 手动从 `living_spec.confirmed` 构建"全局理解"，未消费 `frozen_spec.json` 中的 `executive_summary` — 10+ 处重复 | 中 | task_builder.py |
 | 3 | 5 个死代码函数 (`build_fixer_task`, `build_designer_task`, `build_deliver_task`, `build_harness_v2_task`, `build_harness_task`) 增加了维护负担 | 低 | task_builder.py |
 | 4 | `design` stage 不在 Pipeline 但被导入和定义 | 低 | orchestrator_agent.py |
-| 5 | `coverage_policy` 和 `executive_summary` V2.0 字段在下游几乎未被消费 | 中 | 全局 |
+| 5 | `coverage_policy` 和 `executive_summary` 2.0.0 字段在下游几乎未被消费 | 中 | 全局 |
 
 ### 🔧 建议修复
 
@@ -256,6 +256,6 @@ run_solution_pro(topic, **kwargs)
    - `build_harness_v2_task` / `build_harness_task` — 从未被调用，建议标记 `@deprecated` 或移除
    - `build_designer_task` — 被导入但 stage 不在 pipeline，要么加入 pipeline 要么移除
 
-4. **[P3] 验证 frozen_spec 版本**: 在 `_acceptance_from_frozen_spec` 入口添加 `version` 检查，确保 V2.0 结构假设有效。
+4. **[P3] 验证 frozen_spec 版本**: 在 `_acceptance_from_frozen_spec` 入口添加 `version` 检查，确保 2.0.0 结构假设有效。
 
 5. **[P3] 消费 `coverage_policy`**: 在 `completion_handler.py` 或 `harness_final` 中使用 `coverage_policy.harness_final_must_check_all_p0` 做最终验证。

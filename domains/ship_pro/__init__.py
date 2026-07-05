@@ -1,7 +1,7 @@
 """
-Ship Pro V8.2 - 入口模块
+Ship Pro 2.0.0 - 入口模块
 
-架构（V8.2 统一 blackboard + 单入口 Dispatcher）：
+架构(2.0.0 统一 blackboard + 单入口 Dispatcher):
   Main Agent (depth-0)
     → exec: result = run_ship_pro(project_name=...)
     → sessions_spawn(**result["spawn_params"])
@@ -18,7 +18,7 @@ Ship Pro V8.2 - 入口模块
     → exec: ShipPackage validation
     → 输出最终报告
 
-统一 blackboard 结构：
+统一 blackboard 结构:
   .deepflow/blackboard/{project_name}/
   ├── data/frozen_spec.json         ← Solution Pro 产出
   ├── stages/solution_document.json ← Solution Pro 产出
@@ -54,32 +54,32 @@ def _get_project_blackboard(project_name: str) -> Path:
 def _find_solution_pro_output(project_blackboard: Path) -> dict:
     """
     从统一 blackboard 自动发现 Solution Pro 输出
-    
-    查找路径：
-    1. data/frozen_spec.json — 结构化需求/约束（必需）
-    2. data/supplemental.json — 补充字段（可选，key_decisions 等）
-    
-    Note: stages/solution_document.json 是 markdown 文本（方案文档），
-          不是结构化 JSON，不用于程序化提取。
-    
+
+    查找路径:
+    1. data/frozen_spec.json - 结构化需求/约束(必需)
+    2. data/supplemental.json - 补充字段(可选,key_decisions 等)
+
+    Note: stages/solution_document.json 是 markdown 文本(方案文档),
+          不是结构化 JSON,不用于程序化提取。
+
     Returns:
         合并后的 Solution Pro 输出 dict
-    
+
     Raises:
         FileNotFoundError: 找不到 frozen_spec.json
     """
     from .orchestrator.ship_orchestrator import build_ship_pro_input
-    
+
     frozen_spec = project_blackboard / "data" / "frozen_spec.json"
     supplemental = project_blackboard / "data" / "supplemental.json"
-    
+
     if not frozen_spec.exists():
         raise FileNotFoundError(
             f"统一 blackboard 中找不到 frozen_spec.json: {project_blackboard}\n"
-            f"  期望: data/frozen_spec.json（Solution Pro 必需输出）"
+            f"  期望: data/frozen_spec.json(Solution Pro 必需输出)"
         )
-    
-    # 用 build_ship_pro_input 合并（frozen_spec + 可选补充字段）
+
+    # 用 build_ship_pro_input 合并(frozen_spec + 可选补充字段)
     merged = build_ship_pro_input(
         str(frozen_spec),
         str(supplemental) if supplemental.exists() else None,
@@ -96,22 +96,22 @@ def _get_ship_pro_dir(project_blackboard: Path) -> Path:
 
 
 # ============================================================================
-# V8.2 单入口
+# 2.0.0 单入口
 # ============================================================================
 
 def run_ship_pro(project_name: str, **kwargs) -> dict:
     """
-    Ship Pro V8.2 唯一入口 — Main Agent 只调这一个函数
-    
+    Ship Pro 2.0.0 唯一入口 - Main Agent 只调这一个函数
+
     1. 定位统一 blackboard: .deepflow/blackboard/{project_name}/
     2. 自动发现 Solution Pro 输出
     3. 构建 Orchestrator spawn params
-    4. 返回 spawn_params — Main Agent 只需 sessions_spawn(**result["spawn_params"])
-    
+    4. 返回 spawn_params - Main Agent 只需 sessions_spawn(**result["spawn_params"])
+
     Args:
-        project_name: 项目名称（blackboard 目录名）
+        project_name: 项目名称(blackboard 目录名)
         **kwargs: model 等可选参数
-    
+
     Returns:
         {
             "project_name": str,
@@ -128,17 +128,17 @@ def run_ship_pro(project_name: str, **kwargs) -> dict:
             f"项目 blackboard 不存在: {project_bb}\n"
             f"  请先运行 Spec Pro / Solution Pro 生成输出"
         )
-    
+
     # 2. 自动发现 Solution Pro 输出
     sol_input = _find_solution_pro_output(project_bb)
-    
+
     # 3. 初始化 Ship Pro 目录
     ship_dir = _get_ship_pro_dir(project_bb)
-    
+
     # 保存合并输入
     input_path = ship_dir / "solution_pro_input.json"
     input_path.write_text(json.dumps(sol_input, ensure_ascii=False, indent=2), encoding="utf-8")
-    
+
     # 4. 构建 Orchestrator prompt
     deepflow_root = str(DEEPFLOW_ROOT)
     dispatcher_prompt = _build_orchestrator_prompt(
@@ -152,7 +152,7 @@ def run_ship_pro(project_name: str, **kwargs) -> dict:
             "risk_count": len(sol_input.get("risk_mitigations", [])),
         },
     )
-    
+
     # 5. 返回 spawn params
     return {
         "project_name": project_name,
@@ -175,11 +175,11 @@ def run_ship_pro(project_name: str, **kwargs) -> dict:
 
 
 # ============================================================================
-# V8 兼容入口（保留，但推荐用 run_ship_pro）
+# 2.0.0 兼容入口(保留,但推荐用 run_ship_pro)
 # ============================================================================
 
 def design_pipeline(solution_pro_output_path: str, **kwargs) -> dict:
-    """V8 兼容入口 — 推荐用 run_ship_pro()"""
+    """2.0.0 兼容入口 - 推荐用 run_ship_pro()"""
     from .pipeline_designer import PipelineDesigner, validate_solution_pro_input
 
     input_path = Path(solution_pro_output_path)
@@ -207,9 +207,9 @@ def design_pipeline(solution_pro_output_path: str, **kwargs) -> dict:
 
     deepflow_root = str(DEEPFLOW_ROOT)
 
-    # 双模式处理（契约笼子：确定性分支，不依赖 prompt 指令）
+    # 双模式处理(契约笼子:确定性分支,不依赖 prompt 指令)
     if designer_result.get("mode") == "auto":
-        # Auto mode: plan 已生成，直接保存
+        # Auto mode: plan 已生成,直接保存
         plan_path = session_dir / "stages" / "pipeline_plan.json"
         plan_path.write_text(json.dumps(designer_result["plan"], ensure_ascii=False, indent=2), encoding="utf-8")
         return {
@@ -242,7 +242,7 @@ def prepare_runner_spawn(
     solution_pro_input: dict,
     **kwargs
 ) -> dict:
-    """V8 兼容入口 — 推荐用 run_ship_pro()"""
+    """2.0.0 兼容入口 - 推荐用 run_ship_pro()"""
     from .pipeline_designer import PipelineDesigner
 
     session_dir = Path(base_path)
@@ -316,8 +316,8 @@ def _build_orchestrator_prompt(
     input_summary: dict,
 ) -> str:
     """构建 Orchestrator 的完整执行指令"""
-    
-    return f"""你是 Ship Pro Orchestrator — 管线的全权调度者。
+
+    return f"""你是 Ship Pro Orchestrator - 管线的全权调度者。
 
 ## 项目信息
 - 项目: {project_name}
@@ -329,17 +329,17 @@ def _build_orchestrator_prompt(
 - 风险缓解数: {input_summary['risk_count']}
 
 ## 你的职责
-你是唯一负责执行 Ship Pro 管线的 Agent。Main Agent 只启动你，后续不再介入。
-你必须自主完成所有步骤，遇到问题自行诊断和修复。
+你是唯一负责执行 Ship Pro 管线的 Agent。Main Agent 只启动你,后续不再介入。
+你必须自主完成所有步骤,遇到问题自行诊断和修复。
 
 ## 铁律
-- **禁止 sessions_yield()** — 用 cron(action="wake", mode="next-heartbeat") 替代
-- 每次 wake 必须输出可见文字（哪怕只是"仍在运行..."）
-- 不要 read() Worker task 文件（spawn params 里已有完整 task）
+- **禁止 sessions_yield()** - 用 cron(action="wake", mode="next-heartbeat") 替代
+- 每次 wake 必须输出可见文字(哪怕只是"仍在运行...")
+- 不要 read() Worker task 文件(spawn params 里已有完整 task)
 
 ## 执行步骤
 
-### Step 1: PipelineDesigner（设计 Worker 拆分）
+### Step 1: PipelineDesigner(设计 Worker 拆分)
 
 exec: python3 -c "
 import sys; sys.path.insert(0, '{deepflow_root}')
@@ -348,24 +348,24 @@ result = design_pipeline('{ship_pro_dir}/solution_pro_input.json', blackboard_ba
 import json; print(json.dumps({{'mode': result.get('mode', 'prompt'), 'has_plan': 'plan' in result, 'input_summary': result['input_summary']}}))
 "
 
-**双模式处理（契约笼子：检查 mode 字段决定行为）**：
+**双模式处理(契约笼子:检查 mode 字段决定行为)**:
 
-A. `mode=auto`（design_pipeline 已自动调用 LLM 生成 plan）：
+A. `mode=auto`(design_pipeline 已自动调用 LLM 生成 plan):
    - 直接执行: exec python3 -c "import json; from domains.ship_pro import design_pipeline; r = design_pipeline('{ship_pro_dir}/solution_pro_input.json', blackboard_base_dir='{ship_pro_dir}', auto=True); open('{ship_pro_dir}/stages/pipeline_plan.json','w').write(json.dumps(r['plan'], ensure_ascii=False, indent=2))"
-   - 不要 read solution_pro_input.json（已在 Python 内部处理）
+   - 不要 read solution_pro_input.json(已在 Python 内部处理)
 
-B. `mode=prompt`（自动设计失败，回退到 LLM 手动分析）：
+B. `mode=prompt`(自动设计失败,回退到 LLM 手动分析):
    - read {ship_pro_dir}/solution_pro_input.json
-   - 按交付物模块（代码内聚性）拆分 Workers（4-6 个）
+   - 按交付物模块(代码内聚性)拆分 Workers(4-6 个)
    - 将 PipelinePlan JSON write 到 {ship_pro_dir}/stages/pipeline_plan.json
 
-PipelinePlan 格式：
+PipelinePlan 格式（统一 Schema，替代原 PlannerOutput）:
 ```json
 {{
   "workers": [
     {{
       "role": "模块名",
-      "module_purpose": "模块目的（≥20字）",
+      "module_purpose": "模块目的(≥20字)",
       "covered_req_ids": ["REQ-001", ...],
       "depends_on": [],
       "interface_provides": ["method(param) → return"],
@@ -373,17 +373,22 @@ PipelinePlan 格式：
       "relevant_decisions": ["D1: ..."],
       "relevant_risks": ["RISK-1: ..."],
       "estimated_wps": 5,
-      "estimated_effort_hours": 40
+      "estimated_effort_hours": 40,
+      "must_constraints": ["从 Solution Pro 继承的 MUST 约束"],
+      "wp_id_prefix": "MOD",
+      "needs_web_search": false,
+      "web_search_scope": null,
+      "solution_pro_refs": ["architecture_overview"]
     }}
   ],
   "execution_order": [["基础层"], ["并行层1", "并行层2"], ["上层"]],
-  "rationale": "拆分理由（≥50字）"
+  "rationale": "拆分理由(≥50字)"
 }}
 ```
 
-约束：每个 REQ-ID 只能分配给一个 Worker。
+约束:每个 REQ-ID 只能分配给一个 Worker。
 
-### Step 2: prepare_runner_spawn（生成 Worker prompts）
+### Step 2: prepare_runner_spawn(生成 Worker prompts)
 
 exec: python3 -c "
 import sys, json; sys.path.insert(0, '{deepflow_root}')
@@ -394,7 +399,7 @@ result = prepare_runner_spawn('{ship_pro_dir}', plan, sol, deepflow_root='{deepf
 print(json.dumps(result['plan_summary']))
 "
 
-### Step 3: spawn Workers（分层并行）
+### Step 3: spawn Workers(分层并行)
 
 1. exec: python3 -c "
 import json
@@ -403,7 +408,7 @@ for p in params:
     print(f'{{p[\"label\"]}}: task={{len(p[\"task\"])}}c')
 "
 
-2. 按 execution_order 分层 spawn Workers（每层内并行）
+2. 按 execution_order 分层 spawn Workers(每层内并行)
 3. 用 cron wake 等待每层完成
 4. 检查 Worker 输出文件存在
 
@@ -417,7 +422,7 @@ result = orch.validate_all_worker_outputs_l1('{ship_pro_dir}')
 import json; print(json.dumps(result))
 "
 
-FAIL → 输出失败详情，不 retry。
+FAIL → 输出失败详情,不 retry。
 
 ### Step 5: Consolidator
 
@@ -431,7 +436,51 @@ import json; print(json.dumps({{'task_len': len(params['task'])}}))
 
 spawn Consolidator → cron wake 等待完成。
 
-### Step 6: ShipPackage 验证
+### Step 5.5: L2/L3 语义验证（契约笼子强制）
+
+在 Consolidator 产出 ship_package 后，**必须**执行语义验证。这不是可选的。
+
+**Phase A: 准备 Judge Tasks**
+
+exec: python3 -c "
+import sys, json; sys.path.insert(0, '{deepflow_root}')
+from domains.ship_pro.orchestrator.ship_orchestrator import ShipOrchestrator
+orch = ShipOrchestrator('{ship_pro_dir}')
+sol = json.loads(open('{ship_pro_dir}/stages/solution_pro_input.json').read())
+sp = json.loads(open('{ship_pro_dir}/stages/ship_package.json').read())
+planner = json.loads(open('{ship_pro_dir}/stages/planner_output.json').read()) if open('{ship_pro_dir}/stages/planner_output.json').exists() else None
+tasks = orch.prepare_gate_judge_tasks(sol, sp, planner)
+open('{ship_pro_dir}/stages/_gate_judge_tasks.json', 'w').write(json.dumps(tasks, ensure_ascii=False, indent=2))
+print(json.dumps({{'task_count': len(tasks), 'names': [t['name'] for t in tasks]}}))
+"
+
+**Phase B: Spawn Judge Agent**
+
+用 sessions_spawn 启动 Judge Agent，task 内容：
+```
+读取 {{ship_pro_dir}}/stages/_gate_judge_tasks.json，逐个执行验证。
+每个 task 包含 name、prompt、expected_output。
+对每个 task，按 prompt 指示检查 ship_package，输出 JSON verdict。
+将所有 verdict 写入 {{ship_pro_dir}}/stages/gate_judge_results.json，格式：
+{{"info_conservation": {{"passed": true/false, ...}}, "completeness": {{...}}, "harness_v3": {{...}}}}
+```
+
+spawn 后 cron wake 等待完成。
+
+**Phase C: 检查结果 + 重试**
+
+Judge Agent 完成后：
+1. read gate_judge_results.json
+2. 检查每个 gate 的 passed 字段
+3. 如果任一 gate FAIL → 分析 issues，spawn Worker 修复（最多 1 次重试）
+4. 重试后仍 FAIL → 标记为 CONDITIONAL，在最终报告中注明
+5. 全部 PASS → 继续 Step 6
+
+**不要跳过这步。跳过 = 契约笼子失效 = 下游 Gate hard raise。**
+
+### Step 6: ShipPackage 验证（L1 结构 + L2/L3 语义）
+
+**Step 6a: L1 结构验证**
 
 exec: python3 -c "
 import sys; sys.path.insert(0, '{deepflow_root}')
@@ -441,23 +490,39 @@ result = orch.validate_ship_package_v8('{ship_pro_dir}')
 import json; print(json.dumps(result))
 "
 
+**Step 6b: L2/L3 语义验证（消费 Judge 结果）**
+
+exec: python3 -c "
+import sys, json; sys.path.insert(0, '{deepflow_root}')
+from domains.ship_pro.orchestrator.ship_orchestrator import ShipOrchestrator
+orch = ShipOrchestrator('{ship_pro_dir}')
+sol = json.loads(open('{ship_pro_dir}/stages/solution_pro_input.json').read())
+sp = json.loads(open('{ship_pro_dir}/stages/ship_package.json').read())
+planner = json.loads(open('{ship_pro_dir}/stages/planner_output.json').read()) if open('{ship_pro_dir}/stages/planner_output.json').exists() else None
+judge_results = json.loads(open('{ship_pro_dir}/stages/gate_judge_results.json').read())
+result = orch.verify_ship_package(sol, sp, planner, judge_results)
+print(json.dumps({{k: {{'passed': v.passed, 'details': str(v.details)[:200]}} for k, v in result.items()}}))
+"
+
 ### Step 7: 最终报告
 
-输出：
+输出:
 - ShipPackage 路径: {ship_pro_dir}/stages/ship_package.json
 - WP 总数 / 总工时 / REQ 覆盖率
-- L1 验证结果
+- L1 验证结果（Step 6a）
+- L2/L3 语义验证结果（Step 6b）：各 Gate PASS/FAIL + conservation_rate/score
+- CONDITIONAL 项（如有）
 - Issues
 - Pending REQs
 
 ## 禁止行为
-- ❌ sessions_yield()（用 cron wake）
-- ❌ `exec sleep` + `process poll` 轮询等待（用 `cron wake` 每 30s 检查文件存在）
+- ❌ sessions_yield()(用 cron wake)
+- ❌ `exec sleep` + `process poll` 轮询等待(用 `cron wake` 每 30s 检查文件存在)
 - ❌ read() Worker task 文件
 - ❌ 跳过 validate 步骤
 - ❌ 自行 retry/degrade
 - ❌ 修改管线计划
-- ❌ 回调 Main Agent（你全权负责）
+- ❌ 回调 Main Agent(你全权负责)
 """
 
 
@@ -480,9 +545,11 @@ def _build_worker_prompts(
 
         prompt = _build_single_worker_prompt(worker, ctx, ctx_path, output_path)
 
-        if len(prompt) > 3072:
+        # 2.0.0: 去掉 3KB 限制(现代模型不需要)
+        # 但保留 16KB 上限作为安全检查(防止异常膨胀)
+        if len(prompt) > 16384:
             raise ValueError(
-                f"契约笼子: Worker '{worker.role}' prompt 超过 3KB ({len(prompt)} bytes)"
+                f"契约笼子: Worker '{worker.role}' prompt 异常膨胀 ({len(prompt)} bytes > 16KB)"
             )
 
         prompts[worker.role] = prompt
@@ -491,23 +558,61 @@ def _build_worker_prompts(
 
 
 def _build_single_worker_prompt(worker, ctx, ctx_path: str, output_path: str) -> str:
-    """构建单个 Worker 的 6 段式 prompt"""
+    """
+    构建单个 Worker 的 prompt（2.0.0: 三层注意力结构）
+    
+    AI Native 设计原则（基于 LLM U 型注意力曲线）：
+    - Tier 1（开头 — 高注意力）: 角色 + 上游约束（Semantic Anchors）+ 模块概述
+    - Tier 2（中间 — 正常注意力）: 需求列表 + 架构约束 + 接口契约 + 输出规范
+    - Tier 3（结尾 — 高注意力）: 护栏（禁止行为）
+    
+    关键变化（vs 2.0.0 旧版）：
+    - 去掉 3KB 限制（现代模型不需要）
+    - Semantic Anchors 从 context.json 提取到 prompt 开头
+    - 保留 2.0.0 的所有信息（REQ 表格、架构约束、接口契约、完整示例）
+    - 结构调整：最重要的信息放开头/结尾高注意力区
+    """
+    
+    # ====================================================================
+    # Tier 1: 核心任务 + 上游约束（开头 — 高注意力区）
+    # ====================================================================
+    
+    # 契约笼子：从 context.json 提取 semantic_anchors，放到开头
+    anchors = ctx.semantic_anchors if hasattr(ctx, 'semantic_anchors') and ctx.semantic_anchors else []
+    if anchors:
+        anchor_lines = []
+        for a in anchors:
+            name = a.get("name", "?")
+            cat = a.get("category", "?")
+            constraint = a.get("constraint", "无约束描述")
+            anchor_lines.append(f"- **{name}** [{cat}]: {constraint}")
+        anchors_block = "\n".join(anchor_lines)
+    else:
+        anchors_block = "（本模块无上游 Semantic Anchors）"
+    
+    tier_1 = f"""你是 {worker.role} 的技术设计师。
 
-    section_1 = f"""你是 {worker.role} 的技术设计师。
-
-## 你的职责
+## 核心职责
 将分配给本模块的需求拆解为可执行的 Work Packages（WP）。你只负责 {worker.role}，不负责其他模块。
 
 ## 数据流
 read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", JSON 数组)
 
-## 关键约束
-只输出 WP JSON 描述，不写实际代码。"""
+## 上游约束（Semantic Anchors — 不可违反）
 
-    section_2 = f"""
+以下约束来自 Spec Pro / Solution Pro，每个 WP 必须遵循：
+{anchors_block}
+
+每个 WP 必须在 `anchored_to` 字段中列出遵循的 anchor name。空列表 = 未引用任何约束。
+
 ## 模块概述
 {ctx.module_overview}"""
-
+    
+    # ====================================================================
+    # Tier 2: 任务详情（中间 — 正常注意力区）
+    # ====================================================================
+    
+    # 需求列表：保留完整表格
     if len(ctx.module_reqs) <= 10:
         req_lines = []
         for r in ctx.module_reqs:
@@ -527,7 +632,19 @@ read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", JS
     decisions_text = "\n".join(f"- {d}" for d in ctx.relevant_decisions[:3]) if ctx.relevant_decisions else "无"
     constraints_text = "\n".join(f"- {c}" for c in ctx.extracted_constraints[:3]) if ctx.extracted_constraints else "无"
 
-    section_3 = f"""
+    # 接口契约：保留完整详情
+    contracts = ctx.interface_contracts
+    provides = "\n".join(f"- {p}" for p in contracts.get("provides", [])) or "无"
+    requires = "\n".join(f"- {r}" for r in contracts.get("requires", [])) or "无"
+    downstream = ", ".join(contracts.get("downstream_consumers", [])) or "无"
+
+    # 输出规范：保留完整示例
+    example_compact = json.dumps(ctx.output_example, ensure_ascii=False, separators=(',', ':'))
+    if len(example_compact) > 400:
+        example_compact = example_compact[:400] + "..."
+    
+    tier_2 = f"""
+
 ## 本模块需求
 {req_section}
 
@@ -535,14 +652,8 @@ read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", JS
 {decisions_text}
 
 ## 隐含约束
-{constraints_text}"""
+{constraints_text}
 
-    contracts = ctx.interface_contracts
-    provides = "\n".join(f"- {p}" for p in contracts.get("provides", [])) or "无"
-    requires = "\n".join(f"- {r}" for r in contracts.get("requires", [])) or "无"
-    downstream = ", ".join(contracts.get("downstream_consumers", [])) or "无"
-
-    section_4 = f"""
 ## 接口契约
 本模块对外暴露：
 {provides}
@@ -550,32 +661,38 @@ read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", JS
 本模块依赖：
 {requires}
 
-下游消费者：{downstream}"""
+下游消费者：{downstream}
 
-    example_compact = json.dumps(ctx.output_example, ensure_ascii=False, separators=(',', ':'))
-    if len(example_compact) > 400:
-        example_compact = example_compact[:400] + "..."
-    section_5 = f"""
 ## 输出规范
 write 到 "{output_path}"，JSON 数组，每个 WP：
 - description ≥ 100 字
 - acceptance_criteria ≥ 2 条
 - deliverables ≥ 1 项
+- anchored_to — 遵循的 anchor name 列表
 示例格式：{example_compact}"""
+    
+    # ====================================================================
+    # Tier 3: 护栏（结尾 — 高注意力区）
+    # ====================================================================
+    
+    tier_3 = """
 
-    section_6 = """
+## 可选工具
+- **web_search**: 当你的模块涉及前沿技术、最新 API、或不确定的技术选型时，可以用 web_search 查证。不强制，但鼓励在需要时搜索。
+
 ## 禁止行为
 1. ❌ 产出 Python/JS/任何实际代码 — 只产出 WP JSON
-2. ❌ read() 除 context.json 以外的任何文件
+2. ❌ read() 除 context.json 以外的本地文件（web_search 不受此限制）
 3. ❌ 创建跨越模块边界的 WP
 4. ❌ 写"完成开发"这种无法验收的 AC
-5. ❌ 将多个独立功能合并为一个 WP"""
-
-    return f"{section_1}{section_2}{section_3}{section_4}{section_5}{section_6}"
+5. ❌ 将多个独立功能合并为一个 WP
+6. ❌ 忽略上述 Semantic Anchors（每个 WP 必须有 anchored_to 字段）"""
+    
+    return f"{tier_1}{tier_2}{tier_3}"
 
 
 def _build_runner_prompt(session_dir: Path, plan, context_paths: dict, deepflow_root: str) -> str:
-    """构建 PipelineRunner prompt（V8 兼容，V8.2 用 Dispatcher 替代）"""
+    """构建 PipelineRunner prompt(2.0.0 兼容,2.0.0 用 Dispatcher 替代)"""
     worker_count = len(plan.workers)
     layers = len(plan.execution_order)
     layer_desc = "\n".join(
@@ -583,7 +700,7 @@ def _build_runner_prompt(session_dir: Path, plan, context_paths: dict, deepflow_
         for i, layer in enumerate(plan.execution_order)
     )
 
-    return f"""你是 PipelineRunner。你的唯一职责：按已设计好的管线计划机械执行。
+    return f"""你是 PipelineRunner。你的唯一职责:按已设计好的管线计划机械执行。
 
 ## 管线信息
 - Blackboard: {session_dir}
@@ -597,12 +714,12 @@ def _build_runner_prompt(session_dir: Path, plan, context_paths: dict, deepflow_
 ## spawn params 位置
 {session_dir}/stages/_worker_spawn_params.json
 
-## 你的行为（严格顺序）
+## 你的行为(严格顺序)
 
 ### Phase 2: Build
 1. exec: 读取 spawn params
-2. 按层级 spawn Workers（每层内并行）
-3. cron wake 等待当前层全部完成（禁止 sessions_yield）
+2. 按层级 spawn Workers(每层内并行)
+3. cron wake 等待当前层全部完成(禁止 sessions_yield)
 4. exec L1 验证
 5. PASS → 下一层或 Phase 3; FAIL → 输出详情
 
@@ -628,9 +745,9 @@ def _build_runner_prompt(session_dir: Path, plan, context_paths: dict, deepflow_
 from .orchestrator.ship_orchestrator import extract_json_from_completion, build_ship_pro_input
 
 __all__ = [
-    "run_ship_pro",           # V8.2 唯一入口
-    "design_pipeline",        # V8 兼容
-    "prepare_runner_spawn",   # V8 兼容
+    "run_ship_pro",           # 2.0.0 唯一入口
+    "design_pipeline",        # 2.0.0 兼容
+    "prepare_runner_spawn",   # 2.0.0 兼容
     "extract_json_from_completion",
     "build_ship_pro_input",
 ]

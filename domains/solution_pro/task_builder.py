@@ -1,28 +1,28 @@
 """
 任务构建器,使用 BlackboardManager API 替代路径拼接
 
-Version: 2.1.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-01
 """
 
 """
-Solution Task Builder V2.3 - Harness V2 修复版
+Solution Task Builder 2.0.0 - Harness 修复版
 ===============================================
 
 为 Solution 领域 Workers 构建 Task。
-包含 Harness V2 修复:Layer 2 约束注入、格式标准化
+包含 Harness 修复:Layer 2 约束注入、格式标准化
 
 禁止:直接调用 openclaw
 
 变更日志:
-- V2.3 (2026-05-03): Harness V2 P0/P1 修复
+- Harness P0/P1 修复
   - P0-1: Layer 2 约束 Prompt 注入
   - P0-2: 文件格式标准化
   - P1-1: 约束数量限制(最多2条)
-- V2.2 (2026-05-01): 使用PromptRegistry(Phase 2试点)
-- V2.1 (2026-05-01): 使用统一prompt读取函数
-- V2.0 (2026-04-27): 初始版本
+- 使用PromptRegistry(Phase 2试点)
+- 使用统一prompt读取函数
+- 初始版本
 """
 
 import core.bootstrap
@@ -37,6 +37,9 @@ from core.prompt_registry import read_prompt, read_prompt_with_vars
 from core.config.path_config import PathConfig
 from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY, BlackboardManager
 from domains.solution_pro.spec_context import build_worker_context_section
+
+# Module-level deepflow root for prompt templates
+_DEEPFLOW_ROOT = str(PathConfig.resolve().base_dir)
 
 
 def _extract_constraints(confirmed: dict) -> dict:
@@ -104,19 +107,19 @@ planning_data = bb.read_stage("planning")
 # 根因: 子 Agent exec 时没有 PYTHONPATH, 导致 ModuleNotFoundError
 # 修复: 在所有 worker prompt 中注入 PYTHONPATH 设置指令
 # ============================================================================
-PYTHON_EXECUTION_PREAMBLE = """
+PYTHON_EXECUTION_PREAMBLE = f"""
 ## 🔴 Python 执行环境要求
 
 你执行的所有 Python 命令都必须在正确的工作目录下运行。否则 `from core.blackboard.blackboard_manager import BlackboardManager` 会报 `ModuleNotFoundError`。
 
 **每次 exec 调用必须这样写**：
 ```python
-exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c \"...\"")
+exec(command="cd {_DEEPFLOW_ROOT} && PYTHONPATH=. python3 -c \"...\"")
 ```
 
 或者先设置环境变量：
 ```python
-exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c \"
+exec(command="cd {_DEEPFLOW_ROOT} && PYTHONPATH=. python3 -c \"
 import sys; sys.path.insert(0, '.')
 from core.blackboard.blackboard_manager import BlackboardManager
 ...\"")
@@ -168,7 +171,7 @@ structured_req = bb.read_data("structured_requirements.json")  # 如果存在
 """
 
 # ============================================================================
-# Harness V2 修复:Layer 2 约束注入
+# Harness 修复:Layer 2 约束注入
 # ============================================================================
 
 # P1-1: 默认约束(当 Planner 未生成约束时使用)
@@ -283,7 +286,7 @@ def inject_req_traceability(base_prompt: str, session_id: str) -> str:
 
 
 # ============================================================================
-# Harness V2 修复:文件格式标准化(P0-2)
+# Harness 修复:文件格式标准化(P0-2)
 # ============================================================================
 
 # Harness 豁免阶段:这些阶段不需要 4 维 harness_check
@@ -379,7 +382,7 @@ STAGE_OUTPUT_SCHEMA = {
 
 def validate_stage_output(output: dict, stage_name: str) -> Tuple[bool, str]:
     """
-    验证 Stage 输出是否符合 Harness V2 标准格式(P0-2 修复)
+    验证 Stage 输出是否符合 Harness 标准格式(P0-2 修复)
 
     Args:
         output: Stage 输出字典
@@ -411,20 +414,20 @@ def validate_stage_output(output: dict, stage_name: str) -> Tuple[bool, str]:
         if not isinstance(hc, dict):
             return False, f"{stage_name} harness_check 必须是字典"
 
-        # V2 格式检测: 有 layer1_system_guardrails
+        # 格式检测: 有 layer1_system_guardrails
         if "layer1_system_guardrails" in hc:
-            # V2 格式: 使用 Pydantic HarnessCheckV2 验证（含契约笼子）
+            # 格式: 使用 Pydantic HarnessCheck 验证（含契约笼子）
             try:
                 from .schemas.schemas import HarnessCheckV2
                 HarnessCheckV2(**hc)
             except ImportError:
                 # schema 未安装，回退到基本检查
                 if "overall_verdict" not in hc:
-                    return False, f"{stage_name} harness_check V2 缺少 overall_verdict"
+                    return False, f"{stage_name} harness_check 缺少 overall_verdict"
             except Exception as e:
-                return False, f"{stage_name} harness_check V2 验证失败: {e}"
+                return False, f"{stage_name} harness_check 验证失败: {e}"
         else:
-            # V1 格式（向后兼容）
+            # 格式（向后兼容）
             hc_required = ["completeness", "necessity", "alignment", "global_impact", "overall_score", "decision"]
             for field in hc_required:
                 if field not in hc:
@@ -587,7 +590,7 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list, l
 def build_planner_task(session_id: str, topic: str, solution_type: str,
                        constraints: list, stakeholders: list,
                        living_spec: dict = None) -> str:
-    """构建 Planner Task(Harness V2)
+    """构建 Planner Task
 
     Args:
         session_id: Session ID
@@ -724,7 +727,7 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
                          angle: str = "综合分析",
                          reason: str = "需要深入分析该领域",
                          living_spec: dict = None) -> str:
-    """构建 Researcher Task(Stage 4,Harness V2)
+    """构建 Researcher Task
 
     Args:
         expert: 专家名称
@@ -893,7 +896,7 @@ def build_designer_task(session_id: str, topic: str, context: dict, living_spec:
 
 def build_auditor_task(session_id: str, topic: str, context: dict,
                        living_spec: dict = None) -> str:
-    """构建 Auditor Task(Stage 6,Harness V2)
+    """构建 Auditor Task
 
     Args:
         living_spec: Living Spec(Spec Pro 产出,可选)
@@ -1236,7 +1239,7 @@ def build_deliver_task(session_id: str, topic: str, context: dict, living_spec: 
 def build_reviewer_task(session_id: str, topic: str, review_type: str,
                         review_focus: str, input_plan: dict,
                         living_spec: dict = None) -> str:
-    """构建 Reviewer Task(Stage 3,Harness V2)
+    """构建 Reviewer Task
 
     Args:
         session_id: Session ID
@@ -1376,7 +1379,7 @@ bb = BlackboardManager(session_id="{session_id}")
 # ❌ 禁止: bb.get_stage_path() (已 deprecated)
 ```
 ⚠️ 执行 python3 时必须加 PYTHONPATH:
-`exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c '...'")`
+`exec(command="cd {_DEEPFLOW_ROOT} && PYTHONPATH=. python3 -c '...'")`
 """
     final_prompt = prompt + "\n" + ctx
 
@@ -1390,13 +1393,13 @@ bb = BlackboardManager(session_id="{session_id}")
 
 
 # ============================================================
-# Stage 2, 5, 9: Harness V2(统一4维质量检查)
+# Stage 2, 5, 9: Harness (统一4维质量检查)
 # ============================================================
 
 def build_harness_task(session_id: str, topic: str, worker_role: str,
                           layer2_constraints: list = None,
                           living_spec: dict = None) -> str:
-    """构建 Harness V2 Task(通用Worker自评)
+    """构建 Harness Task(通用Worker自评)
 
     Args:
         session_id: Session ID
@@ -1582,11 +1585,11 @@ def build_harness_final_task(session_id: str, topic: str, living_spec: dict = No
     return final_prompt
 
 
-# 保留兼容入口:内部也统一走4维 Harness V3
+# 保留兼容入口:内部也统一走4维 Harness
 def _build_harness_task_legacy(session_id: str, topic: str, current_solution: dict,
                        is_final: bool = False,
                        living_spec: dict = None) -> str:
-    """构建 Harness V3 Task(兼容入口,统一4维评分)
+    """构建 Harness Task(兼容入口,统一4维评分)
 
     Args:
         session_id: Session ID
@@ -1675,7 +1678,7 @@ bb = BlackboardManager(session_id="{session_id}")
 # ❌ 禁止: bb.get_stage_path() (已 deprecated)
 ```
 ⚠️ 执行 python3 时必须加 PYTHONPATH:
-`exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c '...'")`
+`exec(command="cd {_DEEPFLOW_ROOT} && PYTHONPATH=. python3 -c '...'")`
 """
     return prompt + "\n" + ctx
 
@@ -1687,7 +1690,7 @@ bb = BlackboardManager(session_id="{session_id}")
 def build_consolidator_task(session_id: str, topic: str,
                             research_outputs: list,
                             living_spec: dict = None) -> str:
-    """构建 Consolidator Task(Stage 5,Harness V2内嵌检查)
+    """构建 Consolidator Task
 
     Args:
         session_id: Session ID
@@ -1772,7 +1775,7 @@ bb = BlackboardManager(session_id="{session_id}")
 # ❌ 禁止: bb.get_stage_path() (已 deprecated)
 ```
 ⚠️ 执行 python3 时必须加 PYTHONPATH:
-`exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c '...'")`
+`exec(command="cd {_DEEPFLOW_ROOT} && PYTHONPATH=. python3 -c '...'")`
 {living_spec_context}
 """
     final_prompt = prompt + "\n" + ctx
@@ -1793,7 +1796,7 @@ bb = BlackboardManager(session_id="{session_id}")
 def build_fixer_expert_task(session_id: str, topic: str,
                             audit_findings: list, severity: str,
                             living_spec: dict = None) -> str:
-    """构建 Fixer Expert Task(Stage 8,Harness V2深度修正)
+    """构建 Fixer Expert Task
 
     Args:
         session_id: Session ID
@@ -1877,7 +1880,7 @@ bb = BlackboardManager(session_id="{session_id}")
 # ❌ 禁止: bb.get_stage_path() (已 deprecated)
 ```
 ⚠️ 执行 python3 时必须加 PYTHONPATH:
-`exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c '...'")`
+`exec(command="cd {_DEEPFLOW_ROOT} && PYTHONPATH=. python3 -c '...'")`
 {living_spec_context}
 """
     final_prompt = prompt + "\n" + ctx
@@ -1898,7 +1901,7 @@ bb = BlackboardManager(session_id="{session_id}")
 def build_summarizer_task(session_id: str, topic: str,
                           all_outputs: dict,
                           living_spec: dict = None) -> str:
-    """构建 Summarizer Task(Stage 10,Harness V2最终总结)
+    """构建 Summarizer Task
 
     Args:
         session_id: Session ID
@@ -2015,7 +2018,7 @@ bb = BlackboardManager(session_id="{session_id}")
 # ❌ 禁止: bb.get_stage_path() (已 deprecated)
 ```
 ⚠️ 执行 python3 时必须加 PYTHONPATH:
-`exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c '...'")`
+`exec(command="cd {_DEEPFLOW_ROOT} && PYTHONPATH=. python3 -c '...'")`
 
 ## 输出文件要求
 1. final_result.json - 结构化最终结果(唯一输出文件,包含 covered_req_ids + 完整方案)
@@ -2032,25 +2035,67 @@ bb = BlackboardManager(session_id="{session_id}")
 
 
 # ============================================================
-# V2 Task Builder Functions (Phase 0b)
+# Task Builder Functions (Phase 0b)
 # ============================================================
+
+def _extract_anchors_block(frozen_spec: dict = None, living_spec: dict = None) -> str:
+    """
+    契约笼子：从 frozen_spec 或 living_spec 提取 Semantic Anchors，
+    格式化为高注意力 prompt 段落。
+    
+    泛化性：所有 build_*_task() 函数都调用此函数，确保 anchors
+    不会被 JSON dump 截断或埋在中间。
+    
+    Returns:
+        格式化后的 anchors 文本段落（可直接插入 prompt）。
+        无 anchors 时返回空字符串。
+    """
+    anchors = []
+    if living_spec and isinstance(living_spec, dict):
+        raw = living_spec.get("semantic_anchors", [])
+        if isinstance(raw, list):
+            anchors = raw
+    elif frozen_spec and isinstance(frozen_spec, dict):
+        raw = frozen_spec.get("semantic_anchors", [])
+        if isinstance(raw, list):
+            anchors = raw
+    
+    if not anchors:
+        return ""
+    
+    lines = []
+    for a in anchors:
+        if not isinstance(a, dict):
+            continue
+        name = a.get("name", "?")
+        cat = a.get("category", "?")
+        constraint = a.get("constraint", "无约束描述")
+        lines.append(f"- **{name}** [{cat}]: {constraint}")
+    
+    if not lines:
+        return ""
+    
+    return "## 上游约束（Semantic Anchors — 不可违反）\n\n" + "\n".join(lines) + "\n"
+
 
 def build_meta_planner_task(frozen_spec: dict, structured_requirements: dict, session_dir: str, living_spec: dict = None) -> dict:
     """构建 Meta-Planner Task"""
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "meta_planner.md"
     system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
-    # Living Spec 优先（V3 AI Native）
+    # Living Spec 优先
     if living_spec:
         spec_context = living_spec.get("narrative", "") + "\n\n## REQ-ID 索引\n" + str(living_spec.get("requirement_index", []))
     else:
         spec_context = json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:3000]
-    prompt = f"""## 输入
+    # 契约笼子：显式提取 semantic_anchors 到高注意力段落
+    anchors_block = _extract_anchors_block(frozen_spec, living_spec)
+    
+    prompt = f"""{anchors_block}## 输入
 ### Spec Context
 {spec_context}
 
-### Structured Requirements  
-{json.dumps(structured_requirements, ensure_ascii=False, indent=2)[:3000]}
+### Structured Requirements {json.dumps(structured_requirements, ensure_ascii=False, indent=2)[:3000]}
 
 ## 任务
 分析任务领域和复杂度，生成 expert_manifest.json。
@@ -2069,12 +2114,15 @@ def build_expert_planner_task(expert_config: dict, frozen_spec: dict, structured
     prompt_file = Path(__file__).parent / "prompts" / "expert_planner_base.md"
     system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
     expert_name = expert_config["expert_name"]
-    # Living Spec 优先（V3 AI Native）
+    # Living Spec 优先
     if living_spec:
         spec_context = living_spec.get("narrative", "") + "\n\n## REQ-ID 索引\n" + str(living_spec.get("requirement_index", []))
     else:
         spec_context = json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:2000]
-    prompt = f"""## 你的专业领域
+    # 契约笼子：显式提取 semantic_anchors 到高注意力段落
+    anchors_block = _extract_anchors_block(frozen_spec, living_spec)
+    
+    prompt = f"""{anchors_block}## 你的专业领域
 {expert_name}: {expert_config.get('domain', '')}
 
 ## 你的评估视角
@@ -2101,20 +2149,24 @@ def build_expert_planner_task(expert_config: dict, frozen_spec: dict, structured
         "timeout": 300,
     }
 
-def build_convergence_planner_task(expert_plans: list, session_dir: str, living_spec: dict = None) -> dict:
+def build_convergence_planner_task(expert_plans: list, session_dir: str, frozen_spec: dict = None, living_spec: dict = None) -> dict:
     """构建 Convergence Planner Task"""
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "convergence_planner.md"
     system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
     plans_text = json.dumps(expert_plans, ensure_ascii=False, indent=2)[:5000]
-    prompt = f"""## 输入：{len(expert_plans)} 个 Expert Plan
+    # 契约笼子：显式提取 semantic_anchors 到高注意力段落
+    anchors_block = _extract_anchors_block(frozen_spec, living_spec)
+    
+    prompt = f"""{anchors_block}## 输入：{len(expert_plans)} 个 Expert Plan
 {plans_text}
 
 ## 任务
 将 N 个 Expert Plan 合并为 unified_constraints.json + verification_checklist.json。
 - 语义去重，冲突解决
 - 每条约束有 source_experts 追溯
-- covered_req_ids 只填 P0 REQ"""
+- covered_req_ids 只填 P0 REQ
+- **semantic_anchors 必须完整保留到输出中**（不可违反的上游约束）"""
     return {
         "task_key": "convergence_planner",
         "prompt": prompt,
@@ -2128,12 +2180,15 @@ def build_harness_agent_task(stage_name: str, stage_output: dict, gate_config: d
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "harness_agent.md"
     system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
-    # Living Spec 优先（V3 AI Native）
+    # Living Spec 优先
     if living_spec:
         spec_context = living_spec.get("narrative", "") + "\n\n## REQ-ID 索引\n" + str(living_spec.get("requirement_index", []))
     else:
         spec_context = json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:2000]
-    prompt = f"""## 评估目标
+    # 契约笼子：显式提取 semantic_anchors 到高注意力段落
+    anchors_block = _extract_anchors_block(frozen_spec, living_spec)
+    
+    prompt = f"""{anchors_block}## 评估目标
 Stage: {stage_name}
 
 ## 原始需求（Spec Context）
@@ -2152,6 +2207,7 @@ Stage: {stage_name}
 ## 任务
 你是独立的、对抗性的评估者。只看输入和输出，不看中间推理。
 对 Gate A 四维度打分（0-1），对 Gate B 每项 check 判定 PASS/FAIL。
+**额外检查：Stage 输出是否遵循了上述 Semantic Anchors？**
 输出 JSON，包含 gate_a_scores 和 gate_b_results。"""
     return {
         "task_key": "harness_agent",
@@ -2166,12 +2222,15 @@ def build_reviewer_meta_task(expert_manifest: dict, frozen_spec: dict, session_d
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "reviewer_meta.md"
     system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
-    # Living Spec 优先（V3 AI Native）
+    # Living Spec 优先
     if living_spec:
         spec_context = living_spec.get("narrative", "") + "\n\n## REQ-ID 索引\n" + str(living_spec.get("requirement_index", []))
     else:
         spec_context = json.dumps(frozen_spec, ensure_ascii=False, indent=2)[:1500]
-    prompt = f"""## 输入
+    # 契约笼子：显式提取 semantic_anchors 到高注意力段落
+    anchors_block = _extract_anchors_block(frozen_spec, living_spec)
+    
+    prompt = f"""{anchors_block}## 输入
 ### Expert Manifest
 {json.dumps(expert_manifest, ensure_ascii=False, indent=2)[:3000]}
 
@@ -2180,6 +2239,7 @@ def build_reviewer_meta_task(expert_manifest: dict, frozen_spec: dict, session_d
 
 ## 任务
 评审 Meta-Planner 的专家组合是否覆盖任务的关键风险领域。
+**额外检查：专家组合是否覆盖了所有 Semantic Anchors 涉及的领域？**
 输出 verdict（PASS/FAIL）+ reasoning。"""
     return {
         "task_key": "reviewer_meta",
@@ -2189,12 +2249,15 @@ def build_reviewer_meta_task(expert_manifest: dict, frozen_spec: dict, session_d
         "timeout": 300,
     }
 
-def build_reviewer_convergence_task(unified_constraints: dict, verification_checklist: dict, expert_plans: list, session_dir: str, living_spec: dict = None) -> dict:
+def build_reviewer_convergence_task(unified_constraints: dict, verification_checklist: dict, expert_plans: list, session_dir: str, frozen_spec: dict = None, living_spec: dict = None) -> dict:
     """构建 Reviewer_Convergence Task"""
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "reviewer_convergence.md"
     system_prompt = prompt_file.read_text(encoding='utf-8') if prompt_file.exists() else ""
-    prompt = f"""## 输入
+    # 契约笼子：显式提取 semantic_anchors 到高注意力段落
+    anchors_block = _extract_anchors_block(frozen_spec, living_spec)
+    
+    prompt = f"""{anchors_block}## 输入
 ### Unified Constraints
 {json.dumps(unified_constraints, ensure_ascii=False, indent=2)[:3000]}
 
@@ -2209,6 +2272,7 @@ def build_reviewer_convergence_task(unified_constraints: dict, verification_chec
 1. 是否遗漏了关键约束？
 2. 冲突解决是否合理？
 3. 验证清单是否可操作？
+4. **Semantic Anchors 是否完整保留？**（对照上游约束检查 unified_constraints）
 输出 verdict（PASS/FAIL）+ reasoning。"""
     return {
         "task_key": "reviewer_convergence",

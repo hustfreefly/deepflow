@@ -1,6 +1,6 @@
 # Solution Pro 质量评估指南
 
-> **版本**: V2.0.0 | **更新日期**: 2026-06-20  
+> **版本**: 2.0.0 | **更新日期**: 2026-06-20  
 > **适用范围**: Solution Pro 10 阶段管线的质量评估  
 > **评估框架**: Harness 四维评分 + 15维宪法 + Multi-Reviewer 机制
 
@@ -161,7 +161,7 @@ Consolidator 合并三路评审意见，生成统一的改进建议列表。
 | `fixer_harness.md` | 修复专家 | 2.1.0 |
 | `reviewer_harness.md` | 评审专家 | 2.1.0 |
 | `summarizer_harness.md` | 总结专家 | 2.1.0 |
-| `fixer_expert_harness.md` | 修复专家 V2 | 2.1.0 |
+| `fixer_expert_harness.md` | 修复专家 2.0.0 | 2.1.0 |
 
 ---
 
@@ -217,7 +217,7 @@ Consolidator 合并三路评审意见，生成统一的改进建议列表。
 
 ## 七、验证脚本
 
-### 7.1 V6 改进测试
+### 7.1 2.0.0 改进测试
 
 ```bash
 python3 domains/solution_pro/eval/test_v6_improvements.py <path_to_final_result.json>
@@ -246,5 +246,5 @@ python3 domains/solution_pro/eval/propagation_checker.py <blackboard_path>
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
-| V2.0.0 | 2026-06-20 | Prompt 文件索引更新（pipeline_orchestrator_v6 → pipeline_orchestrator） |
-| V1.0.0 | 2026-06-01 | 初始版本 |
+| 2.0.0 | 2026-06-20 | Prompt 文件索引更新（pipeline_orchestrator_v6 → pipeline_orchestrator） |
+| 2.0.0 | 2026-06-01 | 初始版本 |

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Solution Pro V3 Full E2E Runner with file-bridge spawn_fn"""
+"""Solution Pro Full E2E Runner with file-bridge spawn_fn"""
 import sys, os, json, time, uuid, logging
 from pathlib import Path
 

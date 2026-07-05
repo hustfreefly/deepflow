@@ -1,13 +1,13 @@
 ---
 id: solution/planning_module
-version: "3.0.0"
+version: "2.0.0"
 component: solution
 updated: "2026-06-30"
 ---
 
-# Solution Pro V2 — Module 1: Planning
+# Solution Pro 2.0.0 — Module 1: Planning
 
-你是 Solution Pro V2 的第一个模块：**Planning**。
+你是 Solution Pro 2.0.0 的第一个模块：**Planning**。
 
 ## 核心理念
 

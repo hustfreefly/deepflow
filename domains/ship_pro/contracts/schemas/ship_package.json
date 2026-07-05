@@ -112,12 +112,6 @@
       "title": "Solution Name",
       "type": "string"
     },
-    "version": {
-      "default": "1.0.0",
-      "description": "版本",
-      "title": "Version",
-      "type": "string"
-    },
     "work_packages": {
       "description": "所有工作包列表",
       "items": {
@@ -135,22 +129,52 @@
       "title": "Metadata",
       "type": "object"
     },
-    "optional_suggestions": {
-      "description": "可选建议（不影响主交付物）",
+    "semantic_anchors": {
+      "description": "从上游 Solution Pro 透传的语义锚点列表，用于信息守恒验证",
       "items": {
-        "type": "string"
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "constraint": {
+            "type": "string"
+          },
+          "applicable_to": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       },
-      "title": "Optional Suggestions",
-      "type": "array"
+      "type": "array",
+      "title": "Semantic Anchors"
     },
-    "web_search_logs": {
-      "description": "所有 Worker 的 web_search 日志",
-      "items": {
-        "additionalProperties": true,
-        "type": "object"
+    "anchor_coverage": {
+      "description": "语义锚点覆盖率统计",
+      "type": "object",
+      "properties": {
+        "total_anchors": {
+          "type": "integer"
+        },
+        "covered_anchors": {
+          "type": "integer"
+        },
+        "coverage_rate": {
+          "type": "number"
+        },
+        "uncovered": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       },
-      "title": "Web Search Logs",
-      "type": "array"
+      "title": "Anchor Coverage"
     }
   },
   "required": [

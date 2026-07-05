@@ -1,6 +1,6 @@
-# AI Native LoOP V2 架构设计
+# AI Native LoOP 2.0.0 架构设计
 
-> **版本**: V2.0 Hybrid  
+> **版本**: 2.0.0 Hybrid  
 > **日期**: 2026-06-25  
 > **作者**: 小满（整合 4 位 AI 专家报告 + 现有 loop_runner.py 分析）  
 > **状态**: 设计稿，待忠礼审阅

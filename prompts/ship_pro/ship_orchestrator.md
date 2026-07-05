@@ -1,6 +1,6 @@
 ---
 id: ship_pro/ship_orchestrator
-version: "1.0.0"
+version: "2.0.0"
 component: ship_pro
 updated: "2026-06-23"
 ---
@@ -28,7 +28,7 @@ updated: "2026-06-23"
 
 ## 📦 BlackboardManager 使用指南
 
-所有文件读写通过 BlackboardManager V6 API，**禁止自行拼接文件路径**。
+所有文件读写通过 BlackboardManager 2.0.0 API，**禁止自行拼接文件路径**。
 
 ```python
 from domains.ship_pro.blackboard import BlackboardManager

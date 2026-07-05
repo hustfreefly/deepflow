@@ -1,6 +1,6 @@
 # Solution Pro E2E Golden Case
 
-> 版本: 1.0 | 创建: 2026-06-02 | 适配: Solution Pro V4.3
+> 版本: 1.0 | 创建: 2026-06-02 | 适配: Solution Pro 2.0.0
 
 ## 概述
 

@@ -65,7 +65,7 @@
 | `designer.md` | 1.0.0 | orchestrator_agent.py | UI/UX 设计 |
 | `deliver.md` | 1.0.0 | orchestrator_agent.py | 交付打包 |
 | `pipeline_orchestrator.md` | 2.0.0 | pipeline_orchestrator.py | 管线编排 |
-| `pipeline_orchestrator_v4.md` | 4.0.0 | pipeline_orchestrator.py | 管线编排 V4 |
+| `pipeline_orchestrator_v4.md` | 4.0.0 | pipeline_orchestrator.py | 管线编排 2.0.0 |
 | `orchestrator_completion.md` | 2.0.0 | completion_handler.py | 完成处理 |
 | `cron_watcher.md` | 1.0.0 | cron_watcher.py | 定时监控 |
 | `REQ_DEDUP_DESIGN.md` | 1.0.0 | - | 需求去重设计文档 |

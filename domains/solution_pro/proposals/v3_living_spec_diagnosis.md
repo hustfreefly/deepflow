@@ -1,12 +1,12 @@
-# V3 Solution Pro × Living Spec 对接诊断报告
+# 2.0.0 Solution Pro × Living Spec 对接诊断报告
 
 > **日期**: 2026-06-29
-> **诊断范围**: V1 (`run_solution_pro`) vs V3 (`run_solution_pro_v2`) 的 Living Spec 接口一致性
-> **目标**: V3 的接口与 V1 保持一致 — 改了内在流程，但接口不变
+> **诊断范围**: 2.0.0 (`run_solution_pro`) vs 2.0.0 (`run_solution_pro_v2`) 的 Living Spec 接口一致性
+> **目标**: 2.0.0 的接口与 2.0.0 保持一致 — 改了内在流程，但接口不变
 
 ---
 
-## 1. V1 Solution Pro 完整接口
+## 1. 2.0.0 Solution Pro 完整接口
 
 ### 1.1 入口签名
 
@@ -62,7 +62,7 @@ self.living_spec
         └─ build_summarizer_task()        → 注入 capabilities/quality_attributes/constraints + user_directives
 ```
 
-### 1.4 V1 输出格式
+### 1.4 2.0.0 输出格式
 
 | 文件 | 路径 | 内容 |
 |------|------|------|
@@ -75,7 +75,7 @@ self.living_spec
 
 ---
 
-## 2. V3 Solution Pro 当前接口
+## 2. 2.0.0 Solution Pro 当前接口
 
 ### 2.1 入口签名
 
@@ -113,12 +113,12 @@ living_spec = kwargs.get("living_spec")
   │
   └─→ ❌ 断裂！
         ├─ master_orchestrator._build_frozen_spec() 不使用 frozen_spec.py
-        ├─ V2/V3 module prompts 不引用 living_spec
-        ├─ V2/V3 worker prompts 不注入 living_spec 上下文
+        ├─ 2.0.0/2.0.0 module prompts 不引用 living_spec
+        ├─ 2.0.0/2.0.0 worker prompts 不注入 living_spec 上下文
         └─ 无 REQ-ID 生成、无 executive_summary、无 requirement_groups
 ```
 
-### 2.4 V3 输出格式
+### 2.4 2.0.0 输出格式
 
 | 文件 | 路径 | 内容 |
 |------|------|------|
@@ -131,9 +131,9 @@ living_spec = kwargs.get("living_spec")
 
 ---
 
-## 3. V1 vs V3 接口差异表
+## 3. 2.0.0 vs 2.0.0 接口差异表
 
-| 维度 | V1 (`run_solution_pro`) | V3 (`run_solution_pro_v2`) | 差异严重度 |
+| 维度 | 2.0.0 (`run_solution_pro`) | 2.0.0 (`run_solution_pro_v2`) | 差异严重度 |
 |------|------------------------|---------------------------|-----------|
 | **入口参数** | `topic` + `**kwargs` | `user_input` + `**kwargs` | 🟡 低（兼容） |
 | **living_spec 接收** | `kwargs.get('living_spec')` | `kwargs.get('living_spec')` | ✅ 一致 |
@@ -141,7 +141,7 @@ living_spec = kwargs.get("living_spec")
 | **REQ-ID 系统** | ✅ 从 living_spec.confirmed 生成完整 REQ-ID 列表 | ❌ 无 REQ-ID 生成 | 🔴 **严重** |
 | **executive_summary** | ✅ 指针+上下文模式 | ❌ 不存在 | 🔴 **严重** |
 | **requirement_groups** | ✅ 5 组分类（Core/Functional/NonFunctional/Boundaries/Context） | ❌ 不存在 | 🔴 **严重** |
-| **Worker prompt 注入** | ✅ 每个 worker 通过 `build_*_task(living_spec=...)` 注入上下文 | ❌ V3 module prompts 无 living_spec 注入 | 🔴 **严重** |
+| **Worker prompt 注入** | ✅ 每个 worker 通过 `build_*_task(living_spec=...)` 注入上下文 | ❌ 2.0.0 module prompts 无 living_spec 注入 | 🔴 **严重** |
 | **guardrails 传递** | ✅ 注入到 research/review/harness workers | ❌ 不传递 | 🟠 高 |
 | **solution_pro_hints** | ✅ 注入到 researcher/summarizer | ❌ 不传递 | 🟠 高 |
 | **需求覆盖追踪** | ✅ covered_req_ids + traceability_matrix | ❌ 无覆盖追踪 | 🔴 **严重** |
@@ -219,7 +219,7 @@ LivingSpec
 
 ---
 
-## 5. V3 缺失的 Living Spec 对接点
+## 5. 2.0.0 缺失的 Living Spec 对接点
 
 ### 5.1 🔴 P0：frozen_spec 生成未使用 frozen_spec.py
 
@@ -237,44 +237,44 @@ def _build_frozen_spec(self, user_input: str, config: dict) -> dict:
     }
 ```
 
-**问题**: 完全忽略了 living_spec。V1 使用 `frozen_spec.py:build_frozen_spec()` 从 living_spec.confirmed 提取所有字段生成 REQ-IDs、executive_summary、requirement_groups。
+**问题**: 完全忽略了 living_spec。2.0.0 使用 `frozen_spec.py:build_frozen_spec()` 从 living_spec.confirmed 提取所有字段生成 REQ-IDs、executive_summary、requirement_groups。
 
-**影响**: V3 的 frozen_spec 不含任何需求结构，下游模块无法进行需求覆盖追踪。
+**影响**: 2.0.0 的 frozen_spec 不含任何需求结构，下游模块无法进行需求覆盖追踪。
 
-### 5.2 🔴 P0：V3 Module Prompts 无 Living Spec 引用
+### 5.2 🔴 P0：2.0.0 Module Prompts 无 Living Spec 引用
 
 **位置**:
 - `prompts/v2_planning_module.md` — 只嵌入 `frozen_spec JSON`（极简版）
 - `prompts/v2_research_module.md` — 只引用 frozen_spec
 - `prompts/v2_reviewqc_module.md` — 不引用 frozen_spec 或 living_spec
 
-**问题**: V1 的每个 worker prompt 都通过 `build_worker_context_section(living_spec, worker_name)` 注入"全局理解"上下文（objective、pain points、users、capabilities、constraints、quality attributes、guardrails、solution_pro_hints）。V3 的 module prompts 完全没有这个机制。
+**问题**: 2.0.0 的每个 worker prompt 都通过 `build_worker_context_section(living_spec, worker_name)` 注入"全局理解"上下文（objective、pain points、users、capabilities、constraints、quality attributes、guardrails、solution_pro_hints）。2.0.0 的 module prompts 完全没有这个机制。
 
-**影响**: V3 的 workers 在没有任何需求上下文的情况下工作，只能看到 topic 和 constraints。
+**影响**: 2.0.0 的 workers 在没有任何需求上下文的情况下工作，只能看到 topic 和 constraints。
 
 ### 5.3 🔴 P0：无 REQ-ID 系统
 
-**位置**: V3 整个 pipeline
+**位置**: 2.0.0 整个 pipeline
 
-**现状**: V1 从 living_spec 生成完整的 REQ-ID 列表（REQ-001, REQ-002, ...），每个 worker 输出 `covered_req_ids`，最终生成 `requirements_traceability_matrix`。V3 完全没有 REQ-ID 概念。
+**现状**: 2.0.0 从 living_spec 生成完整的 REQ-ID 列表（REQ-001, REQ-002, ...），每个 worker 输出 `covered_req_ids`，最终生成 `requirements_traceability_matrix`。2.0.0 完全没有 REQ-ID 概念。
 
 **影响**: 无法追踪方案是否覆盖了所有需求，Harness 检查无法进行覆盖度评估。
 
 ### 5.4 🟠 P1：无 guardrails 传递
 
-**位置**: V3 Research/ReviewQC modules
+**位置**: 2.0.0 Research/ReviewQC modules
 
-**现状**: V1 将 `guardrails.always_do` 和 `guardrails.never_do` 注入到 researcher 和 reviewer prompts。V3 不传递。
+**现状**: 2.0.0 将 `guardrails.always_do` 和 `guardrails.never_do` 注入到 researcher 和 reviewer prompts。2.0.0 不传递。
 
-**影响**: V3 的方案可能违反用户设定的行为边界。
+**影响**: 2.0.0 的方案可能违反用户设定的行为边界。
 
 ### 5.5 🟠 P1：无 solution_pro_hints 传递
 
-**位置**: V3 Research module
+**位置**: 2.0.0 Research module
 
-**现状**: V1 将 `solution_pro_hints.focus_areas` 注入到 researcher prompts，指导研究方向。V3 不传递。
+**现状**: 2.0.0 将 `solution_pro_hints.focus_areas` 注入到 researcher prompts，指导研究方向。2.0.0 不传递。
 
-**影响**: V3 的研究方向可能偏离 Spec Pro 的建议重点。
+**影响**: 2.0.0 的研究方向可能偏离 Spec Pro 的建议重点。
 
 ### 5.6 🟠 P1：E2E 测试无 Living Spec 输入
 
@@ -286,9 +286,9 @@ def _build_frozen_spec(self, user_input: str, config: dict) -> dict:
 
 ### 5.7 🟡 P2：Blackboard 路径不一致
 
-**位置**: V1 vs V3 BlackboardManager 初始化
+**位置**: 2.0.0 vs 2.0.0 BlackboardManager 初始化
 
-| | V1 | V3 |
+| | 2.0.0 | 2.0.0 |
 |---|---|---|
 | base_dir | `blackboard/{session_id}/` | `solution_pro/blackboard_sessions/{topic}/` |
 
@@ -298,7 +298,7 @@ def _build_frozen_spec(self, user_input: str, config: dict) -> dict:
 
 ## 6. 修复建议
 
-### 6.1 修复 P0-1：让 V3 使用 frozen_spec.py
+### 6.1 修复 P0-1：让 2.0.0 使用 frozen_spec.py
 
 **文件**: `master_orchestrator.py`
 
@@ -336,11 +336,11 @@ config = {
 }
 ```
 
-### 6.2 修复 P0-2：V3 Module Prompts 注入 Living Spec 上下文
+### 6.2 修复 P0-2：2.0.0 Module Prompts 注入 Living Spec 上下文
 
 **方案 A（推荐）：在 frozen_spec 中引用**
 
-由于 P0-1 修复后 frozen_spec.json 已包含完整的 executive_summary、requirement_groups、guardrails、solution_pro_hints，V3 module prompts 只需读取 frozen_spec.json 即可获得所有 living_spec 信息。
+由于 P0-1 修复后 frozen_spec.json 已包含完整的 executive_summary、requirement_groups、guardrails、solution_pro_hints，2.0.0 module prompts 只需读取 frozen_spec.json 即可获得所有 living_spec 信息。
 
 **改动**: 在 `v2_planning_module.md`、`v2_research_module.md`、`v2_reviewqc_module.md` 的执行流程中，第一步读取 frozen_spec：
 
@@ -383,7 +383,7 @@ frozen = build_frozen_spec(
 bb.write('data/frozen_spec.json', frozen)
 ```
 
-### 6.3 修复 P0-3：V3 需要 REQ-ID 覆盖追踪
+### 6.3 修复 P0-3：2.0.0 需要 REQ-ID 覆盖追踪
 
 **改动**: 在 `v2_planning_module.md` 的 Convergence Planner (Layer 2) 输出格式中，添加 `covered_req_ids`：
 
@@ -413,7 +413,7 @@ bb.write('data/frozen_spec.json', frozen)
 
 ### 6.4 修复 P1-1：Guardrails 传递
 
-修复 P0-1 后，guardrails 已包含在 frozen_spec.json 中。只需确保 V3 module prompts 明确引用 guardrails 字段。
+修复 P0-1 后，guardrails 已包含在 frozen_spec.json 中。只需确保 2.0.0 module prompts 明确引用 guardrails 字段。
 
 **改动**: 在 `v2_research_module.md` 的 Stage 3 (Research Experts) task 描述中添加：
 
@@ -472,8 +472,8 @@ def _load_living_spec_from_spec_pro() -> dict | None:
 | 优先级 | 修复项 | 文件 | 工作量 |
 |--------|--------|------|--------|
 | 🔴 P0-1 | `_build_frozen_spec()` 使用 `frozen_spec.py` | `master_orchestrator.py` | 小 |
-| 🔴 P0-2 | V3 module prompts 注入 Living Spec 上下文 | `v2_planning_module.md`, `v2_research_module.md`, `v2_reviewqc_module.md` | 中 |
-| 🔴 P0-3 | V3 添加 REQ-ID 覆盖追踪 | `v2_planning_module.md`, `v2_reviewqc_module.md` | 中 |
+| 🔴 P0-2 | 2.0.0 module prompts 注入 Living Spec 上下文 | `v2_planning_module.md`, `v2_research_module.md`, `v2_reviewqc_module.md` | 中 |
+| 🔴 P0-3 | 2.0.0 添加 REQ-ID 覆盖追踪 | `v2_planning_module.md`, `v2_reviewqc_module.md` | 中 |
 | 🟠 P1-1 | Guardrails 传递 | 由 P0-1 解决（frozen_spec 已含 guardrails） | 极小 |
 | 🟠 P1-2 | solution_pro_hints 传递 | 由 P0-1 解决（frozen_spec 已含 hints） | 极小 |
 | 🟠 P1-3 | E2E 测试添加 Living Spec | `e2e_test_runner.py` | 小 |
@@ -483,16 +483,16 @@ def _load_living_spec_from_spec_pro() -> dict | None:
 
 ## 8. 核心结论
 
-**V3 的 Living Spec 对接存在 3 个 P0 级断裂**：
+**2.0.0 的 Living Spec 对接存在 3 个 P0 级断裂**：
 
 1. **frozen_spec 生成不使用 frozen_spec.py** → 导致 REQ-IDs、executive_summary、requirement_groups 全部缺失
-2. **V3 module prompts 不引用 living_spec** → workers 在没有需求上下文的环境下工作
+2. **2.0.0 module prompts 不引用 living_spec** → workers 在没有需求上下文的环境下工作
 3. **无 REQ-ID 覆盖追踪** → 无法验证方案是否覆盖了所有需求
 
 **修复策略**：
 
 - **P0-1 是根因修复**：让 `_build_frozen_spec()` 调用 `frozen_spec.py:build_frozen_spec()`，一次性解决 REQ-IDs、executive_summary、requirement_groups、guardrails、solution_pro_hints 的缺失问题。
-- **P0-2 是消费端修复**：V3 module prompts 需要读取 frozen_spec.json 并基于其丰富内容工作。
-- **P0-3 是追踪修复**：V3 的 planning 和 reviewqc 模块需要输出 covered_req_ids。
+- **P0-2 是消费端修复**：2.0.0 module prompts 需要读取 frozen_spec.json 并基于其丰富内容工作。
+- **P0-3 是追踪修复**：2.0.0 的 planning 和 reviewqc 模块需要输出 covered_req_ids。
 
-**修复后目标**：V3 的接口（接什么、输出什么）与 V1 保持一致。内在流程（3 模块 vs 10 阶段）可以不同，但 Living Spec 的接收、传递、消费链路必须完整。
+**修复后目标**：2.0.0 的接口（接什么、输出什么）与 2.0.0 保持一致。内在流程（3 模块 vs 10 阶段）可以不同，但 Living Spec 的接收、传递、消费链路必须完整。

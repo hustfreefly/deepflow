@@ -1,6 +1,6 @@
-# Solution Pro V3 改进计划
+# Solution Pro 2.0.0 改进计划
 
-> **基于**: E2E V3 质量评估 (2026-07-01)  
+> **基于**: E2E 2.0.0 质量评估 (2026-07-01)  
 > **评分**: 方案 7.0/10 | 过程 6.8/10 | Verdict: CONDITIONAL_PASS  
 > **原则**: 出了问题不是改 bug，是检查已有方案有没有落地。patch < deploy
 
@@ -144,4 +144,4 @@
 
 ---
 
-*Created: 2026-07-01 | Based on E2E V3 quality assessment*
+*Created: 2026-07-01 | Based on E2E 2.0.0 quality assessment*

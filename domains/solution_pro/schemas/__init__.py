@@ -1,21 +1,20 @@
 """
 Solution Pro Schemas
 
-Version: 1.0.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-28
 
 描述:
 - 集中管理所有 Schema 定义
-- V1 Schema（向后兼容）
-- V2 Schema（新架构）
+- Schema（向后兼容）
+- Schema（新架构）
 """
 
 from .schemas import (
     # 基础
     V2BaseSchema,
-    # Module 1: Planning V2
-    ExpertManifestSchema,
+    # Module 1: Planning ExpertManifestSchema,
     ExpertPlanSchema,
     UnifiedConstraintsSchema,
     VerificationChecklistSchema,

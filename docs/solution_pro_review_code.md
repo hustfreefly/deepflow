@@ -271,23 +271,23 @@ fixer_v2_harness 定义了 `{{ TOPIC }}` 和 `{{ AUDIT_PATH }}` 变量，但 bui
 
 ## 五、Harness 体系一致性
 
-### 5.1 V2 vs V3 定义冲突
+### 5.1 2.0.0 vs 2.0.0 定义冲突
 
-**Harness V2**（在 `*_v2_harness.md` 中）：
+**Harness 2.0.0**（在 `*_v2_harness.md` 中）：
 - 四维度自评：完整性(30%) + 必要性(20%) + 目标一致性(30%) + 全局影响(20%)
 - 综合评级：green/yellow/red（平均分 ≥80 为 green）
 - 每个 v2_harness prompt 末尾都有相同的自评标准
 
-**Harness V3**（在 `harness_v3.md` 中）：
+**Harness 2.0.0**（在 `harness_v3.md` 中）：
 - 双维度检查：完整性(60%) + 适度性(40%)
 - 评分规则：≥0.85 优秀，0.70-0.85 警告，<0.70 阻断
 - 检查项完全不同（容错、数据流、测试、监控、成本、文档 vs 过度设计、过度审计、场景贴合）
 
-**⚠️ 严重冲突**：V2 和 V3 是两套完全不同的质量门控体系。V2 是 Worker 自评（内嵌在每个 prompt 中），V3 是独立门禁（由 harness_v3.md 定义）。两者权重、维度、评分标准、阈值全部不同。
+**⚠️ 严重冲突**：2.0.0 和 2.0.0 是两套完全不同的质量门控体系。2.0.0 是 Worker 自评（内嵌在每个 prompt 中），2.0.0 是独立门禁（由 harness_v3.md 定义）。两者权重、维度、评分标准、阈值全部不同。
 
-### 5.2 V2 自评模板的复制粘贴问题
+### 5.2 2.0.0 自评模板的复制粘贴问题
 
-所有 8 个 `*_v2_harness.md` 的 Harness V2 自我评估标准部分 **完全相同**，是复制粘贴的：
+所有 8 个 `*_v2_harness.md` 的 Harness 2.0.0 自我评估标准部分 **完全相同**，是复制粘贴的：
 
 ```
 ### 完整性 (30%)
@@ -298,7 +298,7 @@ fixer_v2_harness 定义了 `{{ TOPIC }}` 和 `{{ AUDIT_PATH }}` 变量，但 bui
 
 每个角色只是改了 XXX 的具体内容（如"所有关键维度"→"所有研究成果"），但结构、权重、阈值完全一致。
 
-**⚠️ 问题**：应该提取为一个公共的 Harness V2 自评模板，通过变量注入，而不是 8 个文件各自维护一份。
+**⚠️ 问题**：应该提取为一个公共的 Harness 2.0.0 自评模板，通过变量注入，而不是 8 个文件各自维护一份。
 
 ### 5.3 harness_v3.md 作为评分指南的角色
 
@@ -508,7 +508,7 @@ Stage 10: Summarizer
 
 但 `pro_pipeline_orchestrator_v3.md` 定义的是 8 阶段 + 2 个 Harness 检查（Stage 3.5 和 7.5），阶段编号和文件命名完全不同。如果 cron_watcher 被用于监控 Pro v3 管线，就会完全错位。
 
-### 8.4 Harness V2 自评的 harness_check 字段 vs task_builder.py 的 STAGE_OUTPUT_SCHEMA
+### 8.4 Harness 2.0.0 自评的 harness_check 字段 vs task_builder.py 的 STAGE_OUTPUT_SCHEMA
 
 `task_builder.py` 中的 `STAGE_OUTPUT_SCHEMA` 要求：
 ```json
@@ -556,7 +556,7 @@ Stage 10: Summarizer
 
 4. **11 个废弃文件应清理**：pipeline_orchestrator ×3、worker_* ×7、deliver.md、pipeline_execution_guide.md。
 
-5. **Harness V2 自评模板应提取为公共文件**：8 个 v2_harness prompt 的自评部分完全相同，复制粘贴维护。
+5. **Harness 2.0.0 自评模板应提取为公共文件**：8 个 v2_harness prompt 的自评部分完全相同，复制粘贴维护。
 
 6. **pro_pipeline_orchestrator_v3.md 内嵌伪代码**：Python 函数调用在 prompt 中无实际定义，AI 无法执行。
 
@@ -630,17 +630,17 @@ Stage 10: Summarizer
 |:---|---:|:---|
 | "13 Python modules" | **14 个 .py 文件** | ⚠️ 差 1（`__init__.py` 是否计入需澄清） |
 | "32 Prompts" | **35 个 .md 文件** | 🔴 不符，差 3 个 |
-| "Harness V2/V3" | ✅ V2 + V3 代码都存在 | ✅ |
+| "Harness 2.0.0/2.0.0" | ✅ 2.0.0 + 2.0.0 代码都存在 | ✅ |
 | "Cron 巡检" | ✅ `cron_watcher.md` + SKILL.md 描述 | ✅ |
 
 **多出的 3 个 Prompt 文件**（不在 cage worker_agents 列表中）：
 - `pipeline_execution_guide.md` — 文档型 prompt，非 worker
-- `pro_pipeline_orchestrator_v3.md` — V3 变体
+- `pro_pipeline_orchestrator_v3.md` — 2.0.0 变体
 - `researcher_template.md` — 模板文件
 
 此外，`data_collection.md`, `deliver.md`, `architect.md`, `designer.md`, `planner.md`, `researcher.md`, `auditor.md`, `fixer.md`, `summarizer.md`, `consolidator.md` 这些 prompt **有文件但不在 cage worker_agents 声明中**。Cage 列的 worker 角色使用的是 `worker_*.md` 系列。存在 **两套并行 prompt 体系**：
 
-1. **worker_*.md 系列**（8 个）：被 V2 Harness 管线实际使用
+1. **worker_*.md 系列**（8 个）：被 2.0.0 Harness 管线实际使用
 2. **角色名直命名系列**（planner.md, researcher.md, auditor.md 等，10+ 个）：被 config/solution.yaml 声明但代码中未使用
 
 **结论**：`32` 可能是只算 worker + v2_harness 系列的数量，但笼统说 "32 Prompts" 没有区分活跃/废弃/模板。**建议 cage 明确列出活跃 prompt 数量。**
@@ -668,7 +668,7 @@ Stage 10: Summarizer
 
 | 红线 ID | 规则 | Cage 声称的 check | 实际验证结果 |
 |:---|:---|:---|:---|
-| **RED-SOL-001** | Python 禁止 LLM 推理 | `grep openai/anthropic/llm → 无匹配` | ⚠️ `planner.py` 有 `llm_output` 变量名（仅参数名，无调用）；V3 废弃方法中硬编码 prompt 字符串拼接 |
+| **RED-SOL-001** | Python 禁止 LLM 推理 | `grep openai/anthropic/llm → 无匹配` | ⚠️ `planner.py` 有 `llm_output` 变量名（仅参数名，无调用）；2.0.0 废弃方法中硬编码 prompt 字符串拼接 |
 | **RED-SOL-002** | 禁止直接调用 sessions_spawn | `grep from openclaw import → 仅 fallback` | ✅ 仅在 `_resolve_spawn_fn` 的 try/except 中 |
 | **RED-SOL-003** | 跨阶段 Blackboard 传递 | Worker Prompt 包含 Blackboard 路径 | ✅ `worker_*.md` 均包含 `{blackboard_path}` 变量 |
 | **RED-SOL-004** | 外部网页视为 DATA 非指令 | `grep 视为数据/treat.*as.*data → 有匹配` | ❌ **未通过！** 所有 35 个 prompt 文件中**均无** prompt injection 防御声明 |
@@ -723,13 +723,13 @@ Stage 10: Summarizer
 
 | SKILL.md 声明 | 实际情况 | 状态 |
 |:---|:---|:---|
-| "V4.1 架构: LLM Orchestrator + Cron 巡检" | 与 cage 中 `llm_orchestrator` 执行模式匹配 | ✅ |
+| "2.0.0 架构: LLM Orchestrator + Cron 巡检" | 与 cage 中 `llm_orchestrator` 执行模式匹配 | ✅ |
 | "10 个阶段" | 实际 10 阶段（cage + orchestrator） | ✅ |
 | 步骤 1: `run_solution_pro()` exec 生成计划 | `__init__.py` 导出 `run_solution_pro` | ✅ |
 | 步骤 4: spawn orchestrator 子 Agent | `pipeline_orchestrator_v4.md` 存在 | ✅ |
 | 步骤 5: 创建 Cron 巡检 Agent | `cron_watcher.md` 存在 | ✅ |
 | 三层退出机制 | 代码中有完整状态文件处理 | ✅ |
-| 结尾标注 "V4.2" | 开头标注 "V4.1" | ⚠️ 版本号自相矛盾 |
+| 结尾标注 "2.0.0" | 开头标注 "2.0.0" | ⚠️ 版本号自相矛盾 |
 
 #### 3.2 SKILL.md vs README.md 架构差异
 
@@ -738,9 +738,9 @@ Stage 10: Summarizer
 | 入口 | `run_solution_pro()` exec + sessions_spawn | `sessions_spawn` dispatcher 模式 | ⚠️ 两套入口 |
 | 层数 | 主 Agent → orchestrator → cron | 主 Agent → Dispatcher → Workers | 🔴 不同 |
 | 架构描述 | LLM Orchestrator + Cron 巡检 | 三层调度架构（旧 Dispatcher 模式） | 🔴 README 过时 |
-| 版本 | V4.1/V4.2 | V3.4 | 🔴 版本严重滞后 |
+| 版本 | 2.0.0/2.0.0 | 2.0.0 | 🔴 版本严重滞后 |
 
-**⚠️ README.md 的架构描述是旧版 V3.4**（三层 Dispatcher 调度），而 SKILL.md 描述的是新版 V4（LLM Orchestrator + Cron 巡检 + 三层退出）。**README.md 没有更新。**
+**⚠️ README.md 的架构描述是旧版 2.0.0**（三层 Dispatcher 调度），而 SKILL.md 描述的是新版 2.0.0（LLM Orchestrator + Cron 巡检 + 三层退出）。**README.md 没有更新。**
 
 #### 3.3 run_solution_pro 返回值
 
@@ -820,8 +820,8 @@ SKILL.md Step 1 说返回 `{session_id, base_path, plan_path}`。实际 `__init_
 | 3 | **5 份不同阶段定义互不匹配** | cage/config.py/config.yaml/orchestrator/README | 🔴 | 以 orchestrator pipeline 为权威来源统一 |
 | 4 | **config.py 不加载 config/solution.yaml** | `config.py` + `config/solution.yaml` | 🟠 | 添加 YAML 加载逻辑或删除 YAML |
 | 5 | **data_sources/solution.yaml 完全未被使用** | `data_sources/solution.yaml` | 🟡 | 删除或在代码中引用 |
-| 6 | **SKILL.md 版本号自相矛盾** (V4.1 vs V4.2) | `SKILL.md` | 🟡 | 统一版本号 |
-| 7 | **README.md 架构描述过时** (V3.4 vs V4) | `README.md` | 🟡 | 更新为 V4 架构描述 |
+| 6 | **SKILL.md 版本号自相矛盾** (2.0.0 vs 2.0.0) | `SKILL.md` | 🟡 | 统一版本号 |
+| 7 | **README.md 架构描述过时** (2.0.0 vs 2.0.0) | `README.md` | 🟡 | 更新为 2.0.0 架构描述 |
 | 8 | **27 个 Prompt 缺失 `updated` 字段** | prompts/*.md | 🟡 | 批量补充 updated 日期 |
 | 9 | **harness_scorer.py 用 0-1 数值 vs cage 要求红绿灯** | `harness_scorer.py` + cage | 🟡 | 确认仅为内部计算则 OK，否则改用枚举 |
 | 10 | **cage_version vs version 不一致** (1.0.0 vs 1.1) | `solution_v1.0.yaml` | 🟡 | 统一到 1.1.0 |
@@ -840,8 +840,8 @@ SKILL.md Step 1 说返回 `{session_id, base_path, plan_path}`。实际 `__init_
 | **P1** | 删除或连接 data_sources/solution.yaml | 15 min |
 | **P1** | 补充 27 个 prompt 文件的 `updated` 字段 | 15 min |
 | **P1** | 统一 cage 版本号（cage_version 与 version 对齐为 1.1.0） | 5 min |
-| **P2** | 更新 README.md 为 V4 LLM Orchestrator + Cron 巡检架构描述 | 20 min |
-| **P2** | 修复 SKILL.md 版本号自相矛盾（V4.1 vs V4.2） | 5 min |
+| **P2** | 更新 README.md 为 2.0.0 LLM Orchestrator + Cron 巡检架构描述 | 20 min |
+| **P2** | 修复 SKILL.md 版本号自相矛盾（2.0.0 vs 2.0.0） | 5 min |
 | **P2** | 为 orchestrator_agent.py / task_builder.py / harness_scorer.py 添加 YAML Front Matter | 10 min |
 | **P2** | 更新 cage 中 "13 Python modules + 32 Prompts" 为准确数字 | 5 min |
 

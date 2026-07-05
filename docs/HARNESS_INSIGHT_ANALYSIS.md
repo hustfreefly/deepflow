@@ -22,7 +22,7 @@ DeepFlow 的核心发现：**模型能力再强，没有 Harness 就是在裸奔
 |------|------|---------|
 | Agent 该做什么？ | 声明式需求冻结 | Frozen Spec + REQ-ID |
 | Agent 怎么做？ | 结构化约束注入 | Control Contract + Layer 2 |
-| 做得好不好？ | 多维质量门控 | Harness V4 四维评分 |
+| 做得好不好？ | 多维质量门控 | Harness 2.0.0 四维评分 |
 | 有没有跑偏？ | 需求追踪闭环 | REQ-ID Traceability Matrix |
 | 如何持续改进？ | 审计-修复-验证循环 | Auditor → Fixer → Expert Fix → Harness Final |
 
@@ -148,7 +148,7 @@ def inject_layer2_constraints(base_prompt, worker_role, layer2_constraints):
    }
    ```
 
-### 3.4 第四层：Harness V4 四维评分
+### 3.4 第四层：Harness 2.0.0 四维评分
 
 **核心思想**：用统一的四维评分体系作为所有质量门控的"通用语言"。
 
@@ -338,7 +338,7 @@ def _check_expected_outputs(base_path, expected_stages, required_artifacts):
 
 **解法**：
 - 从定量评分（0-10）改为定性评级（green/yellow/red）
-- 但保留 Harness V4 的 0-1 评分（因为是机器验证，不是人类评审）
+- 但保留 Harness 2.0.0 的 0-1 评分（因为是机器验证，不是人类评审）
 - 增加 `level` 字段（high/medium/low）作为定性补充
 
 ### 5.3 反模式三：文档 ≠ 修复
@@ -437,25 +437,25 @@ errors:
 ## 七、Harness 的进化历程
 
 ```
-V1.0 (2026-04): 基础管线
+2.0.0 (2026-04): 基础管线
   → 简单的串行执行，无质量门控
   → 问题：输出质量不可控
 
-V2.0 (2026-04): 引入 Harness 评分
+2.0.0 (2026-04): 引入 Harness 评分
   → 每个 Worker 增加自评
   → 问题：自评不可靠（放水）
 
-V3.0 (2026-05): 多维审查
+2.0.0 (2026-05): 多维审查
   → 3 Reviewer + 3 Auditor 并行
   → Layer 2 约束注入
   → 问题：评审评分 ≠ 实际质量
 
-V4.0 (2026-05): 定性评分 + REQ-ID
+2.0.0 (2026-05): 定性评分 + REQ-ID
   → green/yellow/red 替代 0-10
   → REQ-ID 追踪闭环
   → 问题：Planner 输出不稳定
 
-V4.4 (2026-06): 固定管线 + 动态内容
+2.0.0 (2026-06): 固定管线 + 动态内容
   → B 方案：固定 10 阶段
   → Control Contract 确定性刷新
   → Schema 分层验证
@@ -499,7 +499,7 @@ L3: Process Harness — 通过流程设计确保质量
 ```
 
 DeepFlow 三层都用：
-- L1: Harness V4 Prompt 模板 + Layer 2 约束注入
+- L1: Harness 2.0.0 Prompt 模板 + Layer 2 约束注入
 - L2: Schema 验证 + Summarizer 响应验证 + Harness Score 计算
 - L3: 10 阶段管线 + 审计-修复循环 + REQ-ID 追踪
 
@@ -524,13 +524,13 @@ DeepFlow 三层都用：
 | "Agent Loop、Tool Use、Subagent" | 10 阶段管线 + sessions_spawn/yield |
 | "Prompt Engineering" | 36+ Worker Prompt 模板 |
 | "Context Engineering" | 契约笼子 + Layer 2 约束 + Frozen Spec |
-| "定义 Agent 是否真的帮助到用户的指标" | Harness V4 四维评分 + REQ-ID 覆盖矩阵 |
+| "定义 Agent 是否真的帮助到用户的指标" | Harness 2.0.0 四维评分 + REQ-ID 覆盖矩阵 |
 | "与研究员深度协作" | Control Contract + Planner 动态生成专家 |
-| "产品路线图规划" | V1→V4.4 的清晰演进路径 |
+| "产品路线图规划" | 2.0.0→2.0.0 的清晰演进路径 |
 | "Vibe Coding" | 用 AI 辅助构建了整个多 Agent 框架 |
 | "UI/UX 设计素养" | 渐进式交付（30s→2min→8min）+ 前端 Dashboard |
 
 ---
 
-*本文档基于 DeepFlow V0.4.0 / Solution Pro V4.4 的完整代码和文档分析。*
+*本文档基于 DeepFlow 2.0.0 / Solution Pro 2.0.0 的完整代码和文档分析。*
 *所有洞察均来自实际工程实践，非理论推导。*

@@ -1,19 +1,19 @@
 """
-Solution Pro V2 Schema 定义
+Solution Pro Schema 定义
 
-Version: 1.0.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-28
 
 描述:
-- 集中定义所有 V2 Stage 输出的 Pydantic schema
+- 集中定义所有 Stage 输出的 Pydantic schema
 - 使用 Pydantic V2 BaseModel
 - 所有 schema 包含 schema_version 字段
 - 提供 validate_stage_output() 统一验证函数
 """
 
 from typing import Literal, Optional
-from pydantic import BaseModel, Field, field_validator, model_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime
 
 
@@ -22,7 +22,7 @@ from datetime import datetime
 # ============================================================================
 
 class V2BaseSchema(BaseModel):
-    """V2 Schema 基类，包含 schema_version 和 timestamp"""
+    """Schema 基类，包含 schema_version 和 timestamp"""
     schema_version: str = Field(default="1.0.0", description="Schema 版本号，遵循 semver")
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat(), description="生成时间戳")
 
@@ -82,7 +82,7 @@ EXPERT_TEMPLATE_REGISTRY: dict[str, list[dict[str, str]]] = {
 
 
 # ============================================================================
-# Module 1: Planning V2 三层架构
+# Module 1: Planning 三层架构
 # ============================================================================
 
 class ExpertConfig(BaseModel):
@@ -593,7 +593,7 @@ class InformationContractSchema(V2BaseSchema):
 
 
 # ============================================================================
-# V2 新增：Module Orchestrator State & Task Builder Output
+# 新增：Module Orchestrator State & Task Builder Output
 # ============================================================================
 
 class ModuleOrchestratorStateSchema(V2BaseSchema):
@@ -609,7 +609,7 @@ class ModuleOrchestratorStateSchema(V2BaseSchema):
 
 
 class TaskBuilderOutputSchema(V2BaseSchema):
-    """V2 Task Builder 输出 schema (P0-16)"""
+    """Task Builder 输出 schema (P0-16)"""
     task_key: str = Field(description="任务唯一标识")
     prompt: str = Field(description="Worker prompt内容")
     system_prompt: Optional[str] = Field(default=None, description="系统提示词")
@@ -648,7 +648,7 @@ class DegradedFinalConvergenceSchema(V2BaseSchema):
 
 # Stage 名 → Schema 映射
 STAGE_SCHEMA_MAP = {
-    # Module 1: Planning V2
+    # Module 1: Planning
     "meta_planning": ExpertManifestSchema,
     "expert_plans": ExpertPlanSchema,  # 目录，每个文件单独验证
     "convergence_planning": UnifiedConstraintsSchema,
@@ -674,11 +674,11 @@ STAGE_SCHEMA_MAP = {
     # 信息契约
     "information_contract": InformationContractSchema,
     
-    # V2 新增 (P0-16)
+    # 新增 (P0-16)
     "module_orchestrator_state": ModuleOrchestratorStateSchema,
     "task_builder_output": TaskBuilderOutputSchema,
     
-    # V2 Phase 2.2: Review/QC
+    # Phase 2.2: Review/QC
     "review_qc_convergence": DegradedFinalConvergenceSchema,
 }
 
@@ -734,7 +734,7 @@ __all__ = [
     # Gate 评分结构（P0-16 收紧）
     "GateAScoresSchema",
     "GateBResultsSchema",
-    # V2 新增
+    # 新增
     "ModuleOrchestratorStateSchema",
     "TaskBuilderOutputSchema",
     # 信息契约
@@ -742,19 +742,18 @@ __all__ = [
     # Domain categories & templates
     "DOMAIN_CATEGORIES",
     "EXPERT_TEMPLATE_REGISTRY",
-    # V2 Phase 2.2: 降级 Schema
+    # Phase 2.2: 降级 Schema
     "DegradedFinalConvergenceSchema",
     # 验证函数
     "validate_stage_output",
     "get_stage_schema",
     "STAGE_SCHEMA_MAP",
 ]
-# [V2 Phase 0a] P0-16: 收紧 ResearchConvergenceSchema gate 类型 + 新增 ModuleOrchestratorStateSchema/TaskBuilderOutputSchema
+# [Phase 0a] P0-16: 收紧 ResearchConvergenceSchema gate 类型 + 新增 ModuleOrchestratorStateSchema/TaskBuilderOutputSchema
 
 
 # =============================================================================
-# Research Digest Schema (V3 AI Native)
-# =============================================================================
+# Research Digest Schema # =============================================================================
 
 class DigestFinding(BaseModel):
     """单个 Research Finding"""
@@ -794,7 +793,7 @@ class ResearchDigest(BaseModel):
 
 
 # =============================================================================
-# Harness Check V2 — 两层防线 + 契约笼子
+# Harness Check — 两层防线 + 契约笼子
 # =============================================================================
 
 VerdictType = Literal["STRONG", "ADEQUATE", "WEAK", "FAIL"]
@@ -851,9 +850,9 @@ class ReflectionProtocol(BaseModel):
     skipped_requirements: list[SkippedRequirement] = Field(default_factory=list, description="跳过的需求")
 
 
-class HarnessCheckV2(BaseModel):
+class HarnessCheck(BaseModel):
     """
-    Harness Check V2 — 两层防线 + 契约笼子
+    Harness Check — 两层防线 + 契约笼子
     
     Layer 1: 系统级护栏（4 维，统一标准，不可角色化）
     Layer 2: 角色级质量检查（角色化子检查）
@@ -881,7 +880,7 @@ class HarnessCheckV2(BaseModel):
     # ==================== 契约笼子 ====================
 
     @model_validator(mode='after')
-    def _cage_h1_layer1_must_have_4_dims(self) -> 'HarnessCheckV2':
+    def _cage_h1_layer1_must_have_4_dims(self) -> 'HarnessCheck':
         """[H1] Layer 1 必须有且仅有 4 个系统级维度"""
         required = {"completeness", "necessity", "alignment", "global_impact"}
         actual = set(self.layer1_system_guardrails.keys())
@@ -891,7 +890,7 @@ class HarnessCheckV2(BaseModel):
         return self
 
     @model_validator(mode='after')
-    def _cage_h2_p0_red_line(self) -> 'HarnessCheckV2':
+    def _cage_h2_p0_red_line(self) -> 'HarnessCheck':
         """[H2] P0 需求遗漏 = FAIL 硬红线"""
         completeness = self.layer1_system_guardrails.get("completeness")
         if completeness and completeness.verdict == "FAIL":
@@ -904,7 +903,7 @@ class HarnessCheckV2(BaseModel):
         return self
 
     @model_validator(mode='after')
-    def _cage_h3_layer1_aggregation(self) -> 'HarnessCheckV2':
+    def _cage_h3_layer1_aggregation(self) -> 'HarnessCheck':
         """[H3] Layer 1 分层聚合规则"""
         verdicts = [d.verdict for d in self.layer1_system_guardrails.values()]
         
@@ -935,7 +934,7 @@ class HarnessCheckV2(BaseModel):
         return self
 
     @model_validator(mode='after')
-    def _cage_h4_layer2_cannot_compensate(self) -> 'HarnessCheckV2':
+    def _cage_h4_layer2_cannot_compensate(self) -> 'HarnessCheck':
         """[H4] Layer 1 WEAK/FAIL 不可被 Layer 2 补偿"""
         layer1_verdicts = [d.verdict for d in self.layer1_system_guardrails.values()]
         
@@ -943,13 +942,13 @@ class HarnessCheckV2(BaseModel):
         if any(v in ["WEAK", "FAIL"] for v in layer1_verdicts):
             if self.overall_verdict == "STRONG_PASS":
                 raise ValueError(
-                    f"[Cage H4] Layer 1 有 WEAK/FAIL 维度，overall_verdict 不能是 STRONG_PASS"
+                    "[Cage H4] Layer 1 有 WEAK/FAIL 维度，overall_verdict 不能是 STRONG_PASS"
                 )
         
         return self
 
     @model_validator(mode='after')
-    def _cage_h5_anti_complacency(self) -> 'HarnessCheckV2':
+    def _cage_h5_anti_complacency(self) -> 'HarnessCheck':
         """[H5] 反自满：禁止所有维度都给 STRONG"""
         layer1_verdicts = [d.verdict for d in self.layer1_system_guardrails.values()]
         
@@ -967,15 +966,15 @@ class HarnessCheckV2(BaseModel):
                 # 不是 raise，而是强制降级
                 if self.overall_verdict == "STRONG_PASS":
                     raise ValueError(
-                        f"[Cage H5] 所有维度都给 STRONG 需要高风险 justification。"
-                        f"请在 reflection.unverified_assumptions 中说明，"
-                        f"或将 overall_verdict 降级为 PASS。"
+                        "[Cage H5] 所有维度都给 STRONG 需要高风险 justification。"
+                        "请在 reflection.unverified_assumptions 中说明，"
+                        "或将 overall_verdict 降级为 PASS。"
                     )
         
         return self
 
     @model_validator(mode='after')
-    def _cage_h6_reflection_not_evasive(self) -> 'HarnessCheckV2':
+    def _cage_h6_reflection_not_evasive(self) -> 'HarnessCheck':
         """[H6] 反思不能敷衍"""
         evasive_phrases = [
             "没有问题", "一切完备", "全部通过", "没有遗漏",
@@ -1002,23 +1001,23 @@ class HarnessCheckV2(BaseModel):
         return self
 
     @model_validator(mode='after')
-    def _cage_h7_reflection_mandatory(self) -> 'HarnessCheckV2':
+    def _cage_h7_reflection_mandatory(self) -> 'HarnessCheck':
         """[H7] 反思必须有内容"""
         if not self.reflection.unverified_assumptions:
             raise ValueError(
-                f"[Cage H7] reflection.unverified_assumptions 不能为空。"
-                f"必须列出至少 1 个未验证假设。"
+                "[Cage H7] reflection.unverified_assumptions 不能为空。"
+                "必须列出至少 1 个未验证假设。"
             )
         
         if not self.reflection.downstream_risk.risk_point:
             raise ValueError(
-                f"[Cage H7] reflection.downstream_risk.risk_point 不能为空。"
+                "[Cage H7] reflection.downstream_risk.risk_point 不能为空。"
             )
         
         return self
 
     @model_validator(mode='after')
-    def _cage_h8_necessity_beyond_spec(self) -> 'HarnessCheckV2':
+    def _cage_h8_necessity_beyond_spec(self) -> 'HarnessCheck':
         """[H8] necessity: 超出 spec 的内容必须标注为 suggestion"""
         necessity = self.layer1_system_guardrails.get("necessity")
         if necessity and necessity.beyond_spec_items:
@@ -1035,9 +1034,9 @@ class HarnessCheckV2(BaseModel):
 
 
 def validate_harness_check(data: dict) -> tuple[bool, str]:
-    """验证 Harness Check V2 输出"""
+    """验证 Harness Check 输出"""
     try:
-        HarnessCheckV2(**data)
+        HarnessCheck(**data)
         return True, ""
     except Exception as e:
         return False, str(e)

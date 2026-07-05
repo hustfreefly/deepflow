@@ -1,7 +1,12 @@
 """
-Ship Pro V8 - Planner Output Schema
+Ship Pro - Planner Output Schema
 
-Phase 1 Planner 的结构化输出定义。
+DEPRECATED: Use domains.ship_pro.pipeline_designer.WorkerSpec and PipelinePlan instead.
+This module is kept for backward compatibility only.
+The unified schema in pipeline_designer.py includes all fields from this module
+(must_constraints, wp_id_prefix, needs_web_search, web_search_scope, solution_pro_refs)
+plus additional operational fields (execution_order, module_purpose, interface_provides/requires).
+
 遵循 AI Native 原则：
 - 不硬编码枚举（让 LLM 自由分类）
 - 不限制角色名称（让 LLM 自由命名）
@@ -12,7 +17,10 @@ from typing import List, Optional, Dict, Any
 
 
 class WorkerSpec(BaseModel):
-    """单个 Worker 的规格定义"""
+    """
+    DEPRECATED: Use domains.ship_pro.pipeline_designer.WorkerSpec instead.
+    单个 Worker 的规格定义（保留向后兼容）
+    """
     
     role: str = Field(..., description="Worker 角色名称（自由命名）")
     
@@ -67,7 +75,10 @@ class WorkerSpec(BaseModel):
 
 
 class PlannerOutput(BaseModel):
-    """Phase 1 Planner 的结构化输出"""
+    """
+    DEPRECATED: Use domains.ship_pro.pipeline_designer.PipelinePlan instead.
+    Phase 1 Planner 的结构化输出（保留向后兼容）
+    """
     
     # 分析结论（自由文本，不硬编码枚举）
     input_type: str = Field(..., description="输入类型（自由分类）")

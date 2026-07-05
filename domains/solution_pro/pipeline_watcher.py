@@ -7,9 +7,9 @@ Pipeline Watcher — 运行时监控
 3. 异常告警（模块失败、超时、降级触发）
 4. 生成 Pipeline 运行报告
 
-[R1-P1 采纳] 与 V1 cron_watcher 职责分离：
-- V1 cron_watcher: 定时检查 cron jobs
-- V2 PipelineWatcher: 实时监控 Pipeline 运行
+[R1-P1 采纳] 与 cron_watcher 职责分离：
+- cron_watcher: 定时检查 cron jobs
+- PipelineWatcher: 实时监控 Pipeline 运行
 """
 import logging
 import time

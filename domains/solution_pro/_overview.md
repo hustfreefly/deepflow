@@ -1,10 +1,10 @@
-# Solution Pro V2 — 代码文件索引
+# Solution Pro 2.0.0 — 代码文件索引
 
 > 版本: 2.0 | 更新: 2026-06-29
 
-## V2 架构概述
+## 2.0.0 架构概述
 
-Solution Pro V2 采用三层模块化架构，由 MasterOrchestrator 调度三个独立模块串联执行：
+Solution Pro 2.0.0 采用三层模块化架构，由 MasterOrchestrator 调度三个独立模块串联执行：
 
 ```
 MasterOrchestrator（极简调度器）
@@ -21,41 +21,41 @@ MasterOrchestrator（极简调度器）
 
 ---
 
-## V2 核心代码文件索引
+## 2.0.0 核心代码文件索引
 
 | 文件 | 职责 | 版本 |
 |------|------|------|
-| `master_orchestrator.py` | V2 Master 调度器：Planning → Research → ReviewQC 串联 | V2.0 |
-| `planning_orchestrator.py` | Planning 模块：三层架构（Meta → Expert ×N → Convergence） | V1.0 |
-| `research_orchestrator.py` | Research 模块：Knowledge Freshness + 多专家并行 + 收敛 | V2.1 |
-| `review_qc_orchestrator.py` | ReviewQC 模块：Fix Loop + Harness + Final Review + Convergence | V2.0 |
-| `module_orchestrator_base.py` | 模块基类：公共 run/stage_sequence/spawn 逻辑 | V2.0 |
-| `convergence_layer.py` | 收敛层：Gate 评估 + 收敛逻辑（Planning/Research/ReviewQC 共享） | V2.0 |
-| `blackboard.py` | Blackboard 管理：SolutionRegistry + V1/V2 路径注册 | V3.2 |
-| `pipeline_exceptions.py` | Pipeline 异常定义：PipelineError, ModuleFailureError, ModuleTimeoutError | V2.0 |
-| `task_builder.py` | Worker Task 构建 + Meta-Planner/Reviewer 任务生成 | V2.0 |
-| `harness_scorer.py` | Harness 评分：Gate A Layer2 校准 + Gate B 关键评估 | V2.0 |
-| `information_conservation.py` | 信息守恒契约验证 | V1.0 |
+| `master_orchestrator.py` | 2.0.0 Master 调度器：Planning → Research → ReviewQC 串联 | 2.0.0 |
+| `planning_orchestrator.py` | Planning 模块：三层架构（Meta → Expert ×N → Convergence） | 2.0.0 |
+| `research_orchestrator.py` | Research 模块：Knowledge Freshness + 多专家并行 + 收敛 | 2.0.0 |
+| `review_qc_orchestrator.py` | ReviewQC 模块：Fix Loop + Harness + Final Review + Convergence | 2.0.0 |
+| `module_orchestrator_base.py` | 模块基类：公共 run/stage_sequence/spawn 逻辑 | 2.0.0 |
+| `convergence_layer.py` | 收敛层：Gate 评估 + 收敛逻辑（Planning/Research/ReviewQC 共享） | 2.0.0 |
+| `blackboard.py` | Blackboard 管理：SolutionRegistry + 2.0.0/2.0.0 路径注册 | 2.0.0 |
+| `pipeline_exceptions.py` | Pipeline 异常定义：PipelineError, ModuleFailureError, ModuleTimeoutError | 2.0.0 |
+| `task_builder.py` | Worker Task 构建 + Meta-Planner/Reviewer 任务生成 | 2.0.0 |
+| `harness_scorer.py` | Harness 评分：Gate A Layer2 校准 + Gate B 关键评估 | 2.0.0 |
+| `information_conservation.py` | 信息守恒契约验证 | 2.0.0 |
 
-## V1 兼容代码（保留用于已有 session 续跑）
+## 2.0.0 兼容代码（保留用于已有 session 续跑）
 
 | 文件 | 职责 |
 |------|------|
-| `orchestrator_agent.py` | V1 主编排器 `_SolutionDispatcher` |
-| `__init__.py` | 公共 API `run_solution_pro()`（V1 入口） |
-| `planner.py` | V1 规划器辅助 |
-| `completion_handler.py` | V1 完成检查 + Schema 运行时验证 |
-| `frozen_spec.py` | V1 REQ-ID 冻结规格生成 |
-| `control_contract.py` | V1 Planning 后确定性刷新 control_contract.json |
+| `orchestrator_agent.py` | 2.0.0 主编排器 `_SolutionDispatcher` |
+| `__init__.py` | 公共 API `run_solution_pro()`（2.0.0 入口） |
+| `planner.py` | 2.0.0 规划器辅助 |
+| `completion_handler.py` | 2.0.0 完成检查 + Schema 运行时验证 |
+| `frozen_spec.py` | 2.0.0 REQ-ID 冻结规格生成 |
+| `control_contract.py` | 2.0.0 Planning 后确定性刷新 control_contract.json |
 | `security_validator.py` | 输入清理 + 路径遍历检测 |
-| `harness_validator.py` | V1 Harness 验证 |
-| `harness_check_expert.py` | V1 Harness 专家 |
-| `harness_scoring.py` | V1 Harness 评分辅助 |
-| `progress_tracker.py` | V1 进度追踪 |
-| `check_contract.py` | V1 契约检查 |
+| `harness_validator.py` | 2.0.0 Harness 验证 |
+| `harness_check_expert.py` | 2.0.0 Harness 专家 |
+| `harness_scoring.py` | 2.0.0 Harness 评分辅助 |
+| `progress_tracker.py` | 2.0.0 进度追踪 |
+| `check_contract.py` | 2.0.0 契约检查 |
 | `prefix_extractor.py` | Session ID 前缀提取 |
 | `config.py` | 配置 |
-| `pipeline_watcher.py` | Cron 巡检脚本（V1/V2 共用） |
+| `pipeline_watcher.py` | Cron 巡检脚本（2.0.0/2.0.0 共用） |
 | `normalize.py` | 数据规范化 |
 | `llm_recorder.py` | LLM 调用记录 |
 | `spec_context.py` | Spec 上下文管理 |
@@ -66,7 +66,7 @@ MasterOrchestrator（极简调度器）
 
 ---
 
-## V2 Prompt 清单
+## 2.0.0 Prompt 清单
 
 ### Planning 模块
 
@@ -111,9 +111,9 @@ MasterOrchestrator（极简调度器）
 
 ---
 
-## V2 Schema 清单
+## 2.0.0 Schema 清单
 
-所有 V2 Schema 定义在 `schemas/schemas.py`：
+所有 2.0.0 Schema 定义在 `schemas/schemas.py`：
 
 | Schema | 用途 |
 |--------|------|
@@ -130,14 +130,14 @@ MasterOrchestrator（极简调度器）
 
 ---
 
-## V2 测试清单
+## 2.0.0 测试清单
 
 | 测试文件 | 覆盖范围 |
 |----------|---------|
-| `tests/test_schemas.py` | V2 Schema 定义验证 |
-| `tests/test_base_classes.py` | V2 基类（ModuleOrchestrator）验证 |
+| `tests/test_schemas.py` | 2.0.0 Schema 定义验证 |
+| `tests/test_base_classes.py` | 2.0.0 基类（ModuleOrchestrator）验证 |
 | `tests/test_planning_orchestrator.py` | Planning 模块单元测试 |
-| `tests/test_integration.py` | V2 端到端集成测试 |
+| `tests/test_integration.py` | 2.0.0 端到端集成测试 |
 | `tests/test_convergence_migration.py` | 收敛层迁移测试 |
 | `tests/test_phase1_acceptance.py` | Phase 1 验收测试 |
 | `tests/test_phase2_acceptance.py` | Phase 2 验收测试 |
@@ -157,4 +157,4 @@ MasterOrchestrator（极简调度器）
 
 ---
 
-*V2.0 | 2026-06-29 | V2 三层架构代码索引*
+*2.0.0 | 2026-06-29 | 2.0.0 三层架构代码索引*

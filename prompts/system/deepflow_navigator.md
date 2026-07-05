@@ -1,6 +1,6 @@
 ---
 id: system/deepflow_navigator
-version: "1.0.0"
+version: "2.0.0"
 component: system
 updated: "2026-06-01"
 ---

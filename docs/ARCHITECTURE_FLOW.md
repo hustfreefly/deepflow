@@ -135,7 +135,7 @@ result = run('solution', spawn_fn=sessions_spawn,
 |:---|:---|:---|
 | exec 无 openclaw | exec 无 openclaw，有 import 就失败 | AGENTS.md / SOUL.md |
 | spawn_fn 注入是正道 | 主Agent用工具，Orchestrator收注入 | AGENTS.md |
-| V2.5 是菜谱我是厨师 | 主Agent spawn才有SDK，子Agent跑代码=mock | MEMORY.md |
+| 2.0.0 是菜谱我是厨师 | 主Agent spawn才有SDK，子Agent跑代码=mock | MEMORY.md |
 | 修复必验证 | 声称≠完成 | AGENTS.md |
 | yield等推送别轮询 | sessions_yield() 静默等待 | AGENTS.md |
 | 架构设计是宪法 | bug是违宪，修复是修宪，绕过是政变 | AGENTS.md |

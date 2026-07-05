@@ -41,13 +41,13 @@ class PlannerGate:
     
     @staticmethod
     def check(planner_output: Dict[str, Any]) -> GateResult:
-        from .planner_output import PlannerOutput
+        from ..pipeline_designer import PipelinePlan
         
         issues = []
         
-        # 1. Pydantic Schema
+        # 1. Pydantic Schema (unified: PipelinePlan replaces PlannerOutput)
         try:
-            PlannerOutput.model_validate(planner_output)
+            PipelinePlan.model_validate(planner_output)
         except ValidationError as e:
             return GateResult(passed=False, issues=[f"Schema 验证失败: {e}"])
         
@@ -58,6 +58,7 @@ class PlannerGate:
         
         # 3. DAG 无环（Kahn 拓扑排序）
         roles = [w["role"] for w in workers]
+        roles_set = set(roles)
         deps_map = {w["role"]: w.get("depends_on", []) for w in workers}
         in_deg = {r: 0 for r in roles}
         for r, deps in deps_map.items():
@@ -76,6 +77,38 @@ class PlannerGate:
                         queue.append(r)
         if visited != len(roles):
             return GateResult(passed=False, issues=["依赖图存在环"])
+        
+        # 3.5 depends_on 引用有效性（契约笼子：引用不存在的 Worker = 运行时崩溃）
+        for w in workers:
+            for dep in w.get("depends_on", []):
+                if dep not in roles_set:
+                    issues.append(
+                        f"Worker '{w['role']}' depends_on '{dep}' 不存在于 Worker 列表中"
+                    )
+        
+        # 3.6 input-output 接口兼容性（确定性 Layer 1）
+        # 收集每个 Worker 的 interface_provides
+        provides_map: Dict[str, set] = {}
+        for w in workers:
+            provides_map[w["role"]] = set(w.get("interface_provides", []))
+        
+        for w in workers:
+            deps = w.get("depends_on", [])
+            requires = w.get("interface_requires", [])
+            # 向后兼容：空 requires 或空 deps 跳过
+            if not requires or not deps:
+                continue
+            # 收集所有直接依赖的 interface_provides 并集
+            dep_provides: set = set()
+            for dep in deps:
+                dep_provides.update(provides_map.get(dep, set()))
+            # 检查每个 require 是否被依赖的 provides 覆盖
+            for req in requires:
+                if req not in dep_provides:
+                    issues.append(
+                        f"Worker '{w['role']}' 需要接口 '{req}' "
+                        f"但依赖 {deps} 的 interface_provides 均未提供"
+                    )
         
         # 4. 约束引用非空
         for w in workers:
@@ -237,6 +270,29 @@ class InformationConservationGate:
             ]
         ship_wps = ship_package.get('work_packages', [])
         
+        # 契约笼子：提取 semantic_anchors 纳入信息守恒检查
+        sol_anchors = solution_pro_output.get('semantic_anchors', [])
+        anchor_names = [a.get('name', '?') for a in sol_anchors] if sol_anchors else []
+        ship_anchor_coverage = ship_package.get('anchor_coverage', {})
+        ship_anchors_preserved = ship_package.get('semantic_anchors', [])
+        
+        anchors_section = ""
+        if anchor_names:
+            # 检查哪些 anchor 被 WP 引用了
+            ship_wp_anchors = set()
+            for wp in ship_wps:
+                for a in wp.get('anchored_to', []):
+                    ship_wp_anchors.add(a)
+            uncovered_anchors = set(anchor_names) - ship_wp_anchors
+            anchors_section = f"""
+
+## Semantic Anchors（{len(anchor_names)} 个 — 契约笼子强制检查）
+上游 anchors: {json.dumps(anchor_names, ensure_ascii=False)}
+Ship Package 保留: {json.dumps([a.get('name','?') for a in ship_anchors_preserved], ensure_ascii=False)}
+被 WP 引用的 anchors: {json.dumps(sorted(ship_wp_anchors), ensure_ascii=False)}
+未被引用的 anchors: {json.dumps(sorted(uncovered_anchors), ensure_ascii=False)}
+"""
+        
         return f"""你是一个信息守恒验证专家。判断 Ship Package 是否保留了 Solution Pro 的完整意图。
 
 ## Solution Pro 关键决策（{len(sol_decisions)} 个）
@@ -246,13 +302,13 @@ class InformationConservationGate:
 {json.dumps(sol_components, ensure_ascii=False)}
 
 ## Solution Pro 需求（{len(sol_requirements)} 个）
-{json.dumps([r.get('description', r.get('id', str(r)[:60]))[:80] for r in sol_requirements[:15]], ensure_ascii=False)}
+{json.dumps([r.get('description', r.get('id', str(r)[:60]))[:80] for r in sol_requirements[:15]], ensure_ascii=False)}{anchors_section}
 
 ## Ship Package 摘要
 工作包数: {len(ship_wps)}
 标题: {json.dumps([wp.get('title','') for wp in ship_wps], ensure_ascii=False)}
-依赖边数: {len(ship_package.get('dependencies', []))}
-延迟需求: {json.dumps(ship_package.get('metadata', {}).get('pending_req_ids', []), ensure_ascii=False)}
+依赖边数: {len(ship_package.get('dependency_graph', {{}}).get('edges', []))}
+延迟需求: {json.dumps(ship_package.get('metadata', {{}}).get('pending_req_ids', []), ensure_ascii=False)}
 
 ## 判断标准
 1. 决策保持：每个关键决策必须有对应工作包实现
@@ -260,6 +316,7 @@ class InformationConservationGate:
 3. 需求保持：每个覆盖需求必须有对应工作包语义覆盖（不要求字面匹配）
 4. 信息新增：不允许引入 Solution Pro 没有的功能
 5. 延迟需求：pending_req_ids 必须在 metadata 中显式记录
+6. **Semantic Anchor 守恒**：每个上游 anchor 必须出现在 ship_package.semantic_anchors 中，且至少被一个 WP 的 anchored_to 引用。未引用的 anchor = 信息丢失。
 
 ## 输出 JSON
 {{"passed": true/false, "issues": ["..."], "conservation_rate": 0.0-1.0}}
@@ -275,7 +332,7 @@ class CompletenessGate:
     """
     G2: 完整性验证
     
-    V7 变更：支持双模式
+    变更：支持双模式
     - 有 judge_results["completeness"] → LLM Judge 语义验证（优先）
     - 无 judge_results → 回退到 REQ-ID 字符串匹配（向后兼容）
     """
@@ -297,7 +354,7 @@ class CompletenessGate:
     def check(solution_pro_output: Dict[str, Any],
               planner_output: Dict[str, Any],
               judge_results: Dict[str, Any] = None) -> GateResult:
-        # V7: 优先使用 LLM Judge 语义验证
+        # 优先使用 LLM Judge 语义验证
         if judge_results and "completeness" in judge_results:
             verdict = judge_results["completeness"]
             passed = verdict.get("passed", False)
@@ -313,7 +370,7 @@ class CompletenessGate:
             }
             return GateResult(passed=passed, issues=issues, details=details)
         
-        # V6 回退模式：REQ-ID 字符串匹配
+        # 回退模式：REQ-ID 字符串匹配
         req_ids = CompletenessGate._extract_req_ids(solution_pro_output)
         covered = CompletenessGate._extract_covered(planner_output)
         missing = set(req_ids) - set(covered)
@@ -345,7 +402,7 @@ class CompletenessGate:
 # ============================================================================
 
 class HarnessV3:
-    """G3: Harness V3 验证"""
+    """G3: Harness 验证"""
     
     @staticmethod
     def check(ship_package: Dict[str, Any],
@@ -385,7 +442,7 @@ class HarnessV3:
     
     @staticmethod
     def build_judge_prompt(ship_package: Dict[str, Any]) -> str:
-        """构建 Harness V3 Judge prompt（Step 1）"""
+        """构建 Harness Judge prompt（Step 1）"""
         wps = ship_package.get('work_packages', [])
         summaries = [
             {"id": wp.get('id'), "title": wp.get('title',''),
@@ -393,7 +450,7 @@ class HarnessV3:
              "deps": len(wp.get('dependencies',[]))}
             for wp in wps[:20]
         ]
-        return f"""你是一个工程验证专家。验证 Ship Package 是否满足 Harness V3 标准。
+        return f"""你是一个工程验证专家。验证 Ship Package 是否满足 Harness 标准。
 
 ## 摘要
 WP 数: {len(wps)}

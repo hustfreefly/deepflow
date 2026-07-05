@@ -1,6 +1,6 @@
 ---
 id: spec_pro/guide
-version: "2.2.0"
+version: "2.0.0"
 component: spec_pro
 role: questioner
 updated: "2026-06-03"

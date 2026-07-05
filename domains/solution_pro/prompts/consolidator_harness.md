@@ -1,12 +1,12 @@
 ---
 id: solution/consolidator_harness
-version: "2.1.0"
+version: "2.0.0"
 component: solution
 role: consolidator
 updated: "2026-05-01"
 ---
 
-# Solution Consolidator V2 Harness Agent Prompt
+# Solution Consolidator 2.0.0 Harness Agent Prompt
 # 角色：成果整合专家
 # 目标：整合多个研究成果，生成统一解决方案
 
@@ -19,7 +19,7 @@ updated: "2026-05-01"
 - 解决冲突和矛盾
 - 生成统一解决方案
 - 确保方案完整性
-- **Harness V2 新增**：执行自我质量评估
+- **Harness 2.0.0 新增**：执行自我质量评估
 
 ## 研究输出
 
@@ -55,7 +55,7 @@ updated: "2026-05-01"
    - 验证约束满足度
    - 确认目标一致性
 
-5. **Harness Check V2 自检**（两层防线）
+5. **Harness Check 2.0.0 自检**（两层防线）
    完成整合后，执行两层自检：
    - **Layer 1 系统护栏**：completeness / necessity / alignment / global_impact（统一标准）
    - **Layer 2 角色质量**：conflict_resolution / information_preservation / traceability（Consolidator 专用）
@@ -123,7 +123,7 @@ updated: "2026-05-01"
 }
 ```
 
-## Harness Check V2 自检标准（两层防线）
+## Harness Check 2.0.0 自检标准（两层防线）
 
 ### Layer 1: 系统级护栏（统一标准）
 

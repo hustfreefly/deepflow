@@ -31,7 +31,7 @@
 | 怎么运行测试？ | 5-测试覆盖地图.md → 一键运行 |
 | 数据丢了怎么恢复？ | 6-恢复手册.md |
 | merge_spec 的签名？ | 2-域详解.md → 1.2 merge_spec.py |
-| Harness V2 评估什么？ | 2-域详解.md → 1.3 Harness V2 |
+| Harness 2.0.0 评估什么？ | 2-域详解.md → 1.3 Harness 2.0.0 |
 | Solution Pro 有几个阶段？ | 2-域详解.md → 2. 10 阶段管线 |
 | Ship Pro 质量门控？ | 2-域详解.md → 3. 质量门控 |
 
@@ -102,7 +102,7 @@ print('✅ 关键函数存在')
 ┌─────────────────────────────────────────────────────────────┐
 │  Spec Pro (需求规格域)                                       │
 │  ─────────────────────                                       │
-│  Coordinator → ResponseWorker → merge_spec → Harness V2    │
+│  Coordinator → ResponseWorker → merge_spec → Harness 2.0.0    │
 │                                                              │
 │  输出: LivingSpec (需求规格)                                 │
 └────────────────────────┬────────────────────────────────────┘
@@ -139,7 +139,7 @@ ResponseWorker 提取需求
    ↓
 merge_spec.py → LivingSpec
    ↓
-Harness V2 评估 → PASS?
+Harness 2.0.0 评估 → PASS?
    ↓ (是)
 Solution Pro 10 阶段管线
    ↓

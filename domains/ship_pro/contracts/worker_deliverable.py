@@ -1,5 +1,5 @@
 """
-Ship Pro V8 - Worker Deliverable Schema
+Ship Pro - Worker Deliverable Schema
 
 Phase 2 Worker 的输出定义。
 遵循 AI Native 原则：
@@ -53,6 +53,13 @@ class WorkPackage(BaseModel):
     covered_req_ids: List[str] = Field(
         default_factory=list,
         description="本 WP 覆盖的需求 ID 列表（可选，用于信息守恒验证）"
+    )
+    
+    anchored_to: List[str] = Field(
+        default_factory=list,
+        description="本 WP 遵循的 Semantic Anchor 名称列表（契约笼子：信息守恒反馈字段）。"
+                    "Worker 必须从 context.json 的 semantic_anchors 中选取与本 WP 相关的 anchor name。"
+                    "空列表 = 未引用任何上游约束，Consolidator/Gate 将标记为 WARNING。"
     )
     
     deliverables: List[str] = Field(

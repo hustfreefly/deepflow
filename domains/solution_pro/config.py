@@ -1,15 +1,15 @@
 """
 配置管理，动态加载 config/solution.yaml
 
-Version: 2.1.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-01
 """
 
 """
-V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
-V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
-Do not import this file for new V2 workflows.
+This file is part of pipeline (10-stage architecture).
+uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new workflows.
 """
 
 """Solution Pro 配置管理"""

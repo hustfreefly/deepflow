@@ -1,6 +1,6 @@
 ---
 id: solution/reviewqc_module
-version: "4.0.0"
+version: "2.0.0"
 component: solution
 updated: "2026-06-30"
 status: active
@@ -8,7 +8,7 @@ status: active
 
 # ReviewQC Module 执行器 (Depth-2)
 
-> ⚠️ **DEPRECATED**: V2 管线已用 Summary 模块替代 ReviewQC。此文件仅保留用于已有 V1 session 续跑。新 session 请使用 `summary_module.md`。
+> ⚠️ **DEPRECATED**: 2.0.0 管线已用 Summary 模块替代 ReviewQC。此文件仅保留用于已有 2.0.0 session 续跑。新 session 请使用 `summary_module.md`。
 
 你是 ReviewQC 模块的**执行器**。确保所有 3 个 Stage 完成并写入 Blackboard。
 

@@ -1,21 +1,30 @@
+---
+name: solution-pro
+description: "DeepFlow Solution Pro — 解决方案设计引擎。触发：设计解决方案、架构设计、技术方案。"
+version: "2.0.0"
+---
+
 # Solution Pro — Agent 执行指南
 
-> **版本**: V5.1 | **最后更新**: 2026-07-01  
+> **版本**: 2.0.0 | **最后更新**: 2026-07-05（契约笼子修复）  
 > **架构**: Orchestrator → Planning（三层）+ Research（多专家并行）+ Summary（5+1 Phase 收敛）  
-> **V1 架构**: 固定多阶段管线方案（已归档，仅用于已有 session 续跑）  
-> **V3 改进**: 基于 E2E V3 质量评估，新增研究利用追踪 + Finding Ledger + 6 个确定性检查
+> **2.0.0 架构**: 固定多阶段管线方案（已归档，仅用于已有 session 续跑）  
+> **2.0.0 改进**: 基于 E2E 2.0.0 质量评估，新增研究利用追踪 + Finding Ledger + 6 个确定性检查
 
 ---
 
-## 📌 V1/V2 版本选择指南
+## 📌 入口函数说明（契约笼子 2026-07-05）
 
-| 场景 | 选择 | 说明 |
+| 函数 | 版本 | 说明 |
 |------|------|------|
-| 新建 session | **V2（默认）** | 三层架构，AI Native 合规 |
-| 已有 V1 session 续跑 | V1 | 读取 `.stage_progress.json` 确认阶段，从断点继续 |
-| 不确定 | V2 | V2 是未来方向，V1 仅维护 |
+| `run_solution_pro(user_input, **kwargs)` | **2.0.0（默认）** | 三模块架构，AI Native 合规 |
+| `run_solution_pro_v1(topic, **kwargs)` | 2.0.0（兼容） | 10 阶段管线，仅供已有 session 续跑 |
 
-**判断方法**：检查 `blackboard/<session_id>/master_state.json` 是否存在。存在 = V2 session。
+> ⚠️ **2.0.0 已降级为兼容入口**。新流程统一使用 `run_solution_pro()`（2.0.0）。
+> 2.0.0 通过 `scripts/start_solution_pro.py` 自动调用，无需直接使用。
+> 
+> **Blackboard 路径**：2.0.0 和 2.0.0 统一写入 `.deepflow/blackboard/{session_id}/`，
+> 确保 Ship Pro 能从统一路径读取。
 
 ---
 
@@ -54,7 +63,7 @@ MasterOrchestrator（极简调度器，不做语义判断）
 
 ---
 
-## 🚀 主 Agent 执行步骤（V2）
+## 🚀 主 Agent 执行步骤（2.0.0）
 
 ### Step 0: 准备 Frozen Spec
 
@@ -195,7 +204,7 @@ sessions_yield()
 
 ---
 
-## 🔄 V2 完整执行流程
+## 🔄 2.0.0 完整执行流程
 
 ### Module 1: Planning（三层架构）
 
@@ -316,7 +325,7 @@ blackboard/<session_id>/
 │   ├── fix_loop_state.json           # Fix Loop 状态
 │   └── information_contract.json     # 信息守恒契约
 │
-├── v2/                               # V2 专属状态（与 V1 隔离）
+├── v2/                               # 2.0.0 专属状态（与 2.0.0 隔离）
 │   ├── master_state.json             # Master 模块级完成状态
 │   ├── planning_output.json          # Planning 模块输出
 │   ├── research_output.json          # Research 模块输出
@@ -337,7 +346,7 @@ blackboard/<session_id>/
 
 ## 📋 Prompt 文件清单
 
-### V2 使用
+### 2.0.0 使用
 
 | Prompt | 模块 | 用途 |
 |--------|------|------|
@@ -364,29 +373,29 @@ blackboard/<session_id>/
 | `harness_scoring.md` | 通用 | Harness 评分逻辑 |
 | `auditor_harness.md` | 通用 | Auditor Harness 验证 |
 
-### V1 专用（仅用于已有 V1 session 续跑）
+### 2.0.0 专用（仅用于已有 2.0.0 session 续跑）
 
 | Prompt | 用途 |
 |--------|------|
-| `data_collection.md` | V1 Stage 1 需求收集 |
-| `planner.md` | V1 Stage 2 任务规划 |
-| `reviewer_business.md` | V1 Stage 3 业务评审 |
-| `reviewer_technical.md` | V1 Stage 3 技术评审 |
-| `reviewer_risk.md` | V1 Stage 3 风险评审 |
-| `designer.md` | V1 Stage 6 设计 |
-| `deliver.md` | V1 Stage 10 交付 |
-| `pipeline_orchestrator.md` | V1 Orchestrator 指令 |
-| `cron_watcher.md` | V1 Cron 巡检（已 deprecated） |
+| `data_collection.md` | 2.0.0 Stage 1 需求收集 |
+| `planner.md` | 2.0.0 Stage 2 任务规划 |
+| `reviewer_business.md` | 2.0.0 Stage 3 业务评审 |
+| `reviewer_technical.md` | 2.0.0 Stage 3 技术评审 |
+| `reviewer_risk.md` | 2.0.0 Stage 3 风险评审 |
+| `designer.md` | 2.0.0 Stage 6 设计 |
+| `deliver.md` | 2.0.0 Stage 10 交付 |
+| `pipeline_orchestrator.md` | 2.0.0 Orchestrator 指令 |
+| `cron_watcher.md` | 2.0.0 Cron 巡检（已 deprecated） |
 
 ---
 
 ## 📐 Schema 文件清单
 
-### V2 Schema（`schemas/schemas.py`）
+### 2.0.0 Schema（`schemas/schemas.py`）
 
 | Schema | 用途 | 对应 Stage |
 |--------|------|-----------|
-| `V2BaseSchema` | 基类（schema_version + timestamp） | 所有 V2 Stage |
+| `V2BaseSchema` | 基类（schema_version + timestamp） | 所有 2.0.0 Stage |
 | `ExpertManifestSchema` | Meta-Planner 专家清单 | meta_planning |
 | `ExpertPlanSchema` | Expert Planner 输出 | expert_plans/* |
 | `UnifiedConstraintsSchema` | 统一约束集 | unified_constraints |
@@ -397,15 +406,15 @@ blackboard/<session_id>/
 | `ResearchConvergenceSchema` | Research 收敛点 | research_convergence |
 | `DegradedFinalConvergenceSchema` | 降级最终收敛 | final_convergence (degraded) |
 
-### V1 Schema（保留向后兼容）
+### 2.0.0 Schema（保留向后兼容）
 
-V1 Schema 定义在 `task_builder.py` 中的 `STAGE_OUTPUT_SCHEMA`，此处不重复。
+2.0.0 Schema 定义在 `task_builder.py` 中的 `STAGE_OUTPUT_SCHEMA`，此处不重复。
 
 ---
 
-## 🔄 断点续跑（V2）
+## 🔄 断点续跑（2.0.0）
 
-V2 使用双层 State 验证：
+2.0.0 使用双层 State 验证：
 - `master_state.json`: 模块级完成状态
 - `v2/{module}_output.json`: 模块输出文件
 
@@ -464,15 +473,15 @@ except:
 # ❌ 主 Agent exec 阻塞轮询
 # ❌ cron job 忘记自杀（必须有三层退出保障）
 # ❌ 先发 cron remove 再发 message（顺序不能反）
-# ❌ V2 session 使用 V1 入口（from domains.solution import run_solution_pro）
-# ❌ 手动拼接 stage 路径（使用 BlackboardManager V6 API: read_stage/write_stage）
+# ❌ 2.0.0 session 使用 2.0.0 入口（from domains.solution import run_solution_pro）
+# ❌ 手动拼接 stage 路径（使用 BlackboardManager 2.0.0 API: read_stage/write_stage）
 ```
 
 ---
 
 ## 🎯 记忆锚点
 
-> "V2 三模块：Planning 三层、Research 多专家、ReviewQC Fix Loop"
+> "2.0.0 三模块：Planning 三层、Research 多专家、ReviewQC Fix Loop"
 > "Master 只做调度，不做语义判断"
 > "状态靠文件，不靠内存"
 > "双层验证：master_state.json + module_output.json"
@@ -483,15 +492,15 @@ except:
 
 ## 📖 参考文档
 
-- **V2 架构设计**: `blackboard/plan_pro_sp_v2_redesign/plan_v2_final.md`
-- **V2 开发计划**: `blackboard/plan_pro_sp_v2_redesign/development_plan_v2.md`
+- **2.0.0 架构设计**: `blackboard/plan_pro_sp_v2_redesign/plan_v2_final.md`
+- **2.0.0 开发计划**: `blackboard/plan_pro_sp_v2_redesign/development_plan_v2.md`
 - **代码文件索引**: 见 [_overview.md](_overview.md)
 - **Schema 契约**: 见 `schemas/schemas.py`
-- **V1 文档**: 见 `prompts/v1/pipeline_orchestrator.md`（V1 Orchestrator 指令）
+- **2.0.0 文档**: 见 `prompts/v1/pipeline_orchestrator.md`（2.0.0 Orchestrator 指令）
 
-## 🆕 V3 改进（2026-07-01）
+## 🆕 2.0.0 改进（2026-07-01）
 
-> **背景**: E2E V3 质量评估 (4 Agent 并行分析) 发现 5 个系统性缺陷
+> **背景**: E2E 2.0.0 质量评估 (4 Agent 并行分析) 发现 5 个系统性缺陷
 > **详细计划**: `IMPROVEMENT_PLAN_V3.md`
 
 | Fix | 描述 | 文件 | 状态 |
@@ -502,4 +511,4 @@ except:
 | Fix 2 | Python-only 控制器 | master_orchestrator.py | 📋 |
 | Fix 3 | 独立 Verification Module | 新增 | 📋 |
 
-*V5.1 | 2026-07-01 | V2 三层架构 + V3 改进（研究追踪 + Finding Ledger + 确定性检查）*
+*2.0.0 | 2026-07-01 | 2.0.0 三层架构 + 2.0.0 改进（研究追踪 + Finding Ledger + 确定性检查）*

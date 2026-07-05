@@ -5,7 +5,7 @@
 
 ## 📦 BlackboardManager 使用指南
 
-所有数据读写都通过 BlackboardManager V6 API，禁止直接构造文件路径。
+所有数据读写都通过 BlackboardManager 2.0.0 API，禁止直接构造文件路径。
 
 ```python
 import sys; sys.path.insert(0, '/deepflow/workspace')

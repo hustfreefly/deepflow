@@ -84,7 +84,7 @@ def run_analysis(code: str, name: str, industry: str = "半导体制造", force_
                 "runtime": "subagent",
                 "mode": "run",
                 "label": f"orchestrator_{session_id}",
-                "task": f"""你是 DeepFlow V4.0 Orchestrator Agent。
+                "task": f"""你是 DeepFlow Orchestrator Agent。
 
 请执行以下步骤完成投资分析管线：
 

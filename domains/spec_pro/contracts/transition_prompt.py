@@ -3,7 +3,7 @@
 
 用于 Spec Pro → Solution Pro、Solution Pro → Ship Pro、Ship Pro 完成三个过渡点的引导词数据验证。
 
-设计原则（来自专家评审 V3）：
+设计原则：
 1. 数据生成 vs 展示渲染分离
 2. 使用 quality.level（S/A/B/C）而非硬编码阈值
 3. 所有字段可选（Optional），适应不同过渡点的数据需求

@@ -1,14 +1,14 @@
-"""Unified Solution Pro harness scoring contract."""
-
-"""
-V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
-V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
-Do not import this file for new V2 workflows.
-"""
-
 from __future__ import annotations
 
 from typing import Dict, List
+
+"""Unified Solution Pro harness scoring contract."""
+
+"""
+This file is part of pipeline (10-stage architecture).
+uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new workflows.
+"""
 
 
 SCORING_DIMENSIONS = {

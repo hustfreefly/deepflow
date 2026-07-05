@@ -1,6 +1,6 @@
 ---
 id: deepflow_cleanup_v1.0
-version: "1.0.0"
+version: "2.0.0"
 created: "2026-06-30"
 status: active
 module: deepflow_root
@@ -9,7 +9,7 @@ type: cleanup_contract
 
 # DeepFlow 根目录清理 + 基础设施统一契约
 
-> 来源：V1→V2 审计后，人类 SE 视角判定"需要修"（#3-5）+ "顺手修"（#6-9）
+> 来源：2.0.0→2.0.0 审计后，人类 SE 视角判定"需要修"（#3-5）+ "顺手修"（#6-9）
 
 ## 铁律（MUST）
 

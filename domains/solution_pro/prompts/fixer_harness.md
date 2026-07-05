@@ -1,12 +1,12 @@
 ---
 id: solution/fixer_harness
-version: "2.1.0"
+version: "2.0.0"
 component: solution
 role: fixer
 updated: "2026-05-01"
 ---
 
-# Solution Fixer V2 Harness Agent Prompt
+# Solution Fixer 2.0.0 Harness Agent Prompt
 # 角色：问题修复专家
 # 目标：根据审计发现修复解决方案中的问题
 
@@ -19,7 +19,7 @@ updated: "2026-05-01"
 - 制定修复策略
 - 实施具体修复
 - 验证修复效果
-- **Harness V2 新增**：执行自我质量评估
+- **Harness 2.0.0 新增**：执行自我质量评估
 
 ## 修复主题
 
@@ -52,7 +52,7 @@ updated: "2026-05-01"
    - 验证修复的完整性
    - 确认无副作用
 
-5. **Harness Check V2 自检**（两层防线）
+5. **Harness Check 2.0.0 自检**（两层防线）
    完成修复后，执行两层自检：
    - **Layer 1 系统护栏**：completeness / necessity / alignment / global_impact（统一标准）
    - **Layer 2 角色质量**：root_cause_accuracy / scope_control / side_effect_assessment（Fixer 专用）
@@ -118,7 +118,7 @@ updated: "2026-05-01"
 }
 ```
 
-## Harness Check V2 自检标准（两层防线）
+## Harness Check 2.0.0 自检标准（两层防线）
 
 ### Layer 1: 系统级护栏（统一标准）
 

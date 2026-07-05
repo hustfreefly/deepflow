@@ -1,11 +1,11 @@
-# Ship Pro AI Native 改造方案 V3
+# Ship Pro AI Native 改造方案 2.0.0
 
 > **日期**: 2026-06-25  
-> **版本**: V3（基于 V2 + 第二轮 4 位专家评审 17 个 P2 全部修复）  
+> **版本**: 2.0.0（基于 2.0.0 + 第二轮 4 位专家评审 17 个 P2 全部修复）  
 > **作者**: 小满（AI Agent）  
 > **决策者**: 姬忠礼  
 > **状态**: 待第三轮专家评审（3 位新专家）  
-> **V2 备份**: `SHIP_PRO_AI_NATIVE_PROPOSAL_V2.md`  
+> **2.0.0 备份**: `SHIP_PRO_AI_NATIVE_PROPOSAL_V2.md`  
 > **P2 修复追踪**: `P2_FIXES_V3.md`
 
 ---
@@ -14,7 +14,7 @@
 
 ### 1.1 当前问题
 
-Ship Pro V3/V4 存在根本性问题：**架构不是 AI Native**。
+Ship Pro 2.0.0/2.0.0 存在根本性问题：**架构不是 AI Native**。
 
 | 维度 | 当前实现 | 忠礼决策（2026-06-25 研讨会） |
 |------|---------|---------------------------|
@@ -29,9 +29,9 @@ Ship Pro V3/V4 存在根本性问题：**架构不是 AI Native**。
 > "全 LLM 控制，Python 不做控制流"  
 > "一步到位，不分阶段演进"
 
-### 1.3 V1 → V2 核心改进（基于专家评审）
+### 1.3 2.0.0 → 2.0.0 核心改进（基于专家评审）
 
-| 评审问题 | V1 | V2 修复 |
+| 评审问题 | 2.0.0 | 2.0.0 修复 |
 |---------|-----|---------|
 | 可靠性裸奔 | 重试/超时全靠 prompt | Python 护栏命令（check-retry-limit, check-budget） |
 | cwd 踩坑未规避 | spawn_params 无 cwd | 所有 spawn 强制 cwd + PYTHONPATH |
@@ -76,7 +76,7 @@ Ship Pro V3/V4 存在根本性问题：**架构不是 AI Native**。
 
 ## 三、io_helper.py 完整设计
 
-### 3.1 命令清单（16 个命令） <!-- V3 FIX #1 -->
+### 3.1 命令清单（16 个命令） <!-- 2.0.0 FIX #1 -->
 
 | 命令 | 类型 | 用途 |
 |------|------|------|
@@ -99,7 +99,7 @@ Ship Pro V3/V4 存在根本性问题：**架构不是 AI Native**。
 
 ### 3.2 护栏命令详细设计
 
-> **V3 新增：io_helper.py 文件头强化约束** <!-- V3 FIX #9 -->
+> **2.0.0 新增：io_helper.py 文件头强化约束** <!-- 2.0.0 FIX #9 -->
 > ```python
 > #!/usr/bin/env python3
 > """
@@ -133,7 +133,7 @@ python3 io_helper.py check-retry-limit <output_dir> <stage>
 ```
 
 **逻辑**：
-- 从 `stage-dependencies.json` 读取该阶段的 `max_retries` 字段（**不可被 Orchestrator 覆盖**，防止绕过） <!-- V3 FIX #15（可靠性专家） -->
+- 从 `stage-dependencies.json` 读取该阶段的 `max_retries` 字段（**不可被 Orchestrator 覆盖**，防止绕过） <!-- 2.0.0 FIX #15（可靠性专家） -->
 - 从 `pipeline_state.json` 读取该阶段的 `retry_count`
 - 比较 retry_count vs max_retries，返回是否允许重试
 
@@ -175,7 +175,7 @@ python3 io_helper.py validate-quality <stage> <output_dir>
 
 **逻辑**：调用保留的 Python gate 函数（gate_architect, gate_decomposer 等），做语义级校验。
 
-**与 validate-format、LLM 评估的分工（三层验证）**： <!-- V3 FIX #4 -->
+**与 validate-format、LLM 评估的分工（三层验证）**： <!-- 2.0.0 FIX #4 -->
 | 层 | 命令 | 职责 | 性质 |
 |---|------|------|------|
 | 1 | `validate-format` | Pydantic 检查字段类型/必填/枚举 | **硬约束**（格式正确性） |
@@ -184,7 +184,7 @@ python3 io_helper.py validate-quality <stage> <output_dir>
 
 **互补关系**：gate 函数负责"结构是否正确"，LLM 评估负责"内容是否合理"，两者不冲突。
 
-**未知 stage 的容错处理**： <!-- V3 FIX #10 -->
+**未知 stage 的容错处理**： <!-- 2.0.0 FIX #10 -->
 - 如果 Orchestrator 自创了一个不在 `stage-dependencies.json` 中的阶段名，`validate-quality` 不会报错
 - 返回：`{"pass": null, "warning": "no gate_fn defined for stage '<stage>', fallback to format-only validation"}`
 - Orchestrator 可继续执行，但需在 decisions.jsonl 中记录"跳过 quality 校验"的原因
@@ -252,7 +252,7 @@ python3 io_helper.py resume-context <output_dir>
 
 Orchestrator prompt 中要求：**启动时必须先调用 resume-context，如果有未完成阶段，从断点继续**。
 
-**文件扫描 + 自动修正状态（V3 新增）**： <!-- V3 FIX #16 -->
+**文件扫描 + 自动修正状态（2.0.0 新增）**： <!-- 2.0.0 FIX #16 -->
 - resume-context 不仅读 `pipeline_state.json`，还扫描 `blackboard/` 目录的实际输出文件
 - 如果发现某阶段有输出文件（如 `blackboard/architect/architect_output.json`）但 `pipeline_state.json` 状态未更新（仍为 `pending`），自动修正为 `done`
 - 输出中增加 `state_corrections: [{stage: "architect", from: "pending", to: "done", reason: "output file exists"}]`
@@ -275,19 +275,19 @@ Watcher 用 .heartbeat 判断 Orchestrator 是否存活（而非仅依赖文件�
 python3 io_helper.py compact-history <output_dir>
 ```
 
-**实现机制（V3 明确）**： <!-- V3 FIX #2 -->
+**实现机制（2.0.0 明确）**： <!-- 2.0.0 FIX #2 -->
 - **纯提取 + 结构化 JSON**，不调用额外 LLM
 - Orchestrator 自身就是 LLM，可直接阅读结构化摘要，无需再生成自然语言摘要
 - 所有字段值直接从 blackboard 输出文件中提取（读取 JSON，不截断）
 
-**摘要策略（V3 改进）**： <!-- V3 FIX #11 -->
+**摘要策略（2.0.0 改进）**： <!-- 2.0.0 FIX #11 -->
 - ~~前 500 字符~~ → 改为 **schema 字段列表 + 字段值完整列表**
 - io_helper 负责提取所有字段和值，不做截断
 - 截断策略由 Orchestrator 在 prompt 中控制（如上下文紧张时，Orchestrator 自行决定保留哪些字段的完整值）
 - 确保关键字段（如架构原则、模块覆盖率）不丢失
 - 失败场景下，保留所有失败阶段的完整记录（详见下方）
 
-**失败细节保留策略（V3 新增）**： <!-- V3 FIX #14 -->
+**失败细节保留策略（2.0.0 新增）**： <!-- 2.0.0 FIX #14 -->
 - 所有 `gate_fail` 和 `gate_conditional` 状态的阶段：**完整保留**失败记录（error message、stack trace、retry 历史）
 - `gate_pass` 状态的早期阶段：压缩为 `{stage, fields_summary, key_metrics}` 结构化摘要
 - 按状态筛选而非按位置筛选——确保所有失败教训都不丢失
@@ -389,17 +389,17 @@ Orchestrator 每完成 2 个阶段后调用一次，用摘要替代完整历史�
 - `check-retry-limit`：读取每个阶段的 `max_retries` 作为代码强制上限（不可被 Orchestrator 覆盖）
 - `validate-quality`：读取每个阶段的 `gate_fn` 字段，映射到对应的 Python gate 函数
 
-**并行写入安全备注（V3 新增）**： <!-- V3 FIX #13 -->
+**并行写入安全备注（2.0.0 新增）**： <!-- 2.0.0 FIX #13 -->
 > 当前依赖图是树状结构，can-parallel 确保不会有并发写入同一文件。若未来依赖图复杂化（两个并行阶段写同一共享文件），需引入 blackboard 文件级 `.lock` 机制。**TODO: 当出现此类场景时再实现。**
 
 ---
 
-## 五、Orchestrator Prompt 设计（V2）
+## 五、Orchestrator Prompt 设计（2.0.0）
 
 ### 5.1 完整 Prompt
 
 ```markdown
-# Ship Pro Orchestrator（AI Native V2）
+# Ship Pro Orchestrator（AI Native 2.0.0）
 
 你是 Ship 打包管线的 Orchestrator。你的任务是：将 Living Spec 转化为可交付的 Ship Package。
 
@@ -435,7 +435,7 @@ sessions_spawn(
 )
 ```
 
-> **V3 改进**：`cwd` 使用 `$DEEPFLOW_HOME` 环境变量（由 `start_ship_pro.py` 注入），不再硬编码 `/Users/allen/...`，提高可移植性。 <!-- V3 FIX #8 -->
+> **2.0.0 改进**：`cwd` 使用 `$DEEPFLOW_HOME` 环境变量（由 `start_ship_pro.py` 注入），不再硬编码 `/Users/allen/...`，提高可移植性。 <!-- 2.0.0 FIX #8 -->
 
 ## 阶段依赖图（参考，非硬约束）
 
@@ -513,11 +513,11 @@ architect (required)
 - Judge 评估维度：完整性、一致性、可行性、架构原则符合度、Schema 合规性
 - Judge 输出：`{"verdict": "pass|fail|conditional", "score": 85, "issues": [...]}`
 
-**Judge Worker 失败处理（V3 新增）**： <!-- V3 FIX #3, #12 -->
+**Judge Worker 失败处理（2.0.0 新增）**： <!-- 2.0.0 FIX #3, #12 -->
 - **Judge 输出 `verdict: fail`** → Orchestrator 根据 `issues` 列表定位问题阶段，重做该阶段，然后重新 spawn Judge
 - **Judge 输出 `verdict: conditional`** → Orchestrator 修复 `issues` 中标记为 `critical` 的问题，重新 spawn Judge
 - **Judge Worker 自身崩溃/超时/输出不合规** → Orchestrator 自行评估，但必须标记 `verdict: "self-assessed"`（非独立评估），并在 decisions.jsonl 中记录 "judge_worker_failed"
-- **Judge 评估 vs Python gate 交叉验证（强制）**： <!-- V3 FIX #17 -->
+- **Judge 评估 vs Python gate 交叉验证（强制）**： <!-- 2.0.0 FIX #17 -->
   - 如果 Judge 说 `pass` 但 `validate-quality` 对 packager 阶段报 `fail` → **以 validate-quality 为准**，判定为 `fail`
   - 原因：Judge 是 LLM，可能给出乐观评估；Python gate 是确定性校验，更可靠
 
@@ -554,9 +554,9 @@ architect (required)
 - **默认串行执行**（推荐，除非有明确性能需求）
 - 如需并行：`io_helper.py can-parallel <stage1> <stage2> <output_dir>`
 - 返回 `can_parallel: true` 才允许并行
-- **并行阶段数**：由 `can-parallel` 命令的返回结果决定，Orchestrator 不得手动绕过 can-parallel 的判断结果。多个阶段是否可并行，完全取决于 stage-dependencies.json 的依赖图 <!-- V3 FIX #6 -->
+- **并行阶段数**：由 `can-parallel` 命令的返回结果决定，Orchestrator 不得手动绕过 can-parallel 的判断结果。多个阶段是否可并行，完全取决于 stage-dependencies.json 的依赖图 <!-- 2.0.0 FIX #6 -->
 - **sessions_yield 语义明确**：多个 `sessions_spawn` 后，**一次 `sessions_yield()` 即可等待全部完成**（auto-announce 机制会逐个通知），禁止多次 yield
-- **并行失败处理策略（V3 明确）**： <!-- V3 FIX #15 -->
+- **并行失败处理策略（2.0.0 明确）**： <!-- 2.0.0 FIX #15 -->
   - 某个并行阶段失败时，**等待其他并行阶段全部完成**（不立即中断）
   - 已完成的并行阶段结果**保留**（不重做）
   - 仅重做失败阶段，重试前先 `check-retry-limit`
@@ -598,12 +598,12 @@ Pydantic Schema:
 将结果写入: {output_path}    ← io_helper.py 自动注入
 ```
 
-**与 V1 的区别**：
+**与 2.0.0 的区别**：
 - Worker Prompt 模板中 `{stage_name}` 不再预定义为 5 个固定阶段，Orchestrator 可以自创阶段名
 - `auto_injected_dependencies` 由 io_helper.py 基于 stage-dependencies.json 自动注入
 - `--context-file` 替代 `--context`（避免命令行参数过长）
 
-**`--context-file` 格式定义（V3 新增）**： <!-- V3 FIX #5 -->
+**`--context-file` 格式定义（2.0.0 新增）**： <!-- 2.0.0 FIX #5 -->
 - 文件类型：**JSON**（`.json`）
 - 字段结构：
   ```json
@@ -678,9 +678,9 @@ io_helper.py resume-context <output_dir>
 | `stage-dependencies.json` (新建) | 硬编码在 run_pipeline.py | 显式声明阶段依赖 |
 | Orchestrator prompt | "按固定列表循环" | 完整 AI Native prompt（见第五节） |
 | `start_ship_pro.py` | 生成固定 spawn_params | 精简：路径准备 + spawn_params（含 cwd）+ watcher payload |
-| `SKILL.md` V5.0 | V4.0 CLI 命令参考 | AI Native Orchestrator 指南 + 入口守卫 |
+| `SKILL.md` 2.0.0 | 2.0.0 CLI 命令参考 | AI Native Orchestrator 指南 + 入口守卫 |
 | `contracts/*.py` | Pydantic 模型 | 保留不改 |
-| Watcher | V3 AI Native | 保留不改 |
+| Watcher | 2.0.0 AI Native | 保留不改 |
 
 ---
 
@@ -692,9 +692,9 @@ io_helper.py resume-context <output_dir>
 |------|------|------|
 | 1 | 创建 `stage-dependencies.json` | 零 |
 | 2 | 从 `run_pipeline.py` 提取 I/O + 护栏 → `io_helper.py` | 低（纯提取） |
-| 3 | 写 Orchestrator prompt（V2 完整版） | 低 |
+| 3 | 写 Orchestrator prompt（2.0.0 完整版） | 低 |
 | 4 | 更新 `start_ship_pro.py`（含 cwd） | 低 |
-| 5 | 写 `SKILL.md` V5.0（含入口守卫） | 低 |
+| 5 | 写 `SKILL.md` 2.0.0（含入口守卫） | 低 |
 | 6 | 保留 `run_pipeline.py` 不删 | 零 |
 
 ### 8.2 入口守卫（SKILL.md Step 0）
@@ -706,7 +706,7 @@ io_helper.py resume-context <output_dir>
 - [ ] 你不是在直接写代码或修改文件
 - [ ] 你是在按 SKILL.md 的步骤启动管线
 - [ ] 你有正确的输入路径（Living Spec 或 final_result.json）
-- [ ] `openclaw config get maxSpawnDepth` ≥ 2（Orchestrator → Worker 需 2 层嵌套） <!-- V3 FIX #7 -->
+- [ ] `openclaw config get maxSpawnDepth` ≥ 2（Orchestrator → Worker 需 2 层嵌套） <!-- 2.0.0 FIX #7 -->
 - [ ] `DEEPFLOW_HOME` 环境变量已设置（默认 `~/.openclaw/workspace/.deepflow`）
 
 如果以上任一项不满足 → 停止，向用户确认。
@@ -721,16 +721,16 @@ io_helper.py resume-context <output_dir>
 | 3 | 多阶段串行 | 5 阶段全部完成，pipeline_state.json 正确 |
 | 4 | 断点恢复 | 中途 kill Orchestrator → 重启 → 从断点继续 |
 | 5 | 超时保护 | Orchestrator 超时 → 自动终止 → Watcher 超时告警 |
-| 6 | 回滚 | 切回 V4 → 正常运行 |
+| 6 | 回滚 | 切回 2.0.0 → 正常运行 |
 
 ### 8.4 回滚 SOP
 
 ```
 1. 停止 AI Native Orchestrator（如运行中）
-2. SKILL.md 切回 V4.0（git checkout）
-3. start_ship_pro.py 切回 V4 版本
+2. SKILL.md 切回 2.0.0（git checkout）
+3. start_ship_pro.py 切回 2.0.0 版本
 4. pipeline_state.json 增加 "version": "ai_native" 标记
-5. V4 prepare_pipeline --resume 模式：不清理已有阶段输出
+5. 2.0.0 prepare_pipeline --resume 模式：不清理已有阶段输出
 6. 重新运行
 ```
 
@@ -738,9 +738,9 @@ io_helper.py resume-context <output_dir>
 
 ## 九、评审改进追踪
 
-### V1 → V2（4 位专家，27/28 P0/P1 修复，96%）
+### 2.0.0 → 2.0.0（4 位专家，27/28 P0/P1 修复，96%）
 
-| V1 评审问题 | V2 修复 | 对应专家 |
+| 2.0.0 评审问题 | 2.0.0 修复 | 对应专家 |
 |------------|---------|---------|
 | Prompt 缺少阶段依赖图 | §5.1 注入依赖图 + can-parallel 命令 | AI Native |
 | Prompt 缺少质量评估维度 | §5.1 五维度质量标准 | AI Native |
@@ -763,9 +763,9 @@ io_helper.py resume-context <output_dir>
 | 阶段间数据依赖不透明 | stage-dependencies.json + 自动注入 | Pipeline |
 | .stage_progress.json 未提及 | 保留，确保 Watcher 兼容 | Pipeline |
 
-### V2 → V3（4 位专家，17 P2 + 1 P3 全部修复，100%）
+### 2.0.0 → 2.0.0（4 位专家，17 P2 + 1 P3 全部修复，100%）
 
-| V2 问题 | V3 修复 | 来源 |
+| 2.0.0 问题 | 2.0.0 修复 | 来源 |
 |---------|---------|------|
 | 命令数量不一致 | §3.1 标题改为 16 个 | 架构师 |
 | compact-history 实现未明确 | 纯提取 + 结构化 JSON | 架构师 |
@@ -794,7 +794,7 @@ io_helper.py resume-context <output_dir>
 - ❌ Spec Pro / Solution Pro AI Native 改造（独立域）
 - ❌ Dream Loop / Meta-Loop（后续，但 decisions.jsonl 提供数据基础）
 - ❌ Hermes / Codex 集成（后续）
-- ❌ Watcher 改造（已是 AI Native V3）
+- ❌ Watcher 改造（已是 AI Native 2.0.0）
 - ❌ Pydantic 模型重定义（保留现有）
 - ❌ 并行 blackboard 文件锁（当前树状依赖图无风险，待未来场景需要时再实现）
 

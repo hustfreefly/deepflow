@@ -1,10 +1,10 @@
-# Ship Pro V5 架构设计方案（评审后最终版 V5.1）
+# Ship Pro 2.0.0 架构设计方案（评审后最终版 2.0.0）
 
-> **版本**: V5.1.0
+> **版本**: 2.0.0
 > **日期**: 2026-06-27
 > **状态**: ✅ 评审通过，待实施
 > **评审**: 5 位专家综合评分 7.0/10，修正全部 P0 后预期 8.5/10
-> **前序**: V4.0（单 Agent，认知过载）→ V5.0 draft（评审）→ V5.1 final
+> **前序**: 2.0.0（单 Agent，认知过载）→ 2.0.0 draft（评审）→ 2.0.0 final
 
 ---
 
@@ -617,14 +617,14 @@ STAGE_PATH_REGISTRY_V5 = {
 
 复用现有 `contracts/` 目录，新增：
 - `contracts/v5_blueprint.py` → Blueprint 模型
-- `contracts/v5_ship_package.py` → ShipPackage V5 模型
+- `contracts/v5_ship_package.py` → ShipPackage 2.0.0 模型
 - `contracts/v5_reasoning_chain.py` → ReasoningChain 模型
 
 ---
 
 ## 九、质量目标
 
-| 指标 | V4 实际 | V5 目标 | 验证方式 |
+| 指标 | 2.0.0 实际 | 2.0.0 目标 | 验证方式 |
 |------|---------|---------|---------|
 | WP 数量变异系数 | 48% | <20% | ≥5 次运行统计 |
 | AC 数量变异系数 | 40% | <25% | ≥5 次运行统计 |

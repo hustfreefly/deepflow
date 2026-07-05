@@ -12,8 +12,8 @@ result = run_research_pro(
 )
 
 # result = {
-#     "session_id": str,
-#     "spawn_params": dict,  # 直接传给 sessions_spawn
+# "session_id": str,
+# "spawn_params": dict, # 直接传给 sessions_spawn
 # }
 ```
 

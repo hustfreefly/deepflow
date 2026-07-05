@@ -1,5 +1,5 @@
 """
-Ship Pro V8 - PipelineDesigner
+Ship Pro - PipelineDesigner
 
 职责：
 1. 分析 Solution Pro 输出，设计 Worker 拆分方案
@@ -28,7 +28,16 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 class WorkerSpec(BaseModel):
-    """PipelineDesigner 输出的单个 Worker 规格"""
+    """
+    PipelineDesigner 输出的单个 Worker 规格（统一 Schema）
+    
+    统一了原 PipelinePlan.WorkerSpec 和 contracts.PlannerOutput.WorkerSpec 两套协议。
+    字段说明：
+    - module_purpose: 模块目的（≥20 字），替代原 task_description
+    - covered_req_ids: 覆盖的 REQ-ID（semantic_anchors 追踪用）
+    - must_constraints: 从 Solution Pro 继承的 MUST 约束（gates 验证用）
+    - wp_id_prefix: WP ID 前缀（如 CORE-、LOOP-）
+    """
     role: str = Field(..., min_length=3, description="Worker 角色名称")
     module_purpose: str = Field(..., min_length=20, description="模块目的（≥20 字）")
     covered_req_ids: List[str] = Field(..., min_length=1, description="覆盖的 REQ-ID 列表")
@@ -39,6 +48,27 @@ class WorkerSpec(BaseModel):
     relevant_risks: List[str] = Field(default_factory=list, description="相关风险（≤3）")
     estimated_wps: int = Field(..., ge=3, le=12, description="预估 WP 数量 3-12")
     estimated_effort_hours: int = Field(..., ge=10, le=200, description="预估工时 10-200h")
+    # --- 从 PlannerOutput.WorkerSpec 合并的字段（gates/orchestrator 需要）---
+    must_constraints: List[str] = Field(
+        default_factory=list,
+        description="从 Solution Pro 继承的 MUST 约束描述（语义描述，非 ID）"
+    )
+    wp_id_prefix: str = Field(
+        default="WP",
+        description="WP ID 前缀（如 CORE-、LOOP-），所有该 Worker 生成的 WP ID 必须以此为前缀"
+    )
+    needs_web_search: bool = Field(
+        default=False,
+        description="是否需要 web search 权限"
+    )
+    web_search_scope: Optional[str] = Field(
+        default=None,
+        description="搜索范围描述（如有权限）"
+    )
+    solution_pro_refs: List[str] = Field(
+        default_factory=list,
+        description="引用的 Solution Pro 具体字段路径"
+    )
 
     @field_validator("relevant_decisions")
     @classmethod
@@ -87,6 +117,13 @@ class WorkerContext(BaseModel):
     interface_contracts: Dict[str, Any] = Field(default_factory=dict, description="接口契约")
     output_schema: Dict[str, Any] = Field(default_factory=dict, description="输出 Schema")
     output_example: Dict[str, Any] = Field(default_factory=dict, description="高质量 WP 示例")
+    # Semantic Anchors — 信息守恒实体，注入到每个 Worker 的 context.json
+    semantic_anchors: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="语义锚点（来自 Living Spec / Frozen Spec，全链路透传）。"
+                    "每条包含 name/category/constraint/source_quote，"
+                    "Worker 在 WP 描述中应语义引用相关锚点。"
+    )
 
 
 # ============================================================================
@@ -110,6 +147,31 @@ def validate_solution_pro_input(data: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(req, dict) or "id" not in req:
             raise ValueError(f"契约笼子: requirements[{i}] 缺少 'id' 字段")
     
+    # 契约笼子（2026-07-05 升级）：semantic_anchors 必须存在且类型正确
+    if "semantic_anchors" not in data:
+        raise ValueError(
+            f"契约笼子: frozen_spec 缺少 'semantic_anchors' 字段。\n"
+            f"  semantic_anchors 必须由 Solution Pro 从 living_spec 透传。\n"
+            f"  请确认 Solution Pro 的 build_frozen_spec() 已包含透传逻辑。"
+        )
+    if not isinstance(data["semantic_anchors"], list):
+        raise ValueError(
+            f"契约笼子: semantic_anchors 必须是 list，实际: {type(data['semantic_anchors']).__name__}"
+        )
+    # AI Native 契约笼子：空 semantic_anchors 不 raise 但标记降级
+    if len(data["semantic_anchors"]) == 0:
+        import warnings
+        warnings.warn(
+            "契约笼子: semantic_anchors 为空列表。"
+            "信息守恒降级 — Worker 将收到'无上游约束'提示。"
+            "请检查 Spec Pro 是否提取了 semantic_anchors。",
+            stacklevel=2,
+        )
+        data["_info_conservation_degraded"] = True
+        data["_degradation_reason"] = "semantic_anchors 为空列表"
+    else:
+        data["_info_conservation_degraded"] = False
+    
     return data
 
 
@@ -119,7 +181,7 @@ def validate_solution_pro_input(data: Dict[str, Any]) -> Dict[str, Any]:
 
 class PipelineDesigner:
     """
-    V8 PipelineDesigner
+    PipelineDesigner
     
     在 Python 内部调用 LLM，分析 Solution Pro 输出，设计 Worker 拆分方案。
     """
@@ -262,6 +324,24 @@ class PipelineDesigner:
         contexts = {}
         req_map = {r["id"]: r for r in solution_pro_input["requirements"]}
         
+        # Semantic Anchors 提取（全链路透传，不改语义）
+        # 从 Solution Pro 输出读取 semantic_anchors（主路，不允许旁路）
+        # validate_solution_pro_input() 已保证 semantic_anchors 存在且是 list
+        all_anchors = solution_pro_input["semantic_anchors"]
+        for i, anchor in enumerate(all_anchors):
+            if not isinstance(anchor, dict):
+                raise ValueError(
+                    f"契约笼子: semantic_anchors[{i}] 必须是 dict，实际: {type(anchor).__name__}"
+                )
+            if "name" not in anchor:
+                raise ValueError(
+                    f"契约笼子: semantic_anchors[{i}] 缺少 'name' 字段"
+                )
+            if "category" not in anchor:
+                raise ValueError(
+                    f"契约笼子: semantic_anchors[{i}] 缺少 'category' 字段"
+                )
+        
         # 契约笼子：REQ-ID 不重叠检查
         all_req_ids = []
         for worker in plan.workers:
@@ -295,6 +375,22 @@ class PipelineDesigner:
                 worker, solution_pro_input
             )
             
+            # Semantic Anchors 按需裁剪注入
+            # 核心约束（applicable_to == ['all']）广播
+            # 领域特定约束按 Worker role 裁剪
+            worker_anchors = []
+            if all_anchors:
+                core_anchors = [
+                    a for a in all_anchors
+                    if a.get("applicable_to", ["all"]) == ["all"]
+                ]
+                specific_anchors = [
+                    a for a in all_anchors
+                    if a.get("applicable_to", ["all"]) != ["all"]
+                    and worker.role in a.get("applicable_to", [])
+                ]
+                worker_anchors = core_anchors + specific_anchors
+            
             context = WorkerContext(
                 module_overview=worker.module_purpose,
                 module_reqs=module_reqs,
@@ -308,6 +404,7 @@ class PipelineDesigner:
                 },
                 output_schema=self._get_worker_schema_compact(),
                 output_example=self.HIGH_QUALITY_WP_EXAMPLE,
+                semantic_anchors=worker_anchors,
             )
             
             # 契约笼子：context 大小检查

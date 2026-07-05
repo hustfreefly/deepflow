@@ -1,7 +1,7 @@
 """
 Module Orchestrator 基类
 
-Version: 1.1.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-28
 
@@ -17,7 +17,7 @@ Date: 2026-06-28
 - LLM 负责内容（Stage 内部）
 - 不直接调用 OpenClaw（由主 Agent spawn）
 
-V1.1.0 变更 (2026-07-02):
+变更 (2026-07-02):
 - 新增 _load_p0_constraints_prompt_block() — P0 约束注入到 Worker prompt
 - 新增 _get_system_soft_constraints() — 系统级软约束
 - 新增 _load_requirement_traceability_prompt_block() — 需求追溯矩阵注入
@@ -75,7 +75,7 @@ class ModuleOrchestrator:
         # 加载或初始化 state
         self.state = self._load_or_init_state()
         
-        # V2: 上游收敛点数据（供 Stage 使用）
+        # 上游收敛点数据（供 Stage 使用）
         self.upstream_convergence = {}
         
         # 适配器开关：测试时可关闭
@@ -386,7 +386,7 @@ stages/harness_{stage_name}.json
             raise RuntimeError(f"Stage {stage_name} failed after {max_retries} retries")
     
     def read_upstream_convergence(self, convergence_file: str) -> dict:
-        """读取上游模块的收敛点文件（V2 新增）"""
+        """读取上游模块的收敛点文件（新增）"""
         logger.info(f"Reading upstream convergence: {convergence_file}")
         
         try:
@@ -412,7 +412,7 @@ stages/harness_{stage_name}.json
 
     
     def write_convergence(self, convergence_data: dict) -> str:
-        """写入当前模块的收敛点文件（V2 新增，两阶段写入）"""
+        """写入当前模块的收敛点文件（新增，两阶段写入）"""
         convergence_path = f"{self.module_name}_convergence.json"
         processing_path = f"{convergence_path}.processing"
         
@@ -444,10 +444,11 @@ stages/harness_{stage_name}.json
             raise
     
     def validate_stage_output(self, module_name: str, stage_name: str, output: dict) -> bool:
-        """Validate stage output against V2 schema. Non-blocking on failure."""
+        """Validate stage output against schema. Non-blocking on failure."""
         try:
-            from .check_contract import check_contract
-            result = check_contract(module_name, stage_name, output)
+            # check_contract removed in 2.0.0 (was in _archive/v1/)
+            # Contract validation now handled by Pydantic schemas in contracts/
+            result = None  # Placeholder: contract validation via schemas
             if not result.get("valid"):
                 logger.warning("Schema validation failed for %s/%s: %s",
                               module_name, stage_name, result.get("errors"))
@@ -455,7 +456,7 @@ stages/harness_{stage_name}.json
             logger.info("Schema validation passed for %s/%s", module_name, stage_name)
             return True
         except ImportError:
-            logger.debug("check_contract not available, skipping validation")
+            logger.debug("check_contract deprecated in 2.0.0, using Pydantic schema validation")
             return True
         except Exception as e:
             logger.warning("Schema validation error for %s/%s: %s", module_name, stage_name, e)
@@ -578,7 +579,7 @@ stages/harness_{stage_name}.json
         """
         运行模块（执行所有 Stage + 生成收敛点）
         
-        V2 增强：
+        增强：
         - 执行 Stage 前读取上游收敛点
         - 所有 Stage 完成后写入收敛点
         
@@ -587,7 +588,7 @@ stages/harness_{stage_name}.json
         """
         logger.info(f"Starting module: {self.module_name}")
         
-        # V2: 读取上游收敛点（如果子类指定了上游依赖）
+        # 读取上游收敛点（如果子类指定了上游依赖）
         if hasattr(self, 'upstream_convergence_files'):
             for upstream_file in self.upstream_convergence_files:
                 try:

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-DEPRECATED: Pipeline Watcher V2 — use watcher_scan.py (V3) instead.
+DEPRECATED: Pipeline Watcher — use watcher_scan.py  instead.
 
-V2 (this file) is kept for backward compatibility only.
-V3 (watcher_scan.py) is the active implementation:
+(this file) is kept for backward compatibility only.
+ is the active implementation:
 - Python renders all messages (config templates + format_map + SafeDict)
 - LLM only routes pre-rendered messages + diagnoses failures
-- Unified .watcher_state.json + V2 state migration
+- Unified .watcher_state.json + state migration
 - Full defense: atomic_write + fcntl.flock + stale filter + merge_group
 
 See: .deepflow/contracts/shared/pipeline_watcher_v2_design.md (archived)
@@ -243,7 +243,7 @@ class MessageFormatter:
         return " ".join(parts)
 
     def _build_phase_detail_list(self, completed_seqs: set, failed_seqs: set, current_seq: int) -> str:
-        """Build detailed phase list with status icons (V3 detailed mode).
+        """Build detailed phase list with status icons .
 
         Example:
           📊 数据收集     ✅ 完成
@@ -347,7 +347,7 @@ class MessageFormatter:
         bar = self._progress_bar(completed_count, total)
         chain = self._build_icon_chain(completed_seqs, current_seq)
         remaining = self._estimate_remaining(elapsed_min, completed_count, total)
-        failed_seqs = set()  # V2 watcher doesn't track failures in stages
+        failed_seqs = set()  # watcher doesn't track failures in stages
         detail_list = self._build_phase_detail_list(completed_seqs, failed_seqs, current_seq)
         return self.tpl["progress"].format_map(self._ctx(
             stage_lines=self._stage_lines(new_stages),
@@ -426,7 +426,7 @@ WRAPPER_PROMPT = WRAPPER_PROMPT_TEMPLATE
 def write_auto_chain(config: Dict, base_path: Path, completion: Dict) -> Optional[str]:
     """Write .auto_chain_trigger if configured. Returns next pipeline name or None.
     
-    V3 增强：添加 transition_prompt 数据，供主 Agent 渲染用户引导词。
+    增强：添加 transition_prompt 数据，供主 Agent 渲染用户引导词。
     """
     ac, next_pl = config.get("auto_chain", {}), config.get("auto_chain", {}).get("next_pipeline")
     if not next_pl: return None
@@ -438,7 +438,7 @@ def write_auto_chain(config: Dict, base_path: Path, completion: Dict) -> Optiona
         "base_path": str(base_path)
     }
     
-    # V3: 生成 transition_prompt 数据
+    # 生成 transition_prompt 数据
     if next_pl == "ship_pro":
         # Solution Pro → Ship Pro 过渡
         harness_path = base_path / "stages" / "harness_final.json"
@@ -587,7 +587,7 @@ def _run_pipeline(cfg: Dict, base: Path, state: Path, args: Any, fmt: str) -> No
     emit("noop", "", fmt=fmt)
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Pipeline Watcher V2")
+    ap = argparse.ArgumentParser
     ap.add_argument("--config", required=True)
     ap.add_argument("--base-path", required=True)
     ap.add_argument("--run-start-at", required=True)

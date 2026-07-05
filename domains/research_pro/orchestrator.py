@@ -193,7 +193,7 @@ class ResearchProOrchestrator:
         # P0-1: 注入 web_search 工具（主搜索引擎）
         self._web_search_fn = web_search_fn
         
-        # 初始化 BlackboardManager（V6 API：替代直接路径操作）
+        # 初始化 BlackboardManager（API：替代直接路径操作）
         # 使用 base_path.parent 作为 base_dir，确保与外部传入路径一致
         self._bm = BlackboardManager(session_id=self.base_path.name, base_dir=self.base_path.parent)
         self._bm.init_session()
@@ -229,7 +229,7 @@ class ResearchProOrchestrator:
         return state
 
     def _save_state(self, state: Dict[str, Any]) -> None:
-        """原子写入 state.json（BlackboardManager V6 内置原子写入）。
+        """原子写入 state.json。
         
         P2-10: 并发锁保护，防止多线程同时写入导致状态损坏。
         """

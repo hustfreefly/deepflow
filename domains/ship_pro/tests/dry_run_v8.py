@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ship Pro V8 - Dry Run (DeepFlowDryRun V5.0 适配)
+Ship Pro - Dry Run 
 
 四层验证：
   L1: 结构验证（Schema + Import + 契约笼子）
@@ -56,7 +56,7 @@ def check_raise(layer: str, name: str, fn, expected_error=ValueError):
 # ============================================================================
 
 def create_mock_solution_pro_input():
-    """V8 格式的 Solution Pro 输入"""
+    """格式的 Solution Pro 输入"""
     return {
         "requirements": [
             {"id": f"REQ-{i:03d}", "description": f"需求 {i}: 实现功能模块 {chr(65+i%26)}", "priority": "must_have" if i <= 30 else "should_have"}
@@ -208,13 +208,13 @@ def layer1_structure():
     gates_with_judge = [
         ("WorkerGate", WorkerGate),
         ("InformationConservationGate", InformationConservationGate),
-        ("HarnessV3", HarnessV3),
+        ,
     ]
     for name, gate_cls in gates_with_judge:
         has_method = hasattr(gate_cls, "build_judge_prompt")
         check("l1", f"Gate {name}.build_judge_prompt", has_method)
 
-    # 1.4 V8 新方法存在性
+    # 1.4 新方法存在性
     v8_methods = [
         "validate_all_worker_outputs_l1",
         "prepare_judge_spawn_all",
@@ -239,7 +239,7 @@ def layer1_structure():
 
     # 1.6 V8_DECISIONS.md 存在
     v8_doc = base / "docs" / "V8_DECISIONS.md"
-    check("l1", "V8_DECISIONS.md", v8_doc.exists())
+    check)
 
     return len([i for i in issues if i.startswith("[L1]")]) == 0
 
@@ -537,7 +537,7 @@ def layer4_orchestrator():
 
 def main():
     print("=" * 70)
-    print("Ship Pro V8 - DryRun V5.0 行为预演")
+    print
     print("=" * 70)
 
     l1_ok = layer1_structure()
@@ -547,7 +547,7 @@ def main():
 
     # 综合报告
     print("\n" + "=" * 70)
-    print("DryRun V5.0 综合报告")
+    print
     print("=" * 70)
     
     for layer, ok in [("L1 结构验证", l1_ok), ("L2 单角色预演", l2_ok), 

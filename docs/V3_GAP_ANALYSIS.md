@@ -1,7 +1,7 @@
-# Ship Pro V3 系统性差距分析
+# Ship Pro 2.0.0 系统性差距分析
 
 > **日期**: 2026-06-25  
-> **分析对象**: V3 管线输出 vs 8位专家共识理想架构  
+> **分析对象**: 2.0.0 管线输出 vs 8位专家共识理想架构  
 > **目的**: 一次性识别所有差距，统一规划修复方案
 
 ---
@@ -10,7 +10,7 @@
 
 ### GAP-A1: 缺少编排层模块 ❌
 
-**现状**: V3 输出 9 个模块，缺少 4 个核心模块：
+**现状**: 2.0.0 输出 9 个模块，缺少 4 个核心模块：
 - ❌ MainLoopOrchestrator（主循环编排器）
 - ❌ GoalParser（目标解析器）
 - ❌ ErrorAnalyzer（错误分析器）
@@ -214,7 +214,7 @@
 1. 修改 `merge_gate_results` 函数，WARNING 也触发重试（但优先级低于 BLOCKER）
 2. 在 Orchestrator prompt 中明确：如果语义检查给出 WARNING，要求 Worker 修正后重新 gate
 
-**验证**: V4 中 Architect 的"令牌桶限流"措辞被修正为"基于 OpenClaw 的限流配置"。
+**验证**: 2.0.0 中 Architect 的"令牌桶限流"措辞被修正为"基于 OpenClaw 的限流配置"。
 
 ---
 
@@ -228,7 +228,7 @@
    - 如果有 medium issue 涉及核心模块缺失 → FAIL
 2. 在 gate_reviewer 中增加检查：如果 issues 中包含"principle"关键词且 severity=medium，强制 verdict=PASS_WITH_CONDITIONS
 
-**验证**: V4 中 Reviewer 对 Hermes 协议缺失给出 PASS_WITH_CONDITIONS，要求 Specifier 补充。
+**验证**: 2.0.0 中 Reviewer 对 Hermes 协议缺失给出 PASS_WITH_CONDITIONS，要求 Specifier 补充。
 
 ---
 
@@ -249,7 +249,7 @@
      - complexity=medium 或 priority=P1 → standard
      - complexity=high 或 priority=P0 → opus
 
-**验证**: V4 中包含 Hermes 通信协议 WP，HITL 超时 AC，WP-001 使用 flash 模型。
+**验证**: 2.0.0 中包含 Hermes 通信协议 WP，HITL 超时 AC，WP-001 使用 flash 模型。
 
 ---
 
@@ -265,7 +265,7 @@
 2. 语义检查结果缓存：避免重复评估相同输出
 3. 如果 Orchestrator 提前退出，自动 spawn 新 Orchestrator 续跑（当前已实现）
 
-**验证**: V4 中单个 Orchestrator 完整跑完 5 个阶段（含语义检查）。
+**验证**: 2.0.0 中单个 Orchestrator 完整跑完 5 个阶段（含语义检查）。
 
 ---
 
@@ -273,7 +273,7 @@
 
 ### 回归测试清单
 
-修复完成后，重跑 Ship Pro V4，验证：
+修复完成后，重跑 Ship Pro 2.0.0，验证：
 
 | 测试项 | 预期结果 | 验证方法 |
 |--------|---------|---------|
@@ -289,7 +289,7 @@
 
 ### 成功标准
 
-V4 相比 V3 的改进：
+2.0.0 相比 2.0.0 的改进：
 - ✅ 模块数从 9 → 10+（含 MainLoopOrchestrator）
 - ✅ 需求覆盖率从 2.3% → 80%+
 - ✅ 确定性逻辑从 2 个模块 → 0 个
@@ -317,10 +317,10 @@ V4 相比 V3 的改进：
 ### 阶段 4: Orchestrator 优化（2-3 小时）
 - F6: Orchestrator prompt 压缩
 
-### 阶段 5: V4 验证（1 小时）
-- 重跑 Ship Pro V4
+### 阶段 5: 2.0.0 验证（1 小时）
+- 重跑 Ship Pro 2.0.0
 - 执行回归测试清单
-- 对比 V3 vs V4 结果
+- 对比 2.0.0 vs 2.0.0 结果
 
 **总计**: 10-15 小时
 
@@ -328,12 +328,12 @@ V4 相比 V3 的改进：
 
 ## 七、总结
 
-V3 验证了 AI Native Gate 的可行性（语义检查首次执行），但暴露了 11 个系统性差距。这些差距分为三类：
+2.0.0 验证了 AI Native Gate 的可行性（语义检查首次执行），但暴露了 11 个系统性差距。这些差距分为三类：
 
 1. **架构层**（5 个）：缺编排层、需求覆盖低、确定性逻辑、Hermes/HITL 缺失
 2. **管线层**（4 个）：原则映射不完整、模型选择不合理、Reviewer 宽松、语义检查覆盖不全
 3. **代码质量**（2 个）：severity 映射松、Orchestrator 上下文溢出
 
-通过 6 个修复方案（F1-F6），预计 10-15 小时完成，V4 应该达到理想架构状态。
+通过 6 个修复方案（F1-F6），预计 10-15 小时完成，2.0.0 应该达到理想架构状态。
 
 **核心改进**: 从"试错式优化"转为"系统性修复"，一次性解决所有差距。

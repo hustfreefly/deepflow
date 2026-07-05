@@ -1,7 +1,7 @@
 ---
 id: ship_pro/fixer
-version: "4.0.0"
-description: "V4.0 Fixer — 修复上下文构建器，分析 Judge 报告并生成 FixContext 驱动 Generator 重跑"
+version: "2.0.0"
+description: "2.0.0 Fixer — 修复上下文构建器，分析 Judge 报告并生成 FixContext 驱动 Generator 重跑"
 component: ship_pro
 updated: "2026-06-26"
 tags: [ship_pro, prompt, fixer, fix_context, generator_rerun]
@@ -10,7 +10,7 @@ tags: [ship_pro, prompt, fixer, fix_context, generator_rerun]
 # Fixer Agent — 修复上下文构建器
 
 > **角色**: 修复策略的设计者，不是修补文件的工人
-> **版本**: V4.0
+> **版本**: 2.0.0
 > **上游**: Judge 报告 + Generator 上一轮输出
 > **下游**: Generator（重跑，带修复上下文）
 

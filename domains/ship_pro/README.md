@@ -1,6 +1,6 @@
-# Ship Pro V8.2 — AI Native 交付包生成
+# Ship Pro 2.0.0 — AI Native 交付包生成
 
-> **版本**: V8.2 | **日期**: 2026-07-04 | **状态**: 架构定型，E2E 验证通过
+> **版本**: 2.0.0 | **日期**: 2026-07-04 | **状态**: 架构定型，E2E 验证通过
 
 ## 🎯 核心理念
 
@@ -18,7 +18,7 @@
 
 ---
 
-## 🏗️ 架构（V8.2）
+## 🏗️ 架构（2.0.0）
 
 ```
 Main Agent (depth-0)
@@ -143,7 +143,7 @@ sessions_spawn(**result["spawn_params"])
 
 ```
 domains/ship_pro/
-├── __init__.py              # V8.2 入口 (run_ship_pro, design_pipeline, prepare_runner_spawn)
+├── __init__.py              # 2.0.0 入口 (run_ship_pro, design_pipeline, prepare_runner_spawn)
 ├── pipeline_designer.py     # PipelineDesigner + 上下文裁剪
 ├── contracts/               # Pydantic Schema
 │   ├── gates.py             # Gate 验证逻辑
@@ -157,10 +157,10 @@ domains/ship_pro/
 │   └── consolidator.md      # Consolidator 模板
 ├── tests/
 │   ├── test_ship_pro.py     # 19 个单元测试
-│   └── dry_run_v8.py        # V8 集成测试
+│   └── dry_run_v8.py        # 2.0.0 集成测试
 ├── docs/
-│   └── V8_DECISIONS.md      # 架构决策文档（V8.0 → V8.1 → V8.2）
-├── _archive/                # 归档（V6/V7 遗留文件）
+│   └── V8_DECISIONS.md      # 架构决策文档（2.0.0 → 2.0.0 → 2.0.0）
+├── _archive/                # 归档（2.0.0/2.0.0 遗留文件）
 ├── README.md                # 本文件
 └── SKILL.md                 # Agent 执行指南
 ```
@@ -175,7 +175,7 @@ cd .deepflow
 # 单元测试
 python3 -m pytest domains/ship_pro/tests/test_ship_pro.py -v
 
-# V8 集成测试
+# 2.0.0 集成测试
 python3 -m pytest domains/ship_pro/tests/dry_run_v8.py -v
 ```
 
@@ -183,7 +183,7 @@ python3 -m pytest domains/ship_pro/tests/dry_run_v8.py -v
 
 ## 📊 E2E 性能
 
-| 指标 | V7 | V8 |
+| 指标 | 2.0.0 | 2.0.0 |
 |------|-----|-----|
 | Work Packages | 35 | **39** |
 | ShipPackage 大小 | 1.1KB (摘要) | **103KB** (完整) |
@@ -208,10 +208,10 @@ python3 -m pytest domains/ship_pro/tests/dry_run_v8.py -v
 
 ## 📚 相关文档
 
-- [V8 架构决策](docs/V8_DECISIONS.md) — 完整设计决策记录
+- [2.0.0 架构决策](docs/V8_DECISIONS.md) — 完整设计决策记录
 - [SKILL.md](SKILL.md) — Agent 执行指南
 - [AgentDryRun Skill](../../../skills/AgentDryRun/SKILL.md) — 六维体检框架
 
 ---
 
-*V8.2 架构定型：Orchestrator 单入口 + 统一 blackboard + cron wake*
+*2.0.0 架构定型：Orchestrator 单入口 + 统一 blackboard + cron wake*

@@ -303,11 +303,11 @@ v2.0 (2026-06-18)
   ├── Spec Pro: 新增 conversation_digest
   ├── Solution Pro: 扩展到 10 阶段
   ├── Ship Pro: 扩展到 5 Agent + 质量门控
-  └── Harness V2: 新增 Layer 2 (SC1-SC2)
+  └── Harness 2.0.0: 新增 Layer 2 (SC1-SC2)
 
 v2.1 (2026-06-22) ← 当前版本
   ├── merge_conversation_digest 累积逻辑
-  ├── run_harness_v2 兼容 V1/V2
+  ├── run_harness_v2 兼容 2.0.0/2.0.0
   ├── build_conversation_digest_for_prompt 格式化
   └── build_worker_context_section 完整上下文
 ```

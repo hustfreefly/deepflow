@@ -1,7 +1,7 @@
 """
 Spec Pro 路径注册表
 
-Version: 1.0.0
+Version: 2.0.0
 Author: DeepFlow Spec Pro
 Date: 2026-06-22
 
@@ -42,7 +42,7 @@ STAGE_PATH_REGISTRY = {
 
 def round_path(round_num: int, stage_type: str) -> str:
     """
-    生成轮次相关 stage 名称 (V6: 返回 stage name, 不再包含 stages/ 前缀)
+    生成轮次相关 stage 名称 
 
     Args:
         round_num: 轮次号 (1-based)
@@ -75,20 +75,20 @@ class BlackboardManager(CoreBlackboardManager):
     Spec Pro BlackboardManager
 
     自动配置 SpecRegistry + 轮次路径支持。
-    V6: write_round/read_round 使用 write_stage/read_stage API。
+    write_round/read_round 使用 write_stage/read_stage API。
     """
 
     def __init__(self, session_id: str, base_dir=None):
         super().__init__(session_id, base_dir=base_dir, registry=SpecRegistry)
 
     def write_round(self, round_num: int, stage_type: str, data: dict) -> "Path":
-        """写入轮次文件 (V6: 使用 write_stage API)"""
+        """写入轮次文件 """
         from pathlib import Path
         stage_name = f"round_{round_num:02d}_{stage_type}"
         self.write_stage(stage_name, data)
         return self._stage_path(stage_name)
 
     def read_round(self, round_num: int, stage_type: str, default=None) -> dict:
-        """读取轮次文件 (V6: 使用 read_stage API)"""
+        """读取轮次文件 """
         stage_name = f"round_{round_num:02d}_{stage_type}"
         return self.read_stage(stage_name, default=default or {})

@@ -1,26 +1,26 @@
-# Ship Pro AI Native 改造方案 V4
+# Ship Pro AI Native 改造方案 2.0.0
 
 > **日期**: 2026-06-25  
-> **版本**: V4（基于 V3 + 第三轮专家评审 + 3 路业界趋势调研）  
+> **版本**: 2.0.0（基于 2.0.0 + 第三轮专家评审 + 3 路业界趋势调研）  
 > **作者**: 小满（AI Agent）  
 > **决策者**: 姬忠礼  
 > **状态**: 待评审  
-> **V3 备份**: `SHIP_PRO_AI_NATIVE_PROPOSAL.md`  
+> **2.0.0 备份**: `SHIP_PRO_AI_NATIVE_PROPOSAL.md`  
 > **调研支撑**: `research/` 目录 3 份报告 + `SYNTHESIS_V4_DIRECTION.md`
 
 ---
 
-## 一、V3 → V4 核心变更
+## 一、2.0.0 → 2.0.0 核心变更
 
 ### 1.1 业界调研结论（3 路并行调研，2026-06-25）
 
-| 调研方向 | 核心发现 | 对 V4 的影响 |
+| 调研方向 | 核心发现 | 对 2.0.0 的影响 |
 |---------|---------|-------------|
-| **Agent 框架趋势** | 7 大框架全部是混合架构；图编排取代线性链；AutoGen（纯对话编排）被微软废弃 | V4 采用"LLM 规划 + 代码验证"，不是 waterfall 也不是纯 LLM |
-| **全 LLM 控制 vs 混合** | Devin 15% 成功率证伪纯 LLM 控制；Anthropic 的单线程 master loop + 环境约束是最佳实践 | V4 保留 Python 护栏，但 LLM 拥有规划自主权 |
-| **Goal 声明式 Prompt** | Goal + Constraints + Reference Plan 是 2025-2026 最佳模式；纯过程式已被淘汰 | V4 Orchestrator Prompt 重写为 Goal 声明式 |
+| **Agent 框架趋势** | 7 大框架全部是混合架构；图编排取代线性链；AutoGen（纯对话编排）被微软废弃 | 2.0.0 采用"LLM 规划 + 代码验证"，不是 waterfall 也不是纯 LLM |
+| **全 LLM 控制 vs 混合** | Devin 15% 成功率证伪纯 LLM 控制；Anthropic 的单线程 master loop + 环境约束是最佳实践 | 2.0.0 保留 Python 护栏，但 LLM 拥有规划自主权 |
+| **Goal 声明式 Prompt** | Goal + Constraints + Reference Plan 是 2025-2026 最佳模式；纯过程式已被淘汰 | 2.0.0 Orchestrator Prompt 重写为 Goal 声明式 |
 
-### 1.2 V4 设计哲学
+### 1.2 2.0.0 设计哲学
 
 > **"LLM 声明式规划，代码验证护栏。不给 LLM 无限权力，也不把 LLM 当执行器。"**
 
@@ -53,9 +53,9 @@
 └─────────────────────────────────────────────────────┘
 ```
 
-### 1.3 V3 → V4 变更清单
+### 1.3 2.0.0 → 2.0.0 变更清单
 
-| 维度 | V3 | V4 |
+| 维度 | 2.0.0 | 2.0.0 |
 |------|-----|-----|
 | **阶段定义** | `stage-dependencies.json`（5 个固定阶段 + 固定依赖） | `capability-registry.json`（能力注册表 + 覆盖约束 + 参考计划） |
 | **Orchestrator Prompt** | Phase 1→5 过程式（~200 行） | Goal 声明式（System <50 行 + Reference Docs） |
@@ -213,9 +213,9 @@
 }
 ```
 
-### 2.3 与 V3 的关键区别
+### 2.3 与 2.0.0 的关键区别
 
-| V3 `stage-dependencies.json` | V4 `capability-registry.json` |
+| 2.0.0 `stage-dependencies.json` | 2.0.0 `capability-registry.json` |
 |---|---|
 | `depends_on: []` 硬编码依赖 | 无依赖声明，LLM 从 `input_schema` 推导 |
 | `required: true` 不可跳过 | `required_coverage` 类别覆盖，具体阶段可跳 |
@@ -326,7 +326,7 @@
 
 ### 3.3 Prompt 架构对比
 
-| 维度 | V3（过程式） | V4（Goal 声明式） |
+| 维度 | 2.0.0（过程式） | 2.0.0（Goal 声明式） |
 |------|-------------|-----------------|
 | 行数 | ~200 行 | System <50 行 + Reference Docs |
 | 关键约束位置 | 淹没在 Phase 细节中 | 前置（Core Constraints）+ 后置（Reminder） |
@@ -337,7 +337,7 @@
 
 ---
 
-## 四、io_helper.py V4 变更
+## 四、io_helper.py 2.0.0 变更
 
 ### 4.1 新增命令
 
@@ -350,7 +350,7 @@
 
 ### 4.2 变更命令
 
-| 命令 | V3 | V4 |
+| 命令 | 2.0.0 | 2.0.0 |
 |------|-----|-----|
 | `validate-plan` | `--required architect,reviewer,packager` 硬编码 | 从 `capability-registry.json` 的 `required_coverage` 自动推导 |
 | `log-decision` | 自由文本 type/outcome | 枚举 type: `plan/stage_start/stage_complete/retry/skip/parallel/escalation`；枚举 outcome: `pass/fail/skip/escalate/retry` |
@@ -423,11 +423,11 @@ def cmd_validate_coverage(output_dir: str) -> dict:
 
 ## 五、Judge Worker 差异化设计
 
-### 5.1 V3 问题
+### 5.1 2.0.0 问题
 
-V3 的 Judge 与 Orchestrator 使用相同 5 个评估维度 → "同一个 LLM 用同一个 prompt 评估两次" → 相同偏差。
+2.0.0 的 Judge 与 Orchestrator 使用相同 5 个评估维度 → "同一个 LLM 用同一个 prompt 评估两次" → 相同偏差。
 
-### 5.2 V4 差异化
+### 5.2 2.0.0 差异化
 
 | 维度 | Orchestrator 自评 | Judge Worker |
 |------|------------------|-------------|
@@ -491,7 +491,7 @@ V3 的 Judge 与 Orchestrator 使用相同 5 个评估维度 → "同一个 LLM 
 
 ---
 
-## 六、Worker Prompt 模板 V4
+## 六、Worker Prompt 模板 2.0.0
 
 ### 6.1 变更：增加 `{failure_feedback}` 占位符
 
@@ -527,24 +527,24 @@ V3 的 Judge 与 Orchestrator 使用相同 5 个评估维度 → "同一个 LLM 
 
 ### 7.1 超时控制（分布式系统专家 P0-1）
 
-**V3 问题**：`sessions_spawn(runTimeoutSeconds=300)` 参数不存在。
+**2.0.0 问题**：`sessions_spawn(runTimeoutSeconds=300)` 参数不存在。
 
-**V4 方案**：
+**2.0.0 方案**：
 - config 层：`start_ship_pro.py` 设置 `agents.defaults.subagents.runTimeoutSeconds=1800`
 - 软超时：io_helper `check-budget` 中 `soft_limit_minutes` 参数
 - 完成后恢复原值
 
 ### 7.2 TOCTOU 竞态（分布式系统专家 P0-2）
 
-**V3 问题**：check-retry + write-status 非原子。
+**2.0.0 问题**：check-retry + write-status 非原子。
 
-**V4 方案**：`increment-retry` 命令（见 §4.3），flock + 原子写入。
+**2.0.0 方案**：`increment-retry` 命令（见 §4.3），flock + 原子写入。
 
 ### 7.3 Announce 丢失（分布式系统专家 P1-1）
 
-**V3 问题**：Worker announce 在 gateway 重启时丢失 → Orchestrator 永久阻塞。
+**2.0.0 问题**：Worker announce 在 gateway 重启时丢失 → Orchestrator 永久阻塞。
 
-**V4 方案**：Orchestrator Prompt 中增加降级策略：
+**2.0.0 方案**：Orchestrator Prompt 中增加降级策略：
 ```
 如果 sessions_yield 后超过 Worker 预期时间 2 倍未收到 announce：
 1. 调用 subagents list 检查 Worker 状态
@@ -555,9 +555,9 @@ V3 的 Judge 与 Orchestrator 使用相同 5 个评估维度 → "同一个 LLM 
 
 ### 7.4 重试幂等性（分布式系统专家 P1-2）
 
-**V3 问题**：重试时可能读到旧的部分输出。
+**2.0.0 问题**：重试时可能读到旧的部分输出。
 
-**V4 方案**：
+**2.0.0 方案**：
 - Worker 写入使用 temp+rename（原子写入）
 - `resume-context` 对 `running`/`gate_fail` 状态阶段的输出文件标记为不可信
 - 重试时 `build-prompt` 不注入不可信的输出
@@ -566,10 +566,10 @@ V3 的 Judge 与 Orchestrator 使用相同 5 个评估维度 → "同一个 LLM 
 
 ## 八、开发者体验 P0 修复
 
-### 8.1 SKILL.md V5.0 完整草稿（开发者体验专家 P0-1）
+### 8.1 SKILL.md 2.0.0 完整草稿（开发者体验专家 P0-1）
 
 ```markdown
-# Ship Pro SKILL.md V5.0
+# Ship Pro SKILL.md 2.0.0
 
 ## 入口守卫（Step 0 — 防偏检查）
 执行前检查：
@@ -645,7 +645,7 @@ sessions_spawn(task=<Step 2 的输出>, cwd=$DEEPFLOW_HOME, agentId=..., label="
 
 ---
 
-## 九、错误恢复决策树（替代 V3 表格）
+## 九、错误恢复决策树（替代 2.0.0 表格）
 
 ```
 Worker 执行失败
@@ -690,22 +690,22 @@ Worker 执行失败
 | 4 | 写 Judge Worker Prompt（差异化视角） | 低 |
 | 5 | 写 Worker Prompt 模板（含 failure_feedback） | 低 |
 | 6 | 更新 `start_ship_pro.py` | 低 |
-| 7 | 更新 SKILL.md V5.0 | 低 |
+| 7 | 更新 SKILL.md 2.0.0 | 低 |
 | 8 | 端到端测试（3 个场景） | 验证步骤 |
 | 9 | 删除 `stage-dependencies.json`（不再保留兼容层） | 低 |
 
 ### 10.2 回滚方案
 
-如果 V4 出现严重问题：
-1. `git checkout` 回退到 V3 的 `stage-dependencies.json` + 过程式 Prompt
-2. `start_ship_pro.py` 回退到 V3 版本
-3. io_helper.py 保留 V4 新增命令（向后兼容）
+如果 2.0.0 出现严重问题：
+1. `git checkout` 回退到 2.0.0 的 `stage-dependencies.json` + 过程式 Prompt
+2. `start_ship_pro.py` 回退到 2.0.0 版本
+3. io_helper.py 保留 2.0.0 新增命令（向后兼容）
 
 ---
 
 ## 十一、与忠礼决策的对齐检查
 
-| 忠礼决策（AI Native Loop 研讨会） | V4 是否兑现 | 说明 |
+| 忠礼决策（AI Native Loop 研讨会） | 2.0.0 是否兑现 | 说明 |
 |------|:---:|------|
 | "全 LLM 控制，Python 不做控制流" | ✅ | LLM 自主规划路径，Python 只做验证和护栏（安全网，不是轨道） |
 | "一步到位，不分阶段演进" | ✅ | 直接替换 stage-dependencies → capability-registry，无过渡期 |
@@ -714,4 +714,4 @@ Worker 执行失败
 
 ---
 
-*V4 方案完成。核心改进：从"给 waterfall 加 LLM 调度器"变为"LLM 声明式规划 + 代码验证护栏"。*
+*2.0.0 方案完成。核心改进：从"给 waterfall 加 LLM 调度器"变为"LLM 声明式规划 + 代码验证护栏"。*

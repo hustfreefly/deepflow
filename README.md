@@ -2,8 +2,8 @@
 
 > ⚠️ **Platform Dependency**: DeepFlow currently **only supports the OpenClaw platform**. Core scheduling depends on OpenClaw native APIs such as `sessions_spawn` / `sessions_yield`. Standalone execution or integration with other agent frameworks (e.g., AutoGen, LangChain, CrewAI) is not yet supported.
 > **Date**: 2026-06-23
-> **Status**: ✅ Four-domain architecture complete: Spec Pro v2.4 + Solution Pro V4.4 + Ship Pro V3.2 + Research Pro
-> **Version**: 0.5.0
+> **Status**: ✅ Four-domain architecture complete: Spec Pro 2.0.0 + Solution Pro 2.0.0 + Ship Pro 2.0.0 + Research Pro
+> **Version**: 2.0.0
 > **Positioning**: DeepFlow is an **extensible multi-agent pipeline framework** that provides a general-purpose orchestration engine, Pydantic contract cages, and quality gates. Domain-specific applications are built on top of this framework.
 
 > 🚀 **新用户？** 请看 [QUICKSTART.md](docs/guides/QUICKSTART.md) — 5 分钟上手指南
@@ -39,9 +39,9 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
 
 | Domain | Version | Positioning | Description |
 |--------|---------|-------------|-------------|
-| **Spec Pro** | v2.4 | 需求梳理引擎 | 苏格拉底式对话收集需求，输出 Living Spec（三层版本号体系） |
-| **Solution Pro** | V4.4 | 方案设计引擎 | 固定 10 阶段 B 方案 + 契约笼子 + REQ-ID 追踪 + 状态持久化断点续接 |
-| **Ship Pro** | V3.2 | 交付编译引擎 | Pydantic 契约笼子 + 5 Agent 管线，消费 Solution Pro 输出，生成 ship_package.json（AI Coding 工作包） |
+| **Spec Pro** | 2.0.0 | 需求梳理引擎 | 苏格拉底式对话收集需求，输出 Living Spec（三层版本号体系） |
+| **Solution Pro** | 2.0.0 | 方案设计引擎 | 固定 10 阶段 B 方案 + 契约笼子 + REQ-ID 追踪 + 状态持久化断点续接 |
+| **Ship Pro** | 2.0.0 | 交付编译引擎 | Pydantic 契约笼子 + 5 Agent 管线，消费 Solution Pro 输出，生成 ship_package.json（AI Coding 工作包） |
 | **Research Pro** | - | 深度研究引擎 | 多源搜索 → 分层研究 → 引用验证 → 研究报告 |
 
 > **Note**: Investment domain was removed in v0.4.0 to reduce external dependencies (tushare/duckduckgo/google-genai). DeepFlow is now a cleaner, more focused framework for OpenClaw users.
@@ -80,9 +80,9 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
 | **Four-Domain Architecture** | Spec Pro → Solution Pro → Ship Pro → Research Pro |
 | **Multi-Agent Pipeline** | 10-Stage (Solution) + 5-Agent (Ship) pipelines with parallel workers and quality gates |
 | **Pydantic Contract Cage** | Pydantic 模型 = 唯一真相源，Schema/Gate/Prompt 自动对齐 |
-| **Quality Gates** | Harness V4: Completeness / Necessity / Target Consistency / Global Impact + REQ-ID 追踪 |
+| **Quality Gates** | Harness 2.0.0: Completeness / Necessity / Target Consistency / Global Impact + REQ-ID 追踪 |
 | **Living Spec Handoff** | Spec Pro → Solution Pro → Ship Pro 无缝交接 |
-| **Single Execution Engine** | `run_pipeline.py` CLI 为唯一入口（Ship Pro） |
+| **Single Execution Engine** | `run_ship_pro()` 为唯一入口（Ship Pro 2.0.0 单入口架构） |
 | **Fault Tolerance** | Worker failures do not block the pipeline |
 | **Configuration-Driven** | Domain YAML + Prompt Registry for extensibility |
 
@@ -113,12 +113,12 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
 │      Domain Application Layer            │
 │  • Spec Pro (需求梳理)                    │
 │  • Solution Pro (方案设计)                │
-│  • Ship Pro (交付编译) ← V3.2 新增        │
+│  • Ship Pro (交付编译) ← 2.0.0 新增        │
 │  • Research Pro (深度研究)                │
 └──────────────────────────────────────────┘
                     ↓
 ┌──────────────────────────────────────────┐
-│      Pydantic Contract Cage Layer        │  ← V3.2 新增
+│      Pydantic Contract Cage Layer        │  ← 2.0.0 新增
 │  contracts/architect.py (ArchitectOutput)│
 │  contracts/packager.py  (ShipPackage)    │
 │  contracts/pipeline_state.py (State)     │
@@ -203,13 +203,11 @@ result = entry.run({
 
 ### Ship Pro (交付编译)
 
-```bash
-# Ship Pro 唯一入口
-cd ~/.openclaw/workspace/.deepflow
-python3 domains/ship_pro/scripts/run_pipeline.py prepare <input.json> <output_dir>
-python3 domains/ship_pro/scripts/run_pipeline.py task architect <output_dir>
-python3 domains/ship_pro/scripts/run_pipeline.py gate architect <output_dir>
-python3 domains/ship_pro/scripts/run_pipeline.py validate <output_dir>
+```python
+# Ship Pro 2.0.0 单入口架构
+from domains.ship_pro import run_ship_pro
+result = run_ship_pro(project_name="你的项目")
+# Main Agent spawn Orchestrator → 全权调度
 ```
 
 详见 [domains/ship_pro/SKILL.md](domains/ship_pro/SKILL.md)
@@ -244,14 +242,14 @@ python3 domains/ship_pro/scripts/run_pipeline.py validate <output_dir>
 │   │   ├── orchestrator_agent.py
 │   │   ├── task_builder.py
 │   │   └── SKILL.md           # Agent execution guide
-│   ├── ship_pro/              # Ship Pro V3.2 (交付编译引擎) ← 新增
+│   ├── ship_pro/              # Ship Pro 2.0.0 (交付编译引擎) ← 新增
 │   │   ├── contracts/         # Pydantic 契约模型 (唯一真相源)
 │   │   │   ├── architect.py   # ArchitectOutput
 │   │   │   ├── packager.py    # ShipPackage
 │   │   │   ├── pipeline_state.py # PipelineState
 │   │   │   └── generator.py   # Schema/Gate 自动生成
 │   │   ├── scripts/
-│   │   │   ├── run_pipeline.py # 唯一执行引擎 (CLI)
+│   │   │   ├── __init__.py     # 唯一入口: run_ship_pro()
 │   │   │   └── orchestrator.py # ⚠️ DEPRECATED
 │   │   ├── prompts/           # 5 Agent prompt 模板
 │   │   ├── eval/              # 质量门禁 (gates.py)
@@ -315,7 +313,7 @@ DeepFlow 有两个容易混淆的目录，职责完全不同：
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Complete architecture design |
 | [Spec Pro](domains/spec_pro/_overview.md) | Spec Pro execution guide |
 | [Solution Pro](domains/solution_pro/SKILL.md) | Solution Pro execution guide |
-| [Ship Pro](domains/ship_pro/SKILL.md) | Ship Pro V3.2 execution guide |
+| [Ship Pro](domains/ship_pro/SKILL.md) | Ship Pro 2.0.0 execution guide |
 | [Research Pro](domains/research_pro/README.md) | Research Pro module overview |
 | [Spec → Solution Contract](contracts/integration/spec_to_solution.md) | Living Spec handoff contract |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |

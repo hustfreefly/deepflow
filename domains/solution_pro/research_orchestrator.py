@@ -1,12 +1,12 @@
 """
 Research Orchestrator (Module 2)
 
-Version: 2.1.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-29
 
 Description:
-- Research V2 multi-expert parallel research + iterative convergence
+- Research multi-expert parallel research + iterative convergence
 - 5 Stages:
   1. Knowledge Freshness: LLM extracts queries → web_search → compress
   2. Expert Config Determination: dynamic from planning_output.risk_areas
@@ -245,7 +245,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
             frozen_spec: Frozen spec dict
             planning_output: planning_convergence.json content
             spawn_fn: Optional spawn function override
-            living_spec: V3 Living Spec dict(主要输入源)
+            living_spec: Living Spec dict(主要输入源)
 
         Returns:
             research_convergence.json content
@@ -257,22 +257,22 @@ class ResearchOrchestrator(ModuleOrchestrator):
         if planning_output is not None:
             self.blackboard.write("planning_convergence.json", planning_output)
 
-        # V3: 存储 living_spec(主要输入源)
+        # 存储 living_spec(主要输入源)
         if living_spec is not None:
             self.living_spec = living_spec
             try:
                 self.blackboard.write("data/living_spec.json", living_spec)
-                logger.info("[V3] living_spec written to blackboard: data/living_spec.json")
+                logger.info
             except Exception as e:
-                logger.warning(f"[V3] Failed to write living_spec.json: {e}")
+                logger.warning
         else:
-            # V3 fallback: 尝试从 blackboard 读取
+            # fallback: 尝试从 blackboard 读取
             try:
                 self.living_spec = self.blackboard.read_json("data/living_spec.json")
-                logger.info("[V3] living_spec loaded from blackboard")
+                logger.info
             except Exception:
                 self.living_spec = None
-                logger.info("[V3] No living_spec available, using frozen_spec fallback")
+                logger.info
 
         logger.info("Starting Research module")
 
@@ -400,15 +400,18 @@ class ResearchOrchestrator(ModuleOrchestrator):
 
         task_description = (
             "You are a research query extractor. "
-            "Given a frozen spec and planning output, extract 1-3 targeted search queries "
-            "to find the latest technical information relevant to this project.\n\n"
+            "Given a frozen spec and planning output, extract 8-12 targeted search queries "
+            "to find the latest technical information relevant to this project.\n"
+            "Cover multiple dimensions: technology comparison, best practices, known pitfalls, "
+            "performance benchmarks, security considerations, community discussions.\n\n"
             "## Frozen Spec\n"
             f"```json\n{json.dumps(frozen_spec, indent=2, ensure_ascii=False)}\n```\n\n"
             "## Planning Output (key constraints)\n"
             f"```json\n{json.dumps(self._extract_key_constraints(planning_output), indent=2, ensure_ascii=False)}\n```\n\n"
             "## Output Format\n"
-            "Return a JSON array of 1-3 search query strings.\n"
-            "Example: [\"Python asyncio best practices 2025\", \"FastAPI WebSocket scaling\"]\n"
+            "Return a JSON array of 8-12 search query strings.\n"
+            "Example: [\"Python asyncio best practices 2025\", \"FastAPI WebSocket scaling\", "
+            "\"FastAPI vs Django performance benchmark\", \"Python async error handling patterns\"]\n"
             "Return ONLY the JSON array, no explanation."
         )
 
@@ -419,11 +422,11 @@ class ResearchOrchestrator(ModuleOrchestrator):
                 timeout=600,
             )
             if isinstance(result, list):
-                return result[:3]
+                return result[:12]
             if isinstance(result, str):
                 parsed = json.loads(result)
                 if isinstance(parsed, list):
-                    return parsed[:3]
+                    return parsed[:12]
         except Exception as e:
             logger.warning(f"LLM query extraction failed: {e}, using fallback")
 
@@ -437,6 +440,10 @@ class ResearchOrchestrator(ModuleOrchestrator):
         topic = frozen_spec.get("topic", "") or frozen_spec.get("title", "")
         if topic:
             queries.append(f"{topic} best practices 2025")
+            queries.append(f"{topic} architecture patterns")
+            queries.append(f"{topic} known pitfalls and anti-patterns")
+            queries.append(f"{topic} performance benchmarks")
+            queries.append(f"{topic} security considerations")
 
         # Extract domain from planning output
         risk_areas = (
@@ -447,8 +454,18 @@ class ResearchOrchestrator(ModuleOrchestrator):
         domain = risk_areas.get("domain", "")
         if domain:
             queries.append(f"{domain} architecture patterns")
+            queries.append(f"{domain} vs alternatives comparison")
+            queries.append(f"{domain} production deployment lessons learned")
 
-        return queries[:3] or ["software architecture best practices 2025"]
+        # Extract key REQs for targeted searches
+        reqs = frozen_spec.get("requirements", [])
+        p0_reqs = [r for r in reqs if isinstance(r, dict) and r.get("priority") == "P0"][:3]
+        for req in p0_reqs:
+            desc = req.get("description", "")[:60]
+            if desc:
+                queries.append(f"{desc} implementation guide")
+
+        return queries[:12] or ["software architecture best practices 2025"]
 
     def _execute_searches(self, queries: list[str]) -> list[dict]:
         """
@@ -895,7 +912,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
             expert_summaries[name] = report[:3000] if len(report) > 3000 else report
         
         return {
-            "schema_version": "1.0.0-degraded",
+            "schema_version": "2.0.0",
             "total_findings": 0,
             "high_relevance_count": 0,
             "expert_summaries": expert_summaries,
@@ -1326,7 +1343,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
             
             # 4. 代码做格式: 组装最终 Digest
             digest = {
-                "schema_version": "1.0.0",
+                "schema_version": "2.0.0",
                 "generated_at": datetime.now().isoformat(),
                 "expert_count": len(expert_outputs),
                 "total_findings": len(digest_output.get("findings_index", [])),
@@ -1438,7 +1455,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
 
         # Step 4: Build consolidation output
         consolidation_output = {
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "consolidated_findings": tier_classified.get("findings", []),
             "consensus_points": tier_classified.get("consensus_points", []),
             "divergence_points": tier_classified.get("divergence_points", []),
@@ -1629,7 +1646,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
     def _empty_consolidation(self) -> dict:
         """Return empty consolidation output."""
         return {
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "consolidated_findings": [],
             "consensus_points": [],
             "divergence_points": [],
@@ -1663,7 +1680,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
 
         # Build convergence data
         research_convergence = {
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "module": "research",
             "research_summary": self._generate_research_summary(consolidated),
             "key_findings": consolidated.get("consolidated_findings", []),
@@ -1713,7 +1730,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
             },
             "_metadata": {
                 "produced_at": datetime.now().isoformat(),
-                "schema_version": "1.0.0",
+                "schema_version": "2.0.0",
                 "module": "research",
                 "stage_count": 5,
                 "expert_count": consolidated.get("expert_count", 0),

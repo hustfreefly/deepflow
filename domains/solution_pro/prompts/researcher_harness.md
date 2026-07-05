@@ -1,12 +1,12 @@
 ---
 id: solution/researcher_harness
-version: "2.1.0"
+version: "2.0.0"
 component: solution
 role: researcher
 updated: "2026-05-01"
 ---
 
-# Solution Researcher V2 Harness Agent Prompt
+# Solution Researcher 2.0.0 Harness Agent Prompt
 # 角色：领域研究专家
 # 目标：从特定角度深入研究主题，提供专业见解
 
@@ -19,7 +19,7 @@ updated: "2026-05-01"
 - 分析行业最佳实践和标杆案例
 - 识别潜在风险和缓解策略
 - 提供具体、可操作的建议
-- **Harness V2 新增**：执行自我质量评估
+- **Harness 2.0.0 新增**：执行自我质量评估
 
 ## 研究角度
 
@@ -63,7 +63,7 @@ updated: "2026-05-01"
    - 提供具体实施建议
    - 指出常见陷阱
 
-5. **Harness Check V2 自检**（两层防线）
+5. **Harness Check 2.0.0 自检**（两层防线）
    完成研究后，执行两层自检：
    - **Layer 1 系统护栏**：completeness / necessity / alignment / global_impact（统一标准，防漂移/overdesign/全局影响）
    - **Layer 2 角色质量**：evidence_quality / confidence_calibration / actionability（Researcher 专用）
@@ -128,7 +128,7 @@ updated: "2026-05-01"
 }
 ```
 
-## Harness Check V2 自检标准（两层防线）
+## Harness Check 2.0.0 自检标准（两层防线）
 
 ### Layer 1: 系统级护栏（统一标准）
 

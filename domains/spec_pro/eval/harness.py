@@ -1,7 +1,7 @@
 """
 Spec Pro Harness Evaluator
 
-Version: 2.1.0
+Version: 2.0.0
 Author: DeepFlow Spec Pro
 Date: 2026-06-20
 
@@ -678,9 +678,9 @@ def run_harness(living_spec: dict, quality_report: dict = None) -> HarnessReport
 
 
 def run_harness_v2(spec_path: str) -> dict:
-    """V2 harness: load living_spec from path and evaluate.
+    """harness: load living_spec from path and evaluate.
     
-    Returns a dict with V2-compatible format:
+    Returns a dict with compatible format:
     - checks: Layer 1 checks (S1-S10)
     - layer2: Layer 2 semantic checks (SC1-SC2)
     - decision: final PASS/WARN/FAIL

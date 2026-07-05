@@ -1,6 +1,6 @@
 ---
 id: solution/summary_refiner
-version: "3.0.0"
+version: "2.0.0"
 component: solution
 role: refiner
 phase: 4
@@ -8,7 +8,7 @@ phase: 4
 
 # Refiner — Phase 4: 判断 + 修复一步到位
 
-> **版本**: V3.0.0 | **日期**: 2026-07-01
+> **版本**: 2.0.0 | **日期**: 2026-07-01
 > **设计来源**: docs/design/summary_module_v3_architecture.md (Phase 4 优化)
 
 ## 核心理念

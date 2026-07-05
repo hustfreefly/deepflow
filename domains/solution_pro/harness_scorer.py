@@ -1,13 +1,13 @@
 """
 Harness 评分器，支持 level 自动推导和显式传入
 
-Version: 2.1.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-01
 """
 
 """
-Harness Scorer V2.0
+Harness Scorer 2.0.0
 ===================
 
 4维度评分器（权重：完整性30% / 必要性20% / 目标一致性30% / 全局影响20%）
@@ -294,8 +294,8 @@ def _validate_harness_output_legacy(output: dict) -> tuple[bool, str]:
     """
     验证Worker输出的Harness格式是否正确
     
-    V2: 优先使用 HarnessCheckV2 Pydantic schema（含契约笼子）
-    如果 V2 验证失败，尝试 V1 格式（向后兼容）
+    优先使用 HarnessCheck Pydantic schema（含契约笼子）
+    如果 验证失败，尝试 格式（向后兼容）
     
     Returns:
         (是否有效, 错误信息)
@@ -305,7 +305,7 @@ def _validate_harness_output_legacy(output: dict) -> tuple[bool, str]:
     
     hc = output["harness_check"]
     
-    # V2 格式检测: 有 layer1_system_guardrails
+    # 格式检测: 有 layer1_system_guardrails
     if "layer1_system_guardrails" in hc:
         try:
             from .schemas.schemas import HarnessCheckV2
@@ -314,9 +314,9 @@ def _validate_harness_output_legacy(output: dict) -> tuple[bool, str]:
         except ImportError:
             pass
         except Exception as e:
-            return False, f"Harness Check V2 验证失败: {e}"
+            return False, f"Harness Check 验证失败: {e}"
     
-    # V1 格式（向后兼容）
+    # 格式（向后兼容）
     required_fields = ["completeness", "necessity", "alignment", "global_impact", "overall_score", "decision"]
     
     for field in required_fields:
@@ -339,7 +339,7 @@ def _validate_harness_output_legacy(output: dict) -> tuple[bool, str]:
 
 def validate_harness_output(harness_check: dict) -> tuple[bool, str]:
     """
-    V2 专用验证函数（使用 Pydantic HarnessCheckV2 + 契约笼子）
+    专用验证函数
     
     Args:
         harness_check: harness_check 字段的内容（不是整个 stage output）
@@ -352,17 +352,17 @@ def validate_harness_output(harness_check: dict) -> tuple[bool, str]:
         HarnessCheckV2(**harness_check)
         return True, ""
     except ImportError:
-        return False, "HarnessCheckV2 schema 未安装"
+        return False, "HarnessCheck schema 未安装"
     except Exception as e:
-        return False, f"Harness Check V2 验证失败: {e}"
+        return False, f"Harness Check 验证失败: {e}"
 
 
 def harness_to_scores(harness_check: dict) -> dict:
     """
-    V2 verdict → 数值映射（供 Gate A Layer 2 使用）
+    verdict → 数值映射（供 Gate A Layer 2 使用）
     
     Args:
-        harness_check: HarnessCheckV2 格式的 dict
+        harness_check: HarnessCheck格式的 dict
     
     Returns:
         {"completeness": 0.95, "necessity": 0.80, "alignment": 0.95, "global_impact": 0.95,
@@ -431,7 +431,7 @@ def calculate_harness_score_dynamic(
     reasonings: Optional[Dict[str, str]] = None,
 ) -> HarnessScore:
     """
-    动态权重/阈值的 Harness 评分（V2 Meta-Planner 可自定义权重和阈值）
+    动态权重/阈值的 Harness 评分
 
     Args:
         weights: 四维度权重 dict，key 为 completeness/necessity/alignment/global_impact，值之和应为 1.0
@@ -503,7 +503,7 @@ def calculate_harness_score_dynamic(
 
 
 # =============================================================================
-# [V2 Phase 1.4] Gate A Layer 2 语义校准 + Gate B CRITICAL 保底检查
+# [Phase 1.4] Gate A Layer 2 语义校准 + Gate B CRITICAL 保底检查
 # =============================================================================
 
 
@@ -514,7 +514,7 @@ class GateALayer2Calibration:
     对 Gate A Layer 1（代码打分）的结果进行 LLM 语义验证。
     使用 3-run majority vote 确保一致性。
 
-    V1 向后兼容：当 llm_judge_fn 为 None 时，自动 fallback 到规则判定。
+    向后兼容：当 llm_judge_fn 为 None 时，自动 fallback 到规则判定。
     """
 
     TEMPERATURE = 0.2
@@ -541,7 +541,7 @@ class GateALayer2Calibration:
         Args:
             llm_judge_fn: Callable[[stage_output, frozen_spec, harness_reasoning, scores, prompt, temperature], dict]
                           返回 {"semantic_verdict": "PASS"|"FAIL", "reasoning": "..."}
-                          当为 None 时，自动 fallback 到规则判定（V1 兼容）。
+                          当为 None 时，自动 fallback 到规则判定。
             注意: HarnessScorer 的 llm_judge_fn 签名与 LLMJudgeAdapter 不兼容，
                   需要调用方自行适配。不要在这里自动创建 Adapter。
         """
@@ -570,7 +570,7 @@ class GateALayer2Calibration:
             }
         """
         if self.llm_judge_fn is None:
-            # Fallback: 基于规则的判定（V1 兼容路径）
+            # Fallback: 基于规则的判定
             return self._rule_based_verdict(scores)
 
         votes = []
@@ -584,7 +584,7 @@ class GateALayer2Calibration:
                 prompt=prompt,
                 temperature=self.TEMPERATURE,
             )
-            # V3 fix: handle None return from adapter (triggers rule fallback)
+            # fix: handle None return from adapter (triggers rule fallback)
             if result is None:
                 logger.warning("LLM judge returned None, falling back to rule-based verdict")
                 return self._rule_based_verdict(scores)
@@ -612,7 +612,7 @@ class GateALayer2Calibration:
             for i, ex in enumerate(self.FEW_SHOT_EXAMPLES)
         ])
 
-        # Living Spec 优先（V3 AI Native）
+        # Living Spec 优先
         if living_spec:
             spec_for_prompt = living_spec.get("narrative", "")[:3000]
         else:
@@ -650,7 +650,7 @@ class GateALayer2Calibration:
 """
 
     def _rule_based_verdict(self, scores: dict) -> dict:
-        """基于规则的 fallback 判定（V1 兼容）"""
+        """基于规则的 fallback 判定"""
         completeness = scores.get("completeness", 0)
         necessity = scores.get("necessity", 0)
         alignment = scores.get("alignment", 0)
@@ -727,7 +727,7 @@ def evaluate_gate_b_critical(
 
 
 if __name__ == "__main__":
-    # [V2 Phase 0a] P0-2: 新增 calculate_harness_score_dynamic() 支持动态权重/阈值
+    # [Phase 0a] P0-2: 新增 calculate_harness_score_dynamic() 支持动态权重/阈值
     # 测试用例
     test_cases = [
         # 完美方案
@@ -740,7 +740,7 @@ if __name__ == "__main__":
         (0.55, 0.60, 0.58, 0.52, "严重遗漏", "过度设计", "偏离目标", "缺少全局影响分析"),
     ]
     
-    print("Harness Scorer V2.1 测试")
+    print
     print("=" * 60)
     print(
         f"权重: 完整性{WEIGHT_COMPLETENESS} / 必要性{WEIGHT_NECESSITY} / "

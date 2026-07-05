@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DeepFlow V2.0 - 检查点管理器
+DeepFlow 2.0.0 - 检查点管理器
 负责保存、加载和恢复管线执行状态
 """
 

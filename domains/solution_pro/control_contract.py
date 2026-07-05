@@ -4,9 +4,9 @@ This module is intentionally deterministic. The product runtime is the LLM
 orchestrator, but planner output should be normalized by code before it changes
 the fixed 10-stage worker prompts.
 
-V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
-V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
-Do not import this file for new V2 workflows.
+This file is part of pipeline (10-stage architecture).
+uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new workflows.
 """
 
 from __future__ import annotations
@@ -149,7 +149,7 @@ def _normalize_acceptance_criteria(planning: Dict[str, Any]) -> List[Dict[str, s
 
 def _acceptance_from_frozen_spec(bm: BlackboardManager) -> List[Dict[str, str]]:
     """
-    从 frozen_spec.json 生成 acceptance_criteria（V2.0 增强）。
+    从 frozen_spec.json 生成 acceptance_criteria。
 
     优先使用 requirement_groups 组织输出，如果没有则回退到扁平列表。
     """
@@ -183,7 +183,7 @@ def _acceptance_from_frozen_spec(bm: BlackboardManager) -> List[Dict[str, str]]:
         if criteria:
             return criteria
 
-    # Fallback: 扁平列表（向后兼容 V1.0）
+    # Fallback: 扁平列表
     criteria = []
     for item in frozen.get("requirements", []) or []:
         if not isinstance(item, dict):
@@ -209,7 +209,7 @@ def _find_requirement_by_id(requirements: List[Dict], req_id: str) -> Dict | Non
 
 
 def build_control_contract(base_path: str) -> Dict[str, Any]:
-    """构建 control contract（使用 V6 BlackboardManager API）"""
+    """构建 control contract（使用 BlackboardManager API）"""
     bm = _get_bm(base_path)
 
     plan = bm.read_json("execution_plan.json") or {}

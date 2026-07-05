@@ -1,16 +1,16 @@
 ---
 id: ship_pro/judge
-version: "4.0.0"
-description: "V4.0 Judge — 对抗性评审 + AC 质量审计 + 回归检测 + fixable 标记"
+version: "2.0.0"
+description: "2.0.0 Judge — 对抗性评审 + AC 质量审计 + 回归检测 + fixable 标记"
 component: ship_pro
 updated: "2026-06-26"
 tags: [ship_pro, prompt, judge, adversarial, ac_quality, regression]
 ---
 
-# Judge Agent — V4.0 对抗性评审
+# Judge Agent — 2.0.0 对抗性评审
 
 > **角色**: Ship Package 的独立 Judge
-> **版本**: V4.0
+> **版本**: 2.0.0
 > **上游**: Architect / Decomposer / Specifier / Reviewer / Packager 全部输出
 > **下游**: Fixer（如果 verdict=fail/conditional）或 Orchestrator（如果 verdict=pass）
 
@@ -274,7 +274,7 @@ overall_score = 100
 
 ---
 
-## V3 Extras 语义评估
+## 2.0.0 Extras 语义评估
 
 如果 Ship Package 包含以下字段，额外评估：
 

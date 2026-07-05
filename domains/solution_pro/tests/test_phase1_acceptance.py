@@ -1,7 +1,7 @@
 """
 Solution Pro V2 Phase 1 验收测试
 
-Version: 1.6.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-29
 
@@ -52,7 +52,7 @@ from domains.solution_pro.schemas.schemas import (
 # ============================================================================
 
 MOCK_FROZEN_SPEC = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "project_name": "Phase 1 Acceptance Test",
     "p0_req_ids": ["REQ-P0-001", "REQ-P0-002", "REQ-P0-003"],
     "requirements": [
@@ -63,12 +63,12 @@ MOCK_FROZEN_SPEC = {
 }
 
 MOCK_STRUCTURED_REQUIREMENTS = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "requirements": MOCK_FROZEN_SPEC["requirements"],
 }
 
 MOCK_EXPERT_MANIFEST = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "task_profile": {
         "domain": "backend_api",
         "complexity": "high",
@@ -137,7 +137,7 @@ MOCK_EXPERT_MANIFEST = {
 def _make_expert_plan(expert_name: str, constraints=None, covered_req_ids=None):
     """Helper to create expert plan"""
     return {
-        "schema_version": "1.0.0",
+        "schema_version": "2.0.0",
         "expert_name": expert_name,
         "constraints": constraints or [
             {
@@ -172,7 +172,7 @@ def _make_expert_plan(expert_name: str, constraints=None, covered_req_ids=None):
 
 
 MOCK_HARNESS_OUTPUT = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "gate_a": {
         "score": 0.87,
         "verdict": "PASS",
@@ -203,7 +203,7 @@ MOCK_HARNESS_OUTPUT = {
 }
 
 MOCK_REVIEWER_PASS = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "reviewer": "reviewer",
     "overall_verdict": "PASS",
     "overall_score": 0.92,
@@ -213,7 +213,7 @@ MOCK_REVIEWER_PASS = {
 }
 
 MOCK_REVIEWER_FAIL = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "reviewer": "reviewer",
     "overall_verdict": "FAIL",
     "overall_score": 0.40,
@@ -326,43 +326,40 @@ def mock_spawn_fn():
 def _make_convergence_output():
     """Create mock convergence output"""
     return {
-        "schema_version": "1.0.0",
-        "unified_constraints": {
-            "schema_version": "1.0.0",
-            "unified_constraints": [
-                {
-                    "constraint_id": "UC-001",
-                    "description": "All API endpoints must require authentication",
-                    "priority": "MUST",
-                    "source_experts": ["security_expert"],
-                    "conflicts_resolved": [],
-                },
-                {
-                    "constraint_id": "UC-002",
-                    "description": "API response time < 200ms",
-                    "priority": "MUST",
-                    "source_experts": ["performance_expert"],
-                    "conflicts_resolved": [],
-                },
-                {
-                    "constraint_id": "UC-003",
-                    "description": "Support horizontal scaling",
-                    "priority": "SHOULD",
-                    "source_experts": ["scalability_expert"],
-                    "conflicts_resolved": [],
-                },
-            ],
-            "rejected_constraints": [],
-            "meta": {
-                "total_expert_plans": 3,
-                "total_input_constraints": 6,
-                "total_output_constraints": 3,
-                "merge_ratio": 0.5,
+        "schema_version": "2.0.0",
+        "unified_constraints": [
+            {
+                "constraint_id": "UC-001",
+                "description": "All API endpoints must require authentication",
+                "priority": "MUST",
+                "source_experts": ["security_expert"],
+                "conflicts_resolved": [],
             },
-            "covered_req_ids": ["REQ-P0-001", "REQ-P0-002", "REQ-P0-003"],
+            {
+                "constraint_id": "UC-002",
+                "description": "API response time < 200ms",
+                "priority": "MUST",
+                "source_experts": ["performance_expert"],
+                "conflicts_resolved": [],
+            },
+            {
+                "constraint_id": "UC-003",
+                "description": "Support horizontal scaling",
+                "priority": "SHOULD",
+                "source_experts": ["scalability_expert"],
+                "conflicts_resolved": [],
+            },
+        ],
+        "rejected_constraints": [],
+        "meta": {
+            "total_expert_plans": 3,
+            "total_input_constraints": 6,
+            "total_output_constraints": 3,
+            "merge_ratio": 0.5,
         },
+        "covered_req_ids": ["REQ-P0-001", "REQ-P0-002", "REQ-P0-003"],
         "verification_checklist": {
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "checklist": [
                 {
                     "check_id": "VC-001",
@@ -620,9 +617,9 @@ class TestPhase1Acceptance:
         # Output should have unified_constraints
         assert "unified_constraints" in convergence_output
         uc = convergence_output["unified_constraints"]
-        assert "unified_constraints" in uc
+        assert isinstance(uc, list)
         # The mock convergence output has 3 constraints (deduped from input)
-        assert len(uc["unified_constraints"]) >= 1
+        assert len(uc) >= 1
 
     def test_convergence_planner_conflict_resolution(self, mock_blackboard, mock_spawn_fn):
         """验证冲突解决"""
@@ -639,7 +636,7 @@ class TestPhase1Acceptance:
         )
 
         # Check that conflicts_resolved field exists in unified constraints
-        for constraint in convergence_output["unified_constraints"]["unified_constraints"]:
+        for constraint in convergence_output["unified_constraints"]:
             assert "conflicts_resolved" in constraint
             assert isinstance(constraint["conflicts_resolved"], list)
 
@@ -658,7 +655,7 @@ class TestPhase1Acceptance:
         )
 
         # Check covered_req_ids
-        covered = convergence_output["unified_constraints"].get("covered_req_ids", [])
+        covered = convergence_output.get("covered_req_ids", [])
         # At least some P0 REQs should be covered
         assert len(covered) >= 1
 

@@ -1,4 +1,4 @@
-# Solution模块设计文档（V3.0）
+# Solution模块设计文档（2.0.0）
 
 > **版本**: v3.0  
 > **日期**: 2026-04-28  
@@ -14,9 +14,9 @@
 | 模式 | 适用场景 | 执行时间 | Agent数 | 特点 |
 |:---|:---|:---:|:---:|:---|
 | **Standard** | 一般架构设计 | 10-15分钟 | 8-10个 | 平衡质量与时效，完整10阶段 |
-| **Rigorous** | 复杂企业级方案 | 20-30分钟 | 12+个 | 深度研究、Harness V2 质量保障 |
+| **Rigorous** | 复杂企业级方案 | 20-30分钟 | 12+个 | 深度研究、Harness 2.0.0 质量保障 |
 
-> ⚠️ Quick 模式已删除（2026-05），所有运行都使用完整 10 阶段 Harness V2 管线。详见 `domains/solution_pro/orchestrator_agent.py:258`。
+> ⚠️ Quick 模式已删除（2026-05），所有运行都使用完整 10 阶段 Harness 2.0.0 管线。详见 `domains/solution_pro/orchestrator_agent.py:258`。
 
 ### 1.2 输入模式
 
@@ -63,7 +63,7 @@
 
 ---
 
-## 3. Pro模式详细设计（V2.1 - Harness V2）
+## 3. Pro模式详细设计（2.0.0 - Harness 2.0.0）
 
 ### 3.1 10阶段流程
 
@@ -112,7 +112,7 @@ Stage 8: Fixer Expert（深度修正，5分钟）
     ├─ 处理 Critical/Major 问题
     └─ 输出：fixer_expert.json
 
-Stage 9: Harness V2 Final（最终质量门禁，3分钟）
+Stage 9: Harness 2.0.0 Final（最终质量门禁，3分钟）
     ├─ 完整性评分（60%权重）
     ├─ 适度性评分（40%权重）
     ├─ 阈值：≥0.85 PASS，<0.70 BLOCK
@@ -164,7 +164,7 @@ Researchers (Stage 4)
 - Stage 6（Audit）: 串行（4维度审计）
 - 其他阶段：串行
 
-**Harness V2 两阶段执行**:
+**Harness 2.0.0 两阶段执行**:
 ```python
 # Phase 1: Planning 先执行
 planning_task = build_planner_task(...)

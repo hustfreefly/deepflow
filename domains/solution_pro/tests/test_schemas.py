@@ -1,15 +1,4 @@
-"""
-Solution Pro V2 Schema 测试
-
-Version: 1.0.0
-Author: DeepFlow Solution Pro
-Date: 2026-06-28
-
-描述:
-- 测试所有 V2 Schema 的验证逻辑
-- 测试 validate_stage_output() 函数
-- 测试 Gate A 权重和验证
-"""
+"""Solution Pro V2 Schema 测试."""
 
 import pytest
 import sys
@@ -23,10 +12,8 @@ from domains.solution_pro.schemas.schemas import (
     ExpertManifestSchema,
     ExpertPlanSchema,
     UnifiedConstraintsSchema,
-    VerificationChecklistSchema,
     PlanningConvergenceSchema,
     GateAWeights,
-    DynamicCheck,
     validate_stage_output,
     get_stage_schema,
 )

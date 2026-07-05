@@ -1,4 +1,4 @@
-# Deep Dive V3.0 架构方案论证报告
+# Deep Dive 2.0.0 架构方案论证报告
 
 **文档版本**: v1.0  
 **日期**: 2026-04-11  
@@ -9,7 +9,7 @@
 
 ## 执行摘要
 
-本报告综合 **Researcher（参考架构深度解析）**、**Architect（V3 架构详细设计方案）**、**Critic A/B/C（三方评估视角）** 的全部输入，进行共识提取、取长补短、风险识别，最终输出一份 **可执行的 V3.0 架构方案**。
+本报告综合 **Researcher（参考架构深度解析）**、**Architect（2.0.0 架构详细设计方案）**、**Critic A/B/C（三方评估视角）** 的全部输入，进行共识提取、取长补短、风险识别，最终输出一份 **可执行的 2.0.0 架构方案**。
 
 ### 核心结论
 
@@ -23,7 +23,7 @@
 
 ### 一句话总结
 
-> **V3.0 = OpenProse 声明式编排 + V2.4 领域资产 + 渐进式交付 + 三种管线模板**
+> **2.0.0 = OpenProse 声明式编排 + 2.0.0 领域资产 + 渐进式交付 + 三种管线模板**
 >
 > 在 OpenClaw 平台约束内，实现"加一个领域 = 加一份配置"的扩展能力。
 
@@ -37,14 +37,14 @@
 |:---|:---|:---|:---|
 | **C1** | **声明式配置驱动**：YAML 优于 Python 硬编码 | OpenProse源码 + P0验证 + 三方评估 | 核心设计原则 |
 | **C2** | **Blackboard 文件共享**：共享 workspace 是跨 Agent 通信的自然方案 | P0实验1(0%冲突) + 平台验证 | 数据传递机制 |
-| **C3** | **星型拓扑**：只有 main 能 spawn，coordinator 必须运行在 main 上 | OpenClaw约束 + V2.4教训 | 架构拓扑不可变 |
-| **C4** | **意图确认在主 Agent 层**：Planner 不应重新解读用户意图 | V2.4教训(Planner误解) | 流程起点 |
+| **C3** | **星型拓扑**：只有 main 能 spawn，coordinator 必须运行在 main 上 | OpenClaw约束 + 2.0.0.4教训 | 架构拓扑不可变 |
+| **C4** | **意图确认在主 Agent 层**：Planner 不应重新解读用户意图 | 2.0.0.4教训(Planner误解) | 流程起点 |
 | **C5** | **三种管线模板**：iterative/audit/gated 覆盖6大场景 | 用户需求 + OpenProse模式 | 管线层设计 |
 | **C6** | **向后兼容**：现有4领域不能坏 | 用户明确约束 | 迁移策略 |
 | **C7** | **渐进式交付**：2/8/30分钟三层，8分钟不强制关闭 | 用户需求确认 | 执行模型 |
-| **C8** | **收敛检测复用**：convergence.py 直接复用 | P0验证 + V2.4资产 | 复用已有代码 |
-| **C9** | **质量门禁**：多维度评分 + 阈值判断 | V2.4质量评估 + LangGraph参考 | 质量保障 |
-| **C10** | **Checkpoint 机制**：阶段级持久化 + 恢复 | V2.4已实现 + 故障处理需求 | 容错基础 |
+| **C8** | **收敛检测复用**：convergence.py 直接复用 | P0验证 + 2.0.0.4资产 | 复用已有代码 |
+| **C9** | **质量门禁**：多维度评分 + 阈值判断 | 2.0.0.4质量评估 + LangGraph参考 | 质量保障 |
+| **C10** | **Checkpoint 机制**：阶段级持久化 + 恢复 | 2.0.0.4已实现 + 故障处理需求 | 容错基础 |
 
 ### 1.2 存在分歧的领域（⚠️ 需权衡）
 
@@ -75,12 +75,12 @@
 | # | 改进项 | 来源 | 理由 |
 |:---|:---|:---|:---|
 | **H1** | **引入声明式 YAML 配置** | OpenProse + 三方共识 | 消除"配置与执行脱节"根本问题 |
-| **H2** | **三种管线模板分离** | 用户需求 + V2.4教训 | 解决"固定管线不适配所有场景" |
+| **H2** | **三种管线模板分离** | 用户需求 + 2.0.0.4教训 | 解决"固定管线不适配所有场景" |
 | **H3** | **Blackboard 文件传递** | P0验证通过 | 替代 coordinator 中转，降低耦合 |
 | **H4** | **渐进式交付模型** | 用户明确确认 | 解决用户耐心上限问题 |
-| **H5** | **意图确认在主 Agent 层** | V2.4教训 | 避免 Planner 重新解读 |
+| **H5** | **意图确认在主 Agent 层** | 2.0.0.4教训 | 避免 Planner 重新解读 |
 | **H6** | **领域配置模板化** | 扩展性需求 | "加一个领域 = 加一份配置" |
-| **H7** | **自动化 V2.4→V3.0 迁移工具** | 向后兼容约束 | 4 领域 100% 不损坏 |
+| **H7** | **自动化 2.0.0→2.0.0 迁移工具** | 向后兼容约束 | 4 领域 100% 不损坏 |
 
 ### 2.2 建议采纳的改进（中优先级 — Phase 2 实现）
 
@@ -194,7 +194,7 @@
 | **CheckpointManager** | 状态持久化 | `checkpoint_manager.py` | 文件锁 + WAL | **直接复用** |
 | **ResilienceManager** | 容错/熔断/重试 | `resilience.py` | PhaseGuard + 超时 | **直接复用** |
 | **DeliveryManager** | 渐进式交付 | `delivery_manager.py` | 三层交付调度 | 新增 |
-| **MigrationTool** | V2.4→V3.0 迁移 | `migration_tool.py` | 配置转换 | 新增 |
+| **MigrationTool** | 2.0.0→2.0.0 迁移 | `migration_tool.py` | 配置转换 | 新增 |
 
 ### 3.3 数据流设计
 
@@ -321,7 +321,7 @@
 
 ```yaml
 # ============================================================
-# Deep Dive V3.0 — 领域配置 Schema (v3.0)
+# Deep Dive 2.0.0 — 领域配置 Schema (v3.0)
 # 位置: ~/.openclaw/workspace/.v3/domains/<domain>.yaml
 # ============================================================
 
@@ -459,7 +459,7 @@ resilience:
 
 # --- 向后兼容 ---
 compatibility:
-  v2_domain_name: investment          # V2.4 对应领域名
+  v2_domain_name: investment          # 2.0.0 对应领域名
   migration_notes: "critic_angles → agents[].instances"
 ```
 
@@ -493,7 +493,7 @@ quality:
 
 ### 5.1 iterative — 迭代生成管线
 
-**适用场景**: 代码审查、架构设计、投资分析、通用分析（V2.4 已有的4个领域）
+**适用场景**: 代码审查、架构设计、投资分析、通用分析（2.0.0 已有的4个领域）
 
 ```yaml
 # iterative.yaml — 迭代生成管线模板
@@ -745,7 +745,7 @@ pipeline:
 
 ### 6.1 Phase 1 — MVP（核心功能，1-2 周）
 
-**目标**: 可运行的 V3.0 核心引擎，4 个现有领域 100% 迁移成功
+**目标**: 可运行的 2.0.0 核心引擎，4 个现有领域 100% 迁移成功
 
 | 任务 | 内容 | 交付物 | 预估时间 |
 |:---|:---|:---|:---:|
@@ -753,14 +753,14 @@ pipeline:
 | **P1-2** | 配置 Schema 定义 + YAML 解析 | `config_loader.py` + Schema | 2 天 |
 | **P1-3** | PipelineEngine 核心框架 | `pipeline_engine.py` | 3 天 |
 | **P1-4** | iterative 管线实现 | 模板 + 测试 | 3 天 |
-| **P1-5** | V2.4→V3.0 迁移工具 | `migration_tool.py` + 4 领域配置 | 2 天 |
+| **P1-5** | 2.0.0→2.0.0 迁移工具 | `migration_tool.py` + 4 领域配置 | 2 天 |
 | **P1-6** | 回归测试套件 | 4 领域 L1 测试通过 | 2 天 |
 
 **验收标准**:
 - [x] 4 个现有领域配置成功转换
 - [x] L1 测试（5 任务）100% 通过
-- [x] 成功率 ≥ V2.4 水平（92-95%）
-- [x] 耗时 ≤ V2.4 水平（4 分钟/任务）
+- [x] 成功率 ≥ 2.0.0 水平（92-95%）
+- [x] 耗时 ≤ 2.0.0 水平（4 分钟/任务）
 - [x] Blackboard 文件 I/O 正常工作
 
 ### 6.2 Phase 2 — 增强功能（2-3 周）
@@ -810,10 +810,10 @@ pipeline:
 
 ## 第七章：向后兼容策略
 
-### 7.1 V2.4 → V3.0 迁移路径
+### 7.1 2.0.0 → 2.0.0 迁移路径
 
 ```
-V2.4 配置 (Python)                    V3.0 配置 (YAML)
+2.0.0 配置 (Python)                    2.0.0 配置 (YAML)
 ─────────────────                    ─────────────────
 config.DOMAINS['investment']    →    .v3/domains/investment.yaml
   .name: "investment"                  domain: investment
@@ -822,7 +822,7 @@ config.DOMAINS['investment']    →    .v3/domains/investment.yaml
   .quality_threshold: 0.92             quality.dimensions[].threshold
   .pipeline: "standard"                pipeline: iterative
 
-V2.4 代码 (Python)                    V3.0 代码 (Python)
+2.0.0 代码 (Python)                    2.0.0 代码 (Python)
 ─────────────────                    ─────────────────
 coordinator.py (770行)           →    pipeline_engine.py (~300行)
   .run()                               .execute()
@@ -839,9 +839,9 @@ coordinator.py (770行)           →    pipeline_engine.py (~300行)
 
 def migrate_v2_to_v3(v2_config_path: str, output_dir: str):
     """
-    自动将 V2.4 Python 配置转换为 V3.0 YAML 配置
+    自动将 2.0.0 Python 配置转换为 2.0.0 YAML 配置
     """
-    # Step 1: 读取 V2.4 配置
+    # Step 1: 读取 2.0.0 配置
     v2_config = load_v2_config(v2_config_path)
     
     # Step 2: 转换每个领域
@@ -871,7 +871,7 @@ TRANSFORM_MAP = {
 
 ### 7.3 4 领域配置转换对照
 
-| V2.4 领域 | V3.0 Pipeline | 关键变化 | 预计兼容性 |
+| 2.0.0 领域 | 2.0.0 Pipeline | 关键变化 | 预计兼容性 |
 |:---|:---|:---|:---:|
 | **investment** | iterative | critic_angles → instances | ✅ 自动 |
 | **architecture** | iterative | iterations 10 → pipeline_config | ✅ 自动 |
@@ -881,7 +881,7 @@ TRANSFORM_MAP = {
 ### 7.4 回滚策略
 
 ```yaml
-# 如果 V3.0 出现问题，回滚到 V2.4:
+# 如果 2.0.0 出现问题，回滚到 2.0.0:
 rollback:
   触发条件:
     - 4 领域回归测试通过率 < 95%
@@ -889,10 +889,10 @@ rollback:
     - 任务平均耗时增加 > 50%
   
   回滚步骤:
-    1. 停用 V3.0 Skill (SKILL.md 标记 deprecated)
-    2. 恢复 V2.4 Skill (SKILL.md 激活)
-    3. 通知用户: "V3.0 遇到问题，已回滚到 V2.4"
-    4. 保留 V3.0 配置作为调试参考
+    1. 停用 2.0.0 Skill (SKILL.md 标记 deprecated)
+    2. 恢复 2.0.0 Skill (SKILL.md 激活)
+    3. 通知用户: "2.0.0 遇到问题，已回滚到 2.0.0"
+    4. 保留 2.0.0 配置作为调试参考
   
   回滚时间: < 1 分钟 (仅切换 Skill 注册)
 ```
@@ -936,7 +936,7 @@ rollback:
 Phase 1 里程碑 (1-2 周):
   4. 完成 4 领域迁移
   5. 通过回归测试
-  6. 对比 V2.4 性能数据
+  6. 对比 2.0.0 性能数据
 
 Phase 2 里程碑 (2-3 周):
   7. 三种管线全部实现
@@ -958,7 +958,7 @@ Phase 2 里程碑 (2-3 周):
 | Pre-Design | `docs/reports/v3-pre-design-spec.md` | ✅ |
 | 新架构输入 | `docs/reports/deep-dive-v3-architecture-input.md` | ✅ |
 | P0 验证报告 | `docs/reports/v3-p0-validation-report.md` | ✅ |
-| 交叉验证报告 | `V3.0_CROSS_VALIDATION_AUDIT_REPORT.md` | ✅ |
+| 交叉验证报告 | `2.0.0.0_CROSS_VALIDATION_AUDIT_REPORT.md` | ✅ |
 | 兼容性报告 | `COMPATIBILITY_REPORT_v3.0.md` | ✅ |
 
 ### B. 关键术语表

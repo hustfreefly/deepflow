@@ -1,6 +1,6 @@
-# Solution Pro V2 → V3 具体实施改动方案
+# Solution Pro 2.0.0 → 2.0.0 具体实施改动方案
 
-> **版本**: V1.0 | **日期**: 2026-06-29
+> **版本**: 2.0.0 | **日期**: 2026-06-29
 > **架构方案**: refactor_llm_routing_v3.md（已通过评审 8/10）
 > **本文档**: 具体到每个文件的改动内容
 
@@ -80,7 +80,7 @@ class SpawnResult:
 ```python
 """LLMJudgeAdapter：将 spawn_fn 适配为 llm_judge_fn 接口。
 
-V3.0 关键修正（基于 PlanMode Pro Round 2 裁决）：
+2.0.0 关键修正（基于 PlanMode Pro Round 2 裁决）：
 1. spawn_fn 返回字符串（visible reply），不是 dict
 2. judge() 是同步方法，不是 async
 3. 批量评估通过合并 prompt 减少 spawn 次数
@@ -351,7 +351,7 @@ def __init__(self, llm_judge_fn: Optional[Callable] = None):
 **改为**:
 ```python
 def __init__(self, llm_judge_fn: Optional[Callable] = None, spawn_fn: Optional[Callable] = None):
-    # V3: 优先使用 spawn_fn → LLMJudgeAdapter
+    # 2.0.0: 优先使用 spawn_fn → LLMJudgeAdapter
     if spawn_fn is not None and llm_judge_fn is None:
         from domains.solution_pro.llm_judge_adapter import LLMJudgeAdapter
         adapter = LLMJudgeAdapter(spawn_fn)
@@ -440,7 +440,7 @@ cp e2e_test_runner.py e2e_test_runner_v2_legacy.py
 ```python
 #!/usr/bin/env python3
 """
-Solution Pro V2 E2E Test Runner（V3 重构版）
+Solution Pro 2.0.0 E2E Test Runner（2.0.0 重构版）
 
 改动：
 - 删除 Spawn Bridge（文件中转）
@@ -518,7 +518,7 @@ def run_e2e(
     )
     
     # Step 5: 执行 Pipeline
-    print(f"[E2E] Starting V2 Pipeline: Planning → Research → ReviewQC")
+    print(f"[E2E] Starting 2.0.0 Pipeline: Planning → Research → ReviewQC")
     try:
         result = master.run(user_input=user_input, config=config)
         print(f"[E2E] Pipeline completed: {result.get('status', 'UNKNOWN')}")
@@ -573,7 +573,7 @@ def _load_or_create_frozen_spec(topic: str) -> dict:
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Solution Pro V2 E2E Test")
+    parser = argparse.ArgumentParser(description="Solution Pro 2.0.0 E2E Test")
     parser.add_argument("--topic", default=DEFAULT_TOPIC)
     parser.add_argument("--mode", default="standard", choices=["standard", "full"])
     parser.add_argument("--mock", action="store_true", help="使用 mock spawn_fn")
@@ -599,7 +599,7 @@ if __name__ == "__main__":
 
 ---
 
-## Phase 4: 移动 V1 Legacy 代码（15min）
+## Phase 4: 移动 2.0.0 Legacy 代码（15min）
 
 ```bash
 mkdir -p domains/solution_pro/v1_legacy
@@ -645,7 +645,7 @@ def create_mock_spawn_fn(self, fallback_fn=None):
 
 **在第 49-51 行后添加**:
 ```python
-# V3: prod 环境强制要求 spawn_fn
+# 2.0.0: prod 环境强制要求 spawn_fn
 if spawn_fn is None and os.environ.get("DEEPFLOW_ENV") == "prod":
     raise ValueError(
         "spawn_fn is required in production mode. "

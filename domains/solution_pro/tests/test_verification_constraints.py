@@ -102,7 +102,6 @@ class TestP0ConstraintCoverage:
     def test_p0_constraints_are_severity_critical(self):
         """P0 约束的 severity 必须为 CRITICAL 或 HIGH"""
         unified = load_stage("unified_constraints.json")
-        constraints = unified.get("unified_constraints", [])
         p0_merged = unified.get("p0_constraints_merged", [])
 
         for c in p0_merged:
@@ -235,7 +234,7 @@ class TestExecutionOrder:
 
             # Expert Plans 不应该声称使用了追溯矩阵
             # （因为追溯矩阵在它们执行时还不存在）
-            assert "requirement_traceability_matrix" not in plan.get("inputs_used", {}), (
+            assert "requirement_traceability_matrix" not in plan_text, (
                 f"Expert plan {f.name} claims to use requirement_traceability_matrix "
                 f"but it runs before Convergence Planner"
             )

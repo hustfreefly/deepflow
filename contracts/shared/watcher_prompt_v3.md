@@ -5,7 +5,7 @@ component: deepflow/shared
 updated: "2026-06-25"
 ---
 
-# AI Native Watcher Prompt V3
+# AI Native Watcher Prompt 2.0.0
 
 > **设计理念**: LLM 做判断和格式化，Python 只做文件扫描。
 > **Token 目标**: 每次巡检 < 800 tokens（含工具调用）。
@@ -72,12 +72,12 @@ completed/total → "█"×completed + "░"×(total-completed)，宽度=total
 | LLM 输出（模板文本） | ~50 |
 | **总计** | **~600** |
 
-对比 V2（Python 脚本 + wrapper prompt）：~2000 tokens/次。
+对比 2.0.0（Python 脚本 + wrapper prompt）：~2000 tokens/次。
 **节省 ~70% token**。
 
-## 与 V2 的区别
+## 与 2.0.0 的区别
 
-| 维度 | V2（Python 全做） | V3（AI Native） |
+| 维度 | 2.0.0（Python 全做） | 2.0.0（AI Native） |
 |------|-------------------|-----------------|
 | 文件扫描 | Python (603行) | Python (100行) |
 | 状态比较 | Python diff | LLM 比较 |

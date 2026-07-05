@@ -1,6 +1,6 @@
 ---
 id: solution/orchestrator
-version: "7.2.0"
+version: "2.0.0"
 component: solution
 updated: "2026-06-30"
 ---
@@ -264,7 +264,7 @@ from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 import json, os
 
-# V3: solution_document (Phase 5a) + final_solution (Phase 5b) are separate stages
+# 2.0.0: solution_document (Phase 5a) + final_solution (Phase 5b) are separate stages
 solution_doc = bb.read_stage('solution_document')
 final_sol = bb.read_stage('final_solution')
 stages_dir = os.path.join(str(bb.session_dir), 'stages')

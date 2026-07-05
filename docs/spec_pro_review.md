@@ -295,13 +295,13 @@ Solution Pro 的 `task_builder.py` 从 `living_spec["confirmed"]` 中读取以�
 
 | Spec Pro 产出 | Solution Pro 消费 | 说明 |
 |-------------|-----------------|------|
-| `inferred` 层 | ⚠️ 部分消费 | frozen_spec V2.0 已提取 inferred 为 REQ-ID（`inferred` category），但 task_builder.py 的 living_spec_context 不直接引用 |
-| `guardrails` 层 | ✅ 已消费 | frozen_spec V2.0 透传 guardrails 到 frozen_spec.json，task_builder.py 注入到 Worker prompt |
+| `inferred` 层 | ⚠️ 部分消费 | frozen_spec 2.0.0 已提取 inferred 为 REQ-ID（`inferred` category），但 task_builder.py 的 living_spec_context 不直接引用 |
+| `guardrails` 层 | ✅ 已消费 | frozen_spec 2.0.0 透传 guardrails 到 frozen_spec.json，task_builder.py 注入到 Worker prompt |
 | `route_recommendation` | ❌ 不消费 | Solution Pro 不读路由建议 |
-| `solution_pro_hints` | ✅ 已消费 | frozen_spec V2.0 透传到 frozen_spec.json，spec_context.py 格式化注入到 Worker prompt |
+| `solution_pro_hints` | ✅ 已消费 | frozen_spec 2.0.0 透传到 frozen_spec.json，spec_context.py 格式化注入到 Worker prompt |
 | `meta` | ❌ 不消费 | 元数据，Solution Pro 不需要 |
 
-> **已修复（2026-06-03）**: `solution_pro_hints` 原先产出但未被消费的问题，已通过 frozen_spec.py V2.0 透传 + spec_context.py `build_worker_context_section()` 注入解决。
+> **已修复（2026-06-03）**: `solution_pro_hints` 原先产出但未被消费的问题，已通过 frozen_spec.py 2.0.0 透传 + spec_context.py `build_worker_context_section()` 注入解决。
 
 SPEC_PRO 在 cage 中声明了 `solution_pro_hints` 的注入方式（cage §integration.solution_pro.injection_method），但实际代码中 Solution Pro 只消费了 `confirmed` 层，**没有消费 `solution_pro_hints`**。
 
@@ -313,11 +313,11 @@ SPEC_PRO 在 cage 中声明了 `solution_pro_hints` 的注入方式（cage §int
 | `layer2_hints` (researcher/auditor) | 未读取 | ⚠️ 产出但未被消费 |
 | `anti_patterns` | 未读取 | ⚠️ 产出但未被消费 |
 
-**结论（更新 2026-06-03）**: `solution_pro_hints` 已被 Solution Pro 消费。frozen_spec.py V2.0 透传该字段到 frozen_spec.json，spec_context.py 的 `format_solution_pro_hints_for_prompt()` 按 focus_areas/layer2_hints/anti_patterns 三段式注入到 Worker prompt。
+**结论（更新 2026-06-03）**: `solution_pro_hints` 已被 Solution Pro 消费。frozen_spec.py 2.0.0 透传该字段到 frozen_spec.json，spec_context.py 的 `format_solution_pro_hints_for_prompt()` 按 focus_areas/layer2_hints/anti_patterns 三段式注入到 Worker prompt。
 
-#### B4.4 frozen_spec.py V2.0 更新记录（2026-06-03）
+#### B4.4 frozen_spec.py 2.0.0 更新记录（2026-06-03）
 
-frozen_spec.py 的 `build_frozen_spec()` 已升级为 V2.0，实现了 **living_spec → frozen_spec 全量提取**。
+frozen_spec.py 的 `build_frozen_spec()` 已升级为 2.0.0，实现了 **living_spec → frozen_spec 全量提取**。
 
 **提取覆盖的 REQ category（17 种）**：
 
@@ -377,7 +377,7 @@ frozen_spec.py 的 `build_frozen_spec()` 已升级为 V2.0，实现了 **living_
 |---|------|------|---------|
 | D4 | `config/spec_pro.yaml` 缺少 response_worker 和 harness_worker | 配置文件不完整，不能准确描述 Spec Pro 的全部 Worker | 补充 response_worker 和 harness_worker 到 config agents 列表 |
 | D5 | `config/spec_pro.yaml` timeout 值过时且未被代码使用 | 配置是死的，实际 timeout 硬编码在 coordinator.py 和 models.py | 统一为单一来源（建议 models.py WORKER_TIMEOUT），或让 coordinator.py 从 config 读取 |
-| D6 | ~~`solution_pro_hints` 未被 Solution Pro 消费~~ | ~~Spec Pro 产出的 hint 信息被浪费~~ | ✅ 已修复（2026-06-03）：frozen_spec.py V2.0 透传 + spec_context.py 注入 |
+| D6 | ~~`solution_pro_hints` 未被 Solution Pro 消费~~ | ~~Spec Pro 产出的 hint 信息被浪费~~ | ✅ 已修复（2026-06-03）：frozen_spec.py 2.0.0 透传 + spec_context.py 注入 |
 
 ### 🟢 改进 (可选)
 

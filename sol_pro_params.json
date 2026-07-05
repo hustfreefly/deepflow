@@ -1,0 +1,7 @@
+{
+  "runtime": "subagent",
+  "mode": "run",
+  "label": "solution_orchestrator",
+  "cwd": "/Users/allen/.openclaw/workspace/.deepflow",
+  "lightContext": true
+}

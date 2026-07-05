@@ -10,9 +10,9 @@ Propagation Checker - 验证 Solution Pro 输出中的需求传播完整性
 """
 
 """
-V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
-V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
-Do not import this file for new V2 workflows.
+This file is part of pipeline (10-stage architecture).
+uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new workflows.
 """
 import json
 import sys

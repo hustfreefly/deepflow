@@ -320,7 +320,7 @@ Solution Pro watcher 检测完成
 }
 ```
 
-**建议**: V1 不做复合监听。auto-chain 通过触发文件 + 主 agent 编排实现，保持 watcher 单一职责。
+**建议**: 2.0.0 不做复合监听。auto-chain 通过触发文件 + 主 agent 编排实现，保持 watcher 单一职责。
 
 ---
 

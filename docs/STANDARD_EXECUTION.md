@@ -1,7 +1,7 @@
-# DeepFlow V1.0 标准执行手册
+# DeepFlow 2.0.0 标准执行手册
 
 > **版本**: 1.0 | **日期**: 2026-04-21 | **状态**: 已验证
-> **当前版本**: 0.1.0 (V4.0) — 本文档为 V1.0 时期验证记录
+> **当前版本**: 0.1.0 (2.0.0) — 本文档为 2.0.0 时期验证记录
 >
 > 本文档记录 DeepFlow 投资分析管线的**标准执行模式**，基于京仪装备(688652.SH)分析任务的完整验证。
 
@@ -47,7 +47,7 @@ sessions_spawn(
     mode="run",
     label="orchestrator",
     task="""
-你是 DeepFlow V1.0 PipelineEngine Orchestrator Agent（depth-1）。
+你是 DeepFlow 2.0.0 PipelineEngine Orchestrator Agent（depth-1）。
 
 ## 环境变量
 - DEEPFLOW_DOMAIN=investment
@@ -271,4 +271,4 @@ Worker Agents (depth-2)
 
 ---
 
-*固化说明: 本文档为 DeepFlow V1.0 标准执行的唯一权威参考，后续执行必须遵循。*
+*固化说明: 本文档为 DeepFlow 2.0.0 标准执行的唯一权威参考，后续执行必须遵循。*

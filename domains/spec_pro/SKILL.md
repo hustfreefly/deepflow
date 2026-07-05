@@ -1,7 +1,13 @@
+---
+name: spec-pro
+description: "DeepFlow Spec Pro — 需求梳理引擎。触发：梳理需求、需求分析、Living Spec。"
+version: "2.0.0"
+---
+
 # Spec Pro - Agent 执行指南
 
-> **版本**: V2.1 | **最后更新**: 2026-06-22  
-> **架构**: 多轮对话 → LivingSpec 构建 → Harness V2 评估 → Solution Pro 上下文注入  
+> **版本**: 2.0.0 | **最后更新**: 2026-06-22  
+> **架构**: 多轮对话 → LivingSpec 构建 → Harness 2.0.0 评估 → Solution Pro 上下文注入  
 > **核心理念**: 通过结构化对话提取需求，生成可执行的 LivingSpec
 
 ---
@@ -101,7 +107,7 @@ exec(
 
 ---
 
-### Step 3: Harness V2 评估
+### Step 3: Harness 2.0.0 评估
 
 **触发条件**：`status == "done"`
 
@@ -195,8 +201,8 @@ exec(
 {
   "meta": {
     "spec_version": "2.1",
-    "created_at": "2026-06-22T10:00:00Z",
-    "updated_at": "2026-06-22T10:30:00Z",
+    "created_at": "2026-07-05T10:00:00Z",
+    "updated_at": "2026-07-05T10:30:00Z",
     "conversation_rounds": 3
   },
   "confirmed": {
@@ -214,22 +220,37 @@ exec(
   },
   "inferred": [...],
   "guardrails": {...},
-  "conversation_digest": {
-    "summary": "用户需求摘要...",
-    "key_excerpts": [
-      {
-        "excerpt": "每天50多个订单要手动发邮件通知",
-        "dimension": "pain_points",
-        "importance": "critical",
-        "source_round": 1
-      }
-    ],
-    "full_conversation_path": "spec/conversation_log.json"
+  "core_summary": "≤5KB 核心摘要，下游 Agent 优先读取此字段快速理解全貌",
+  "narrative": "完整的用户需求叙述（苏格拉底对话提取，主体）",
+  "requirement_index": [
+    {"id": "REQ-001", "description": "...", "priority": "P0", "source_section": "confirmed.objective"}
+  ],
+  "semantic_anchors": [
+    {
+      "name": "sessions_spawn",
+      "category": "platform_api",
+      "constraint": "必须用 sessions_spawn 调度子 Agent，禁止 Python import",
+      "source_quote": "对话中用户提到的原文",
+      "confidence": 0.9,
+      "applicable_to": ["all"]
+    }
+  ],
+  "solution_pro_hints": {
+    "focus_areas": ["订单状态监听", "邮件模板引擎"],
+    "complexity_notes": ["需要支持批量发送"]
   }
 }
 ```
 
-### Harness V2 评估
+> **重要**：`conversation_digest` 已废弃，不再使用。对话日志存储在 `spec/conversation_log.json`。
+> 
+> **下游读取策略**（Solution Pro / Ship Pro）：
+> 1. 先读 `core_summary`（快速理解全貌）
+> 2. 按需深入读 `narrative` 的特定段落
+> 3. `requirement_index` 用于 REQ-ID 追溯
+> 4. `semantic_anchors` 全链路透传（不可变实体）
+
+### Harness 2.0.0 评估
 
 **Layer 1 (S1-S10)**：10 项结构化检查
 - S1-S10 分别检查 objective、pain_points、capabilities、constraints 等字段的完整性和可执行性
@@ -309,6 +330,6 @@ exec("PYTHONPATH=. python3 domains/spec_pro/eval/harness.py spec_spec_abc123")
 ## 🔗 相关文档
 
 - [LivingSpec Schema](schemas.py)
-- [Harness V2 评估逻辑](eval/harness.py)
+- [Harness 2.0.0 评估逻辑](eval/harness.py)
 - [Prompt 模板](prompts/)
 - [Solution Pro SKILL.md](../solution/SKILL.md)

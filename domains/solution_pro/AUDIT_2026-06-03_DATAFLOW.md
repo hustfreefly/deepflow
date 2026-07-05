@@ -61,7 +61,7 @@ Stage 10: summarizer      → stages/summarizer.json + final_result.json + final
   - **谁调用 rewrite_after_planning()？**
     - 仅在 `scripts/golden_solution_pro_dry_run.py` 中被调用
     - **主执行路径 `run_harness_v2()` 从未调用 `rewrite_after_planning()` 或 `build_control_contract()`**
-  - 这意味着 `control_contract.json` 在正常 Harness V2 执行中**永远不会被生成**
+  - 这意味着 `control_contract.json` 在正常 Harness 2.0.0 执行中**永远不会被生成**
   - `research_workers` 专家映射、`layer2_constraints` 动态化等机制全部失效
 - **证据**:
   - `grep -rn "rewrite_after_planning\|build_control_contract" orchestrator_agent.py` → 0 结果（仅 L367 注释引用）

@@ -1,6 +1,6 @@
 ---
 id: ship_pro/ship_reviewer
-version: 1.0.0
+version: 2.0.0
 description: 轻量级兜底验证，检查 AC 质量和依赖合理性
 author: DeepFlow Team
 created: 2026-06-18
@@ -8,13 +8,13 @@ updated: 2026-06-23
 tags: [ship_pro, prompt, review, quality_check]
 ---
 
-# Ship Pro Reviewer — LLM 质量审查（V2 简化版）
+# Ship Pro Reviewer — LLM 质量审查（2.0.0 简化版）
 
-你是 Ship Package 质量审查员。V2 架构中，LLM 预扫描已生成领域知识，编译器已消费预扫描结果。你的职责是**轻量级兜底验证**，而非全面审查。
+你是 Ship Package 质量审查员。2.0.0 架构中，LLM 预扫描已生成领域知识，编译器已消费预扫描结果。你的职责是**轻量级兜底验证**，而非全面审查。
 
 ## 📦 BlackboardManager 使用指南
 
-所有文件读写通过 BlackboardManager V6 API，**禁止自行拼接文件路径**。
+所有文件读写通过 BlackboardManager 2.0.0 API，**禁止自行拼接文件路径**。
 
 ```python
 from domains.ship_pro.blackboard import BlackboardManager
@@ -128,4 +128,4 @@ all_stages = bm.list_stages()            # 返回 list[str]
 - 只检查，不修复
 - 每个 issue 必须有 `suggested_fix`
 - 不要编造问题——如果检查确实没问题，就标记 passed
-- 不要检查 V1 中的"WP 分解合理性"和"设计-执行一致性"（预扫描已处理）
+- 不要检查 2.0.0 中的"WP 分解合理性"和"设计-执行一致性"（预扫描已处理）

@@ -292,12 +292,12 @@ class PathConfig:
                     logger.debug(f"cache cleanup: {e}")
     
     # ============================================================
-    # Blackboard V2 方法（projects/runs/ 三层结构）
+    # Blackboard 方法（projects/runs/ 三层结构）
     # ============================================================
     
     @staticmethod
     def generate_slug(topic: str) -> str:
-        """V2: 从 topic 生成人类可读 slug
+        """从 topic 生成人类可读 slug
         
         规则：
         - 中文 topic → pinyin 或保留中文
@@ -317,14 +317,14 @@ class PathConfig:
         return f"{slug}-{hash_suffix}"
     
     def get_project_path(self, slug: str) -> Path:
-        """V2: 获取项目目录路径
+        """获取项目目录路径
         
         返回: {blackboard_dir}/projects/{slug}
         """
         return self.blackboard_dir / "projects" / slug
     
     def get_run_path(self, slug: str, run_id: str) -> Path:
-        """V2: 获取运行目录路径
+        """获取运行目录路径
         
         返回: {blackboard_dir}/projects/{slug}/runs/{run_id}
         """
@@ -332,7 +332,7 @@ class PathConfig:
     
     @staticmethod
     def is_v2_session_id(session_id: str) -> bool:
-        """V2: 判断 session_id 是否为新格式（包含 /runs/）"""
+        """判断 session_id 是否为新格式（包含 /runs/）"""
         return "/runs/" in session_id
     
     def __repr__(self) -> str:

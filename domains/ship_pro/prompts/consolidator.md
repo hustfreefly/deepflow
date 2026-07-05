@@ -27,7 +27,13 @@ read 所有 worker_*.json 文件。每个文件包含一个 Worker 的 WP 数组
 构建跨 Worker 的 WP 依赖关系。基于模块间接口契约：
 - 如果 WP-X 依赖接口 method_a()，而 WP-Y 提供 method_a()，则 X depends_on Y
 
-### Step 5: 组装（含统计）
+### Step 5: Semantic Anchors 透传（契约笼子 — 必须执行）
+read {solution_pro_input_path}，提取 `semantic_anchors` 字段。
+- 将 `semantic_anchors` 原样复制到 ShipPackage 的 `semantic_anchors` 字段
+- 计算 `anchor_coverage`：统计每个 anchor name 被哪些 WP 的 `anchored_to` 字段引用
+- 如果 `semantic_anchors` 不存在于 solution_pro_input，跳过此步
+
+### Step 6: 组装（含统计）
 生成 ShipPackage JSON，write 到 {output_path}。
 统计信息（total_wps, total_effort_hours, req_coverage_rate, dependency_edges）写入 statistics 字段。
 
@@ -59,7 +65,9 @@ read 所有 worker_*.json 文件。每个文件包含一个 Worker 的 WP 数组
     "dependency_edges": 15
   },
   "issues": ["整合: REQ-005 被 CORE-002 和 LOOP-001 同时覆盖，已合并为 CORE-002（互补型重叠）"],
-  "pending_req_ids": ["REQ-080"]
+  "pending_req_ids": ["REQ-080"],
+  "semantic_anchors": [{"name": "sessions_spawn", "category": "platform_api", "constraint": "..."}],
+  "anchor_coverage": {"sessions_spawn": ["CORE-001", "CORE-007"], "_uncovered": ["Hermes"]}
 }
 ```
 

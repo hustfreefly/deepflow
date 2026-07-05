@@ -1,6 +1,6 @@
 ---
 id: spec_pro/parse_response
-version: "2.1.0"
+version: "2.0.0"
 component: spec_pro
 role: parser
 updated: "2026-05-23"

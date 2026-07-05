@@ -1,0 +1,178 @@
+{
+  "priority_layers": {
+    "MUST_FOLLOW": [
+      "OpenClaw",
+      "sessions_spawn",
+      "BlackboardManager",
+      "Skill Workshop",
+      "Feishu通知",
+      "全LLM控制",
+      "三层Loop架构"
+    ],
+    "SHOULD_FOLLOW": [
+      "8+小时无人干预",
+      "死循环熔断"
+    ],
+    "CONTEXT": [
+      "Hermes"
+    ]
+  },
+  "semantic_anchors": [
+    {
+      "name": "OpenClaw",
+      "category": "platform_api",
+      "constraint": "框架必须构建在 OpenClaw 平台之上，使用其现有能力",
+      "source_quote": "技术基础：OpenClaw现有平台能力",
+      "confidence": 0.98,
+      "applicable_to": [
+        "all"
+      ]
+    },
+    {
+      "name": "sessions_spawn",
+      "category": "platform_api",
+      "constraint": "子 Agent 生成必须使用 sessions_spawn，不能用其他 spawn 机制",
+      "source_quote": "技术基础：OpenClaw现有平台能力（sessions_spawn, BlackboardManager...）",
+      "confidence": 0.95,
+      "applicable_to": [
+        "all"
+      ]
+    },
+    {
+      "name": "BlackboardManager",
+      "category": "platform_api",
+      "constraint": "共享状态管理必须使用 BlackboardManager，不能用自建状态管理",
+      "source_quote": "技术基础：OpenClaw现有平台能力（sessions_spawn, BlackboardManager...）",
+      "confidence": 0.95,
+      "applicable_to": [
+        "all"
+      ]
+    },
+    {
+      "name": "Skill Workshop",
+      "category": "platform_api",
+      "constraint": "技能管理必须使用 Skill Workshop",
+      "source_quote": "技术基础：OpenClaw现有平台能力（...Skill Workshop, Feishu通知）",
+      "confidence": 0.9,
+      "applicable_to": [
+        "all"
+      ]
+    },
+    {
+      "name": "Feishu通知",
+      "category": "platform_api",
+      "constraint": "通知推送必须使用飞书（Feishu）渠道",
+      "source_quote": "技术基础：OpenClaw现有平台能力（...Feishu通知）",
+      "confidence": 0.9,
+      "applicable_to": [
+        "all"
+      ]
+    },
+    {
+      "name": "Hermes",
+      "category": "external_system",
+      "constraint": "Hermes 是对等协作伙伴（非子 Agent），需要双向通信协议",
+      "source_quote": "Hermes是对等协作伙伴（非子Agent），需要双向通信协议",
+      "confidence": 0.95,
+      "applicable_to": [
+        "all"
+      ]
+    },
+    {
+      "name": "全LLM控制",
+      "category": "architecture_principle",
+      "constraint": "Python 只做执行器，所有决策逻辑由 LLM prompt 驱动",
+      "source_quote": "Python只做执行器，所有决策逻辑由LLM prompt驱动",
+      "confidence": 0.98,
+      "applicable_to": [
+        "all"
+      ]
+    },
+    {
+      "name": "三层Loop架构",
+      "category": "architecture_principle",
+      "constraint": "必须实现 Task Loop + Dream Loop + Meta-Loop 三层架构",
+      "source_quote": "三层Loop架构（Task Loop + Dream Loop + Meta-Loop）",
+      "confidence": 0.95,
+      "applicable_to": [
+        "all"
+      ]
+    },
+    {
+      "name": "8+小时无人干预",
+      "category": "technical_constraint",
+      "constraint": "框架必须支持 8 小时以上无人干预自主运行",
+      "source_quote": "支持8+小时无人干预运行",
+      "confidence": 0.95,
+      "applicable_to": [
+        "all"
+      ]
+    },
+    {
+      "name": "死循环熔断",
+      "category": "technical_constraint",
+      "constraint": "必须实现死循环检测与熔断机制，防止无限循环",
+      "source_quote": "解决质量漂移、死循环、状态丢失、成本失控等核心问题",
+      "confidence": 0.9,
+      "applicable_to": [
+        "all"
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "category": "objective",
+      "description": "OpenClaw_AI_Native_Loop_Engineering_Framework",
+      "priority": "P0",
+      "source": "topic",
+      "measurable": ""
+    }
+  ],
+  "topic": "OpenClaw AI Native Loop V2 Clean",
+  "executive_summary": {
+    "one_liner": "OpenClaw_AI_Native_Loop_Engineering_Framework",
+    "objective_req": "REQ-001",
+    "key_scenarios_reqs": [],
+    "why": [],
+    "for_whom": [],
+    "success_criteria": [],
+    "constraints": {},
+    "source": "living_spec"
+  },
+  "guardrails": null,
+  "solution_pro_hints": {
+    "focus_areas": [],
+    "core_insight": "",
+    "tool_integrations": [],
+    "auto_generated": true
+  },
+  "requirement_groups": {
+    "Core": {
+      "description": "核心目标、痛点、场景",
+      "categories": [
+        "objective",
+        "pain_point",
+        "scenario"
+      ],
+      "req_ids": [
+        "REQ-001"
+      ]
+    }
+  },
+  "coverage_policy": {
+    "worker_field": "covered_req_ids",
+    "matrix_path": "requirements_traceability_matrix.json",
+    "harness_final_must_check_all_p0": true
+  },
+  "metadata": {
+    "conflict_resolution": {
+      "authority": "requirement_index",
+      "narrative_role": "auxiliary_context",
+      "detected_conflicts": []
+    }
+  },
+  "version": "2.0",
+  "generated_at": "2026-07-05T17:08:08.219598",
+  "source": "living_spec.confirmed+topic+constraints"
+}

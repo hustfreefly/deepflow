@@ -1,12 +1,18 @@
+---
+name: research-pro
+description: "DeepFlow Research Pro — 深度研究引擎。触发：深度研究、技术调研、竞品分析。"
+version: "2.0.0"
+---
+
 > ⚠️ **本文件是 AI Agent 内部执行指南**，不是用户入口。  
 > 用户入口 → [`skills/research-pro/SKILL.md`](../../../skills/research-pro/SKILL.md)（`/research-pro` 触发）  
 > 项目概览 → [`README.md`](README.md)
 
 # Research Pro - Agent 执行指南
 
-> **版本**: V1.1 | **最后更新**: 2026-06-22  
+> **版本**: 2.0.0 | **最后更新**: 2026-06-22  
 > **架构**: Python 管线 + 子 Agent 原生搜索 + Python 辅助验证  
-> **报告模板**: V4.3 (见 `prompts/report_writer.md`)
+> **报告模板**: 2.0.0 (见 `prompts/report_writer.md`)
 
 ---
 
@@ -80,7 +86,7 @@ sessions_yield()
 子 Agent 完成后，**必须在同一个 turn 内完成三步：**
 
 #### 3a. 读取报告
-通过 BlackboardManager V6 API `bm.read("report/final.md")`
+通过 BlackboardManager 2.0.0 API `bm.read("report/final.md")`
 
 #### 3b. 质量评估（LLM-as-Judge）
 读取 `prompts/quality_reviewer.md` 中的评估维度，对报告进行语义评估：
@@ -110,7 +116,7 @@ sessions_yield()
 
 ---
 
-## 子 Agent 执行流程（V2.1 路径 B）
+## 子 Agent 执行流程（2.0.0 路径 B）
 
 子 Agent 直接用 OpenClaw 原生工具搜索，Python 只在验证环节辅助。
 
@@ -183,12 +189,12 @@ blackboard/{session_id}/
 
 | 文件 | 用途 | 版本 |
 |------|------|------|
-| `prompts/planning.md` | 研究规划器 — 将查询分解为结构化分析计划 | v1.0.0 |
-| `prompts/search.md` | 数据搜索器 — 三阶段多源融合搜索 | v1.0.0 |
-| `prompts/tech_analysis.md` | 技术工艺分析 — 技术/工艺/制造类研究 | v1.1.0 |
-| `prompts/finance_analysis.md` | 金融分析器 — 投资/财务类研究 | v1.0.0 |
-| `prompts/citation_verify.md` | 引用验证器 — 五步引用验证循环 | v1.0.0 |
-| `prompts/report_writer.md` | **报告撰写器 — V4.3 报告模板 (SCR/叙事框架/置信度/条件项)** | v1.0.0 |
+| `prompts/planning.md` | 研究规划器 — 将查询分解为结构化分析计划 | 2.0.0 |
+| `prompts/search.md` | 数据搜索器 — 三阶段多源融合搜索 | 2.0.0 |
+| `prompts/tech_analysis.md` | 技术工艺分析 — 技术/工艺/制造类研究 | 2.0.0 |
+| `prompts/finance_analysis.md` | 金融分析器 — 投资/财务类研究 | 2.0.0 |
+| `prompts/citation_verify.md` | 引用验证器 — 五步引用验证循环 | 2.0.0 |
+| `prompts/report_writer.md` | **报告撰写器 — 2.0.0 报告模板 (SCR/叙事框架/置信度/条件项)** | 2.0.0 |
 
 > **report_writer.md** 是报告结构的唯一权威定义，包含：SCR 执行摘要、维度叙事框架、置信度标注、待验证假设、条件项机制、叙事防幻觉约束。
 

@@ -1,11 +1,11 @@
 """
-BlackboardManager — 统一黑板管理器 (V6)
+BlackboardManager — 统一黑板管理器 
 
 职责：Agent 间通过文件传递数据，session 状态持久化。
 设计：内部字典 + 文件持久化，每个 session 独立目录。
      支持 DomainRegistry 集成，提供 stage 级读写。
 
-V6 变更:
+变更:
 - 新增 7 个 API: stage_exists, list_stages(v2), delete_stage,
   append_stage, read_stage_raw, get_session_dir, copy_stage
 - write_stage 返回 bool + 原子写入 + log warning
@@ -99,7 +99,7 @@ class BlackboardManager:
             })
         return self._session_dir
 
-    # ── V6 Stage API（直接操作 stages/ 目录，不依赖 Registry）──
+    # ── Stage API（直接操作 stages/ 目录，不依赖 Registry）──
 
     def _stage_path(self, stage_name: str) -> Path:
         """获取 stage 文件路径（内部方法）"""

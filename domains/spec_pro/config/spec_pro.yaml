@@ -1,33 +1,34 @@
-component_version: "2.4.0"
-component_name: "Spec Pro"
-domain: spec_pro
-name: "Spec Pro"
-description: "需求收集引擎，通过苏格拉底式对话引导用户完善需求，输出 Living Spec"
-
+agents:
+- prompt: prompts/orchestrator.md
+  role: orchestrator
+  timeout: 600
+- prompt: prompts/parse.md
+  role: parser
+  timeout: 180
+- prompt: prompts/guide.md
+  role: questioner
+  timeout: 180
+- prompt: prompts/parse_response.md
+  role: response_parser
+  timeout: 180
+- prompt: prompts/assess.md
+  role: assessor
+  timeout: 180
+- prompt: prompts/structure.md
+  role: structurer
+  timeout: 180
+- prompt: prompts/harness.md
+  role: harness_worker
+  timeout: 240
+component_name: Spec Pro
+component_version: 2.0.0
 context:
   schema:
-    required: ["user_input"]
-    optional: ["conversation_history", "domain_context"]
-
-agents:
-  - role: orchestrator
-    prompt: "prompts/orchestrator.md"
-    timeout: 600
-  - role: parser
-    prompt: "prompts/parse.md"
-    timeout: 180
-  - role: questioner
-    prompt: "prompts/guide.md"
-    timeout: 180
-  - role: response_parser
-    prompt: "prompts/parse_response.md"
-    timeout: 180
-  - role: assessor
-    prompt: "prompts/assess.md"
-    timeout: 180
-  - role: structurer
-    prompt: "prompts/structure.md"
-    timeout: 180
-  - role: harness_worker
-    prompt: "prompts/harness.md"
-    timeout: 240
+    optional:
+    - conversation_history
+    - domain_context
+    required:
+    - user_input
+description: 需求收集引擎，通过苏格拉底式对话引导用户完善需求，输出 Living Spec
+domain: spec_pro
+name: Spec Pro

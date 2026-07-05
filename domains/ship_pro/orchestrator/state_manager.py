@@ -1,8 +1,8 @@
 """
-Ship Pro V7 - State Manager
+Ship Pro - State Manager
 
 State manager: manages pipeline_state.json (single source of truth).
-V7 change: relaxed state transitions (warn instead of raise).
+Relaxed state transitions (warn instead of raise).
 """
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -48,7 +48,7 @@ class StateTransitionError(Exception):
 
 class StateManager:
     """
-    V7: State manager with relaxed transitions.
+    State manager with relaxed transitions.
     - Same-state transitions are silently skipped
     - Unusual transitions log a warning instead of raising
     - Unknown stages are auto-created
@@ -80,7 +80,7 @@ class StateManager:
 
     def update_stage(self, stage_name: str, status: str):
         """
-        V7: Update stage status (relaxed mode).
+        Update: stage status (relaxed mode).
         - Same state: skip silently
         - Unknown stage: auto-create
         - Invalid transition: warn, not raise

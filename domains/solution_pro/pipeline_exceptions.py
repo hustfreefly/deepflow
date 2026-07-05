@@ -1,5 +1,5 @@
 """
-Solution Pro V2 Pipeline 异常层次定义
+Solution Pro Pipeline 异常层次定义
 
 [R1-P0 采纳] ModuleFailure 异常已明确定义，替代现有 RuntimeError/ValueError
 """

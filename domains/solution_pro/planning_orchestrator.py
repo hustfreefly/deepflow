@@ -1,12 +1,12 @@
 """
 Planning Orchestrator (Module 1)
 
-Version: 1.0.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-28
 
 Description:
-- Planning V2 three-layer architecture orchestrator
+- Planning three-layer architecture orchestrator
 - Layer 0: Meta-Planner (analyze task → select experts → configure Gate)
 - Layer 1: Expert Planners ×N (generate constraints from different perspectives)
 - Layer 2: Convergence Planner (merge + validate + trace P0 REQs)
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 class PlanningOrchestrator(ModuleOrchestrator):
     """
-    PlanningOrchestrator — Planning V2 三层架构编排器
+    PlanningOrchestrator — Planning 三层架构编排器
 
     Gate A/B 逻辑位置：
     - Phase 1: Gate 评估通过 ConvergenceLayer._evaluate_gates() 调用
@@ -51,8 +51,8 @@ class PlanningOrchestrator(ModuleOrchestrator):
 
     stage_sequence() 说明：
     PlanningOrchestrator 使用自定义 run() 流程（7 步），而非基类的线性 stage_sequence()。
-    这是因为 Planning V2 的三层架构（Meta → Expert ×N → Convergence）不是简单的线性序列。
-    V1 的 stage_sequence() 模式保留为 fallback。
+    这是因为 Planning 的三层架构（Meta → Expert ×N → Convergence）不是简单的线性序列。
+    stage_sequence() 模式保留为 fallback。
 
     Responsibilities:
     1. Run Meta-Planner (Layer 0)
@@ -103,8 +103,9 @@ class PlanningOrchestrator(ModuleOrchestrator):
         """
         if hasattr(self.blackboard, 'base_dir'):
             return self.blackboard.base_dir
-        # Fallback: construct from session_id
-        return Path(f"/tmp/deepflow/sessions/{self.session_id}")
+        # Fallback: use PathConfig instead of hardcoded /tmp path
+        from core.config.path_config import PathConfig
+        return PathConfig.resolve().base_dir
     
     def _load_prompt(self, filename: str) -> str:
         """Load prompt file"""
@@ -117,7 +118,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
     
     def _get_prompt_input(self) -> str:
         """
-        V3: 获取 prompt 注入的输入内容
+        获取 prompt 注入的输入内容
         
         优先级：
         1. living_spec（如果有 narrative 或 requirement_index）
@@ -126,7 +127,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
         Returns:
             格式化后的 prompt 输入字符串
         """
-        # V3: 优先使用 living_spec
+        # 优先使用 living_spec
         living_spec = getattr(self, 'living_spec', None)
         if living_spec:
             narrative = living_spec.get("narrative", "")
@@ -136,7 +137,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
                     from domains.solution_pro.frozen_spec import format_living_spec_for_prompt
                     return format_living_spec_for_prompt(living_spec)
                 except Exception as e:
-                    logger.warning(f"[V3] Failed to format living_spec: {e}")
+                    logger.warning
         
         # Fallback: frozen_spec
         try:
@@ -190,25 +191,25 @@ class PlanningOrchestrator(ModuleOrchestrator):
         """
         Run Planning module (main entry point)
         
-        V2 增强：支持可选参数注入（V1 向后兼容）
+        增强：支持可选参数注入
         - 如果提供参数，使用参数值
-        - 如果未提供，从 blackboard 读取（V1 模式）
+        - 如果未提供，从 blackboard 读取（模式）
         
-        V3 增强：living_spec 成为主要输入源
+        增强：living_spec 成为主要输入源
         - 如果有 living_spec，优先使用（写入 blackboard + prompt 注入）
         - 如果没有，fallback 到 frozen_spec
         
         Args:
-            frozen_spec: Frozen spec dict（可选，V1 从 blackboard 读取）
-            structured_requirements: Structured requirements dict（可选，V1 从 blackboard 读取）
+            frozen_spec: Frozen spec dict
+            structured_requirements: Structured requirements dict
             spawn_fn: Spawn function（可选，覆盖初始化时的 spawn_fn）
             llm_judge_fn: LLM judge function（可选，供 Phase 2 使用）
-            living_spec: Living spec dict（V3: 主要输入源）
+            living_spec: Living spec dict
         
         Returns:
             planning_convergence.json content
         """
-        # V2: 存储可选参数（供 Phase 2 使用）
+        # 存储可选参数（供 Phase 2 使用）
         if spawn_fn is not None:
             self.spawn_fn = spawn_fn
         if llm_judge_fn is not None:
@@ -218,22 +219,22 @@ class PlanningOrchestrator(ModuleOrchestrator):
         if structured_requirements is not None:
             self.blackboard.write("structured_requirements.json", structured_requirements)
         
-        # V3: 存储 living_spec（主要输入源）
+        # 存储 living_spec（主要输入源）
         if living_spec is not None:
             self.living_spec = living_spec
             try:
                 self.blackboard.write("data/living_spec.json", living_spec)
-                logger.info("[V3] living_spec written to blackboard: data/living_spec.json")
+                logger.info
             except Exception as e:
-                logger.warning(f"[V3] Failed to write living_spec.json: {e}")
+                logger.warning
         else:
-            # V3 fallback: 尝试从 blackboard 读取（必须用 read_json，不能用 read）
+            # fallback: 尝试从 blackboard 读取（必须用 read_json，不能用 read）
             try:
                 self.living_spec = self.blackboard.read_json("data/living_spec.json")
-                logger.info("[V3] living_spec loaded from blackboard")
+                logger.info
             except Exception:
                 self.living_spec = None
-                logger.info("[V3] No living_spec available, using frozen_spec fallback")
+                logger.info
         
         logger.info("Starting Planning module")
         
@@ -336,10 +337,10 @@ class PlanningOrchestrator(ModuleOrchestrator):
         # Get session directory from blackboard (fallback for test mocks)
         session_dir = str(getattr(self.blackboard, 'session_dir', self.session_id))
         
-        # V3: 优先使用 living_spec 构建 task
+        # 优先使用 living_spec 构建 task
         living_spec = getattr(self, 'living_spec', None)
         if living_spec and (living_spec.get("narrative") or living_spec.get("requirement_index")):
-            # V3: 使用 living_spec 作为主要输入
+            # 使用 living_spec 作为主要输入
             try:
                 from domains.solution_pro.frozen_spec import format_living_spec_for_prompt
                 living_spec_prompt = format_living_spec_for_prompt(living_spec)
@@ -347,7 +348,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
                 frozen_spec_with_living = {**frozen_spec, "living_spec_prompt": living_spec_prompt}
                 task = build_meta_planner_task(frozen_spec_with_living, structured_requirements, session_dir)
             except Exception as e:
-                logger.warning(f"[V3] Failed to use living_spec for meta_planner: {e}, falling back")
+                logger.warning
                 task = build_meta_planner_task(frozen_spec, structured_requirements, session_dir)
         else:
             # Fallback: 旧逻辑
@@ -433,7 +434,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
         return worker_output
     def _run_expert_planners(self, expert_manifest: dict) -> list[dict]:
         """Run Expert Planners ×N (Layer 1, parallel)"""
-        # V2: Use parallel execution with checkpoint, retry, and graceful degradation
+        # Use parallel execution with checkpoint, retry, and graceful degradation
         return self._run_expert_planners_parallel(expert_manifest)
     
     def _run_expert_planners_parallel(self, expert_manifest: dict) -> list[dict]:
@@ -480,7 +481,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
         if not self.spawn_fn:
             raise ValueError("spawn_fn is required — Expert Planners cannot run without real LLM agents. No mock fallback allowed.")
         
-        # V2: 并行执行
+        # 并行执行
         logger.info(f"Running {len(pending_experts)} experts in parallel (max_workers={min(5, len(pending_experts))})")
         
         with ThreadPoolExecutor(max_workers=min(5, len(pending_experts))) as executor:
@@ -556,12 +557,17 @@ class PlanningOrchestrator(ModuleOrchestrator):
                 prompt = prompt.replace("{frozen_spec}", json.dumps(frozen_spec, indent=2))
                 prompt = prompt.replace("{structured_requirements}", json.dumps(structured_requirements, indent=2))
                 
+                # 契约笼子：显式提取 semantic_anchors 到 prompt 开头
+                from domains.solution_pro.task_builder import _extract_anchors_block
+                anchors_block = _extract_anchors_block(frozen_spec)
+                if anchors_block:
+                    prompt = anchors_block + "\n" + prompt
+                
                 # === Quality Improvement #1: P0 + 软约束注入 ===
                 p0_block = self._load_p0_constraints_prompt_block()
                 soft_constraints = self._get_system_soft_constraints()
                 # Note: trace_block removed - Expert Planners run BEFORE Convergence Planner
-                # so requirement_traceability.json doesn't exist yet (V6 DryRun finding)
-                prompt += f"\n{soft_constraints}\n"
+                # so requirement_traceability.json doesn't exist yet prompt += f"\n{soft_constraints}\n"
                 
                 # Spawn LLM worker
                 worker_output = self._adapted_spawn(
@@ -662,6 +668,12 @@ class PlanningOrchestrator(ModuleOrchestrator):
         prompt = prompt.replace("{meta_planning}", json.dumps(expert_manifest, indent=2))
         prompt = prompt.replace("{expert_plans}", json.dumps(expert_plans, indent=2))
         
+        # 契约笼子：显式提取 semantic_anchors 到 prompt 开头
+        from domains.solution_pro.task_builder import _extract_anchors_block
+        anchors_block = _extract_anchors_block(frozen_spec)
+        if anchors_block:
+            prompt = anchors_block + "\n" + prompt
+        
         # Spawn LLM worker
         if self.spawn_fn:
             worker_output = self._adapted_spawn(
@@ -675,8 +687,25 @@ class PlanningOrchestrator(ModuleOrchestrator):
             raise ValueError("spawn_fn is required — no mock fallback allowed. Convergence Planner cannot run without a real LLM agent.")
         
         # Validate output (unified_constraints + verification_checklist)
+        # 兼容两种输出格式：老版为 dict {unified_constraints: [...], meta: {...}}
+        # 新版为 list[dict] 直接表示约束列表
+        raw_unified = worker_output["unified_constraints"]
+        if isinstance(raw_unified, list):
+            unified_constraints = raw_unified
+            meta = worker_output.get("meta", {})
+            rejected_constraints = worker_output.get("rejected_constraints", [])
+        elif isinstance(raw_unified, dict):
+            unified_constraints = raw_unified.get("unified_constraints", [])
+            meta = raw_unified.get("meta", {})
+            rejected_constraints = raw_unified.get("rejected_constraints", [])
+        else:
+            raise ValueError(f"Unsupported unified_constraints type: {type(raw_unified)}")
         try:
-            UnifiedConstraintsSchema(**worker_output["unified_constraints"])
+            UnifiedConstraintsSchema(
+                unified_constraints=unified_constraints,
+                rejected_constraints=rejected_constraints,
+                meta=meta,
+            )
             VerificationChecklistSchema(**worker_output["verification_checklist"])
         except Exception as e:
             logger.error(f"Convergence Planner output validation failed: {e}")
@@ -732,6 +761,12 @@ class PlanningOrchestrator(ModuleOrchestrator):
         prompt = prompt.replace("{unified_constraints}", json.dumps(convergence_output["unified_constraints"], indent=2))
         prompt = prompt.replace("{verification_checklist}", json.dumps(convergence_output["verification_checklist"], indent=2))
         
+        # 契约笼子：显式提取 semantic_anchors 到 prompt 开头
+        from domains.solution_pro.task_builder import _extract_anchors_block
+        anchors_block = _extract_anchors_block(frozen_spec)
+        if anchors_block:
+            prompt = anchors_block + "\n" + prompt
+        
         # Spawn LLM worker
         if self.spawn_fn:
             worker_output = self._adapted_spawn(
@@ -755,8 +790,8 @@ class PlanningOrchestrator(ModuleOrchestrator):
     ) -> dict:
         """Run Harness Agent (Gate A + Gate B evaluation)（含断点续跑）
 
-        V2 Phase 1.4: Layer 2 语义校准 + Gate B CRITICAL 保底检查。
-        Layer 2 是可选增强，当 llm_judge_fn 未设置时自动 fallback 到规则判定（V1 兼容）。
+        Phase 1.4: Layer 2 语义校准 + Gate B CRITICAL 保底检查。
+        Layer 2 是可选增强，当 llm_judge_fn 未设置时自动 fallback 到规则判定。
         
         Flow:
         1. 检查是否已有输出（断点恢复）
@@ -790,7 +825,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
         else:
             raise ValueError("spawn_fn is required — no mock fallback allowed. Harness Agent cannot run without a real LLM agent.")
 
-        # [V2 Phase 1.4] Layer 2: 语义校准
+        # [Phase 1.4] Layer 2: 语义校准
         llm_judge_fn = getattr(self, 'llm_judge_fn', None)
         layer2 = GateALayer2Calibration(llm_judge_fn=llm_judge_fn)
 
@@ -822,7 +857,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
                 worker_output["final_verdict"]["final_verdict"] = "FAIL"
                 worker_output["final_verdict"]["layer2_override"] = True
 
-        # [V2 Phase 1.4] Gate B CRITICAL 保底检查
+        # [Phase 1.4] Gate B CRITICAL 保底检查
         gate_b_results = worker_output.get("gate_b", {}).get("checks", [])
         gate_b_dynamic = expert_manifest.get("gate_b", {}).get("dynamic_checks", [])
         if gate_b_results and gate_b_dynamic:
@@ -860,10 +895,10 @@ class PlanningOrchestrator(ModuleOrchestrator):
         
         # Build convergence data
         planning_convergence = {
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "module": "planning",
-            "unified_constraints": convergence_output["unified_constraints"]["unified_constraints"],
-            "p0_constraints_merged": convergence_output["unified_constraints"].get("p0_constraints_merged", []),
+            "unified_constraints": convergence_output["unified_constraints"],
+            "p0_constraints_merged": convergence_output.get("p0_constraints_merged", []),
             "requirement_traceability_matrix": convergence_output.get("requirement_traceability_matrix", []),
             "traceability_summary": convergence_output.get("traceability_summary", {}),
             "verification_checklist": convergence_output["verification_checklist"]["checklist"],
@@ -886,7 +921,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
             "gate_verdict": harness_output["final_verdict"],
             "_metadata": {
                 "produced_at": self._get_timestamp(),
-                "schema_version": "1.0.0",
+                "schema_version": "2.0.0",
                 "module": "planning",
                 "stage_count": 5,
             },
@@ -913,29 +948,12 @@ class PlanningOrchestrator(ModuleOrchestrator):
         domain = expert_manifest["task_profile"]["domain"]
         complexity = expert_manifest["task_profile"]["complexity"]
         num_experts = len(expert_manifest["experts"])
-        num_constraints = len(convergence_output["unified_constraints"]["unified_constraints"])
+        num_constraints = len(convergence_output["unified_constraints"])
         
-        summary = f"""
-Planning module completed successfully.
-
-Task Profile:
-- Domain: {domain}
-- Complexity: {complexity}
-- Risk Areas: {', '.join(expert_manifest['task_profile']['risk_areas'])}
-
-Expert Selection:
-- {num_experts} experts selected based on complexity level
-- Experts: {', '.join(e['expert_name'] for e in expert_manifest['experts'])}
-
-Unified Constraints:
-- {num_constraints} constraints merged from expert plans
-- Priorities: {self._count_priorities(convergence_output['unified_constraints']['unified_constraints'])}
-
-Gate Evaluation:
-- Gate A and Gate B configured for quality assurance
-- Verdict policy: warning_acceptable={expert_manifest['verdict_policy']['warning_acceptable']}
-"""
-        
+        summary = f"Planning: {domain} ({complexity}); {num_experts} experts; {num_constraints} constraints ({self._count_priorities(convergence_output['unified_constraints'])}); Gate A and Gate B evaluated."
+        # 限制 ≤ 500 字符以满足 PlanningConvergenceSchema
+        if len(summary) > 500:
+            summary = summary[:497] + "..."
         return summary.strip()
     
     def _count_priorities(self, constraints: list[dict]) -> str:
@@ -946,12 +964,12 @@ Gate Evaluation:
         
         return f"MUST: {must_count}, SHOULD: {should_count}, MAY: {may_count}"
     
-    def _identify_expert_divergence(self, unified_constraints: dict) -> list[dict]:
+    def _identify_expert_divergence(self, unified_constraints: list[dict]) -> list[dict]:
         """Identify expert divergence (conflicts resolved)"""
         divergences = []
         
-        for constraint in unified_constraints["unified_constraints"]:
-            if constraint["conflicts_resolved"]:
+        for constraint in unified_constraints:
+            if constraint.get("conflicts_resolved"):
                 divergences.append({
                     "constraint_id": constraint["constraint_id"],
                     "source_experts": constraint["source_experts"],
@@ -975,4 +993,4 @@ Gate Evaluation:
 
 
 __all__ = ["PlanningOrchestrator"]
-# [V2 Phase 0a] P0-1: 修复 run() 中 state 引用 bug（state → self.state，_save_state(state) → _save_state()）
+# [Phase 0a] P0-1: 修复 run() 中 state 引用 bug（state → self.state，_save_state(state) → _save_state()）

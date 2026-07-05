@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DeepFlow V2.0 - 笼子契约验证器
+DeepFlow 2.0.0 - 笼子契约验证器
 验证领域契约、阶段契约、Worker 契约和收敛规则是否符合规范
 """
 

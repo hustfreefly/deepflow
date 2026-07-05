@@ -1,7 +1,7 @@
 # DeepFlow 单轮模式 全链路预演报告
 # 基于契约笼子 (Contract Cage) 理念
 # 版本: 1.0 | 日期: 2026-04-22
-# **当前版本**: 0.1.0 (V4.0) — 本文档为 V1.0 时期预演报告
+# **当前版本**: 0.1.0 (2.0.0) — 本文档为 2.0.0 时期预演报告
 
 ---
 
@@ -750,7 +750,7 @@ sessions_spawn(
     task="""
 # DeepFlow Orchestrator Agent 执行脚本
 
-你是 DeepFlow V1.0 Orchestrator Agent。
+你是 DeepFlow 2.0.0 Orchestrator Agent。
 
 ## 执行步骤
 1. 读取 /Users/allen/.openclaw/workspace/.deepflow/orchestrator_agent.py

@@ -26,7 +26,7 @@ modes:
     research: true
     data_collection: basic
     expected_duration: "50 minutes"
-    description: "标准模式：固定10阶段 Harness V2 管线，产出完整方案"
+    description: "标准模式：固定10阶段 Harness 2.0.0 管线，产出完整方案"
   
   rigorous:
     stages: [data_collection, planning, reviewers, research, consolidator, audit, fix, fixer_expert, harness_final, summarizer]

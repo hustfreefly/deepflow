@@ -1,9 +1,15 @@
-# Ship Pro V8.2 — Agent 执行指南
+---
+name: ship-pro
+description: "DeepFlow Ship Pro — 交付包生成引擎。触发：生成工作包、拆分任务、交付编译。"
+version: "2.0.0"
+---
+
+# Ship Pro 2.0.0 — Agent 执行指南
 
 > **架构**: AI Native（PipelineDesigner + Orchestrator + Workers + Consolidator）  
-> **对标**: Solution Pro V2 镜像架构  
+> **对标**: Solution Pro 2.0.0 镜像架构  
 > **入口**: `run_ship_pro(project_name)` — Main Agent 唯一调用  
-> **状态**: V8.2 架构定型，E2E 验证通过
+> **状态**: 2.0.0 架构定型，E2E 验证通过
 
 ---
 
@@ -145,7 +151,7 @@ result = design_pipeline("path/to/solution_pro_input.json", blackboard_base_dir=
 **ShipPackage 输出**：
 ```json
 {
-  "ship_package_version": "v8",
+  "ship_package_version": "2.0.0",
   "work_packages": [...],
   "dependency_graph": {"nodes": [...], "edges": [...]},
   "statistics": {"total_wps", "total_effort_hours", "req_coverage_rate", "dependency_edges"},
@@ -197,7 +203,7 @@ result = design_pipeline("path/to/solution_pro_input.json", blackboard_base_dir=
 
 ```
 domains/ship_pro/
-├── __init__.py              # V8.2 入口 (run_ship_pro, design_pipeline, prepare_runner_spawn)
+├── __init__.py              # 2.0.0 入口 (run_ship_pro, design_pipeline, prepare_runner_spawn)
 ├── pipeline_designer.py     # PipelineDesigner + 上下文裁剪
 ├── contracts/               # Pydantic Schema
 │   ├── gates.py             # Gate 验证逻辑
@@ -211,7 +217,7 @@ domains/ship_pro/
 │   └── consolidator.md      # Consolidator 模板
 ├── tests/
 │   ├── test_ship_pro.py     # 19 个单元测试
-│   └── dry_run_v8.py        # V8 集成测试（已被 AgentDryRun Skill 替代）
+│   └── dry_run_v8.py        # 2.0.0 集成测试（已被 AgentDryRun Skill 替代）
 ├── docs/
 │   └── V8_DECISIONS.md      # 架构决策文档
 ├── README.md                # 项目说明
@@ -220,7 +226,7 @@ domains/ship_pro/
 
 ---
 
-## 🔄 V8 兼容 API
+## 🔄 2.0.0 兼容 API
 
 以下旧 API 保留兼容，但推荐使用 `run_ship_pro()`：
 
@@ -231,4 +237,4 @@ domains/ship_pro/
 
 ---
 
-*最后更新: 2026-07-04 V8.2*
+*最后更新: 2026-07-04 2.0.0*

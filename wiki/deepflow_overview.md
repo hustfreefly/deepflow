@@ -8,7 +8,7 @@
 
 DeepFlow 是一个多 Agent 管线框架，运行在 OpenClaw 平台上。核心职责是将用户需求转化为可执行的方案。
 
-### 管线架构 (V0.5.0)
+### 管线架构 (2.0.0)
 
 ```
 用户需求
@@ -31,7 +31,7 @@ DeepFlow 是一个多 Agent 管线框架，运行在 OpenClaw 平台上。核心
     │ final_result.json 自动交接
     ▼
 ┌─────────────────────────────────────────────────────────┐
-│ Ship Pro V3.2（执行交付）                               │
+│ Ship Pro 2.0.0（执行交付）                               │
 │  5-Agent 管线：Architect → Decomposer → Specifier →    │
 │  Reviewer ↔ 反馈闭环 → Packager                       │
 │  Pydantic 契约笼子 + run_pipeline.py 单一执行引擎      │
@@ -53,7 +53,7 @@ DeepFlow 是一个多 Agent 管线框架，运行在 OpenClaw 平台上。核心
 
 文件系统目录，每个运行产生一个目录，包含输入、阶段输出、状态文件、交付文件。
 
-**当前结构（V1）**：
+**当前结构（2.0.0）**：
 ```
 blackboard/
 └── {session_id}/
@@ -63,7 +63,7 @@ blackboard/
     └── .completed, .cron_*, etc.
 ```
 
-**计划结构（V2，设计完成待实施）**：
+**计划结构（2.0.0，设计完成待实施）**：
 ```
 blackboard/
 ├── projects/{slug}/runs/{timestamp}/
@@ -80,7 +80,7 @@ LLM sub-agent，通过 `sessions_spawn` 启动。按固定阶段顺序执行管�
 
 ### PathConfig（路径配置管理）
 
-路径解析器，支持 V1（`get_blackboard_path`）和 V2（`get_blackboard_path_v2`）两种模式。
+路径解析器，支持 2.0.0（`get_blackboard_path`）和 2.0.0（`get_blackboard_path_v2`）两种模式。
 
 ### Pipeline Watcher（管线监控）
 
@@ -97,7 +97,7 @@ Python 脚本 + 薄 LLM wrapper。监控管线运行状态，推送进度通知�
 1. **模块内质量（Intra-Module）**
    - Spec Pro: 5维度 Output Guard
    - Solution Pro: 4维度 Harness Scorer
-   - Ship Pro: Quality Gate V2
+   - Ship Pro: Quality Gate 2.0.0
 
 2. **跨模块对齐（Cross-Module）**
    - 2A: 用户意图 → Solution Pro
@@ -152,7 +152,7 @@ Python 脚本 + 薄 LLM wrapper。监控管线运行状态，推送进度通知�
 │   └── research_pro/                  — Research Pro 域
 ├── scripts/
 │   ├── start_solution_pro.py          — Solution Pro 启动脚本
-│   ├── pipeline_watcher.py            — Pipeline Watcher V2
+│   ├── pipeline_watcher.py            — Pipeline Watcher 2.0.0
 │   └── pipeline_progress_notify.py    — 进度通知
 ├── contracts/
 │   └── shared/                        — 共享设计文档
@@ -169,8 +169,8 @@ Python 脚本 + 薄 LLM wrapper。监控管线运行状态，推送进度通知�
 
 ## 版本历史
 
-- **2026-06-23**：Phase 0-3 架构加固完成 — Pydantic 契约笼子 + 单一执行引擎 + 状态单一化；版本升至 V0.5.0
-- **2026-06-21**：Ship Pro V3 + Summarizer 单文件输出 + Pipeline Watcher V2 + Blackboard V2 设计
+- **2026-06-23**：Phase 0-3 架构加固完成 — Pydantic 契约笼子 + 单一执行引擎 + 状态单一化；版本升至 2.0.0
+- **2026-06-21**：Ship Pro 2.0.0 + Summarizer 单文件输出 + Pipeline Watcher 2.0.0 + Blackboard 2.0.0 设计
 - **2026-06-11**：GitHub 基线版本（Spec Pro + Solution Pro + Research Pro 13项修复）
 
 详见 [changelog.md](changelog.md)

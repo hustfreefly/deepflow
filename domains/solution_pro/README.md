@@ -1,10 +1,10 @@
-# Solution Pro V2 — 系统级解决方案设计引擎
+# Solution Pro 2.0.0 — 系统级解决方案设计引擎
 
 > 通过三层模块化架构自动化生成高质量技术解决方案
 
 ## 当前版本
 
-- **版本**: V2.0 (三层架构)
+- **版本**: 2.0.0 (三层架构)
 - **架构**: MasterOrchestrator → Planning（三层）+ Research（多专家并行）+ ReviewQC（Fix Loop + 收敛）
 - **模型**: 默认使用 Qwen 3.7 Plus
 
@@ -30,22 +30,22 @@ result = master.run(user_input="需求描述", config={"topic": "主题", ...})
 
 ### 2. 执行完整流程
 
-参见 [SKILL.md](SKILL.md) 中的 V2 执行指南。
+参见 [SKILL.md](SKILL.md) 中的 2.0.0 执行指南。
 
 ### 3. 验证结果
 
 ```bash
-# V2 集成测试
+# 2.0.0 集成测试
 python3 tests/test_integration.py
 
-# V2 Schema 验证
+# 2.0.0 Schema 验证
 python3 tests/test_schemas.py
 
 # Golden Case 验证
 python3 tests/test_golden_case_001.py
 ```
 
-## V2 架构概述
+## 2.0.0 架构概述
 
 ### Module 1: Planning（三层架构）
 
@@ -102,31 +102,31 @@ Stage 4: Convergence → final_convergence.json
 
 | 文档 | 用途 | 受众 |
 |------|------|------|
-| [SKILL.md](SKILL.md) | Agent 执行步骤（V5.0） | AI Agent |
-| [_overview.md](_overview.md) | V2 代码文件索引 | 开发者 |
-| `schemas/schemas.py` | V2 Schema 契约 | 开发者 |
-| `prompts/` | V2 Prompt 模板 | 运行时 |
-| `tests/` | V2 测试套件 | 测试工程师 |
+| [SKILL.md](SKILL.md) | Agent 执行步骤（2.0.0） | AI Agent |
+| [_overview.md](_overview.md) | 2.0.0 代码文件索引 | 开发者 |
+| `schemas/schemas.py` | 2.0.0 Schema 契约 | 开发者 |
+| `prompts/` | 2.0.0 Prompt 模板 | 运行时 |
+| `tests/` | 2.0.0 测试套件 | 测试工程师 |
 
-## V1 兼容
+## 2.0.0 兼容
 
-V1 架构（固定多阶段管线）仍可用于已有 session 续跑：
-- V1 入口：`from domains.solution import run_solution_pro`
-- V1 文档：`prompts/v1/pipeline_orchestrator.md`
-- V1 Stage 路径：`STAGE_PATH_REGISTRY_V1`（在 `blackboard.py`）
+2.0.0 架构（固定多阶段管线）仍可用于已有 session 续跑：
+- 2.0.0 入口：`from domains.solution import run_solution_pro`
+- 2.0.0 文档：`prompts/v1/pipeline_orchestrator.md`
+- 2.0.0 Stage 路径：`STAGE_PATH_REGISTRY_V1`（在 `blackboard.py`）
 
-**判断方法**：检查 `blackboard/<session_id>/v2/master_state.json` 是否存在。存在 = V2 session。
+**判断方法**：检查 `blackboard/<session_id>/v2/master_state.json` 是否存在。存在 = 2.0.0 session。
 
 ## 禁止事项
 
 - ❌ Python 代码中禁止直接 import OpenClaw SDK（使用 `sessions_spawn` 工具）
-- ❌ V2 session 使用 V1 入口
-- ❌ 手动拼接 stage 路径（使用 BlackboardManager V6 API: `read_stage`/`write_stage`）
+- ❌ 2.0.0 session 使用 2.0.0 入口
+- ❌ 手动拼接 stage 路径（使用 BlackboardManager 2.0.0 API: `read_stage`/`write_stage`）
 - ❌ MasterOrchestrator 做语义判断（只做调度）
 
 ## 版本历史
 
-- **V2.0** (2026-06-29): 三层架构（Planning + Research + ReviewQC）+ 断点续跑 + 超时降级
-- **V4.4** (2026-06-03): V1 最终版本（固定多阶段管线）
+- **2.0.0** (2026-06-29): 三层架构（Planning + Research + ReviewQC）+ 断点续跑 + 超时降级
+- **2.0.0** (2026-06-03): 2.0.0 最终版本（固定多阶段管线）
 
 详细变更见 [CHANGELOG.md](../../CHANGELOG.md)

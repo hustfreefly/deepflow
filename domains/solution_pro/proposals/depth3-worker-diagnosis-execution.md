@@ -1,7 +1,7 @@
 # Depth-3 Worker 缺失诊断报告 — 执行记录分析
 
 > 诊断时间: 2026-06-29 22:57 (Asia/Shanghai)
-> 分析对象: V2 Orchestrator E2E 运行 (session: 8bf7b388)
+> 分析对象: 2.0.0 Orchestrator E2E 运行 (session: 8bf7b388)
 
 ---
 
@@ -9,7 +9,7 @@
 
 | 时间 (UTC) | 事件 | 来源 |
 |---|---|---|
-| 14:38:17 | V2 Orchestrator 收到 task（depth-1 subagent） | 8bf7b388.jsonl line 5 |
+| 14:38:17 | 2.0.0 Orchestrator 收到 task（depth-1 subagent） | 8bf7b388.jsonl line 5 |
 | 14:38:26 | Orchestrator 执行 Blackboard 初始化（master_state + frozen_spec） | exec tool call |
 | 14:38:42 | Orchestrator **读取** v2_planning_module.md prompt 文件 | read tool call |
 | 14:38:43 | Orchestrator **调用 sessions_spawn** 启动 Planning Module | spawn accepted, childSessionKey: `agent:main2:subagent:4762ee8f-2464-4499-9a09-ca1ae9d2a558` |
@@ -22,7 +22,7 @@
 
 ---
 
-## 2. 每个 Tool Call 的记录（V2 Orchestrator 完整执行链）
+## 2. 每个 Tool Call 的记录（2.0.0 Orchestrator 完整执行链）
 
 ### Phase 1: 初始化
 1. `exec` — Blackboard 初始化（master_state.json + frozen_spec.json）✅
@@ -62,7 +62,7 @@
 
 ### ❌ Planning Module 没有尝试 sessions_spawn
 
-**根因**: V2 Orchestrator 给 Planning Module 的 task description 中明确写了：
+**根因**: 2.0.0 Orchestrator 给 Planning Module 的 task description 中明确写了：
 
 ```
 ## Important
@@ -78,9 +78,9 @@
 | 来源 | 指令 | 意图 |
 |------|------|------|
 | `v2_planning_module.md`（prompt 文件） | "按 Layer 0 → Layer 1 → Layer 2 顺序执行，每层 spawn Worker" | ✅ 正确的三层架构 |
-| V2 Orchestrator 的 task description | "Do NOT use sessions_spawn - you are a leaf module" | ❌ 覆盖了 prompt 文件的指令 |
+| 2.0.0 Orchestrator 的 task description | "Do NOT use sessions_spawn - you are a leaf module" | ❌ 覆盖了 prompt 文件的指令 |
 
-**V2 Orchestrator 没有将 prompt 文件的完整内容传给 Planning Module**。它读取了 prompt 文件（read tool call），但实际传给 sessions_spawn 的 task 是**自己重新编写的简化版**，完全忽略了 prompt 文件中的 spawn 指令。
+**2.0.0 Orchestrator 没有将 prompt 文件的完整内容传给 Planning Module**。它读取了 prompt 文件（read tool call），但实际传给 sessions_spawn 的 task 是**自己重新编写的简化版**，完全忽略了 prompt 文件中的 spawn 指令。
 
 ### 实际执行结果
 
@@ -112,11 +112,11 @@ Planning Module 按照 "leaf module" 指令，**自己完成了所有规划工�
 }
 ```
 
-`maxSpawnDepth: 4` 允许 depth-0 → depth-1 → depth-2 → depth-3 → depth-4 的 spawn 链，完全满足 V2 架构需求。
+`maxSpawnDepth: 4` 允许 depth-0 → depth-1 → depth-2 → depth-3 → depth-4 的 spawn 链，完全满足 2.0.0 架构需求。
 
 ### ✅ sessions_spawn 工具可用
 
-V2 Orchestrator（depth-1）成功调用了 `sessions_spawn`，Planning Module（depth-2）也被成功创建（childSessionKey 返回 `status: "accepted"`）。平台层面没有阻止 spawn。
+2.0.0 Orchestrator（depth-1）成功调用了 `sessions_spawn`，Planning Module（depth-2）也被成功创建（childSessionKey 返回 `status: "accepted"`）。平台层面没有阻止 spawn。
 
 ### ⚠️ Planning Module session 文件缺失
 
@@ -130,14 +130,14 @@ V2 Orchestrator（depth-1）成功调用了 `sessions_spawn`，Planning Module�
 
 ## 5. 根因结论
 
-### 🔴 根因：V2 Orchestrator 的 Prompt 设计缺陷
+### 🔴 根因：2.0.0 Orchestrator 的 Prompt 设计缺陷
 
 **不是平台限制问题，不是配置问题，是 Prompt 工程问题。**
 
 #### 问题链
 
 ```
-1. V2 Orchestrator prompt（v2_orchestrator.md）设计了一个"简化"执行模式
+1. 2.0.0 Orchestrator prompt（v2_orchestrator.md）设计了一个"简化"执行模式
    ↓
 2. Orchestrator 读取了模块 prompt 文件，但传给了 modules 一个自己编写的简化版 task
    ↓
@@ -158,7 +158,7 @@ V2 Orchestrator（depth-1）成功调用了 `sessions_spawn`，Planning Module�
 
 #### 修复方向
 
-1. **V2 Orchestrator prompt 必须明确要求**: "将 prompt 文件的**完整内容**作为 task 传给 sessions_spawn，不要修改或简化"
+1. **2.0.0 Orchestrator prompt 必须明确要求**: "将 prompt 文件的**完整内容**作为 task 传给 sessions_spawn，不要修改或简化"
 2. **删除 "leaf module" 指令**: 模块 prompt 文件已经包含了完整的 spawn 指令，Orchestrator 不应该覆盖
 3. **或者重构 prompt**: 如果确实需要 leaf module 模式，那就在 prompt 文件中不要写 spawn 指令（当前存在矛盾）
 

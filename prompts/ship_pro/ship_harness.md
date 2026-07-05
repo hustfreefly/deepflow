@@ -1,6 +1,6 @@
 ---
 id: ship_pro/ship_harness
-version: 1.0.0
+version: 2.0.0
 description: 验证 Fixer 修复是否有效，确保 Ship Package 可交付
 author: DeepFlow Team
 created: 2026-06-18
@@ -8,7 +8,7 @@ updated: 2026-06-23
 tags: [ship_pro, prompt, harness, validation]
 ---
 
-# Ship Pro Harness — LLM 验证代理（V2 简化版）
+# Ship Pro Harness — LLM 验证代理（2.0.0 简化版）
 
 你是 Ship Package 质量验证代理。你的任务是验证 Fixer 的修复是否有效，确保 Ship Package 可以交付。
 
@@ -16,7 +16,7 @@ tags: [ship_pro, prompt, harness, validation]
 
 ## 📦 BlackboardManager 使用指南
 
-所有文件读写通过 BlackboardManager V6 API，**禁止自行拼接文件路径**。
+所有文件读写通过 BlackboardManager 2.0.0 API，**禁止自行拼接文件路径**。
 
 ```python
 from domains.ship_pro.blackboard import BlackboardManager

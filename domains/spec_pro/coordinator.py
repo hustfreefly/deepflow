@@ -16,7 +16,7 @@ Spec Pro Coordinator
 - 包含 LLM 推理逻辑 (RED-SP2-001)
 - 直接调用 sessions_spawn (RED-SP2-002)
 
-V6 去路径化: 所有文件 I/O 通过 BlackboardManager API，不再直接拼接路径。
+去路径化: 所有文件 I/O 通过 BlackboardManager API，不再直接拼接路径。
 """
 
 import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
@@ -95,8 +95,7 @@ class SpecProCoordinator:
         self._config = MODE_CONFIG[mode]
 
     # ------------------------------------------------------------------
-    # BlackboardManager 属性 (V6)
-    # ------------------------------------------------------------------
+    # BlackboardManager 属性 # ------------------------------------------------------------------
 
     @property
     def bb(self) -> BlackboardManager:
@@ -134,16 +133,16 @@ class SpecProCoordinator:
             dict with keys: session_id, base_path, orchestrator_task
 
         Raises:
-            ValueError: 输入过短(<5字符)或过长(>2000字符)
+            ValueError: 输入过短(<5字符)或过长(>5000字符)
             OSError: 目录创建失败
         """
         if len(user_input) < 5:
             raise ValueError(
                 f"Input too short ({len(user_input)} chars). Minimum 5 characters."
             )
-        if len(user_input) > 2000:
+        if len(user_input) > 5000:
             raise ValueError(
-                f"Input too long ({len(user_input)} chars). Maximum 2000 characters."
+                f"Input too long ({len(user_input)} chars). Maximum 5000 characters."
             )
 
         # Record pipeline start time for watcher timeout detection
@@ -152,8 +151,7 @@ class SpecProCoordinator:
         # Generate session ID
         self.session_id = self._generate_session_id()
 
-        # Initialize BlackboardManager (V6: replaces manual os.makedirs)
-        self._bb = BlackboardManager(self.session_id)
+        # Initialize BlackboardManager self._bb = BlackboardManager(self.session_id)
         self._bb.init_session()
 
         # Write user input
@@ -563,7 +561,26 @@ class SpecProCoordinator:
 1. 使用 read_json 读取 spec/living_spec.json
 2. 使用 read_json 读取 spec/quality_report.json（如有）
 3. 使用 read_json 读取 spec/harness_report.json（如有）
-4. 使用 write 工具写入 spec/round_result.json：
+4. **提取 Semantic Anchors（契约笼子强制步骤）**：
+   - 从 living_spec.confirmed 的 narrative/description/requirements 中，提取所有**不可抽象化的具体技术引用**
+   - 提取维度：platform_api（具体 API/工具名）、architecture_principle（不可妥协的架构原则）、external_system（必须集成的外部系统）、technical_constraint（硬性技术约束）
+   - 判断标准：如果被泛化/抽象化，会导致下游实施者不知道该用什么具体技术 → 这就是 anchor
+   - 反例："设计优雅"、"代码质量高" 不是 anchor（太抽象）
+   - 将提取结果写入 living_spec.semantic_anchors，格式：
+   ```json
+   [
+     {{
+       "name": "sessions_spawn",
+       "category": "platform_api",
+       "constraint": "子 Agent 生成必须使用 sessions_spawn",
+       "confidence": 0.95,
+       "applicable_to": ["all"]
+     }}
+   ]
+   ```
+   - 如果没有不可抽象化的引用，写入空数组 []
+   - 使用 write 更新 spec/living_spec.json（加入 semantic_anchors 字段）
+5. 使用 write 工具写入 spec/round_result.json：
 ```json
 {{
   "action": "done",
@@ -1080,7 +1097,7 @@ write_stage("round_{nn}_response", {{"input_guard": {{"valid": false}}, "parsed_
 ```
 python3 .deepflow/domains/spec_pro/merge_spec.py --v6 {{Blackboard}} round_{nn}_response
 ```
-该命令会使用 V6 API 读取 stage 数据,合并到 living_spec.json 并写回。
+该命令会使用 API 读取 stage 数据,合并到 living_spec.json 并写回。
 该脚本会按 writer_protocol 规则合并:
 - confirmed 层: 追加新项,不删除已有项
 - inferred 层: status=confirmed->移入confirmed层, status=rejected->标记rejected, 新推断->追加

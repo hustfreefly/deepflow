@@ -68,77 +68,69 @@ def main():
         print(f"❌ JSON 解析错误: {e}", file=sys.stderr)
         sys.exit(1)
     
-    # 读取 Living Spec（如果提供）
+    # 契约笼子（2026-07-05）：自动发现 Living Spec（AI Native 数据流桥接）
+    # 优先级：1) 显式 --living-spec-path 2) 自动扫描最近的 Spec Pro 输出
     living_spec = None
+    living_spec_full_path = None
+    
     if args.living_spec_path:
         living_spec_full_path = os.path.join(DEEPFLOW_HOME, args.living_spec_path)
         if not os.path.exists(living_spec_full_path):
             print(f"❌ Living Spec 文件不存在: {living_spec_full_path}", file=sys.stderr)
             sys.exit(1)
-        
+    else:
+        # 自动发现：扫描 .deepflow/blackboard/ 找最近的 spec_* 目录中的 living_spec.json
+        blackboard_dir = os.path.join(DEEPFLOW_HOME, "blackboard")
+        if os.path.exists(blackboard_dir):
+            spec_dirs = sorted(
+                [d for d in os.listdir(blackboard_dir) if d.startswith("spec_")],
+                key=lambda d: os.path.getmtime(os.path.join(blackboard_dir, d)),
+                reverse=True,
+            )
+            for spec_dir in spec_dirs[:5]:  # 只检查最近 5 个
+                candidate = os.path.join(blackboard_dir, spec_dir, "spec", "living_spec.json")
+                completed_marker = os.path.join(blackboard_dir, spec_dir, ".completed")
+                if os.path.exists(candidate) and os.path.exists(completed_marker):
+                    living_spec_full_path = candidate
+                    print(f"✅ 自动发现 Living Spec: {spec_dir}/spec/living_spec.json", file=sys.stderr)
+                    break
+    
+    if living_spec_full_path:
         try:
             with open(living_spec_full_path, 'r', encoding='utf-8') as f:
                 living_spec = json.load(f)
         except Exception as e:
             print(f"❌ 读取 Living Spec 失败: {e}", file=sys.stderr)
             sys.exit(1)
+    else:
+        print("⚠️ 未找到 Living Spec，将使用 topic 生成最小 frozen_spec", file=sys.stderr)
     
-    # 调用 run_solution_pro
+    # 契约笼子（2026-07-05）：调用 三模块架构
     try:
         result = run_solution_pro(
-            topic=args.topic,
+            user_input=args.topic,   # 第一参数是 user_input
+            topic=args.topic,        # topic 作为 kwarg 传递
             solution_type=args.solution_type,
             constraints=constraints,
             stakeholders=stakeholders,
-            living_spec=living_spec
+            living_spec=living_spec,
         )
-        
-        # 生成 startup_notification（从 execution_plan.json 动态读取阶段列表）
-        # 目的：消除主 Agent 编造阶段名的空间
-        plan_path = result.get('plan_path', '')
-        startup_notification = None
-        if plan_path and os.path.exists(plan_path):
-            try:
-                with open(plan_path, 'r', encoding='utf-8') as f:
-                    plan = json.load(f)
-                phases = plan.get('phases', [])
-                phase_count = len(phases)
-                parallel_count = sum(1 for p in phases if p.get('parallel'))
-                stage_lines = []
-                for p in phases:
-                    phase_num = p.get('phase', '?')
-                    stage_name = p.get('stage', 'unknown')
-                    if p.get('parallel'):
-                        workers = p.get('workers', [])
-                        worker_count = len(workers)
-                        stage_lines.append(f"  {phase_num}. {stage_name} (×{worker_count} 并行)")
-                    else:
-                        stage_lines.append(f"  {phase_num}. {stage_name}")
-                stage_list = '\n'.join(stage_lines)
-                startup_notification = (
-                    f"✅ 已启动 DeepFlow Solution Pro 管线\n"
-                    f"📋 主题: {args.topic}\n"
-                    f"📊 共 {phase_count} 个阶段（{parallel_count} 个并行阶段），预计 30-60 分钟\n\n"
-                    f"阶段列表：\n{stage_list}\n\n"
-                    f"💬 期间你可以继续问我其他问题，完成后我会通知你"
-                )
-            except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
-                print(f"⚠️ 读取执行计划失败，跳过 startup_notification: {e}", file=sys.stderr)
-        result['startup_notification'] = startup_notification
 
-        # ── Watcher V3 契约化（2026-06-28 升级）──
-        # Python 渲染消息，LLM 只做路由 + 失败诊断
-        from contracts.shared.watcher_config import build_v3_cron_payload
-        result['watcher_cron_payload'] = build_v3_cron_payload(
-            config_path=result.get('watcher_config_abs', ''),
-            base_path=result.get('base_path', ''),
-            run_start_at=result.get('run_start_at', ''),
-            cron_job_id="",  # empty = auto-discover (chicken-and-egg)
-            deepflow_root=result.get('deepflow_root', DEEPFLOW_HOME),
-            display_name="Solution Pro",
-            max_runs=15,
-            pipeline_id="solution_pro",
+        # startup_notification（三模块架构，无需读 execution_plan.json）
+        result['startup_notification'] = (
+            f"✅ 已启动 DeepFlow Solution Pro 管线\n"
+            f"📋 主题: {args.topic}\n"
+            f"🏛️ 架构: Planning（三层）→ Research（多专家并行）→ Summary（5+1 Phase 收敛）\n"
+            f"⏱️ 预计: 20-40 分钟\n"
+            f"💬 期间你可以继续问我其他问题，完成后我会通知你"
         )
+
+        # Watcher 配置（元数据，由主 Agent 创建 cron job）
+        from datetime import datetime
+        result['run_start_at'] = datetime.now().isoformat()
+        result['deepflow_root'] = DEEPFLOW_HOME
+        result['watcher_config'] = 'domains/solution_pro/config/watcher_config.json'
+        result['watcher_config_abs'] = os.path.join(DEEPFLOW_HOME, 'domains/solution_pro/config/watcher_config.json')
 
         # 输出结果（JSON 格式）
         print(json.dumps(result, ensure_ascii=False, indent=2))

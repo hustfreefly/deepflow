@@ -11,7 +11,7 @@ DeepFlow 环境引导 — 确保 .deepflow 在 sys.path 中
 跨平台: Windows / macOS / Linux 均兼容
 幂等: 多次 import 不会重复添加
 
-Version: 1.0.0
+Version: 2.0.0
 Author: DeepFlow
 Date: 2026-06-22
 """

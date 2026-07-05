@@ -1,14 +1,14 @@
 """
 Solution Pro 路径注册表
 
-Version: 3.2.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-28
 
 变更:
-- V3.2: 新增 V2 架构 Stage 路径（Planning V2 三层 + 收敛点）
-- V3.2: 新增 DEPRECATED_STAGE_ALIASES 向后兼容映射
-- V3.1: STAGE_PATH_REGISTRY 标记 @deprecated，推荐使用 V6 read_stage/write_stage
+- 新增 架构 Stage 路径（Planning 三层 + 收敛点）
+- 新增 DEPRECATED_STAGE_ALIASES 向后兼容映射
+- STAGE_PATH_REGISTRY 标记 @deprecated，推荐使用 read_stage/write_stage
 - 瘦身为纯 Registry 定义，读写逻辑委托给 core.BlackboardManager
 - 本地 BlackboardManager 实现（已废弃）
 """
@@ -22,7 +22,7 @@ from core.blackboard.blackboard_manager import BlackboardManager as CoreBlackboa
 
 # ============================================================================
 # 路径注册表（唯一事实源）— @deprecated
-# 推荐使用 V6 API: read_stage / write_stage / stage_exists / list_stages
+# 推荐使用 API: read_stage / write_stage / stage_exists / list_stages
 # 所有 stage 文件路径必须从这里获取，禁止自行拼接
 # ============================================================================
 
@@ -36,8 +36,8 @@ def _sp(name: str) -> str:
     return f"{_S}/{name}{_J}"
 
 
-# @deprecated: 推荐使用 BlackboardManager V6 API (read_stage / write_stage)
-# V1 架构 Stage 路径（保留向后兼容）
+# @deprecated: 推荐使用 BlackboardManager API (read_stage / write_stage)
+# 架构 Stage 路径（保留向后兼容）
 STAGE_PATH_REGISTRY_V1 = {
     "data_collection": "data/collection.json",
     "structured_requirements": "data/structured_requirements.json",
@@ -60,10 +60,10 @@ STAGE_PATH_REGISTRY_V1 = {
 }
 
 # ============================================================================
-# V2 架构 Stage 路径（Planning V2 三层 + 收敛点）
+# 架构 Stage 路径（Planning 三层 + 收敛点）
 # ============================================================================
 STAGE_PATH_REGISTRY_V2 = {
-    # Module 1: Planning V2 三层架构
+    # Module 1: Planning 三层架构
     "meta_planning": _sp("meta_planning"),
     "expert_plans": "stages/expert_plans/",  # 目录，包含 N 个 expert_plan_{name}.json
     "convergence_planning": _sp("convergence_planning"),
@@ -91,7 +91,7 @@ STAGE_PATH_REGISTRY_V2 = {
 }
 
 # ============================================================================
-# 合并 V1 + V2 路径注册表
+# 合并 路径注册表
 # ============================================================================
 STAGE_PATH_REGISTRY = {
     **STAGE_PATH_REGISTRY_V1,
@@ -100,34 +100,34 @@ STAGE_PATH_REGISTRY = {
 
 # ============================================================================
 # Deprecated Stage Aliases（向后兼容映射）
-# V1 旧 Stage 名 → V2 新 Stage 名
+# 旧 Stage 名 → 新 Stage 名
 # ============================================================================
 DEPRECATED_STAGE_ALIASES = {
-    # V1 Planning → V2 Meta-Planning
+    # Planning → Meta-Planning
     "planning": "meta_planning",
     
-    # V1 固定 3 Reviewer → V2 Reviewer_Meta（合并）
+    # 固定 3 Reviewer → Reviewer_Meta（合并）
     "reviewer_technical": "meta_planning",  # Reviewer 职责并入 Meta-Planner
     "reviewer_business": "meta_planning",
     "reviewer_risk": "meta_planning",
     
-    # V1 固定 3 Research Expert → V2 动态 M 个（目录）
+    # 固定 3 Research Expert → 动态 M 个（目录）
     "research_expert_1": "research_experts",
     "research_expert_2": "research_experts",
     "research_expert_3": "research_experts",
     
-    # V1 Design → V2 Architecture + Detailed Design
+    # Design → Architecture + Detailed Design
     "design": "detailed_design",
     
-    # V1 Audit + Fix + Fixer → V2 Fix Loop
+    # Audit + Fix + Fixer → Fix Loop
     "audit": "fix_loop_state",
     "fix": "fix_loop_state",
     "fixer_expert": "fix_loop_state",
     
-    # V1 Consolidator → V2 Consolidation
+    # Consolidator → Consolidation
     "consolidator": "consolidation",
     
-    # V1 Harness Final → V2 Harness Report
+    # Harness Final → Harness Report
     "harness_final": "harness_report",
 }
 
@@ -150,7 +150,7 @@ PIPELINE_STAGES = (
 # Solution Pro Registry（继承 DomainRegistry）— @deprecated
 # ============================================================================
 class SolutionRegistry(DomainRegistry):
-    """Solution Pro 路径注册表 — @deprecated: 推荐使用 BlackboardManager V6 API"""
+    """Solution Pro 路径注册表 — @deprecated: 推荐使用 BlackboardManager API"""
     STAGE_PATH_REGISTRY = STAGE_PATH_REGISTRY
 
 
@@ -172,7 +172,7 @@ class BlackboardManager(CoreBlackboardManager):
 
     def write(self, filename: str, content, subdir=None):
         """
-        重写 write() 以支持 list 类型（V2 增强）
+        重写 write() 以支持 list 类型
         
         原 core 实现只支持 dict 和 str，这里扩展为 dict/list → JSON，str → 文本
         """

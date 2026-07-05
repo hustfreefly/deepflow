@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DeepFlow V2.0 - 笼子契约检查点管理器
+DeepFlow 2.0.0 - 笼子契约检查点管理器
 
 核心原则：
 1. 检查点格式必须符合数据契约

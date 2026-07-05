@@ -48,7 +48,7 @@ sessions_spawn(
     task="""
 # DeepFlow Orchestrator Agent 执行脚本
 
-你是 DeepFlow V1.0 Orchestrator Agent。
+你是 DeepFlow 2.0.0 Orchestrator Agent。
 
 ## 执行步骤
 

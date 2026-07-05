@@ -2,10 +2,13 @@
 LivingSpec Pydantic 模型
 
 唯一真相源：所有代码从此读取格式定义。
+
+新增 SemanticAnchor — 信息守恒的原子实体
+      不可变实体：只增不改不删。每一层 LLM 可以引用/追加，但不能修改/删除。
 """
 
-from typing import Optional, Union
-from pydantic import BaseModel, Field
+from typing import Optional, Union, List
+from pydantic import BaseModel, Field, field_validator
 
 
 class LivingSpecMeta(BaseModel):
@@ -103,6 +106,53 @@ class SolutionProHints(BaseModel):
     priority_dimensions: list[str] = Field(default_factory=list)
 
 
+# ============================================================================
+# Semantic Anchors — 信息守恒的原子实体
+# ============================================================================
+
+class SemanticAnchor(BaseModel):
+    """
+    语义锚点 — 全链路不可变的信息守恒实体
+    
+    设计原则（AI Native 契约笼子）：
+    - LLM 做语义提取（从 narrative 中识别不可抽象化的具体引用）
+    - 代码做格式化（写入结构化字段，Pydantic 强制 schema）
+    - 全链路透传（每一层只增不改不删）
+    
+    泛化性：
+    - 适用于任何有"具体技术约束"的项目（API 名、工具名、架构原则）
+    - 不适用于抽象哲学概念（"设计优雅"不算 anchor）
+    """
+    name: str = Field(..., description="具体引用名称，如 sessions_spawn、全LLM控制")
+    category: str = Field(..., description="platform_api | architecture_principle | external_system | technical_constraint")
+    constraint: str = Field(..., description="对该引用的具体约束描述（必须可操作）")
+    source_quote: str = Field(..., description="narrative 中的原文引用（证据）")
+    confidence: float = Field(default=0.9, ge=0.0, le=1.0, description="LLM 自评置信度")
+    applicable_to: List[str] = Field(default_factory=lambda: ["all"], description="适用的下游 Worker 角色列表，['all'] = 广播")
+    
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v):
+        valid = {"platform_api", "architecture_principle", "external_system", "technical_constraint"}
+        if v not in valid:
+            raise ValueError(f"契约笼子: SemanticAnchor.category 必须是 {valid} 之一，实际: {v}")
+        return v
+    
+    @field_validator("name")
+    @classmethod
+    def validate_name_not_empty(cls, v):
+        if not v or len(v.strip()) < 2:
+            raise ValueError(f"契约笼子: SemanticAnchor.name 不能为空或太短: '{v}'")
+        return v.strip()
+    
+    @field_validator("constraint")
+    @classmethod
+    def validate_constraint_actionable(cls, v):
+        if len(v.strip()) < 5:
+            raise ValueError(f"契约笼子: SemanticAnchor.constraint 太短，不可操作: '{v}'")
+        return v.strip()
+
+
 class LivingSpec(BaseModel):
     """
     Living Spec 完整结构
@@ -117,6 +167,7 @@ class LivingSpec(BaseModel):
     1. 先读 core_summary（快速理解全貌）
     2. 按需深入读 narrative 的特定段落
     3. requirement_index 用于 Verification 的 REQ-ID 追溯
+    4. semantic_anchors 用于全链路信息守恒（不可变实体）
     """
     meta: LivingSpecMeta
     confirmed: ConfirmedLayer
@@ -124,7 +175,9 @@ class LivingSpec(BaseModel):
     guardrails: Optional[Guardrails] = None
     solution_pro_hints: Optional[SolutionProHints] = None
     route_recommendation: Optional[str] = None
-    # V3: Living Spec 成为唯一输入（叙述为主体 + REQ-ID 索引为附件）
+    # Living Spec 成为唯一输入（叙述为主体 + REQ-ID 索引为附件）
     core_summary: str = ""  # 核心需求摘要（≤5KB），下游 Agent 优先读取，避免 30KB narrative 的 token 开销
     narrative: str = ""  # 完整的用户需求叙述（主体）
     requirement_index: list = Field(default_factory=list)  # REQ-ID 追溯索引（附件）
+    # Semantic Anchors — 全链路信息守恒实体
+    semantic_anchors: list[SemanticAnchor] = Field(default_factory=list, description="不可变语义锚点，全链路透传")

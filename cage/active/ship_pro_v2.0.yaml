@@ -1,0 +1,57 @@
+cage_version: "2.0.0"
+component: ship_pro
+module: ship_pro
+version: "2.0.0"
+created: "2026-07-06"
+updated: "2026-07-06"
+status: active
+complexity: complex
+
+description: |
+  Ship Pro 2.0.0 (AI Native 重构版) — 统一 blackboard + 单入口 Dispatcher 架构。
+  
+  架构:
+    Main Agent (depth-0)
+      → exec: run_ship_pro(project_name) → spawn params
+      → sessions_spawn → Orchestrator (depth-1, 全权调度)
+    
+    Orchestrator (depth-1)
+      → 读取统一 blackboard: .deepflow/blackboard/{project}/data/frozen_spec.json
+      → spawn: Designer LLM → PipelinePlan
+      → spawn: Workers (并行, cron wake 替代 sessions_yield)
+      → exec: L1 Pydantic validation
+      → spawn: Consolidator LLM → ShipPackage
+      → exec: L2+L3 Gate validation
+  
+  统一 blackboard:
+    .deepflow/blackboard/{project_name}/
+    ├── data/frozen_spec.json         ← Solution Pro 产出
+    ├── stages/solution_document.json
+    └── ship_pro/                     ← Ship Pro 写入
+        ├── solution_pro_input.json
+        └── stages/
+
+red_lines:
+  - Main Agent 只调 run_ship_pro()，一个入口
+  - 禁止 sessions_yield()，用 cron wake 替代
+  - 统一 blackboard 路径，禁止私有目录
+  - 三层 Gate: L1 Pydantic → L2 LLM Judge → L3 综合决策
+  - Semantic Anchors 必须从 frozen_spec 透传到 ShipPackage
+
+contracts:
+  input:
+    source: ".deepflow/blackboard/{project}/data/frozen_spec.json"
+    required_fields:
+      - topic
+      - requirements
+      - guardrails
+      - semantic_anchors (from Spec Pro → Solution Pro 透传)
+  output:
+    format: ShipPackage (Pydantic model)
+    location: ".deepflow/blackboard/{project}/ship_pro/stages/ship_package.json"
+    required_fields:
+      - solution_name
+      - work_packages (List[WorkPackage])
+      - dependency_graph
+      - semantic_anchors (透传自 frozen_spec)
+      - anchor_coverage

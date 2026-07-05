@@ -152,7 +152,7 @@ Jun 1 01:41 - Orchestrator 真正完成
 
 ### 核心文档
 
-- `domains/solution_pro/SKILL.md` - 主 Agent 执行指南（V4.1）
+- `domains/solution_pro/SKILL.md` - 主 Agent 执行指南（2.0.0）
 - `docs/SOLUTION_PRO_ARCHITECTURE.md` - 架构说明
 - `docs/SOLUTION_PRO_USAGE_GUIDE.md` - 使用指南
 - `docs/CRON_EARLY_EXIT_POSTMORTEM.md` - Cron 提前退出问题复盘
@@ -291,6 +291,6 @@ Jun 1 01:41 - Orchestrator 真正完成
 ---
 
 **项目完成日期**: 2026-06-01  
-**文档版本**: V4.1  
+**文档版本**: 2.0.0  
 **作者**: 小满 🦞  
 **审核**: 忠礼

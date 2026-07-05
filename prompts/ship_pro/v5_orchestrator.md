@@ -1,13 +1,13 @@
 ---
 id: ship_pro/v5_orchestrator
-version: "5.0.0"
+version: "2.0.0"
 component: ship_pro_v5
 updated: "2026-06-28"
 ---
 
-# Ship Pro V5.0 Orchestrator
+# Ship Pro 2.0.0 Orchestrator
 
-你是 Ship Pro V5.0 的管线编排器。你负责执行双 Phase 多 Agent 管线，产出高质量的 ship_package.json。
+你是 Ship Pro 2.0.0 的管线编排器。你负责执行双 Phase 多 Agent 管线，产出高质量的 ship_package.json。
 
 ## 🔴 最高优先级：你必须完成两个 Phase
 

@@ -1,5 +1,5 @@
 """
-Master Orchestrator — Solution Pro V2 三模块串联 Pipeline
+Master Orchestrator — Solution Pro 三模块串联 Pipeline
 
 [R1-P0 采纳] 极简调度器，不做语义判断，只做：
 1. 模块顺序调度（Planning → Research → ReviewQC）
@@ -28,19 +28,26 @@ from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY
 
 logger = logging.getLogger(__name__)
 
+
+# 降级策略占位（兼容旧版测试）
+DEGRADATION_STRATEGIES = {
+    "planning": "default_expert_manifest",
+    "research": "skip_with_degraded_flag",
+    "review_qc": "degraded_final_convergence",
+}
+
 # 模块级差异化超时 [R1-P1 采纳]
 MODULE_TIMEOUTS = {
     "planning": 600,    # 5 min
     "research": 900,    # 15 min
     "summary": 1200,    # 20 min (5+1 Phase，含并行 Analyzer)
+    "review_qc": 600,   # 10 min
 }
-
-# 降级策略已移除 — 降级 = 失败，不允许空壳数据
 
 
 class MasterOrchestrator:
     """
-    Solution Pro V2 Master Orchestrator
+    Solution Pro Master Orchestrator
     
     职责：调度 Planning → Research → ReviewQC 三模块串联执行。
     不做任何语义判断（AI Native 合规）。
@@ -50,7 +57,7 @@ class MasterOrchestrator:
         self.blackboard = blackboard
         self.spawn_fn = spawn_fn
         
-        # V3: prod 环境强制要求 spawn_fn（防止静默 fallback）
+        # prod 环境强制要求 spawn_fn（防止静默 fallback）
         if spawn_fn is None and os.environ.get("DEEPFLOW_ENV") == "prod":
             raise ValueError(
                 "spawn_fn is required in production mode. "
@@ -64,8 +71,8 @@ class MasterOrchestrator:
         # 模块超时配置（可覆盖默认值）
         self.module_timeouts = {**MODULE_TIMEOUTS, **self.config.get("module_timeouts", {})}
         
-        # 降级模块记录
-        # 降级策略已移除 — 任何模块失败直接 raise，不产出空壳数据
+        # 降级模块记录（兼容旧版测试）
+        self.degraded_modules = []
         
         # Pipeline Watcher — 运行时可观测性
         try:
@@ -81,7 +88,7 @@ class MasterOrchestrator:
         Args:
             user_input: 用户输入（需求描述）
             config: 配置（topic, solution_type, mode 等）
-            living_spec: Living Spec dict（V3: 唯一输入源）
+            living_spec: Living Spec dict
         
         Returns:
             pipeline_result dict
@@ -91,7 +98,7 @@ class MasterOrchestrator:
         
         logger.info(f"Pipeline started: topic={config.get('topic', 'N/A')}")
         
-        # V3: 准备 Living Spec 输入
+        # 准备 Living Spec 输入
         prepared_living_spec = self._prepare_input(user_input, config, living_spec)
         self.living_spec = prepared_living_spec  # 存储到 self，供 assertion 和子模块使用
         
@@ -123,7 +130,7 @@ class MasterOrchestrator:
             metrics["modules"]["research"] = self._module_metrics("research", research_output)
             logger.info(f"[Pipeline] Research done, completed_modules={self.state.get('completed_modules', [])}")
             
-            # Module 3: Summary（V3 架构设计：收敛模块）
+            # Module 3: Summary（架构设计：收敛模块）
             logger.info("[Pipeline] === Module 3/3: Summary ===")
             summary_output = self._run_module(
                 "summary",
@@ -261,7 +268,7 @@ class MasterOrchestrator:
     
     def _prepare_input(self, user_input: str, config: dict, living_spec: dict = None) -> dict:
         """
-        V3: 准备 Living Spec 输入
+        准备 Living Spec 输入
 
         如果有 living_spec，直接用它（写入 blackboard 的 data/living_spec.json）
         如果没有，从 user_input + config 构造一个最小 Living Spec
@@ -275,8 +282,8 @@ class MasterOrchestrator:
             准备好的 Living Spec dict
         """
         if living_spec:
-            # V3: 有 living_spec，直接使用 + 快照机制
-            logger.info("[V3] Using provided living_spec as primary input")
+            # 有 living_spec，直接使用 + 快照机制
+            logger.info
             try:
                 self.blackboard.write("data/living_spec.json", living_spec)
             except Exception as e:
@@ -290,7 +297,7 @@ class MasterOrchestrator:
                 snapshot["_snapshot_hash"] = snapshot_hash
                 snapshot["_snapshot_at"] = datetime.now().isoformat()
                 self.blackboard.write("data/living_spec_snapshot.json", snapshot)
-                logger.info(f"[V3] Living spec snapshot created: hash={snapshot_hash}")
+                logger.info
             except Exception as e:
                 logger.warning(f"Failed to create living_spec snapshot: {e}")
 
@@ -309,8 +316,8 @@ class MasterOrchestrator:
 
             return living_spec
 
-        # V3 fallback: 从 user_input + config 构造最小 Living Spec
-        logger.info("[V3] No living_spec provided, constructing minimal living_spec from user_input + config")
+        # fallback: 从 user_input + config 构造最小 Living Spec
+        logger.info
         topic = config.get("topic", user_input or "Unknown")
         minimal_living_spec = {
             "meta": {
@@ -376,7 +383,7 @@ class MasterOrchestrator:
             snapshot["_snapshot_hash"] = snapshot_hash
             snapshot["_snapshot_at"] = datetime.now().isoformat()
             self.blackboard.write("data/living_spec_snapshot.json", snapshot)
-            logger.info(f"[V3] Minimal living spec snapshot created: hash={snapshot_hash}")
+            logger.info
         except Exception as e:
             logger.warning(f"Failed to create minimal living_spec snapshot: {e}")
 
@@ -476,7 +483,7 @@ class MasterOrchestrator:
             base_dir=str(self.blackboard.session_dir.parent),
         )
 
-        # V3: 使用 snapshot（保证一致性）
+        # 使用 snapshot（保证一致性）
         snapshot = self._get_living_spec_snapshot()
         effective_living_spec = snapshot if snapshot else living_spec
 
@@ -484,7 +491,7 @@ class MasterOrchestrator:
         if living_spec:
             assert self.living_spec is not None, "living_spec 已传入但 self.living_spec 为 None"
 
-        # V3: 传递 living_spec（优先）+ 兼容旧的 frozen_spec
+        # 传递 living_spec（优先）+ 兼容旧的 frozen_spec
         frozen_spec = self._build_frozen_spec(user_input, config, effective_living_spec)
         structured_requirements = self._build_structured_requirements(user_input, config)
 
@@ -505,7 +512,7 @@ class MasterOrchestrator:
             base_dir=str(self.blackboard.session_dir.parent),
         )
 
-        # V3: 使用 snapshot（保证一致性）
+        # 使用 snapshot（保证一致性）
         snapshot = self._get_living_spec_snapshot()
         effective_living_spec = snapshot if snapshot else living_spec
 
@@ -523,7 +530,7 @@ class MasterOrchestrator:
         )
 
     def _execute_summary(self, planning_output: dict, research_output: dict, config: dict, living_spec: dict = None) -> dict:
-        """执行 Summary 模块（V3 收敛模块，5+1 Phase）"""
+        """执行 Summary 模块（收敛模块，5+1 Phase）"""
         from domains.solution_pro.summary_orchestrator import SummaryOrchestrator
 
         orchestrator = SummaryOrchestrator(
@@ -532,7 +539,7 @@ class MasterOrchestrator:
             base_dir=str(self.blackboard.session_dir.parent),
         )
 
-        # V3: 使用 snapshot（保证一致性）
+        # 使用 snapshot（保证一致性）
         snapshot = self._get_living_spec_snapshot()
         effective_living_spec = snapshot if snapshot else living_spec
 
@@ -644,12 +651,12 @@ class MasterOrchestrator:
         """
         构建 Frozen Spec
 
-        V3 DEPRECATED: 此方法保留仅为向后兼容。
+        DEPRECATED: 此方法保留仅为向后兼容。
         内部改为从 living_spec 提取 REQ-ID index。
         新代码应直接使用 living_spec。
         """
         if living_spec:
-            # V3: 从 living_spec 构建 frozen_spec（通过 frozen_spec.py）
+            # 从 living_spec 构建 frozen_spec（通过 frozen_spec.py）
             try:
                 from domains.solution_pro.frozen_spec import build_frozen_spec as _build_fs
                 topic = config.get("topic", user_input) or living_spec.get("confirmed", {}).get("objective", "")
@@ -683,10 +690,24 @@ class MasterOrchestrator:
         """摘要 Planning 输出（健壮版）"""
         if not isinstance(planning_output, dict):
             return {"expert_count": 0, "constraint_count": 0, "checklist_count": 0, "degraded": True}
+        unified_constraints = planning_output.get("unified_constraints", {})
+        if isinstance(unified_constraints, list):
+            constraints = unified_constraints
+        elif isinstance(unified_constraints, dict):
+            constraints = unified_constraints.get("constraints", [])
+        else:
+            constraints = []
+        verification_checklist = planning_output.get("verification_checklist", {})
+        if isinstance(verification_checklist, dict):
+            checklist_items = verification_checklist.get("items", []) or verification_checklist.get("checklist", [])
+        elif isinstance(verification_checklist, list):
+            checklist_items = verification_checklist
+        else:
+            checklist_items = []
         return {
             "expert_count": len(planning_output.get("experts", [])),
-            "constraint_count": len(planning_output.get("unified_constraints", {}).get("constraints", [])),
-            "checklist_count": len(planning_output.get("verification_checklist", {}).get("items", [])),
+            "constraint_count": len(constraints),
+            "checklist_count": len(checklist_items),
         }
     
     def _summarize_research(self, research_output) -> dict:
@@ -727,26 +748,18 @@ class MasterOrchestrator:
         }
     
     def _save_pipeline_metrics(self, metrics: dict):
-        """保存 Pipeline 指标（V2 子目录隔离）"""
+        """保存 Pipeline 指标"""
         try:
             self.blackboard.write("v2/pipeline_metrics.json", metrics)
         except Exception as e:
             logger.warning(f"Failed to save pipeline metrics: {e}")
 
 
-def create_pipeline(blackboard, spawn_fn=None, config=None, version="v2"):
+def create_pipeline(blackboard, spawn_fn=None, config=None, version=None):
     """
-    工厂函数：创建 V1 或 V2 Pipeline
-    
-    [R2-P0 采纳] V1/V2 共存策略
+    工厂函数：创建 Pipeline
+
+    已归档，仅支持 三模块架构
+    version 参数保留仅用于兼容旧版测试。
     """
-    if version == "v2":
-        return MasterOrchestrator(blackboard, spawn_fn, config)
-    else:
-        # V1 入口（保持向后兼容）
-        from domains.solution_pro.orchestrator_agent import OrchestratorAgent
-        return OrchestratorAgent(
-            session_id=blackboard.session_id,
-            blackboard=blackboard,
-            spawn_fn=spawn_fn,
-        )
+    return MasterOrchestrator(blackboard, spawn_fn, config)

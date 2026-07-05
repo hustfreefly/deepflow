@@ -1,7 +1,7 @@
 """
 Solution Pro V2 端到端集成测试
 
-Version: 1.0.0
+Version: 2.0.0
 Author: DeepFlow Solution Pro
 Date: 2026-06-28
 
@@ -52,7 +52,7 @@ from domains.solution_pro.schemas.schemas import (
 # ============================================================================
 
 MOCK_FROZEN_SPEC = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "project_name": "Integration Test Project",
     "p0_req_ids": ["REQ-P0-001", "REQ-P0-002"],
     "requirements": [
@@ -62,12 +62,12 @@ MOCK_FROZEN_SPEC = {
 }
 
 MOCK_STRUCTURED_REQUIREMENTS = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "requirements": MOCK_FROZEN_SPEC["requirements"],
 }
 
 MOCK_EXPERT_MANIFEST = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "task_profile": {
         "domain": "backend_api",
         "complexity": "high",
@@ -127,7 +127,7 @@ MOCK_EXPERT_MANIFEST = {
 }
 
 MOCK_EXPERT_PLAN_SECURITY = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "expert_name": "security_expert",
     "constraints": [
         {
@@ -161,7 +161,7 @@ MOCK_EXPERT_PLAN_SECURITY = {
 }
 
 MOCK_EXPERT_PLAN_PERFORMANCE = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "expert_name": "performance_expert",
     "constraints": [
         {
@@ -195,50 +195,47 @@ MOCK_EXPERT_PLAN_PERFORMANCE = {
 }
 
 MOCK_CONVERGENCE_OUTPUT = {
-    "schema_version": "1.0.0",
-    "unified_constraints": {
-        "schema_version": "1.0.0",
-        "unified_constraints": [
-            {
-                "constraint_id": "UC-001",
-                "description": "All API endpoints must require authentication",
-                "priority": "MUST",
-                "source_experts": ["security_expert"],
-                "conflicts_resolved": [],
-            },
-            {
-                "constraint_id": "UC-002",
-                "description": "Input validation on all user-supplied data",
-                "priority": "MUST",
-                "source_experts": ["security_expert"],
-                "conflicts_resolved": [],
-            },
-            {
-                "constraint_id": "UC-003",
-                "description": "API response time < 200ms for 95th percentile",
-                "priority": "MUST",
-                "source_experts": ["performance_expert"],
-                "conflicts_resolved": [],
-            },
-            {
-                "constraint_id": "UC-004",
-                "description": "Database queries must use indexes",
-                "priority": "SHOULD",
-                "source_experts": ["performance_expert"],
-                "conflicts_resolved": [],
-            },
-        ],
-        "rejected_constraints": [],
-        "meta": {
-            "total_expert_plans": 2,
-            "total_input_constraints": 4,
-            "total_output_constraints": 4,
-            "merge_ratio": 1.0,
+    "schema_version": "2.0.0",
+    "unified_constraints": [
+        {
+            "constraint_id": "UC-001",
+            "description": "All API endpoints must require authentication",
+            "priority": "MUST",
+            "source_experts": ["security_expert"],
+            "conflicts_resolved": [],
         },
-        "covered_req_ids": ["REQ-P0-001", "REQ-P0-002"],
+        {
+            "constraint_id": "UC-002",
+            "description": "Input validation on all user-supplied data",
+            "priority": "MUST",
+            "source_experts": ["security_expert"],
+            "conflicts_resolved": [],
+        },
+        {
+            "constraint_id": "UC-003",
+            "description": "API response time < 200ms for 95th percentile",
+            "priority": "MUST",
+            "source_experts": ["performance_expert"],
+            "conflicts_resolved": [],
+        },
+        {
+            "constraint_id": "UC-004",
+            "description": "Database queries must use indexes",
+            "priority": "SHOULD",
+            "source_experts": ["performance_expert"],
+            "conflicts_resolved": [],
+        },
+    ],
+    "rejected_constraints": [],
+    "meta": {
+        "total_expert_plans": 2,
+        "total_input_constraints": 4,
+        "total_output_constraints": 4,
+        "merge_ratio": 1.0,
     },
+    "covered_req_ids": ["REQ-P0-001", "REQ-P0-002"],
     "verification_checklist": {
-        "schema_version": "1.0.0",
+        "schema_version": "2.0.0",
         "checklist": [
             {
                 "check_id": "VC-001",
@@ -270,7 +267,7 @@ MOCK_CONVERGENCE_OUTPUT = {
 }
 
 MOCK_HARNESS_OUTPUT = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "gate_a": {
         "score": 0.87,
         "verdict": "PASS",
@@ -301,7 +298,7 @@ MOCK_HARNESS_OUTPUT = {
 }
 
 MOCK_REVIEWER_OUTPUT = {
-    "schema_version": "1.0.0",
+    "schema_version": "2.0.0",
     "reviewer": "reviewer",
     "overall_verdict": "PASS",
     "overall_score": 0.92,
@@ -527,12 +524,12 @@ class TestV2Integration:
         assert "unified_constraints" in convergence_output
         assert "verification_checklist" in convergence_output
 
-        # Schema validation
-        UnifiedConstraintsSchema(**convergence_output["unified_constraints"])
-        VerificationChecklistSchema(**convergence_output["verification_checklist"])
-
+        # Verify schema
+        assert UnifiedConstraintsSchema(**convergence_output)
+        assert VerificationChecklistSchema(**convergence_output["verification_checklist"])
+        
         # Check constraint count
-        uc = convergence_output["unified_constraints"]["unified_constraints"]
+        uc = convergence_output["unified_constraints"]
         assert len(uc) == 4
         vc = convergence_output["verification_checklist"]["checklist"]
         assert len(vc) == 4
@@ -581,7 +578,7 @@ class TestV2Integration:
 
         # Prepare compressed data with known structure
         compressed = {
-            "unified_constraints": MOCK_CONVERGENCE_OUTPUT["unified_constraints"]["unified_constraints"],
+            "unified_constraints": MOCK_CONVERGENCE_OUTPUT["unified_constraints"],
             "verification_checklist": MOCK_CONVERGENCE_OUTPUT["verification_checklist"]["checklist"],
             "covered_req_ids": ["REQ-P0-001", "REQ-P0-002"],
             "information_conservation": {"status": "PASS", "checks": []},
@@ -614,7 +611,7 @@ class TestV2Integration:
         )
 
         compressed = {
-            "unified_constraints": MOCK_CONVERGENCE_OUTPUT["unified_constraints"]["unified_constraints"],
+            "unified_constraints": MOCK_CONVERGENCE_OUTPUT["unified_constraints"],
             "verification_checklist": MOCK_CONVERGENCE_OUTPUT["verification_checklist"]["checklist"],
             "covered_req_ids": ["REQ-P0-001"],
             "information_conservation": {"status": "PASS"},
@@ -655,7 +652,7 @@ class TestV2Integration:
         )
 
         compressed = {
-            "unified_constraints": MOCK_CONVERGENCE_OUTPUT["unified_constraints"]["unified_constraints"],
+            "unified_constraints": MOCK_CONVERGENCE_OUTPUT["unified_constraints"],
             "verification_checklist": MOCK_CONVERGENCE_OUTPUT["verification_checklist"]["checklist"],
             "covered_req_ids": ["REQ-P0-001", "REQ-P0-002"],
             "planning_summary": "Security and performance constraints covered",
@@ -747,7 +744,7 @@ class TestV2Integration:
 
         # Step 2: Compute Gate A scores
         compressed = {
-            "unified_constraints": MOCK_CONVERGENCE_OUTPUT["unified_constraints"]["unified_constraints"],
+            "unified_constraints": MOCK_CONVERGENCE_OUTPUT["unified_constraints"],
             "verification_checklist": MOCK_CONVERGENCE_OUTPUT["verification_checklist"]["checklist"],
             "covered_req_ids": ["REQ-P0-001", "REQ-P0-002"],
             "information_conservation": {"status": "PASS", "checks": []},
@@ -796,9 +793,9 @@ class TestV2Integration:
         """
         # Write a mock planning_convergence.json
         planning_convergence = {
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "module": "planning",
-            "unified_constraints": MOCK_CONVERGENCE_OUTPUT["unified_constraints"]["unified_constraints"],
+            "unified_constraints": MOCK_CONVERGENCE_OUTPUT["unified_constraints"],
             "verification_checklist": MOCK_CONVERGENCE_OUTPUT["verification_checklist"]["checklist"],
             "planning_summary": "Test planning summary",
             "expert_divergence": [],
@@ -813,7 +810,7 @@ class TestV2Integration:
             "gate_verdict": MOCK_HARNESS_OUTPUT["final_verdict"],
             "_metadata": {
                 "produced_at": datetime.now().isoformat(),
-                "schema_version": "1.0.0",
+                "schema_version": "2.0.0",
                 "module": "planning",
                 "stage_count": 5,
             },
@@ -962,7 +959,7 @@ class TestV2Integration:
 
     def test_unified_constraints_schema_validation(self):
         """验证 UnifiedConstraintsSchema 能正确验证 mock 数据"""
-        UnifiedConstraintsSchema(**MOCK_CONVERGENCE_OUTPUT["unified_constraints"])
+        UnifiedConstraintsSchema(**MOCK_CONVERGENCE_OUTPUT)
 
     def test_verification_checklist_schema_validation(self):
         """验证 VerificationChecklistSchema 能正确验证 mock 数据"""
@@ -1016,11 +1013,9 @@ class TestAdaptedSpawn:
             return {"session_id": "abc-123", "status": "spawned", "label": "worker-1"}
 
         orch = self._make_orchestrator(session_spawn, tmp_path)
-        # 用极短超时验证不会 hang 300s
-        result = orch._adapted_spawn("test task", "stages/test_output.json", timeout=2)
-
-        # 超时后返回 None
-        assert result is None
+        # 用极短超时验证不会 hang 300s，且超时会抛出 RuntimeError（AI Native: 超时=失败）
+        with pytest.raises(RuntimeError, match="Worker timeout"):
+            orch._adapted_spawn("test task", "stages/test_output.json", timeout=2)
 
     def test_adapted_spawn_exception_propagates(self, tmp_path):
         """场景 3：spawn_fn 抛异常 → 传播到调用方"""

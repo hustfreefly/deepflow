@@ -34,9 +34,9 @@ def _read_spec_pro_version() -> str:
 class QualityLevel(Enum):
     """需求质量等级"""
     S = "S"    # 90-100: 卓越
-    A = "A"    # 75-89:  良好
-    B = "B"    # 60-74:  可用
-    C = "C"    # <60:    不足
+    A = "A"    # 75-89: 良好
+    B = "B"    # 60-74: 可用
+    C = "C"    # <60: 不足
 
 
 class Scenario(Enum):
@@ -137,6 +137,19 @@ class LivingSpec:
     route_recommendation: Optional[Dict[str, Any]] = None
     solution_pro_hints: Optional[Dict[str, Any]] = None
     user_directives: List[Dict[str, Any]] = field(default_factory=list)
+
+    # 契约笼子（2026-07-05）：与 Pydantic 版本对齐，确保信息守恒
+    # 权威定义：contracts/living_spec.py (Pydantic + 字段校验)
+    # 本文件是运行时轻量级镜像，必须与 Pydantic 版本保持字段同步
+    core_summary: str = ""                    # 核心需求摘要（≤5KB）
+    narrative: str = ""                       # 完整用户需求叙述
+    requirement_index: List[Dict[str, Any]] = field(default_factory=list)  # REQ-ID 追溯索引
+    semantic_anchors: List[Dict[str, Any]] = field(default_factory=list)   # 不可变语义锚点
+    # 契约笼子（2026-07-05）：与 contracts/living_spec.py Pydantic 模型对齐
+    core_summary: str = ""          # ≤5KB 核心摘要，下游优先读取
+    narrative: str = ""             # 完整用户需求叙述
+    requirement_index: List[Dict[str, Any]] = field(default_factory=list)  # REQ-ID 索引
+    semantic_anchors: List[Dict[str, Any]] = field(default_factory=list)   # 不可变语义锚点
 
 
 @dataclass

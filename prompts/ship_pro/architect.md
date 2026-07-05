@@ -1,6 +1,6 @@
 ---
 id: ship_pro/architect
-version: 1.0.0
+version: 2.0.0
 description: 从 Solution Pro 输出中提取统一架构描述，生成 blueprint.json
 author: DeepFlow Team
 created: 2026-06-18

@@ -1,7 +1,7 @@
 """
 Research Pro 路径注册表
 
-Version: 1.0.0
+Version: 2.0.0
 Author: DeepFlow Research Pro
 Date: 2026-07-12
 

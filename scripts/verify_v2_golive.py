@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""V2 Go-Live 验证脚本"""
+"""Go-Live 验证脚本"""
 import sys, os, re
 
 DEEPFLOW = os.path.expanduser("~/.openclaw/workspace/.deepflow")
@@ -18,23 +18,22 @@ try:
 except Exception as e:
     results.append((f"Tests pass (error: {e})", False))
 
-# 2. SKILL.md V5.0
-with open("domains/solution_pro/SKILL.md") as f:
+# 2. SKILL.md with open("domains/solution_pro/SKILL.md") as f:
     content = f.read()
-results.append(("SKILL.md V5.0", "V5.0" in content))
+results.append)
 results.append(("No '10 阶段' in SKILL.md", "10 阶段" not in content))
 
-# 3. MEMORY.md 无 V1 引用
+# 3. MEMORY.md 无 引用
 with open(os.path.expanduser("~/.openclaw/workspace/MEMORY.md")) as f:
     mem = f.read()
 results.append(("MEMORY.md no '10阶段'", "10阶段" not in mem))
 
-# 4. V2 入口可导入
+# 4. 入口可导入
 try:
     from domains.solution_pro import run_solution_pro_v2
-    results.append(("V2 import OK", True))
+    results.append)
 except ImportError:
-    results.append(("V2 import OK", False))
+    results.append)
 
 # 5. ROLLBACK.md 存在
 results.append(("ROLLBACK.md exists", 

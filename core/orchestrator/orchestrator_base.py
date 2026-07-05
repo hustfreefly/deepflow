@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DeepFlow V2.0 - 通用化 Pipeline Orchestrator 基类
+DeepFlow 2.0.0 - 通用化 Pipeline Orchestrator 基类
 领域无关的执行引擎，通过配置驱动适配不同场景
 """
 
@@ -291,7 +291,7 @@ class PromptLoader:
         return all(section in content for section in required)
 
 
-#
+
 
 # ============================================================================
 # 收敛检测器

@@ -28,7 +28,7 @@ class TestPromptRegistry:
     def mock_registry_data(self):
         """模拟注册表数据"""
         return {
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "domains": {
                 "test": {
                     "prompts": {

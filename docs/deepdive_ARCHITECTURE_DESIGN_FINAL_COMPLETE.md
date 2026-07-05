@@ -1,4 +1,4 @@
-# Deep Dive V3.0 架构设计文档 - 最终完整版
+# Deep Dive 2.0.0 架构设计文档 - 最终完整版
 
 **文档版本**: v3.0-final  
 **设计日期**: 2026-04-11  
@@ -14,7 +14,7 @@
 
 > **"配置驱动，声明编排，智能控制反转，渐进交付，可观测优先，四层容错"**
 
-V3.0架构以 **OpenClaw平台约束为硬边界**，以 **Claude Code/Hermes/OpenProse为设计灵感**，以 **V2.4资产为复用基础**，融合三位专家评审意见，打造一套**配置驱动、具备人机回环(HITL)、四层故障隔离、可观测优先**的通用多Agent协作系统。
+2.0.0.0架构以 **OpenClaw平台约束为硬边界**，以 **Claude Code/Hermes/OpenProse为设计灵感**，以 **2.0.0.4资产为复用基础**，融合三位专家评审意见，打造一套**配置驱动、具备人机回环(HITL)、四层故障隔离、可观测优先**的通用多Agent协作系统。
 
 ### 关键决策矩阵（最优决策）
 
@@ -35,13 +35,13 @@ V3.0架构以 **OpenClaw平台约束为硬边界**，以 **Claude Code/Hermes/Op
 ### 架构公式（一句话概括）
 
 ```
-V3.0 = Intelligent IoC声明式编排 + FSM平铺状态机 + V2.4领域资产 
+2.0.0 = Intelligent IoC声明式编排 + FSM平铺状态机 + 2.0.0.4领域资产 
        + L1-L4四层故障隔离 + HITL人机回环（关键节点） + 可观测优先
 ```
 
 ### 质量四维验收标准
 
-| 维度 | 验收标准 | V3.0设计满足度 |
+| 维度 | 验收标准 | 2.0.0.0设计满足度 |
 |:---|:---|:---:|
 | **准确度** | 输出可溯源、有依据 | ✅ Blackboard完整证据链 |
 | **可用性** | 产出可执行、方案可落地 | ✅ YAML配置即代码 |
@@ -81,8 +81,8 @@ agents:
 
 > **现有4领域100%不损坏，自动化迁移零成本**
 
-- V2.4配置自动转换为V3.0 YAML（提供迁移工具）
-- 并行运行期：V2.4和V3.0共存，对比验证
+- 2.0.0.4配置自动转换为V3.0 YAML（提供迁移工具）
+- 并行运行期：2.0.0.4和V3.0共存，对比验证
 - 回滚策略：保留V2.4代码路径作为紧急备选
 
 **验收标准**: 现有4领域（investment/architecture/code/general）迁移后100%成功率。
@@ -133,7 +133,7 @@ T+30min→ 深度研究（全面覆盖+证据链）
 代码 → 调用Agent → 等待结果 → 处理结果 → 调用下一个Agent
 ```
 
-V3.0声明式控制流：
+2.0.0.0声明式控制流：
 ```
 YAML声明期望状态 → PipelineEngine协调 → Agent自报告状态 → 自动状态转换
 ```
@@ -1058,9 +1058,9 @@ def notify_user(session_id: str, content: str, level: str = "draft"):
   3. 监控并发数，接近阈值时排队
 
 **R3：向后兼容破坏**
-- **根因**：V3.0改动可能影响V2.4领域
+- **根因**：2.0.0.0改动可能影响V2.4领域
 - **缓解**:
-  1. 自动化迁移工具（V2.4→V3.0配置转换）
+  1. 自动化迁移工具（2.0.0→2.0.0.0配置转换）
   2. 双版本并行运行期
   3. 完整回归测试套件
   4. 紧急回滚机制
@@ -1076,11 +1076,11 @@ def notify_user(session_id: str, content: str, level: str = "draft"):
 
 **迁移路径**:
 ```
-V2.4领域 → [迁移工具] → V3.0 YAML配置
+2.0.0.4领域 → [迁移工具] → 2.0.0 YAML配置
 ```
 
 **并行运行期**（2周）:
-- V2.4和V3.0同时运行
+- 2.0.0.4和V3.0同时运行
 - 对比输出质量
 - 逐步切流
 
@@ -1110,10 +1110,10 @@ V2.4领域 → [迁移工具] → V3.0 YAML配置
 1. `v3-pre-design-spec.md` - Pre-Design规范
 2. `v3-architecture-inputs-summary.md` - 架构输入汇总
 3. `v3-architecture-design-kimi-k2.5-complete.md` - Kimi基础方案
-4. `V3.0_ARCHITECTURE_DESIGN_GEMINI3.1.md` - Gemini方案
+4. `2.0.0.0_ARCHITECTURE_DESIGN_GEMINI3.1.md` - Gemini方案
 5. `v3.0-architecture-design-qwen3.6-plus-complete.md` - 千问方案
-6. `V3.0_ARCHITECTURE_FINAL_REPORT.md` - 多Agent论证报告
-7. `V3.0_ARCHITECTURE_REVIEW_REPORT_KIMI_K2.5_EXPERT.md` - Kimi专家评审
+6. `2.0.0.0_ARCHITECTURE_FINAL_REPORT.md` - 多Agent论证报告
+7. `2.0.0.0_ARCHITECTURE_REVIEW_REPORT_KIMI_K2.5_EXPERT.md` - Kimi专家评审
 8. `v3-architecture-review-qwen3.6-plus.md` - 千问专家评审
 
 ---

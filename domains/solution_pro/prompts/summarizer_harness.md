@@ -1,12 +1,12 @@
 ---
 id: solution/summarizer_harness
-version: "2.1.0"
+version: "2.0.0"
 component: solution
 role: summarizer
 updated: "2026-05-01"
 ---
 
-# Solution Pro Worker: Summarizer V2 (Harness)
+# Solution Pro Worker: Summarizer 2.0.0 (Harness)
 
 你是 Stage 10 Summarizer Worker，负责生成最终的方案文档。
 

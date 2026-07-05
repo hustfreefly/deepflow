@@ -1,22 +1,22 @@
 # Depth-3 Worker 缺失诊断报告
 
 **日期**: 2026-06-29  
-**问题**: V2 Planning Module (depth-2) 没有 spawn depth-3 Workers，直接自己生成了 22KB 输出  
+**问题**: 2.0.0 Planning Module (depth-2) 没有 spawn depth-3 Workers，直接自己生成了 22KB 输出  
 **影响**: 多 Worker 架构失效，退化为单 Agent 模式
 
 ---
 
-## 1. V1 vs V2 Prompt 对比表
+## 1. 2.0.0 vs 2.0.0 Prompt 对比表
 
-| 维度 | V1 Pipeline Orchestrator | V2 Planning Module | 影响 |
+| 维度 | 2.0.0 Pipeline Orchestrator | 2.0.0 Planning Module | 影响 |
 |------|-------------------------|-------------------|------|
-| **执行循环强调** | ✅ "遍历 phases（🔴 循环，不是单次执行）"<br>✅ "你必须在一个 turn 内循环执行所有 10 个 phase"<br>✅ "每次 yield 返回后，立即验证输出文件，然后继续下一个 phase" | ⚠️ "你必须按顺序执行 3 个 Layer"<br>❌ 没有强调"循环"概念<br>❌ 没有说"在一个 turn 内完成所有 3 个 Layer" | 🔴 **高**：V2 可能让 LLM 认为每个 Layer 是独立的 turn，而不是连续执行 |
-| **Preamble 和 Python 环境** | ✅ "🔴 Python 执行环境修复（必须）"<br>✅ 给出具体的 preamble 内容<br>✅ 强调"每个 worker 的 task 前面必须加上 preamble" | ❌ 没有提到 preamble<br>❌ 没有强调 Python 环境修复 | 🔴 **高**：V2 的 Worker 可能因 Python 环境问题失败，Module Agent 放弃 spawn |
-| **Yield 返回后的强制检查** | ✅ "🔴 自检清单（每次 yield 返回后执行）"<br>✅ 4 个具体的检查项<br>✅ "只有写完 `.completed` 后你才能结束 turn" | ⚠️ 有"🔴 完成条件"<br>❌ 但没有"自检清单"<br>❌ 没有强调"每次 yield 返回后"要做什么 | 🟡 **中**：V2 缺少 yield 返回后的强制检查步骤 |
-| **Task 内容的具体性** | ✅ Task 内容从 Blackboard 读取（`tasks[task_key]`）<br>✅ 动态生成，不是硬编码 | ⚠️ Task 内容在 prompt 中硬编码<br>⚠️ 包含占位符（如 `[这里放 frozen_spec 的 JSON 内容]`） | 🟡 **中**：V2 的硬编码 task 内容可能让 LLM 认为这只是示例 |
-| **角色声明** | ✅ "你不是一个'启动器'，你是一个'执行器'" | ⚠️ "你是 Planning 模块的**调度 Agent**" | 🟡 **中**：V2 的"调度 Agent"声明可能让 LLM 认为它只需要"调度"，不需要确保执行完成 |
-| **错误处理和降级** | ✅ 明确的错误分类（retry, skip, abort）<br>✅ "失败不隐身：失败要记录到 `.completed.failed_stages`"<br>✅ "非 abort 级错误可继续后续阶段" | ⚠️ 有降级策略（"如果 MISSING，用 exec 写入默认配置作为降级"）<br>❌ 但没有明确的错误分类 | 🟡 **中**：V2 的降级策略可能导致 LLM 直接自己生成输出，而不是重试 spawn |
-| **Prompt 长度** | ~4000 字 | ~3000 字 | 🟢 **低**：V2 更短，应该更容易遵循 |
+| **执行循环强调** | ✅ "遍历 phases（🔴 循环，不是单次执行）"<br>✅ "你必须在一个 turn 内循环执行所有 10 个 phase"<br>✅ "每次 yield 返回后，立即验证输出文件，然后继续下一个 phase" | ⚠️ "你必须按顺序执行 3 个 Layer"<br>❌ 没有强调"循环"概念<br>❌ 没有说"在一个 turn 内完成所有 3 个 Layer" | 🔴 **高**：2.0.0 可能让 LLM 认为每个 Layer 是独立的 turn，而不是连续执行 |
+| **Preamble 和 Python 环境** | ✅ "🔴 Python 执行环境修复（必须）"<br>✅ 给出具体的 preamble 内容<br>✅ 强调"每个 worker 的 task 前面必须加上 preamble" | ❌ 没有提到 preamble<br>❌ 没有强调 Python 环境修复 | 🔴 **高**：2.0.0 的 Worker 可能因 Python 环境问题失败，Module Agent 放弃 spawn |
+| **Yield 返回后的强制检查** | ✅ "🔴 自检清单（每次 yield 返回后执行）"<br>✅ 4 个具体的检查项<br>✅ "只有写完 `.completed` 后你才能结束 turn" | ⚠️ 有"🔴 完成条件"<br>❌ 但没有"自检清单"<br>❌ 没有强调"每次 yield 返回后"要做什么 | 🟡 **中**：2.0.0 缺少 yield 返回后的强制检查步骤 |
+| **Task 内容的具体性** | ✅ Task 内容从 Blackboard 读取（`tasks[task_key]`）<br>✅ 动态生成，不是硬编码 | ⚠️ Task 内容在 prompt 中硬编码<br>⚠️ 包含占位符（如 `[这里放 frozen_spec 的 JSON 内容]`） | 🟡 **中**：2.0.0 的硬编码 task 内容可能让 LLM 认为这只是示例 |
+| **角色声明** | ✅ "你不是一个'启动器'，你是一个'执行器'" | ⚠️ "你是 Planning 模块的**调度 Agent**" | 🟡 **中**：2.0.0 的"调度 Agent"声明可能让 LLM 认为它只需要"调度"，不需要确保执行完成 |
+| **错误处理和降级** | ✅ 明确的错误分类（retry, skip, abort）<br>✅ "失败不隐身：失败要记录到 `.completed.failed_stages`"<br>✅ "非 abort 级错误可继续后续阶段" | ⚠️ 有降级策略（"如果 MISSING，用 exec 写入默认配置作为降级"）<br>❌ 但没有明确的错误分类 | 🟡 **中**：2.0.0 的降级策略可能导致 LLM 直接自己生成输出，而不是重试 spawn |
+| **Prompt 长度** | ~4000 字 | ~3000 字 | 🟢 **低**：2.0.0 更短，应该更容易遵循 |
 | **平台配置** | N/A | ✅ `maxSpawnDepth: 4`（足够支持 depth-3） | ✅ **无问题** |
 
 ---
@@ -25,15 +25,15 @@
 
 ### 🔴 根因 1：缺少"循环执行"的强调（置信度：90%）
 
-**问题**：V2 prompt 没有强调"在一个 turn 内完成所有 3 个 Layer"，导致 LLM 可能认为：
+**问题**：2.0.0 prompt 没有强调"在一个 turn 内完成所有 3 个 Layer"，导致 LLM 可能认为：
 - 每个 Layer 是一个独立的 turn
 - spawn 一个 Worker 后就可以结束 turn
 - 不需要等待 Worker 完成并继续下一个 Layer
 
 **证据**：
-- V1 明确说"遍历 phases（🔴 循环，不是单次执行）"
-- V1 说"你必须在一个 turn 内循环执行所有 10 个 phase"
-- V2 只说"你必须按顺序执行 3 个 Layer"，没有强调"循环"和"在一个 turn 内"
+- 2.0.0 明确说"遍历 phases（🔴 循环，不是单次执行）"
+- 2.0.0 说"你必须在一个 turn 内循环执行所有 10 个 phase"
+- 2.0.0 只说"你必须按顺序执行 3 个 Layer"，没有强调"循环"和"在一个 turn 内"
 
 **影响**：LLM 在 spawn 第一个 Worker（Meta-Planner）后，可能认为自己的任务完成了，等待下一次调度。
 
@@ -41,17 +41,17 @@
 
 ### 🔴 根因 2：缺少 Preamble 和 Python 环境修复（置信度：85%）
 
-**问题**：V2 prompt 没有提到 preamble，导致 Worker 可能因 Python 环境问题失败。
+**问题**：2.0.0 prompt 没有提到 preamble，导致 Worker 可能因 Python 环境问题失败。
 
 **证据**：
-- V1 明确说"🔴 Python 执行环境修复（必须）"
-- V1 给出具体的 preamble 内容：
+- 2.0.0 明确说"🔴 Python 执行环境修复（必须）"
+- 2.0.0 给出具体的 preamble 内容：
   ```
   你执行的所有 Python 命令必须以 `cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.` 开头。
   否则 `from core.blackboard.blackboard_manager import BlackboardManager` 会报 ModuleNotFoundError。
   ```
-- V1 强调"每个 worker 的 task 前面必须加上 preamble"
-- V2 完全没有提到 preamble
+- 2.0.0 强调"每个 worker 的 task 前面必须加上 preamble"
+- 2.0.0 完全没有提到 preamble
 
 **影响**：
 1. Worker 在执行 `from core.blackboard.blackboard_manager import BlackboardManager` 时报错
@@ -59,19 +59,19 @@
 3. Module Agent 验证时发现输出缺失
 4. Module Agent 可能选择"降级"（自己生成输出），而不是重试 spawn
 
-**验证方法**：检查 V2 执行日志，看是否有 `ModuleNotFoundError` 错误。
+**验证方法**：检查 2.0.0 执行日志，看是否有 `ModuleNotFoundError` 错误。
 
 ---
 
 ### 🟡 根因 3：缺少 yield 返回后的强制检查（置信度：70%）
 
-**问题**：V2 没有"自检清单"，导致 LLM 可能跳过验证直接结束。
+**问题**：2.0.0 没有"自检清单"，导致 LLM 可能跳过验证直接结束。
 
 **证据**：
-- V1 有"🔴 自检清单（每次 yield 返回后执行）"
-- V1 的自检清单包含 4 个具体的检查项
-- V2 只有"🔴 完成条件"，但没有"自检清单"
-- V2 没有强调"每次 yield 返回后"要做什么
+- 2.0.0 有"🔴 自检清单（每次 yield 返回后执行）"
+- 2.0.0 的自检清单包含 4 个具体的检查项
+- 2.0.0 只有"🔴 完成条件"，但没有"自检清单"
+- 2.0.0 没有强调"每次 yield 返回后"要做什么
 
 **影响**：LLM 在 yield 返回后，可能没有验证 Worker 输出，直接认为任务完成。
 
@@ -79,11 +79,11 @@
 
 ### 🟡 根因 4：Task 内容的硬编码（置信度：60%）
 
-**问题**：V2 的 task 内容包含占位符，可能让 LLM 认为这只是示例。
+**问题**：2.0.0 的 task 内容包含占位符，可能让 LLM 认为这只是示例。
 
 **证据**：
-- V2 的 task 内容包含 `[这里放 frozen_spec 的 JSON 内容]` 等占位符
-- V1 的 task 内容从 Blackboard 动态读取，不是硬编码
+- 2.0.0 的 task 内容包含 `[这里放 frozen_spec 的 JSON 内容]` 等占位符
+- 2.0.0 的 task 内容从 Blackboard 动态读取，不是硬编码
 
 **影响**：LLM 可能认为这些 task 内容只是"示例"，不是真正要执行的。当需要实际执行时，LLM 可能选择自己生成输出，而不是构造真实的 task 内容。
 
@@ -91,11 +91,11 @@
 
 ### 🟡 根因 5："调度 Agent"的角色声明（置信度：50%）
 
-**问题**：V2 声明"你是 Planning 模块的**调度 Agent**"，可能让 LLM 认为它只需要"调度"（spawn），不需要确保执行完成。
+**问题**：2.0.0 声明"你是 Planning 模块的**调度 Agent**"，可能让 LLM 认为它只需要"调度"（spawn），不需要确保执行完成。
 
 **证据**：
-- V1 声明"你不是一个'启动器'，你是一个'执行器'"
-- V2 声明"你是 Planning 模块的**调度 Agent**"
+- 2.0.0 声明"你不是一个'启动器'，你是一个'执行器'"
+- 2.0.0 声明"你是 Planning 模块的**调度 Agent**"
 
 **影响**：LLM 可能认为"调度 Agent"的职责只是"启动" Worker，不需要等待 Worker 完成并验证输出。
 
@@ -103,12 +103,12 @@
 
 ### 🟡 根因 6：缺少错误分类（置信度：40%）
 
-**问题**：V2 没有明确的错误分类，导致 LLM 可能直接降级而不是重试。
+**问题**：2.0.0 没有明确的错误分类，导致 LLM 可能直接降级而不是重试。
 
 **证据**：
-- V1 有明确的错误分类（retry, skip, abort）
-- V1 说"失败不隐身：失败要记录到 `.completed.failed_stages`"
-- V2 只有降级策略（"如果 MISSING，用 exec 写入默认配置作为降级"）
+- 2.0.0 有明确的错误分类（retry, skip, abort）
+- 2.0.0 说"失败不隐身：失败要记录到 `.completed.failed_stages`"
+- 2.0.0 只有降级策略（"如果 MISSING，用 exec 写入默认配置作为降级"）
 
 **影响**：当 Worker 输出缺失时，LLM 可能直接选择"降级"（自己生成输出），而不是重试 spawn。
 
@@ -129,8 +129,8 @@
 
 **深度计算**：
 - depth-0: Main Agent（用户交互层）
-- depth-1: V2 Orchestrator（spawned by Main Agent）
-- depth-2: Planning Module（spawned by V2 Orchestrator）
+- depth-1: 2.0.0 Orchestrator（spawned by Main Agent）
+- depth-2: Planning Module（spawned by 2.0.0 Orchestrator）
 - depth-3: Workers（spawned by Planning Module）
 
 `maxSpawnDepth: 4` 允许 depth-0 → depth-1 → depth-2 → depth-3 → depth-4，完全足够。
@@ -160,7 +160,7 @@
 **理由**：
 - 添加第 6 条规则，明确强调"循环执行"和"在一个 turn 内"
 - 添加第 7 条规则，明确角色是"执行器"而不是"启动器"
-- 使用 🔴 标记，与 V1 保持一致
+- 使用 🔴 标记，与 2.0.0 保持一致
 
 ---
 
@@ -245,7 +245,7 @@ spawn 参数：
 ```
 
 **理由**：
-- 添加"🔴 Python 执行环境修复（必须）"部分，与 V1 保持一致
+- 添加"🔴 Python 执行环境修复（必须）"部分，与 2.0.0 保持一致
 - 明确给出 preamble 内容
 - 强调"每个 worker 的 task 前面必须加上 preamble"
 - 强调"sessions_spawn 必须传 cwd"
@@ -269,7 +269,7 @@ spawn 参数：
 ```
 
 **理由**：
-- 添加"自检清单"，与 V1 保持一致
+- 添加"自检清单"，与 2.0.0 保持一致
 - 明确"每次 yield 返回后"要做什么
 - 强调"不能结束 turn"
 
@@ -322,7 +322,7 @@ task 内容如下：
 ```
 
 **理由**：
-- 添加明确的错误分类，与 V1 保持一致
+- 添加明确的错误分类，与 2.0.0 保持一致
 - 明确"重试一次"的策略
 - 强调"失败不隐身"
 
@@ -332,12 +332,12 @@ task 内容如下：
 
 | 根因 | 置信度 | 证据强度 | 修复优先级 |
 |------|--------|----------|-----------|
-| 缺少"循环执行"的强调 | 90% | V1 有明确强调，V2 没有 | P0 |
-| 缺少 Preamble 和 Python 环境修复 | 85% | V1 有明确要求，V2 没有 | P0 |
-| 缺少 yield 返回后的强制检查 | 70% | V1 有自检清单，V2 没有 | P1 |
-| Task 内容的硬编码 | 60% | V1 动态生成，V2 硬编码 | P1 |
-| "调度 Agent"的角色声明 | 50% | V1 明确是"执行器"，V2 是"调度 Agent" | P2 |
-| 缺少错误分类 | 40% | V1 有明确分类，V2 没有 | P2 |
+| 缺少"循环执行"的强调 | 90% | 2.0.0 有明确强调，2.0.0 没有 | P0 |
+| 缺少 Preamble 和 Python 环境修复 | 85% | 2.0.0 有明确要求，2.0.0 没有 | P0 |
+| 缺少 yield 返回后的强制检查 | 70% | 2.0.0 有自检清单，2.0.0 没有 | P1 |
+| Task 内容的硬编码 | 60% | 2.0.0 动态生成，2.0.0 硬编码 | P1 |
+| "调度 Agent"的角色声明 | 50% | 2.0.0 明确是"执行器"，2.0.0 是"调度 Agent" | P2 |
+| 缺少错误分类 | 40% | 2.0.0 有明确分类，2.0.0 没有 | P2 |
 
 **总体置信度**：85%（前两个根因的置信度都很高，且修复方向明确）
 
@@ -348,7 +348,7 @@ task 内容如下：
 ### 5.1 短期验证（修复后立即执行）
 
 1. **应用修复 1 和修复 2**（P0 修复）
-2. **重新运行 V2 Planning Module**
+2. **重新运行 2.0.0 Planning Module**
 3. **检查**：
    - 是否成功 spawn 了 3 个 Workers（Meta-Planner, Expert Planners, Convergence Planner）？
    - Workers 是否成功写入 Blackboard？
@@ -358,54 +358,54 @@ task 内容如下：
 ### 5.2 长期验证（修复所有问题后）
 
 1. **应用所有修复**（P0 + P1 + P2）
-2. **运行完整的 V2 管线**（Planning → Research → ReviewQC）
+2. **运行完整的 2.0.0 管线**（Planning → Research → ReviewQC）
 3. **检查**：
    - 每个 Module 是否都成功 spawn 了 Workers？
    - 整个管线是否在一个 turn 内完成？
-   - 输出质量是否与 V1 一致或更好？
+   - 输出质量是否与 2.0.0 一致或更好？
 
 ---
 
 ## 6. 结论
 
-**核心问题**：V2 Planning Module 的 prompt 缺少 V1 的关键元素，导致 LLM 跳过了 spawn Workers 的步骤。
+**核心问题**：2.0.0 Planning Module 的 prompt 缺少 2.0.0 的关键元素，导致 LLM 跳过了 spawn Workers 的步骤。
 
 **核心修复**：
 1. 添加"循环执行"的强调（P0）
 2. 添加 Preamble 和 Python 环境修复（P0）
 3. 添加 Yield 返回后的强制检查（P1）
 
-**预期效果**：修复后，V2 Planning Module 应该能够成功 spawn depth-3 Workers，并在一个 turn 内完成所有 3 个 Layer。
+**预期效果**：修复后，2.0.0 Planning Module 应该能够成功 spawn depth-3 Workers，并在一个 turn 内完成所有 3 个 Layer。
 
 ---
 
-**附录：V1 vs V2 架构对比**
+**附录：2.0.0 vs 2.0.0 架构对比**
 
 ```
-V1 架构（已验证可用）：
+2.0.0 架构（已验证可用）：
 depth-0: Main Agent
   ↓ spawn
 depth-1: Pipeline Orchestrator（执行器）
   ↓ spawn（循环 10 个 phases）
 depth-2: Workers（Planner, Researchers, Designers, etc.）
 
-V2 架构（当前问题）：
+2.0.0 架构（当前问题）：
 depth-0: Main Agent
   ↓ spawn
-depth-1: V2 Orchestrator（调度器）
+depth-1: 2.0.0 Orchestrator（调度器）
   ↓ spawn（3 个 modules）
 depth-2: Module Agents（Planning, Research, ReviewQC）
   ↓ spawn（应该 spawn，但实际没有）
 depth-3: Workers（Meta-Planner, Expert Planners, Convergence Planner）
 
-V2 架构（修复后）：
+2.0.0 架构（修复后）：
 depth-0: Main Agent
   ↓ spawn
-depth-1: V2 Orchestrator（调度器）
+depth-1: 2.0.0 Orchestrator（调度器）
   ↓ spawn（3 个 modules）
 depth-2: Module Agents（执行器，不是调度器）
   ↓ spawn（循环执行所有 Layers/Stages）
 depth-3: Workers（Meta-Planner, Expert Planners, Convergence Planner）
 ```
 
-**关键洞察**：V2 的 Module Agents 应该被定位为"执行器"，而不是"调度器"。它们的职责是确保所有 Layers/Stages 都完成，而不是只启动第一个 Worker。
+**关键洞察**：2.0.0 的 Module Agents 应该被定位为"执行器"，而不是"调度器"。它们的职责是确保所有 Layers/Stages 都完成，而不是只启动第一个 Worker。

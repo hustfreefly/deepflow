@@ -141,7 +141,7 @@ Solution Pro 各 Stage 从 Living Spec 提取不同字段片段：
 
 Solution Pro 通过以下自然语言规则判断 Living Spec 有效性（非脚本检查）：
 
-### V1: 结构完整性检查（EntryHarness / Orchestrator init）
+### 2.0.0: 结构完整性检查（EntryHarness / Orchestrator init）
 
 当 Solution Pro Orchestrator 收到 living_spec 参数时：
 - 检查是否为 dict 类型（非 None、非字符串、非 list）
@@ -152,7 +152,7 @@ Solution Pro 通过以下自然语言规则判断 Living Spec 有效性（非脚
 
 **违规判定**: 如果任一检查失败，Solution Pro 应记录 WARNING 日志并回退到无 Living Spec 模式（`living_spec=None` 行为），而非崩溃。
 
-### V2: 质量阈值检查（Orchestrator init）
+### 2.0.0: 质量阈值检查（Orchestrator init）
 
 当 `meta.quality_score` 存在时：
 - ≥ 75（standard 阈值）: 完全信任 confirmed 层
@@ -161,7 +161,7 @@ Solution Pro 通过以下自然语言规则判断 Living Spec 有效性（非脚
 
 **违规判定**: 如果质量评分 < 60 但 Solution Pro 完全按照 inferred 内容做规划（未标注不确定性），视为目标一致性违规。
 
-### V3: 推断处理检查（各 Worker task）
+### 2.0.0: 推断处理检查（各 Worker task）
 
 - `inferred` 列表中 status="pending" 的项不得作为确定性需求被引用
 - status="confirmed" 的推断应在输出中标注"来自推断-确认"
@@ -169,14 +169,14 @@ Solution Pro 通过以下自然语言规则判断 Living Spec 有效性（非脚
 
 **违规判定**: 如果 Worker 输出中使用了 pending 推断但未标注不确定性，评审阶段可标记为"推断越权"。
 
-### V4: Guardrails 遵守检查（research / review / harness_final）
+### 2.0.0: Guardrails 遵守检查（research / review / harness_final）
 
 - `guardrails.always_do` 中的条目应在方案中得到体现
 - `guardrails.never_do` 中的条目不应在方案中出现
 
 **违规判定**: Harness Final 阶段对比方案内容与 guardrails.never_do，发现越界内容标记为 MISALIGNED。
 
-### V5: 向后兼容检查（`living_spec=None`）
+### 2.0.0: 向后兼容检查（`living_spec=None`）
 
 当 `living_spec=None` 时：
 - Orchestrator 的 `init()` 必须正常完成

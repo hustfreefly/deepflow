@@ -1,5 +1,5 @@
 """
-Ship Pro V8 - ShipPackage Contract
+Ship Pro - ShipPackage Contract
 
 定义 ShipPackage 的数据结构。
 """
@@ -38,6 +38,20 @@ class ShipPackage(BaseModel):
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
         description="元数据"
+    )
+    
+    # 契约笼子：Semantic Anchors 透传（信息守恒强制字段）
+    semantic_anchors: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="从 Solution Pro 透传的语义锚点（契约笼子：必须保留，不可丢弃）。"
+                    "每条包含 name/category/constraint/source_quote。"
+                    "Consolidator 必须从 solution_pro_input 中原样复制到此处。"
+    )
+    anchor_coverage: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Semantic Anchor 覆盖统计（契约笼子：自动计算）。"
+                    "格式: {anchor_name: [wp_id, ...], ...}，"
+                    "以及 _uncovered: [anchor_name, ...] 列出未被任何 WP 引用的 anchor。"
     )
 
     class Config:

@@ -138,7 +138,7 @@ class InformationConservationValidator:
     def _check_research_utilization(self, research_output: dict | None, review_qc_output: dict | None) -> dict:
         """Check whether expert findings were utilized in the solution.
 
-        E2E V3 发现: 56% Expert 零引用，360KB research → 45KB solution 压缩后仅 1 处引用标记。
+        E2E 发现: 56% Expert 零引用，360KB research → 45KB solution 压缩后仅 1 处引用标记。
         本方法检测 expert findings 是否被下游方案引用（粗粒度：expert name/ID 出现在方案文本中）。
         """
         if research_output is None:

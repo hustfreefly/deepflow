@@ -154,7 +154,7 @@ const childCapabilities = resolveSubagentCapabilities({
 
 ```
 depth-0: Main Agent (main2) ─── 角色: main, canSpawn=true
-  └─ depth-1: V2 Orchestrator ─── 角色: orchestrator, canSpawn=true (1<4)
+  └─ depth-1: 2.0.0 Orchestrator ─── 角色: orchestrator, canSpawn=true (1<4)
        └─ depth-2: Module Agent ─── 角色: orchestrator, canSpawn=true (2<4)
             └─ depth-3: Workers ─── 角色: orchestrator, canSpawn=true (3<4)
                  └─ depth-4: 迭代推理 ─── 角色: leaf, canSpawn=false (4≥4)
@@ -207,7 +207,7 @@ depth-4 (迭代推理) 完成
     → depth-3 综合所有 depth-4 结果后完成
       → announce 到 depth-2 (Module Agent)
         → depth-2 综合所有 depth-3 结果后完成
-          → announce 到 depth-1 (V2 Orchestrator)
+          → announce 到 depth-1 (2.0.0 Orchestrator)
             → depth-1 综合所有 depth-2 结果后完成
               → announce 到 depth-0 (Main Agent)
                 → 交付给用户

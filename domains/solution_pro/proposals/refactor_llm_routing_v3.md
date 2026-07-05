@@ -1,6 +1,6 @@
-# Solution Pro V2 重构方案：LLM 调用全走 OpenClaw
+# Solution Pro 2.0.0 重构方案：LLM 调用全走 OpenClaw
 
-> **版本**: V3.0 | **日期**: 2026-06-29
+> **版本**: 2.0.0 | **日期**: 2026-06-29
 > **作者**: 小满（主 Agent）
 > **状态**: 评审后终版（Round 1 + Round 2 + Round 3 完成）
 
@@ -9,12 +9,12 @@
 ## 0. 任务澄清
 
 ### 做什么
-将 Solution Pro V2 中所有"绕过 OpenClaw 直调 LLM API"的代码，统一重构为走 `spawn_fn`（→ `sessions_spawn`），实现**零额外 API Key**。
+将 Solution Pro 2.0.0 中所有"绕过 OpenClaw 直调 LLM API"的代码，统一重构为走 `spawn_fn`（→ `sessions_spawn`），实现**零额外 API Key**。
 
 ### 约束是什么
 1. **平台约束**：OpenClaw 的 `exec` 环境是独立 Python 进程，无法 import openclaw SDK → 所有 LLM 调用必须通过 `spawn_fn`（由主 Agent 注入）
-2. **V1 教训**：V1 的 `sessions_spawn` 模式是正确的，V2 不应该抛弃它
-3. **不能破坏现有正确代码**：V2 核心编排（planning/research/review_qc orchestrator）已经正确使用 `spawn_fn`，不能改坏
+2. **2.0.0 教训**：2.0.0 的 `sessions_spawn` 模式是正确的，2.0.0 不应该抛弃它
+3. **不能破坏现有正确代码**：2.0.0 核心编排（planning/research/review_qc orchestrator）已经正确使用 `spawn_fn`，不能改坏
 4. **向后兼容**：测试时 `spawn_fn=None` 的 fallback 模式需保留
 5. **深度约束**：OpenClaw 子 Agent 最多 2 层（depth-0 主 Agent → depth-1 Orchestrator → depth-2 Worker），不可逾越
 
@@ -32,7 +32,7 @@
 ### 1.1 架构概览
 
 ```
-V2 Solution Pro 的 LLM 调用路径：
+2.0.0 Solution Pro 的 LLM 调用路径：
 
 ✅ 正确路径（已实现，大部分模块）：
    ModuleOrchestrator._adapted_spawn()
@@ -91,7 +91,7 @@ depth-0: 主 Agent
 | P1 | `e2e_test_runner.py` | Spawn Bridge（文件中转） | P0 | E2E 测试无法在真实环境跑通 |
 | P2 | `compliance_checker.py` | `llm_judge_fn` 回调可能被注入直调 API 的函数 | P1 | 合规检查可能绕过 OpenClaw |
 | P3 | `harness_scorer.py` | 同上 | P1 | Harness 评分可能绕过 OpenClaw |
-| P4 | `planner.py` | V1 legacy，已废弃但未清理 | P2 | 代码噪音 |
+| P4 | `planner.py` | 2.0.0 legacy，已废弃但未清理 | P2 | 代码噪音 |
 | P5 | `ai_native_auditor.py` | `llm_judge_fn` 同类问题 | P1 | 审计可能绕过 OpenClaw |
 
 ### 1.4 正确模块（不动）
@@ -147,7 +147,7 @@ spawn_fn = mock_spawn_fn  # 返回预设数据或调用 LLM（通过 OpenClaw �
 
 **方案**：
 
-#### 2.2.1 修正后的 LLMJudgeAdapter（V3.0 最终版）
+#### 2.2.1 修正后的 LLMJudgeAdapter（2.0.0 最终版）
 
 ```python
 import json
@@ -156,7 +156,7 @@ from typing import Optional, Callable, Any
 class LLMJudgeAdapter:
     """将 spawn_fn 适配为 llm_judge_fn 接口。
     
-    V3.0 关键修正（基于 Round 2 裁决）：
+    2.0.0 关键修正（基于 Round 2 裁决）：
     1. spawn_fn 返回字符串（visible reply），不是 dict
     2. judge() 是同步方法，不是 async（spawn_fn 是同步阻塞）
     3. 不需要 _extract_output 的复杂逻辑，直接处理字符串
@@ -317,14 +317,14 @@ else:
     llm_judge_fn = rule_based_judge
 ```
 
-### 2.3 P4: 清理 V1 Legacy 代码
+### 2.3 P4: 清理 2.0.0 Legacy 代码
 
 **方案**：
 - `planner.py` 移动到 `v1_legacy/` 目录
 - 文件顶部添加明确的废弃声明：
   ```python
   """
-  ⚠️ DEPRECATED: V1 Legacy 代码，仅供 V1 session 续跑使用。
+  ⚠️ DEPRECATED: 2.0.0 Legacy 代码，仅供 2.0.0 session 续跑使用。
   新代码请使用 planning_orchestrator.py。
   预计移除时间：2026-Q3
   """
@@ -540,7 +540,7 @@ spawn_metrics = SpawnMetrics()
 | Phase 1 | 定义 `SpawnFn` Protocol + 创建 `LLMJudgeAdapter` 类 | 1h | 低 | 单元测试 |
 | Phase 2 | 重构 `compliance_checker.py`、`harness_scorer.py`、`ai_native_auditor.py` | 1.5h | 中 | 单元测试 + 集成测试 |
 | Phase 3 | 重写 `e2e_test_runner.py`（Spawn Bridge → 真 sessions_spawn） | 1.5h | 中 | E2E 测试 |
-| Phase 4 | 移动 V1 legacy 代码 + 添加废弃声明 | 15min | 低 | 检查 V1 session 不受影响 |
+| Phase 4 | 移动 2.0.0 legacy 代码 + 添加废弃声明 | 15min | 低 | 检查 2.0.0 session 不受影响 |
 | Phase 5 | 统一 `mock_spawn_fn` 接口 + 录制数据迁移 | 1h | 中 | CI 测试通过 |
 | Phase 6 | E2E 验证（真实 OpenClaw 环境） | 1h | 高 | 完整 E2E 测试 |
 | Phase 7 | 可观测性集成 + 文档更新 | 30min | 低 | 检查指标输出 |
@@ -549,9 +549,9 @@ spawn_metrics = SpawnMetrics()
 
 ---
 
-## 4. 与 V1 的对比
+## 4. 与 2.0.0 的对比
 
-| 维度 | V1 | V2（现状） | V2（重构后） |
+| 维度 | 2.0.0 | 2.0.0（现状） | 2.0.0（重构后） |
 |------|-----|-----------|------------|
 | LLM 调用方式 | sessions_spawn | 混合（spawn_fn + 直调 + Spawn Bridge） | 统一 spawn_fn → sessions_spawn |
 | 额外 API Key | 不需要 | 可能需要 | 不需要 |
@@ -611,7 +611,7 @@ spawn_metrics = SpawnMetrics()
 
 ### Round 2 聚焦修复
 
-| 争议 | 裁决 | V3 修订 |
+| 争议 | 裁决 | 2.0.0 修订 |
 |------|------|---------|
 | spawn_fn 返回值 | 返回字符串 | ✅ 简化 _extract_output，直接处理 str |
 | sync/async | judge() 必须同步 | ✅ 改为 def judge()，不用 asyncio |
@@ -645,7 +645,7 @@ spawn_metrics = SpawnMetrics()
 1. **零额外 API Key**：利用 OpenClaw 已有的 LLM 路由
 2. **强上下文隔离**：每个子 Agent 独立 context，避免污染
 3. **原生平台集成**：与 OpenClaw 的 cron/blackboard/message 无缝集成
-4. **已验证模式**：V1 已证明 spawn_fn 模式可行
+4. **已验证模式**：2.0.0 已证明 spawn_fn 模式可行
 
 ---
 

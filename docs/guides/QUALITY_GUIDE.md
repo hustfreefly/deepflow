@@ -1,6 +1,6 @@
 # DeepFlow 全链路质量评估方法论
 
-> **版本**: V1.0.0 | **创建日期**: 2026-06-20  
+> **版本**: 2.0.0 | **创建日期**: 2026-06-20  
 > **适用范围**: Spec Pro → Solution Pro → Ship Pro 端到端质量追溯  
 > **首次验证案例**: Serenity Skills A股适配
 
@@ -38,7 +38,7 @@ DeepFlow 的全链路质量评估采用**双维度模型**：
     ▼
 ┌─────────────────────────────────────────────────────────┐
 │ Ship Pro                                                │
-│  ├─ Quality Gate V2: Compiler → Reviewer → Fixer        │
+│  ├─ Quality Gate 2.0.0: Compiler → Reviewer → Fixer        │
 │  │   (AC质量验证 + 依赖合理性验证)                      │
 │  └─ 输出: ship_package.json + ship_review_result.json   │
 └─────────────────────────────────────────────────────────┘
@@ -87,7 +87,7 @@ DeepFlow 的全链路质量评估采用**双维度模型**：
 
 ### 2.3 Ship Pro 质量门禁
 
-**评估框架**: Quality Gate V2（详见 `domains/ship_pro/docs/quality_gate_design.md`）
+**评估框架**: Quality Gate 2.0.0（详见 `domains/ship_pro/docs/quality_gate_design.md`）
 
 **检查项**:
 1. **AC 质量验证** — 逐条检查 acceptance_criteria 是否包含空泛表述
@@ -238,10 +238,10 @@ Ship Pro (ship_package.json)
 
 - Golden Case 验证: `tests/golden/verify_golden_case.py`
 - 需求去重验证: `domains/solution_pro/scripts/validate_req_dedup.py`
-- V6 改进测试: `domains/solution_pro/eval/test_v6_improvements.py`
+- 2.0.0 改进测试: `domains/solution_pro/eval/test_v6_improvements.py`
 
 ### 6.3 变更历史
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
-| V1.0.0 | 2026-06-20 | 初始版本，覆盖全链路质量评估方法论 |
+| 2.0.0 | 2026-06-20 | 初始版本，覆盖全链路质量评估方法论 |

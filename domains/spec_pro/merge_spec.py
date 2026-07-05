@@ -294,7 +294,7 @@ def check_contradictions(spec: dict) -> list:
 
 
 def merge_conversation_digest(spec: dict, response: dict) -> None:
-    """V2: Merge conversation_digest from ResponseWorker output.
+    """Merge conversation_digest from ResponseWorker output.
 
     - summary: overwritten each round by StructureWorker (not here)
     - key_excerpts: incrementally appended from ResponseWorker, with dedup
@@ -367,7 +367,7 @@ def merge_user_directives(spec: dict, response: dict) -> None:
 
 def merge_spec_v6(base_path: str, stage_name: str) -> dict:
     """
-    V6 API merge: 读取 stage 数据并合并到 living_spec.json。
+    API merge: 读取 stage 数据并合并到 living_spec.json。
 
     Args:
         base_path: session 目录路径
@@ -382,7 +382,7 @@ def merge_spec_v6(base_path: str, stage_name: str) -> dict:
     session_id = os.path.basename(base_path)
     bb = CoreBB(session_id)
 
-    # 使用 V6 API 读取 stage 数据
+    # 使用 API 读取 stage 数据
     response = bb.read_stage(stage_name)
     if response is None:
         return {"status": "error", "message": f"Stage not found: {stage_name}"}
@@ -505,8 +505,7 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
     # Step 5: Merge user_directives (parse_response.md 输出)
     merge_user_directives(spec, response)
 
-    # Step 6: Merge conversation_digest (V2 对话摘要累积)
-    merge_conversation_digest(spec, response)
+    # Step 6: Merge conversation_digest merge_conversation_digest(spec, response)
 
     # Update meta
     meta = spec.setdefault("meta", {})

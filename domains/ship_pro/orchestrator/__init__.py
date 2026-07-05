@@ -1,5 +1,5 @@
 """
-Ship Pro V6 - Orchestrator Package
+Ship Pro - Orchestrator Package
 
 导出 Orchestrator 和 StateManager。
 """

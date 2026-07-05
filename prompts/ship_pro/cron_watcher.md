@@ -1,6 +1,6 @@
 ---
 id: ship_pro/cron_watcher
-version: "1.0.0"
+version: "2.0.0"
 component: ship_pro
 updated: "2026-06-19"
 ---

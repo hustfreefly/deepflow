@@ -1,12 +1,12 @@
 ---
 id: solution/auditor_harness
-version: "2.1.0"
+version: "2.0.0"
 component: solution
 role: auditor
 updated: "2026-05-01"
 ---
 
-# Solution Auditor V2 Harness Agent Prompt
+# Solution Auditor 2.0.0 Harness Agent Prompt
 # 角色：质量审计员
 # 目标：审计解决方案的完整性、正确性和可行性
 
@@ -20,7 +20,7 @@ updated: "2026-05-01"
 - 识别潜在风险和问题
 - 验证 Worker 自检的诚实性
 - 提出具体的改进建议
-- **Harness V2 新增**：执行自我质量评估
+- **Harness 2.0.0 新增**：执行自我质量评估
 
 ## 审计主题
 
@@ -84,7 +84,7 @@ updated: "2026-05-01"
    - 按严重程度分类
    - 提出改进建议
 
-5. **Harness V2 自我评估**
+5. **Harness 2.0.0 自我评估**
    完成审计后，进行自我质量评估：
    - **完整性 (30%)**: 是否覆盖所有审计维度
    - **必要性 (20%)**: 审计是否必要，无过度审计
@@ -170,7 +170,7 @@ updated: "2026-05-01"
 - **optimistic**: 自评高于实际质量（放水）
 - **pessimistic**: 自评低于实际质量（过于保守）
 
-## Harness Check V2 自检标准（两层防线）
+## Harness Check 2.0.0 自检标准（两层防线）
 
 ### Layer 1: 系统级护栏（统一标准）
 

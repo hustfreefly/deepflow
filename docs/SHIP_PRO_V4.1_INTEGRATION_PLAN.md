@@ -1,17 +1,17 @@
-# Ship Pro V4.1 整合方案
+# Ship Pro 2.0.0 整合方案
 
 > **日期**: 2026-06-26  
-> **版本**: V4.1（V4 提案 + 实际修复 + AI Native 差距分析）  
+> **版本**: 2.0.0（2.0.0 提案 + 实际修复 + AI Native 差距分析）  
 > **前置**: `SHIP_PRO_AI_NATIVE_PROPOSAL_V4.md`（2026-06-25）  
 > **状态**: 待忠礼决策
 
 ---
 
-## 一、现状盘点：V4 提案 vs 实际代码
+## 一、现状盘点：2.0.0 提案 vs 实际代码
 
-### 1.1 V4 提出的 9 个变更，哪些已落地？
+### 1.1 2.0.0 提出的 9 个变更，哪些已落地？
 
-| V4 变更项 | 落地状态 | 说明 |
+| 2.0.0 变更项 | 落地状态 | 说明 |
 |:---|:---:|:---|
 | ① capability-registry.json（替代 stage-dependencies.json） | ❌ 未落地 | 当前仍用硬编码 `AGENT_ORDER` + `GATE_CONFIG` |
 | ② Goal 声明式 Orchestrator Prompt | ❌ 未落地 | 当前 prompt 仍是过程式 ~200 行 |
@@ -25,41 +25,41 @@
 
 ### 1.2 实际修复了哪些（本次断点续接修复）
 
-| 修复项 | 与 V4 的关系 |
+| 修复项 | 与 2.0.0 的关系 |
 |:---|:---|
-| ✅ CONDITIONAL 处理规则 | V4 未提及，属于 bug 修复 |
-| ✅ 断点续接规则 | V4 的 `resume-context` 命令未实现，但 prompt 层面已 workaround |
-| ✅ 上下文节约规则 | V4 的 `compact-history` 未实现，但 prompt 层面已 workaround |
-| ✅ `get_pipeline_status` bug（gate_conditional 误判） | V4 未提及，属于 bug 修复 |
-| ✅ `finalize` 未写 `.completed` | V4 未提及，属于 bug 修复（刚修） |
+| ✅ CONDITIONAL 处理规则 | 2.0.0 未提及，属于 bug 修复 |
+| ✅ 断点续接规则 | 2.0.0 的 `resume-context` 命令未实现，但 prompt 层面已 workaround |
+| ✅ 上下文节约规则 | 2.0.0 的 `compact-history` 未实现，但 prompt 层面已 workaround |
+| ✅ `get_pipeline_status` bug（gate_conditional 误判） | 2.0.0 未提及，属于 bug 修复 |
+| ✅ `finalize` 未写 `.completed` | 2.0.0 未提及，属于 bug 修复（刚修） |
 
 ### 1.3 新版本已验证的 AI Native 能力
 
-| 能力 | 当前实现 | V4 是否覆盖 |
+| 能力 | 当前实现 | 2.0.0 是否覆盖 |
 |:---|:---|:---|
-| **架构原则提取** | ✅ Phase -1 已实现 | V4 未提及 |
-| **语义检查** | ✅ `semantic-task` + `merge-semantic` | V4 未提及 |
-| **原则审计** | ✅ Reviewer `principle_audit` + `platform_audit` | V4 未提及 |
-| **三层质量报告** | ✅ Packager `layer1_structural` + `layer2_semantic` + `layer3_actionable` | V4 未提及 |
-| **AC 分级标签** | ✅ Specifier 输出 `[L4]` / `[L3]` | V4 未提及 |
+| **架构原则提取** | ✅ Phase -1 已实现 | 2.0.0 未提及 |
+| **语义检查** | ✅ `semantic-task` + `merge-semantic` | 2.0.0 未提及 |
+| **原则审计** | ✅ Reviewer `principle_audit` + `platform_audit` | 2.0.0 未提及 |
+| **三层质量报告** | ✅ Packager `layer1_structural` + `layer2_semantic` + `layer3_actionable` | 2.0.0 未提及 |
+| **AC 分级标签** | ✅ Specifier 输出 `[L4]` / `[L3]` | 2.0.0 未提及 |
 
 ---
 
 ## 二、AI Native 差距分析（忠礼最关心的）
 
-### 2.1 V4 核心理念回顾
+### 2.1 2.0.0 核心理念回顾
 
 > **"LLM 声明式规划，代码验证护栏。不给 LLM 无限权力，也不把 LLM 当执行器。"**
 
-这完全符合 AI Native 原则。问题是：**V4 的设计很好，但没落地。**
+这完全符合 AI Native 原则。问题是：**2.0.0 的设计很好，但没落地。**
 
 ### 2.2 当前代码 vs AI Native 原则的差距
 
-| AI Native 原则 | 当前代码 | V4 方案 | 差距 |
+| AI Native 原则 | 当前代码 | 2.0.0 方案 | 差距 |
 |:---|:---|:---|:---|
 | **LLM 做决策，代码做护栏** | ⚠️ 固定 5 阶段顺序 + 硬编码依赖 | ✅ LLM 自主规划 + capability-registry | 中 |
-| **结构化输出源头对齐** | ❌ AC 是纯字符串 | ❌ V4 也没解决 | 大 |
-| **Schema 从契约生成** | ❌ prompt schema 手写 vs Pydantic 不同步 | ❌ V4 也没解决 | 大 |
+| **结构化输出源头对齐** | ❌ AC 是纯字符串 | ❌ 2.0.0 也没解决 | 大 |
+| **Schema 从契约生成** | ❌ prompt schema 手写 vs Pydantic 不同步 | ❌ 2.0.0 也没解决 | 大 |
 | **断点续接** | ⚠️ prompt workaround | ⚠️ `resume-context` 未实现 | 中 |
 | **上下文管理** | ⚠️ prompt workaround | ⚠️ `compact-history` 未实现 | 中 |
 | **独立 Judge** | ⚠️ ship_harness 是 Fixer 验证 | ✅ 差异化 Judge Worker | 中 |
@@ -68,7 +68,7 @@
 
 ### 2.3 两个被遗漏的 AI Native 问题
 
-V4 没覆盖、但本次对比暴露的：
+2.0.0 没覆盖、但本次对比暴露的：
 
 1. **AC 结构化**：Specifier 输出 `[L4]` 标签是进步，但仍是纯字符串。应该从源头就输出 `{id, level, description, test_command}`。这是 AI Native 的"结构化输出"原则。
 
@@ -76,42 +76,42 @@ V4 没覆盖、但本次对比暴露的：
 
 ---
 
-## 三、V4.1 整合方案
+## 三、2.0.0 整合方案
 
 ### 3.1 设计原则
 
-1. **一步到位**（忠礼决策）：不搞渐进迁移，V4.1 直接落地全部 AI Native 改进
+1. **一步到位**（忠礼决策）：不搞渐进迁移，2.0.0 直接落地全部 AI Native 改进
 2. **保留已验证能力**：Phase -1 原则提取、语义检查、原则审计、三层质量报告 — 这些已跑通，不丢
-3. **补齐 V4 核心架构**：capability-registry + Goal 声明式 Prompt + Judge Worker
+3. **补齐 2.0.0 核心架构**：capability-registry + Goal 声明式 Prompt + Judge Worker
 4. **补齐 2 个遗漏**：AC 结构化 + Schema 自动生成
 
-### 3.2 V4.1 变更清单
+### 3.2 2.0.0 变更清单
 
 | 优先级 | 变更项 | 来源 | 影响范围 |
 |:---:|:---|:---|:---|
-| **P0** | 创建 `capability-registry.json` | V4 §2 | 替代硬编码 AGENT_ORDER + GATE_CONFIG |
-| **P0** | Goal 声明式 Orchestrator Prompt | V4 §3 | 重写 `start_ship_pro.py` 中的 task |
+| **P0** | 创建 `capability-registry.json` | 2.0.0 §2 | 替代硬编码 AGENT_ORDER + GATE_CONFIG |
+| **P0** | Goal 声明式 Orchestrator Prompt | 2.0.0 §3 | 重写 `start_ship_pro.py` 中的 task |
 | **P0** | AC 结构化（Specifier prompt + gate） | 本次发现 | specifier prompt + gate_specifier |
 | **P0** | Schema 从 Pydantic 自动生成 | 本次发现 | `run_pipeline.py task` 命令 |
-| **P1** | `increment-retry` 原子命令 | V4 §4.3 | `run_pipeline.py` 新增命令 |
-| **P1** | `validate-coverage` 命令 | V4 §4.4 | `run_pipeline.py` 新增命令 |
-| **P1** | `list-capabilities` / `list-plans` 命令 | V4 §4.1 | `run_pipeline.py` 新增命令 |
-| **P1** | Judge Worker 独立 Prompt | V4 §5 | `prompts/ship_judge.md` 新增 |
-| **P1** | `compact-history` 命令 | V4 §4 | `run_pipeline.py` 新增命令 |
-| **P1** | `log-decision` 枚举化 | V4 §4 | `run_pipeline.py` 修改命令 |
-| **P1** | Worker Prompt 增加 `{failure_feedback}` | V4 §6 | ✅ 已有，无需改动 |
-| **P2** | `resume-context` 断点恢复 | V4 §7 | `run_pipeline.py` 新增命令 |
-| **P2** | 超时控制 config 层 | V4 §7.1 | 配置调整 |
-| **P2** | Announce 丢失降级策略 | V4 §7.3 | Orchestrator prompt 增加 |
+| **P1** | `increment-retry` 原子命令 | 2.0.0 §4.3 | `run_pipeline.py` 新增命令 |
+| **P1** | `validate-coverage` 命令 | 2.0.0 §4.4 | `run_pipeline.py` 新增命令 |
+| **P1** | `list-capabilities` / `list-plans` 命令 | 2.0.0 §4.1 | `run_pipeline.py` 新增命令 |
+| **P1** | Judge Worker 独立 Prompt | 2.0.0 §5 | `prompts/ship_judge.md` 新增 |
+| **P1** | `compact-history` 命令 | 2.0.0 §4 | `run_pipeline.py` 新增命令 |
+| **P1** | `log-decision` 枚举化 | 2.0.0 §4 | `run_pipeline.py` 修改命令 |
+| **P1** | Worker Prompt 增加 `{failure_feedback}` | 2.0.0 §6 | ✅ 已有，无需改动 |
+| **P2** | `resume-context` 断点恢复 | 2.0.0 §7 | `run_pipeline.py` 新增命令 |
+| **P2** | 超时控制 config 层 | 2.0.0 §7.1 | 配置调整 |
+| **P2** | Announce 丢失降级策略 | 2.0.0 §7.3 | Orchestrator prompt 增加 |
 
 ### 3.3 架构对比
 
 ```
-当前（V3+hotfix）:
+当前（2.0.0+hotfix）:
   start_ship_pro.py → 过程式 prompt → 固定 5 阶段 → run_pipeline.py CLI
   └─ 已有增强: Phase -1 原则提取, semantic-task, principle_audit, 三层质量报告
 
-V4.1 目标:
+2.0.0 目标:
   start_ship_pro.py → Goal 声明式 prompt → LLM 自主选择路径 → run_pipeline.py CLI
   ├─ capability-registry.json（能力注册表）
   ├─ Judge Worker（独立评审）
@@ -142,9 +142,9 @@ V4.1 目标:
 
 ### 4.1 capability-registry.json vs 硬编码
 
-V4 提出用 JSON 文件声明能力。但当前 `run_pipeline.py` 的 `GATE_CONFIG` 是 Python dict。
+2.0.0 提出用 JSON 文件声明能力。但当前 `run_pipeline.py` 的 `GATE_CONFIG` 是 Python dict。
 
-**选项 A**: 迁移到 `capability-registry.json`（V4 方案）
+**选项 A**: 迁移到 `capability-registry.json`（2.0.0 方案）
 - 优点: 声明式、可热更新、LLM 可读取
 - 缺点: 需要重写 GATE_CONFIG 逻辑
 
@@ -156,7 +156,7 @@ V4 提出用 JSON 文件声明能力。但当前 `run_pipeline.py` 的 `GATE_CON
 
 ### 4.2 Judge Worker 时机
 
-V4 说"所有阶段完成后 spawn Judge"。但当前管线是 Packager 之后就结束。
+2.0.0 说"所有阶段完成后 spawn Judge"。但当前管线是 Packager 之后就结束。
 
 **选项 A**: Packager 之后、`.completed` 之前插入 Judge
 - 优点: 最后一道关卡
@@ -166,7 +166,7 @@ V4 说"所有阶段完成后 spawn Judge"。但当前管线是 Packager 之后�
 - 优点: 不增加调用
 - 缺点: Reviewer 和 Judge 同偏差问题
 
-**推荐**: A（独立 Judge 是 V4 核心价值）
+**推荐**: A（独立 Judge 是 2.0.0 核心价值）
 
 ### 4.3 AC 结构化深度
 
@@ -207,4 +207,4 @@ V4 说"所有阶段完成后 spawn Judge"。但当前管线是 Packager 之后�
 
 ---
 
-*V4.1 = V4 核心架构 + 本次修复经验 + 2 个遗漏补齐。一步到位，不渐进。*
+*2.0.0 = 2.0.0 核心架构 + 本次修复经验 + 2 个遗漏补齐。一步到位，不渐进。*

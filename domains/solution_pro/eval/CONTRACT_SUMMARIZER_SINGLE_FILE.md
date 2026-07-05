@@ -29,12 +29,12 @@ Summarizer Worker 只写一个文件 `final_result.json`,删除 `stages/summariz
 
 | # | 验证项 | 方法 | 通过条件 |
 |:---|:---|:---|:---|
-| V1 | prompt 只要求写 1 个文件 | grep summarizer.md | 无 `summarizer.json` 和 `final_solution.md` 引用(除历史注释) |
-| V2 | 代码无 summarizer.json 路径引用 | grep 全项目 | 活跃代码(非 archive)中无 `stages/summarizer.json` 字符串 |
-| V3 | 代码无 final_solution.md 路径引用 | grep 全项目 | 活跃代码(非 archive)中无 `final_solution.md` 字符串 |
-| V4 | final_result.json 仍是主交付 | grep 确认 | Ship Pro 消费链路不受影响 |
-| V5 | 前端可渲染 | 检查 status_v2.py | 从 JSON 渲染,不报错 |
-| V6 | 声明-执行对齐 | 逐条对照 D1-D10 | 每个声明项有对应改动 |
+| 2.0.0 | prompt 只要求写 1 个文件 | grep summarizer.md | 无 `summarizer.json` 和 `final_solution.md` 引用(除历史注释) |
+| 2.0.0 | 代码无 summarizer.json 路径引用 | grep 全项目 | 活跃代码(非 archive)中无 `stages/summarizer.json` 字符串 |
+| 2.0.0 | 代码无 final_solution.md 路径引用 | grep 全项目 | 活跃代码(非 archive)中无 `final_solution.md` 字符串 |
+| 2.0.0 | final_result.json 仍是主交付 | grep 确认 | Ship Pro 消费链路不受影响 |
+| 2.0.0 | 前端可渲染 | 检查 status_v2.py | 从 JSON 渲染,不报错 |
+| 2.0.0 | 声明-执行对齐 | 逐条对照 D1-D10 | 每个声明项有对应改动 |
 
 ## 四、不改动清单
 

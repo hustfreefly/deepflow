@@ -1,13 +1,13 @@
-schema_version: 1.0.0
-last_updated: '2026-05-23T20:30:00+08:00'
+schema_version: 2.0.0
+last_updated: '2026-07-06T00:44:15+08:00'
 domains:
   spec_pro:
-    version: 2.1.0
+    version: 2.0.0
     prompts:
       orchestrator:
         name: Spec Pro Orchestrator
         filename: orchestrator.md
-        version: 2.1.0
+        version: 2.0.0
         role: orchestrator
         author: deepflow-team
         created: '2026-05-23'
@@ -23,7 +23,7 @@ domains:
       parse:
         name: Spec Pro ParseWorker
         filename: parse.md
-        version: 2.1.0
+        version: 2.0.0
         role: parser
         author: deepflow-team
         created: '2026-05-23'
@@ -39,7 +39,7 @@ domains:
       guide:
         name: Spec Pro QuestionWorker
         filename: guide.md
-        version: 2.1.0
+        version: 2.0.0
         role: questioner
         author: deepflow-team
         created: '2026-05-23'
@@ -55,7 +55,7 @@ domains:
       parse_response:
         name: Spec Pro ResponseWorker
         filename: parse_response.md
-        version: 2.1.0
+        version: 2.0.0
         role: parser
         subtype: response
         author: deepflow-team
@@ -72,7 +72,7 @@ domains:
       assess:
         name: Spec Pro AssessWorker
         filename: assess.md
-        version: 2.1.0
+        version: 2.0.0
         role: assessor
         author: deepflow-team
         created: '2026-05-23'
@@ -88,7 +88,7 @@ domains:
       structure:
         name: Spec Pro StructureWorker
         filename: structure.md
-        version: 2.1.0
+        version: 2.0.0
         role: structurer
         author: deepflow-team
         created: '2026-05-23'
@@ -104,7 +104,7 @@ domains:
       harness:
         name: Spec Pro HarnessWorker
         filename: harness.md
-        version: 2.1.0
+        version: 2.0.0
         role: harness
         author: deepflow-team
         created: '2026-05-23'
@@ -118,444 +118,615 @@ domains:
           required: []
           optional: []
   solution_pro:
-    version: 2.1.0
+    version: 2.0.0
     prompts:
-      planner:
-        name: Solution Planner
-        filename: planner.md
+      ai_native_cognitive_base:
+        name: Ai Native Cognitive Base
+        filename: ai_native_cognitive_base.md
         version: 2.0.0
-        role: planner
+        role: unknown
         author: deepflow-team
-        created: '2026-04-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.0.0
-          date: '2026-05-01'
-          changes:
-          - 添加YAML元数据
-        variables:
-          required:
-          - name: TOPIC
-            type: string
-          - name: SOLUTION_TYPE
-            type: string
-          optional:
-          - name: CONSTRAINTS
-            type: list
-          - name: STAKEHOLDERS
-            type: list
-      researcher_template:
-        name: Solution Researcher Template
-        filename: researcher_template.md
-        version: 2.0.0
-        role: researcher
-        template: true
-        author: deepflow-team
-        created: '2026-04-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.0.0
-          date: '2026-05-01'
-          changes:
-          - 添加YAML元数据
-        variables:
-          required:
-          - name: expert.name
-          - name: expert.angle
-          - name: expert.reason
-          - name: topic
-      designer:
-        name: Solution Designer
-        filename: designer.md
-        version: 2.0.0
-        role: designer
-        author: deepflow-team
-        created: '2026-04-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.0.0
-          date: '2026-05-01'
-          changes:
-          - 添加YAML元数据
-        variables:
-          required:
-          - name: TOPIC
-          - name: SOLUTION_TYPE
-      planner_v2_harness:
-        name: Solution Planner V2 Harness
-        filename: planner_v2_harness.md
-        version: 2.1.0
-        role: planner
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
+        created: '2026-06-28'
+        updated: '2026-07-05'
         changelog:
         - version: 2.1.0
-          date: '2026-05-01'
+          date: '2026-07-05'
           changes:
-          - Harness V2 集成
-        variables:
-          required:
-          - name: TOPIC
-          - name: SOLUTION_TYPE
-          optional:
-          - name: CONSTRAINTS
-          - name: STAKEHOLDERS
-      researcher_v2_harness:
-        name: Solution Researcher V2 Harness
-        filename: researcher_v2_harness.md
-        version: 2.1.0
-        role: researcher
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.1.0
-          date: '2026-05-01'
-          changes:
-          - Harness V2 集成
-        variables:
-          required:
-          - name: expert_name
-          - name: topic
-          - name: solution_type
-          - name: constraints
-          optional:
-          - name: angle
-          - name: reason
-      auditor_v2_harness:
-        name: Solution Auditor V2 Harness
-        filename: auditor_v2_harness.md
-        version: 2.1.0
-        role: auditor
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.1.0
-          date: '2026-05-01'
-          changes:
-          - Harness V2 集成
-        variables:
-          required:
-          - name: TOPIC
-          - name: solution_type
-          optional:
-          - name: constraints
-      fixer_v2_harness:
-        name: Solution Fixer V2 Harness
-        filename: fixer_v2_harness.md
-        version: 2.1.0
-        role: fixer
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.1.0
-          date: '2026-05-01'
-          changes:
-          - Harness V2 集成
-        variables:
-          required:
-          - name: TOPIC
-          optional:
-          - name: audit_path
-      reviewer_v2_harness:
-        name: Solution Reviewer V2 Harness
-        filename: reviewer_v2_harness.md
-        version: 2.1.0
-        role: reviewer
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.1.0
-          date: '2026-05-01'
-          changes:
-          - Harness V2 集成
-        variables:
-          required:
-          - name: review_type
-          - name: review_focus
-          - name: input_plan
-          optional:
-          - name: constraints
-      consolidator_v2_harness:
-        name: Solution Consolidator V2 Harness
-        filename: consolidator_v2_harness.md
-        version: 2.1.0
-        role: consolidator
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.1.0
-          date: '2026-05-01'
-          changes:
-          - Harness V2 集成
-        variables:
-          required:
-          - name: research_outputs
-          - name: topic
-          optional:
-          - name: quality_requirements
-      fixer_expert_v2_harness:
-        name: Solution Fixer Expert V2 Harness
-        filename: fixer_expert_v2_harness.md
-        version: 2.1.0
-        role: fixer
-        subtype: expert
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.1.0
-          date: '2026-05-01'
-          changes:
-          - Harness V2 集成
-        variables:
-          required:
-          - name: TOPIC
-          - name: severity
-          optional:
-          - name: audit_findings
-      summarizer_v2_harness:
-        name: Solution Summarizer V2 Harness
-        filename: summarizer_v2_harness.md
-        version: 2.1.0
-        role: summarizer
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.1.0
-          date: '2026-05-01'
-          changes:
-          - Harness V2 集成
-        variables:
-          required:
-          - name: TOPIC
-          optional:
-          - name: all_outputs
-      harness_final_v2:
-        name: Solution Harness Final V2
-        filename: reviewer_v2_harness.md
-        version: 2.1.0
-        role: harness
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 2.1.0
-          date: '2026-05-01'
-          changes:
-          - Harness V2 Final门禁
-        variables:
-          required:
-          - name: session_id
-          - name: topic
-          optional:
-          - name: solution_path
-      harness_v3:
-        name: Solution Harness V3
-        filename: harness_v3.md
-        version: 1.1.0
-        role: harness
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-06-02'
-        changelog:
-        - version: 1.1.0
-          date: '2026-06-02'
-          changes:
-          - 统一为4维评分标准
-        - version: 1.0.0
-          date: '2026-05-01'
-          changes:
-          - 初始版本
-        variables:
-          required:
-          - name: harness_scoring
-          - name: current_solution
-          optional:
-          - name: completeness_items
-          - name: necessity_items
-          - name: alignment_items
-          - name: global_impact_items
-          - name: is_final
-      harness_scoring:
-        name: Solution Harness Scoring
-        filename: harness_scoring.md
-        version: 1.0.0
-        role: harness
-        author: deepflow-team
-        created: '2026-06-02'
-        updated: '2026-06-02'
-        changelog:
-        - version: 1.0.0
-          date: '2026-06-02'
-          changes:
-          - 统一 Solution Pro 4维评分标准
+          - Auto-registered from disk (contract cage fix)
         variables:
           required: []
           optional: []
-      consolidator:
-        name: Solution Consolidator
-        filename: consolidator.md
-        version: 1.0.0
-        role: consolidator
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 1.0.0
-          date: '2026-05-01'
-          changes:
-          - 初始版本
-        variables:
-          required:
-          - name: research_outputs
-          - name: conflicts
-          - name: integration_strategy
-          optional:
-          - name: quality_requirements
-      fixer_expert:
-        name: Solution Fixer Expert
-        filename: fixer_expert.md
-        version: 1.0.0
-        role: fixer
-        subtype: expert
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 1.0.0
-          date: '2026-05-01'
-          changes:
-          - 初始版本
-        variables:
-          required:
-          - name: audit_findings
-          - name: severity
-          - name: fix_strategy
-          optional:
-          - name: previous_fixes
-      summarizer:
-        name: Solution Summarizer
-        filename: summarizer.md
-        version: 1.0.0
-        role: summarizer
-        author: deepflow-team
-        created: '2026-05-01'
-        updated: '2026-05-01'
-        changelog:
-        - version: 1.0.0
-          date: '2026-05-01'
-          changes:
-          - 初始版本
-        variables:
-          required:
-          - name: all_outputs
-          - name: solution_summary
-          - name: key_recommendations
-          optional:
-          - name: appendix_materials
-      auditor:
-        name: Solution Auditor
-        filename: auditor.md
+      auditor_harness:
+        name: Auditor Harness
+        filename: auditor_harness.md
         version: 2.0.0
-        role: auditor
+        role: reviewer
         author: deepflow-team
-        created: '2026-04-01'
-        updated: '2026-05-01'
+        created: '2026-06-28'
+        updated: '2026-07-05'
         changelog:
-        - version: 2.0.0
-          date: '2026-05-01'
+        - version: 2.1.0
+          date: '2026-07-05'
           changes:
-          - 添加YAML元数据
+          - Auto-registered from disk (contract cage fix)
         variables:
-          required:
-          - name: TOPIC
-      fixer:
-        name: Solution Fixer
-        filename: fixer.md
+          required: []
+          optional: []
+      compliance_checker_base:
+        name: Compliance Checker Base
+        filename: compliance_checker_base.md
         version: 2.0.0
-        role: fixer
+        role: compliance
         author: deepflow-team
-        created: '2026-04-01'
-        updated: '2026-05-01'
+        created: '2026-06-28'
+        updated: '2026-07-05'
         changelog:
-        - version: 2.0.0
-          date: '2026-05-01'
+        - version: 2.1.0
+          date: '2026-07-05'
           changes:
-          - 添加YAML元数据
+          - Auto-registered from disk (contract cage fix)
         variables:
-          required:
-          - name: TOPIC
-      data_collection:
-        name: Solution Data Collection Agent
-        filename: data_collection.md
+          required: []
+          optional: []
+      consolidator_harness:
+        name: Consolidator Harness
+        filename: consolidator_harness.md
         version: 2.0.0
-        role: data_collection
+        role: reviewer
         author: deepflow-team
-        created: '2026-04-27'
-        updated: '2026-05-01'
+        created: '2026-06-28'
+        updated: '2026-07-05'
         changelog:
-        - version: 2.0.0
-          date: '2026-05-01'
+        - version: 2.1.0
+          date: '2026-07-05'
           changes:
-          - 完善YAML元数据
-        - version: 1.0.0
-          date: '2026-04-27'
-          changes:
-          - 从硬编码提取
+          - Auto-registered from disk (contract cage fix)
         variables:
-          required:
-          - name: TOPIC
-          - name: CONSTRAINTS_TEXT
-          - name: DEEPFLOW_BASE
-          - name: SESSION_ID
-      deliver:
-        name: Solution Deliver Agent
-        filename: deliver.md
+          required: []
+          optional: []
+      convergence_planner:
+        name: Convergence Planner
+        filename: convergence_planner.md
         version: 2.0.0
-        role: deliver
+        role: planner
         author: deepflow-team
-        created: '2026-04-27'
-        updated: '2026-05-01'
+        created: '2026-06-28'
+        updated: '2026-07-05'
         changelog:
-        - version: 2.0.0
-          date: '2026-05-01'
+        - version: 2.1.0
+          date: '2026-07-05'
           changes:
-          - 完善YAML元数据
-        - version: 1.0.0
-          date: '2026-04-27'
-          changes:
-          - 从硬编码提取
+          - Auto-registered from disk (contract cage fix)
         variables:
-          required:
-          - name: TOPIC
-          - name: CONTEXT_JSON
-          - name: DEEPFLOW_BASE
-          - name: SESSION_ID
-      pipeline_orchestrator:
-        name: Solution Pipeline Orchestrator
-        filename: pipeline_orchestrator.md
+          required: []
+          optional: []
+      devil_advocate:
+        name: Devil Advocate
+        filename: devil_advocate.md
+        version: 2.0.0
+        role: devil_advocate
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      expert_planner_base:
+        name: Expert Planner Base
+        filename: expert_planner_base.md
+        version: 2.0.0
+        role: planner
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      fixer_expert_harness:
+        name: Fixer Expert Harness
+        filename: fixer_expert_harness.md
+        version: 2.0.0
+        role: reviewer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      fixer_harness:
+        name: Fixer Harness
+        filename: fixer_harness.md
+        version: 2.0.0
+        role: reviewer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      gap_analyst:
+        name: Gap Analyst
+        filename: gap_analyst.md
+        version: 2.0.0
+        role: analyst
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      harness_agent:
+        name: Harness Agent
+        filename: harness_agent.md
+        version: 2.0.0
+        role: reviewer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      meta_planner:
+        name: Meta Planner
+        filename: meta_planner.md
+        version: 2.0.0
+        role: planner
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      orchestrator:
+        name: Orchestrator
+        filename: orchestrator.md
         version: 2.0.0
         role: orchestrator
         author: deepflow-team
-        created: '2026-04-27'
-        updated: '2026-05-31'
+        created: '2026-06-28'
+        updated: '2026-07-05'
         changelog:
-        - version: 2.0.0
-          date: '2026-05-31'
+        - version: 2.1.0
+          date: '2026-07-05'
           changes:
-          - 注册已存在的prompt文件
+          - Auto-registered from disk (contract cage fix)
         variables:
-          required:
-          - name: TOPIC
-          - name: SESSION_ID
-          - name: DEEPFLOW_BASE
+          required: []
+          optional: []
+      planner_harness:
+        name: Planner Harness
+        filename: planner_harness.md
+        version: 2.0.0
+        role: planner
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      planning_expert_base:
+        name: Planning Expert Base
+        filename: planning_expert_base.md
+        version: 2.0.0
+        role: unknown
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      planning_module:
+        name: Planning Module
+        filename: planning_module.md
+        version: 2.0.0
+        role: module
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      planning_planner:
+        name: Planning Planner
+        filename: planning_planner.md
+        version: 2.0.0
+        role: planner
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      research_expert_base:
+        name: Research Expert Base
+        filename: research_expert_base.md
+        version: 2.0.0
+        role: researcher
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      research_module:
+        name: Research Module
+        filename: research_module.md
+        version: 2.0.0
+        role: researcher
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      research_planner:
+        name: Research Planner
+        filename: research_planner.md
+        version: 2.0.0
+        role: planner
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      researcher_harness:
+        name: Researcher Harness
+        filename: researcher_harness.md
+        version: 2.0.0
+        role: researcher
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      review_layer_b:
+        name: Review Layer B
+        filename: review_layer_b.md
+        version: 2.0.0
+        role: unknown
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      reviewer_convergence:
+        name: Reviewer Convergence
+        filename: reviewer_convergence.md
+        version: 2.0.0
+        role: reviewer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      reviewer_harness:
+        name: Reviewer Harness
+        filename: reviewer_harness.md
+        version: 2.0.0
+        role: reviewer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      reviewer_meta:
+        name: Reviewer Meta
+        filename: reviewer_meta.md
+        version: 2.0.0
+        role: reviewer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      reviewqc_module:
+        name: Reviewqc Module
+        filename: reviewqc_module.md
+        version: 2.0.0
+        role: module
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summarizer_harness:
+        name: Summarizer Harness
+        filename: summarizer_harness.md
+        version: 2.0.0
+        role: reviewer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summary_analyzer_base:
+        name: Summary Analyzer Base
+        filename: summary_analyzer_base.md
+        version: 2.0.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summary_base_synthesizer:
+        name: Summary Base Synthesizer
+        filename: summary_base_synthesizer.md
+        version: 2.0.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summary_fix_agent:
+        name: Summary Fix Agent
+        filename: summary_fix_agent.md
+        version: 2.0.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summary_fix_judge:
+        name: Summary Fix Judge
+        filename: summary_fix_judge.md
+        version: 2.0.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summary_harness_check:
+        name: Summary Harness Check
+        filename: summary_harness_check.md
+        version: 2.0.0
+        role: reviewer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summary_json_extractor:
+        name: Summary Json Extractor
+        filename: summary_json_extractor.md
+        version: 2.0.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summary_meta_planner:
+        name: Summary Meta Planner
+        filename: summary_meta_planner.md
+        version: 2.0.0
+        role: planner
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summary_module:
+        name: Summary Module
+        filename: summary_module.md
+        version: 2.0.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summary_refiner:
+        name: Summary Refiner
+        filename: summary_refiner.md
+        version: 2.0.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summary_review_layer_b:
+        name: Summary Review Layer B
+        filename: summary_review_layer_b.md
+        version: 2.0.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
+          optional: []
+      summary_summarizer:
+        name: Summary Summarizer
+        filename: summary_summarizer.md
+        version: 2.0.0
+        role: summarizer
+        author: deepflow-team
+        created: '2026-06-28'
+        updated: '2026-07-05'
+        changelog:
+        - version: 2.1.0
+          date: '2026-07-05'
+          changes:
+          - Auto-registered from disk (contract cage fix)
+        variables:
+          required: []
           optional: []
   investment:
     version: 2.0.0
@@ -765,208 +936,571 @@ domains:
       architect:
         name: Architect
         filename: architect.md
-        version: 1.0.0
+        version: 2.0.0
         role: architect
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       cron_watcher:
         name: Cron Watcher
         filename: cron_watcher.md
-        version: 1.0.0
+        version: 2.0.0
         role: watcher
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       decomposer:
         name: Decomposer
         filename: decomposer.md
-        version: 1.0.0
+        version: 2.0.0
         role: decomposer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       fixer:
         name: Fixer
         filename: fixer.md
-        version: 1.0.0
+        version: 2.0.0
         role: fixer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       generator:
         name: Generator
         filename: generator.md
-        version: 1.0.0
+        version: 2.0.0
         role: generator
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       judge:
         name: Judge
         filename: judge.md
-        version: 1.0.0
+        version: 2.0.0
         role: reviewer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       normalizer:
         name: Normalizer
         filename: normalizer.md
-        version: 1.0.0
+        version: 2.0.0
         role: normalizer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p1_architect:
         name: P1 Architect
         filename: p1_architect.md
-        version: 1.0.0
+        version: 2.0.0
         role: architect
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p1_architect_step1:
         name: P1 Architect Step1
         filename: p1_architect_step1.md
-        version: 1.0.0
+        version: 2.0.0
         role: architect
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p1_architect_step2:
         name: P1 Architect Step2
         filename: p1_architect_step2.md
-        version: 1.0.0
+        version: 2.0.0
         role: architect
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p1_consolidator:
         name: P1 Consolidator
         filename: p1_consolidator.md
-        version: 1.0.0
+        version: 2.0.0
         role: consolidator
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p1_coverage_critic:
         name: P1 Coverage Critic
         filename: p1_coverage_critic.md
-        version: 1.0.0
+        version: 2.0.0
         role: critic
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p1_explorer:
         name: P1 Explorer
         filename: p1_explorer.md
-        version: 1.0.0
+        version: 2.0.0
         role: explorer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p1_feasibility_critic:
         name: P1 Feasibility Critic
         filename: p1_feasibility_critic.md
-        version: 1.0.0
+        version: 2.0.0
         role: critic
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p1_granularity_critic:
         name: P1 Granularity Critic
         filename: p1_granularity_critic.md
-        version: 1.0.0
+        version: 2.0.0
         role: critic
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p1_parser:
         name: P1 Parser
         filename: p1_parser.md
-        version: 1.0.0
+        version: 2.0.0
         role: parser
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p1_verify_agent:
         name: P1 Verify Agent
         filename: p1_verify_agent.md
-        version: 1.0.0
+        version: 2.0.0
         role: verifier
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p2_ac_writer:
         name: P2 Ac Writer
         filename: p2_ac_writer.md
-        version: 1.0.0
+        version: 2.0.0
         role: writer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p2_completeness_judge:
         name: P2 Completeness Judge
         filename: p2_completeness_judge.md
-        version: 1.0.0
+        version: 2.0.0
         role: reviewer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p2_consistency_judge:
         name: P2 Consistency Judge
         filename: p2_consistency_judge.md
-        version: 1.0.0
+        version: 2.0.0
         role: reviewer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p2_consolidator:
         name: P2 Consolidator
         filename: p2_consolidator.md
-        version: 1.0.0
+        version: 2.0.0
         role: consolidator
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p2_quality_judge:
         name: P2 Quality Judge
         filename: p2_quality_judge.md
-        version: 1.0.0
+        version: 2.0.0
         role: reviewer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       p2_verify_agent:
         name: P2 Verify Agent
         filename: p2_verify_agent.md
-        version: 1.0.0
+        version: 2.0.0
         role: verifier
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       packager:
         name: Packager
         filename: packager.md
-        version: 1.0.0
+        version: 2.0.0
         role: packager
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       reviewer:
         name: Reviewer
         filename: reviewer.md
-        version: 1.0.0
+        version: 2.0.0
         role: reviewer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       ship_fixer:
         name: Ship Fixer
         filename: ship_fixer.md
-        version: 1.0.0
+        version: 2.0.0
         role: fixer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       ship_harness:
         name: Ship Harness
         filename: ship_harness.md
-        version: 1.0.0
+        version: 2.0.0
         role: harness
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       ship_judge:
         name: Ship Judge
         filename: ship_judge.md
-        version: 1.0.0
+        version: 2.0.0
         role: reviewer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       ship_orchestrator:
         name: Ship Orchestrator
         filename: ship_orchestrator.md
-        version: 1.0.0
+        version: 2.0.0
         role: orchestrator
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       ship_pre_scanner:
         name: Ship Pre Scanner
         filename: ship_pre_scanner.md
-        version: 1.0.0
+        version: 2.0.0
         role: scanner
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       ship_reviewer:
         name: Ship Reviewer
         filename: ship_reviewer.md
-        version: 1.0.0
+        version: 2.0.0
         role: reviewer
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       specifier:
         name: Specifier
         filename: specifier.md
-        version: 1.0.0
+        version: 2.0.0
         role: specifier
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
       v5_orchestrator:
-        name: V5 Orchestrator
+        name: 2.0.0 Orchestrator
         filename: v5_orchestrator.md
-        version: 1.0.0
+        version: 2.0.0
         role: orchestrator
+        author: deepflow-team
+        created: '2026-07-05'
+        updated: '2026-07-06'
+        changelog:
+        - version: 2.0.0
+          date: '2026-07-06'
+          changes:
+          - Metadata enriched (contract cage fix)
+        variables:
+          required: []
+          optional: []
   research_pro:
-    version: 1.0.0
+    version: 2.0.0
     prompts:
       citation_verify:
         name: Citation Verify
         filename: citation_verify.md
-        version: 1.0.0
+        version: 2.0.0
         role: verifier
       finance_analysis:
         name: Finance Analysis
         filename: finance_analysis.md
-        version: 1.0.0
+        version: 2.0.0
         role: analyst
       planning:
         name: Planning
         filename: planning.md
-        version: 1.0.0
+        version: 2.0.0
         role: planner
       quality_reviewer:
         name: Quality Reviewer
         filename: quality_reviewer.md
-        version: 1.0.0
+        version: 2.0.0
         role: reviewer
       report_writer:
         name: Report Writer
         filename: report_writer.md
-        version: 1.0.0
+        version: 2.0.0
         role: writer
       search:
         name: Search
         filename: search.md
-        version: 1.0.0
+        version: 2.0.0
         role: searcher
       tech_analysis:
         name: Tech Analysis
         filename: tech_analysis.md
-        version: 1.0.0
+        version: 2.0.0
         role: analyst
       orchestrator:
         name: Research Pro Orchestrator
         filename: orchestrator.md
-        version: 1.0.0
+        version: 2.0.0
         role: orchestrator

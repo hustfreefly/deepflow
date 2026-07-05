@@ -43,7 +43,7 @@ def _run_pipeline(self) -> PipelineResult:
             break
 ```
 
-**影响**: 这是 V2.0 的核心功能缺失。没有迭代收敛，质量无法保证。
+**影响**: 这是 2.0.0 的核心功能缺失。没有迭代收敛，质量无法保证。
 
 ### 问题 2: _run_parallel_stage 未实现并行（P1）
 

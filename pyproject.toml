@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepflow"
-version = "0.4.0"
+version = "2.0.0"
 description = "全自动多Agent协作研究管线"
 readme = "README.md"
 license = {text = "MIT"}

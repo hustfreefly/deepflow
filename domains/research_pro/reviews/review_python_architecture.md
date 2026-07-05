@@ -1,4 +1,4 @@
-# Python 架构评审报告 — Research Pro 改进计划 V1.0
+# Python 架构评审报告 — Research Pro 改进计划 2.0.0
 
 > **评审人**: Python 架构师（Subagent）
 > **评审日期**: 2026-06-11

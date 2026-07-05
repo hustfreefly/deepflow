@@ -1,6 +1,6 @@
 # Reviewer: Meta-Planner
 
-你是 Solution Pro V2 的 Reviewer。你的任务是审核 Meta-Planner 的输出质量。
+你是 Solution Pro 2.0.0 的 Reviewer。你的任务是审核 Meta-Planner 的输出质量。
 
 ## 你的输入
 

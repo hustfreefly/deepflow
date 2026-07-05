@@ -22,7 +22,7 @@
 #### Phase 2: 执行引擎化
 - `scripts/orchestrator.py` → **DEPRECATED**（功能合并到 run_pipeline.py）
 - `scripts/run_pipeline.py` → **唯一执行引擎** (prepare/task/gate/validate/status/update-status)
-- `SKILL.md` V3.2 更新
+- `SKILL.md` 2.0.0 更新
 
 #### Phase 3: 状态单一化
 - `pipeline_state.json` → 唯一状态文件（基于 Pydantic PipelineState 模型）
@@ -30,8 +30,8 @@
 
 ### 📚 文档更新
 - README.md → 四域架构，Ship Pro 加入
-- SKILL.md → V0.5.0，四域架构
-- docs/ARCHITECTURE.md → V2.0，Ship Pro 章节 + Phase 0-3 记录
+- SKILL.md → 2.0.0，四域架构
+- docs/ARCHITECTURE.md → 2.0.0，Ship Pro 章节 + Phase 0-3 记录
 - wiki/deepflow_overview.md → 更新架构图 + 版本说明
 
 ---
@@ -40,7 +40,7 @@
 
 ### 🚀 New Features
 
-#### Ship Pro V3 — 全新域
+#### Ship Pro 2.0.0 — 全新域
 - 5-Agent 管线：Architect → Decomposer → Specifier → Reviewer → Packager
 - 输入验证：Format A/B/C 自动检测 + 信息充足性评估
 - 质量门禁：AC 质量验证 + 依赖合理性验证
@@ -52,25 +52,25 @@
 - REQ-ID 传播铁律：covered_req_ids 和 requirement_evidence 必须传播
 - 12 个文件改动
 
-#### Pipeline Watcher V2
+#### Pipeline Watcher 2.0.0
 - Python 脚本替代 cron agent（确定性逻辑）
 - 两阶段采集 + 三层 best-effort 防线
 - CloudEvents 信封 + SQLite WAL 存储
 - 12 个问题发现并修复（4个 bug + 5个隐患 + 3个设计弱点）
 
-#### Blackboard V2 目录结构（设计完成，待实施）
+#### Blackboard 2.0.0 目录结构（设计完成，待实施）
 - `projects/{slug}/runs/{timestamp}/{spec,solution,ship}/` 三层结构
 - 解决同 topic 重跑覆盖、Ship Pro 套娃、状态文件散落等问题
-- path_config.py V2 方法：12个新方法已实现
+- path_config.py 2.0.0 方法：12个新方法已实现
 
 ### 🔧 Improvements
 
 #### Solution Pro
 - STAGE_PATH_REGISTRY v3.0.0：所有 stage 路径加 `solution/` 前缀
 - task_builder.py：success_metrics 格式化简化
-- SKILL.md：Pipeline Watcher V2 架构升级
+- SKILL.md：Pipeline Watcher 2.0.0 架构升级
 
-#### Spec Pro V4.1
+#### Spec Pro 2.0.0
 - constraints 权重分配变更：budget/timeline → platform/tech_stack/data_source
 - eval/harness.py：SemanticGate 门控逻辑 + SC4→SC5 检查方法重命名
 - QUALITY_GUIDE.md：新增 "Living Spec 数据结构参考" 章节
@@ -80,7 +80,7 @@
 - pipeline_orchestrator.py：summarizer 输出路径改为 final_result.json
 
 #### Scripts
-- pipeline_watcher.py：大量重构（scan_all、cron_id 自动发现、V2 配置）
+- pipeline_watcher.py：大量重构（scan_all、cron_id 自动发现、2.0.0 配置）
 - start_solution_pro.py：delivery_config 输出字段调整
 - pipeline_progress_notify.py：修复 parse_args() + project_name 重构
 
@@ -89,7 +89,7 @@
 #### 新建文档
 - `QUALITY_GUIDE.md`：全链路质量评估方法论
 - `contracts/shared/pipeline_watcher_design.md`：Pipeline Watcher 设计文档
-- `contracts/shared/pipeline_watcher_v2_design.md`：Pipeline Watcher V2 设计文档
+- `contracts/shared/pipeline_watcher_v2_design.md`：Pipeline Watcher 2.0.0 设计文档
 - `super_loop/README.md`：Super Loop 说明文档
 - `docs/design/blackboard_system_redesign.md`：Blackboard 系统重设计方案
 - `docs/design/DOMAIN_RECOVERY_PART1-7.md`：7个模块恢复手册
@@ -100,7 +100,7 @@
 
 ### 🧪 Tests
 
-- `tests/test_e2e_living_spec_v2.py`：Living Spec V2 E2E 测试（25KB）
+- `tests/test_e2e_living_spec_v2.py`：Living Spec 2.0.0 E2E 测试（25KB）
 - `tests/golden/verify_golden_case.py`：Golden Case 验证脚本
 
 ### 🐛 Bug Fixes
@@ -134,7 +134,7 @@
 
 ## 版本说明
 
-- **[0.5.0]**：2026-06-23 — Phase 0-3 架构加固 + Ship Pro V3.2
+- **[0.5.0]**：2026-06-23 — Phase 0-3 架构加固 + Ship Pro 2.0.0
 - **[Unreleased]**：6/11 到 6/22 之间的改动
 - **[1.0.0]**：6/11 GitHub 基线版本
 
@@ -142,7 +142,7 @@
 
 ## 已知问题
 
-1. **Blackboard V2 目录结构**：设计完成但尚未实施
+1. **Blackboard 2.0.0 目录结构**：设计完成但尚未实施
 2. **task_builder.py**：38个旧版本 edits 待清理
 3. **端到端测试**：尚未验证所有恢复的代码
 
@@ -151,5 +151,5 @@
 ## 下一步计划
 
 1. 运行端到端测试验证当前恢复状态
-2. 实施 Blackboard V2 目录结构（待稳定后）
+2. 实施 Blackboard 2.0.0 目录结构（待稳定后）
 3. 清理 task_builder.py 旧版本 edits

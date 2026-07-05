@@ -15,9 +15,9 @@ Spec Pro → Solution Pro 上下文适配器
 """
 
 """
-V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
-V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
-Do not import this file for new V2 workflows.
+This file is part of pipeline (10-stage architecture).
+uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+Do not import this file for new workflows.
 """
 
 from typing import Dict, List, Any, Optional
@@ -202,7 +202,7 @@ def build_conversation_digest_for_prompt(digest) -> str:
     """Build a prompt-friendly summary of conversation_digest for downstream workers.
     
     Args:
-        digest: conversation_digest dict (or None for V1 compat)
+        digest: conversation_digest dict 
     
     Returns a formatted string with summary + key excerpts.
     """

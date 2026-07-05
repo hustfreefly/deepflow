@@ -343,7 +343,7 @@ Routine A 输出 → Routine B 输入，形成日循环流水线。根据历史�
 |------|------|------|
 | Loop 原语设计 | /goal + /loop + /routines 完整设计 | `loop-engineering-primitives.md` |
 | OpenClaw Loop 架构 | 分形 Loop + 间歇式心跳 + 跨工具编排 | `.deepflow/docs/OPENCLAW_LOOP_ARCHITECTURE.md` |
-| AI Native Loop V1 | 七层混合架构设计（第一轮） | `.deepflow/docs/AI_NATIVE_LOOP_DESIGN.md` |
+| AI Native Loop 2.0.0 | 七层混合架构设计（第一轮） | `.deepflow/docs/AI_NATIVE_LOOP_DESIGN.md` |
 | 本文档 | 7 位专家共识与分歧 | `.deepflow/docs/AI_NATIVE_LOOP_CONSENSUS.md` |
 
 ---

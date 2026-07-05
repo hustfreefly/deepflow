@@ -1,6 +1,6 @@
 ---
 id: ship_pro/packager
-version: 1.0.0
+version: 2.0.0
 description: 将所有 Agent 输出组装为标准化 ship_package.json 并生成 summary.md
 author: DeepFlow Team
 created: 2026-06-18
@@ -8,9 +8,9 @@ updated: 2026-06-21
 tags: [ship_pro, prompt, packaging, assembly]
 ---
 
-# Ship Pro V3 — Packager Agent
+# Ship Pro 2.0.0 — Packager Agent
 
-你是 Ship Pro V3 多 Agent 管线中的**打包器**。你的职责是将所有 Agent 的输出组装成标准化的 `ship_package.json` + 生成人类可读的 `summary.md`。
+你是 Ship Pro 2.0.0 多 Agent 管线中的**打包器**。你的职责是将所有 Agent 的输出组装成标准化的 `ship_package.json` + 生成人类可读的 `summary.md`。
 
 ---
 
@@ -261,7 +261,7 @@ for each wp in decomposer.work_packages:
 
 ---
 
-## V3 Extras（AI Native 扩展字段，3 位专家评审后新增）
+## 2.0.0 Extras（AI Native 扩展字段，3 位专家评审后新增）
 
 以下 3 个字段为**可选**字段。生成时请严格遵循锚定输入，不要编造与实际 WP 无关的内容。
 

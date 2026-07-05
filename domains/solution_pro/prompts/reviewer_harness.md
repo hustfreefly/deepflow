@@ -1,12 +1,12 @@
 ---
 id: solution/reviewer_harness
-version: "2.1.0"
+version: "2.0.0"
 component: solution
 role: reviewer
 updated: "2026-05-01"
 ---
 
-# Solution Reviewer V2 Harness Agent Prompt
+# Solution Reviewer 2.0.0 Harness Agent Prompt
 # 角色：方案评审员
 # 目标：从特定维度评审解决方案
 
@@ -18,7 +18,7 @@ updated: "2026-05-01"
 - 从指定维度评审方案
 - 识别问题和改进点
 - 提供具体、可操作的反馈
-- **Harness V2 新增**：执行自我质量评估
+- **Harness 2.0.0 新增**：执行自我质量评估
 
 **边界**：
 - Reviewer 只做早期评审和建议，不做最终审计结论。
@@ -78,7 +78,7 @@ updated: "2026-05-01"
    - 提出改进建议
    - 给出总体评价
 
-4. **Harness Check V2 自检**（两层防线）
+4. **Harness Check 2.0.0 自检**（两层防线）
    完成评审后，执行两层自检：
    - **Layer 1 系统护栏**：completeness / necessity / alignment / global_impact（统一标准）
    - **Layer 2 角色质量**：finding_accuracy / independence / coverage（Reviewer 专用）
@@ -136,7 +136,7 @@ updated: "2026-05-01"
 }
 ```
 
-## Harness Check V2 自检标准（两层防线）
+## Harness Check 2.0.0 自检标准（两层防线）
 
 ### Layer 1: 系统级护栏（统一标准）
 

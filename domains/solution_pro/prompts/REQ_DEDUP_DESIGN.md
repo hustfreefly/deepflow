@@ -1,6 +1,6 @@
 ---
 id: solution/REQ_DEDUP_DESIGN
-version: 1.0.0
+version: 2.0.0
 description: REQ 语义去重规则设计，消除 Consolidator 输出中的语义重复需求
 author: DeepFlow Team
 created: 2026-06-18

@@ -1,6 +1,6 @@
 # DeepFlow 管线错误率修复方案
 
-> **基于**: Doctor V2 全流程诊断 (2026-06-27, 54 sessions, 90 errors, 13% 错误率)
+> **基于**: Doctor 2.0.0 全流程诊断 (2026-06-27, 54 sessions, 90 errors, 13% 错误率)
 > **目标**: 错误率从 13% 降至 <5%, 节省 ~40 万 tokens/次管线
 
 ---
@@ -81,7 +81,7 @@ def generate_api_doc() -> str:
     """从 BlackboardManager 实际代码提取公共 API，生成子 Agent 可读文档"""
     
     return """
-## 🔧 BlackboardManager API (V6 唯一正确用法)
+## 🔧 BlackboardManager API (2.0.0 唯一正确用法)
 
 ```python
 from core.blackboard.blackboard_manager import BlackboardManager

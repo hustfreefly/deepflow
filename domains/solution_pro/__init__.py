@@ -1,18 +1,19 @@
 """
-Solution Pro 模块入口，提供 run_solution_pro 和 run_solution_pro 公共 API
+Solution Pro 模块入口
 
-Version: 3.0.0
-Author: DeepFlow Solution Pro
-Date: 2026-06-28
+Version: 2.0.0
+Date: 2026-07-05
 
-V3.0: 新增 V2 入口 run_solution_pro()，使用 MasterOrchestrator 三模块架构
-V2.2: 迁移到 V6 BlackboardManager API
+2.0.0: AI Native 重构，三模块架构（Planning → Research → ReviewQC）
+2.0.0: 2.0.0 入口 run_solution_pro()，使用 MasterOrchestrator 三模块架构
 
-## 版本选择说明
+## 唯一入口
 
-- **V1 (run_solution_pro)**: 10 阶段单 Orchestrator 架构，向后兼容
-  - 适用于：已有 V1 流程、需要固定 10 阶段执行计划
-  - 入口：run_solution_pro(topic, **kwargs)
+```python
+from domains.solution_pro import run_solution_pro
+result = run_solution_pro(user_input="...", topic="...", ...)
+sessions_spawn(**result["spawn_params"])
+```
 
 - **run_solution_pro**: 3 模块编排架构（推荐）（Planning → Research → ReviewQC）
   - 适用于：新流程、需要模块化、断点续跑、降级策略
@@ -37,9 +38,9 @@ result = run_solution_pro(
 )
 
 # result = {
-#     "session_id": "sol_xxx",
-#     "base_path": "/path/to/blackboard/sol_xxx",
-#     "plan_path": "/path/to/blackboard/sol_xxx/execution_plan.json",
+# "session_id": "sol_xxx",
+# "base_path": "/path/to/blackboard/sol_xxx",
+# "plan_path": "/path/to/blackboard/sol_xxx/execution_plan.json",
 # }
 ```
 
@@ -82,111 +83,20 @@ from datetime import datetime, timezone
 from core.blackboard.context_injector import build_agent_context
 from pathlib import Path
 
-from .orchestrator_agent import _SolutionDispatcher
 from .blackboard import BlackboardManager
 from .master_orchestrator import MasterOrchestrator
 
 
-def run_solution_pro(topic: str, **kwargs):
-    """
-    Solution Pro 唯一入口
-
-    在主 Agent 的 exec 环境中调用，生成执行计划并初始化状态。
-    返回包含 spawn_params 的字典，主 Agent 只需将 spawn_params 传给 sessions_spawn 即可启动管线。
-
-    Args:
-        topic: 设计主题（必需，>=5字符）
-        **kwargs: solution_type, mode, constraints, stakeholders,
-                  living_spec（Spec Pro 桥接）
-
-    Returns:
-        {
-            "session_id": str,
-            "base_path": str,
-            "plan_path": str,
-            "spawn_params": dict,  # 直接传给 sessions_spawn 的参数
-        }
-    """
-    # Record pipeline start time for watcher timeout detection
-    run_start_at = datetime.now(timezone.utc).isoformat()
-
-    orchestrator = _SolutionDispatcher(topic=topic, spawn_fn=None, **kwargs)
-    session_id = orchestrator.init()
-    orchestrator.get_all_tasks()
-    orchestrator.save_tasks()
-    orchestrator.save_execution_plan()
-
-    # 使用 V6 BlackboardManager 统一管理 session 目录
-    base_path = orchestrator.base_path
-    bm = BlackboardManager(session_id, base_dir=Path(base_path).parent)
-    bm.init_session()
-
-    # 清理旧文件（含 watcher 状态，防止重跑时 circuit break 误报）
-    for old_file in [".completed", ".cron_run_count", ".notified_stages.json",
-                     ".watcher_no_output_count", ".watcher_should_remove", ".pipeline_watcher.lock"]:
-        old_path = bm.session_dir / old_file
-        if old_path.exists():
-            old_path.unlink()
-
-    # 初始化元数据文件
-    bm.write(".notified_stages.json", {"notified": [], "total_messages_sent": 0})
-    bm.write(".cron_run_count", {"count": 0, "max_runs": 20, "run_start_at": "PENDING"})
-
-    # 读取并替换 orchestrator prompt
-    prompt_path = pathlib.Path(__file__).parent / "prompts" / "pipeline_orchestrator.md"
-    prompt_template = prompt_path.read_text(encoding="utf-8")
-    session_dir = str(bm.session_dir)
-    plan_path = f"{session_dir}/execution_plan.json"
-    # ── FIX-1/2/4/5: 注入上下文到 orchestrator prompt ──
-    deepflow_root = str(Path(__file__).resolve().parent.parent.parent)
-    agent_context = build_agent_context(
-        deepflow_root=Path(deepflow_root),
-        blackboard_id=session_id,
-        include_schema=False,
-        include_analysis_workflow=True,
-    )
-
-    orchestrator_prompt = (
-        agent_context
-        + "\n\n---\n\n"
-        + prompt_template
-        .replace("{base_path}", session_dir)
-        .replace("{session_id}", session_id)
-        .replace("{plan_path}", plan_path)
-    )
-
-    # Watcher integration: provide all info needed for main Agent to create cron
-    watcher_config_rel = "domains/solution_pro/config/watcher_config.json"
-    watcher_config_abs = os.path.join(deepflow_root, watcher_config_rel)
-
-    return {
-        "session_id": session_id,
-        "base_path": session_dir,
-        "plan_path": plan_path,
-        "spawn_params": {
-            "runtime": "subagent",
-            "mode": "run",
-            "label": "solution_orchestrator",
-            "task": orchestrator_prompt,
-        },
-        # --- Watcher fields (new, backward-compatible) ---
-        "run_start_at": run_start_at,
-        "watcher_config": watcher_config_rel,
-        "watcher_config_abs": watcher_config_abs,
-        "deepflow_root": deepflow_root,
-    }
-
-
 def run_solution_pro(user_input: str, **kwargs):
     """
-    Solution Pro V2 入口（Agent-centric 架构）
+    Solution Pro 2.0.0 入口（Agent-centric 架构）
 
-    初始化 Blackboard + frozen_spec，生成 V2 Orchestrator prompt，
+    初始化 Blackboard + frozen_spec，生成 Orchestrator prompt，
     返回 spawn_params 供主 Agent 调用 sessions_spawn 启动管线。
 
     架构：
       Main Agent (depth-0)
-        → sessions_spawn → V2 Orchestrator (depth-1)
+        → sessions_spawn → Orchestrator (depth-1)
           → sessions_spawn → Module Agents (depth-2)
             → sessions_spawn → Workers (depth-3)
 
@@ -204,7 +114,9 @@ def run_solution_pro(user_input: str, **kwargs):
     """
     # 1. 初始化 Blackboard session
     topic = kwargs.get("topic", user_input[:50])
-    bm = BlackboardManager(topic, base_dir=Path(__file__).parent / "blackboard_sessions")
+    # 契约笼子（2026-07-05）：统一 blackboard 路径，走默认 .deepflow/blackboard/
+    # 确保 Ship Pro 能从统一路径读取 Solution Pro 输出
+    bm = BlackboardManager(topic)  # 删掉 base_dir= → 走 PathConfig 默认路径
     bm.init_session()
     session_id = bm.session_id
     session_dir = str(bm.session_dir)
@@ -235,7 +147,7 @@ def run_solution_pro(user_input: str, **kwargs):
         if old_path.exists():
             old_path.unlink()
 
-    # 5. 读取 V2 Orchestrator prompt 模板并填充变量
+    # 5. 读取 Orchestrator prompt 模板并填充变量
     prompt_path = pathlib.Path(__file__).parent / "prompts" / "orchestrator.md"
     prompt_template = prompt_path.read_text(encoding="utf-8")
 
@@ -276,4 +188,5 @@ def run_solution_pro(user_input: str, **kwargs):
     }
 
 
+# 契约笼子（2026-07-05）：显式导出 2.0.0 和 2.0.0，避免函数覆盖
 __all__ = ['run_solution_pro']

@@ -1,8 +1,8 @@
 # DeepFlow Skill — 多 Agent 协作自动化管线
 
-> DeepFlow 0.5.0 (Spec Pro v2.4 + Solution Pro V4.4 + Ship Pro V3.2 + Research Pro)
+> DeepFlow 2.0.0 (Spec Pro 2.0.0 + Solution Pro 2.0.0 + Ship Pro 2.0.0 + Research Pro)
 
-> **0.5.0 变更**: 新增 Ship Pro V3.2（Pydantic 契约笼子 + 单一执行引擎 + 状态单一化）；Phase 0-3 架构加固完成
+> **2.0.0 变更**: 新增 Ship Pro 2.0.0（Pydantic 契约笼子 + 单一执行引擎 + 状态单一化）；Phase 0-3 架构加固完成
 
 **定位**: 支持 Spec Pro（需求梳理）、Solution Pro（方案设计）、Ship Pro（交付编译）、Research Pro（深度研究）的多 Agent 协作自动化管线。
 
@@ -62,7 +62,7 @@ sessions_yield()
 | 领域 | 管线类型 | 特点 | 模式 |
 |:---|:---|:---|:---|
 | `spec_pro` | 苏格拉底对话 | 需求梳理，输出 Living Spec + 三层版本号 | 对话式 |
-| `solution_pro` | 固定 10 阶段闭环 | Harness V4 + REQ-ID 追踪 + 状态持久化 | 固定管线 |
+| `solution_pro` | 固定 10 阶段闭环 | Harness 2.0.0 + REQ-ID 追踪 + 状态持久化 | 固定管线 |
 | `ship_pro` | 5 Agent 管线 | Pydantic 契约笼子 + 质量门禁 + 单一执行引擎 | 固定管线 |
 | `research_pro` | 分层搜索+引用验证 | 多源搜索 → 分层研究 → 引用验证 | 单模式 |
 
@@ -78,7 +78,7 @@ sessions_yield()
 | 6. Audit | audit | ❌ | 质量审计 |
 | 7. Fix | fix | ❌ | 修复缺陷 |
 | 8. Fixer Expert | fixer_expert | ❌ | 专家级修复 |
-| 9. Harness Final | harness_final | ❌ | 最终质量门禁（HARNESS V4 + REQ-ID 追踪） |
+| 9. Harness Final | harness_final | ❌ | 最终质量门禁（HARNESS 2.0.0 + REQ-ID 追踪） |
 | 10. Summarizer | summarizer | ❌ | 生成最终报告 |
 
 **契约保护**：Cage Validator 在关键阶段前校验契约合规性
@@ -117,6 +117,6 @@ sessions_yield()
 
 ## 版本
 
-- **Version**: 0.5.0
+- **Version**: 2.0.0
 - **Status**: 四域架构；Pydantic 契约笼子 + 单一执行引擎 + 状态单一化；Phase 0-3 架构加固完成
 - **Date**: 2026-06-23

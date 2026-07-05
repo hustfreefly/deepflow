@@ -1,6 +1,6 @@
 # DeepFlow 快速执行卡（半屏速查）
 
-> **版本**: 0.4.0 (Spec Pro v2.4 + Solution Pro V4.4 + Research Pro)
+> **版本**: 0.4.0 (Spec Pro v2.4 + Solution Pro 2.0.0 + Research Pro)
 > **变更**: Investment 模块已移除（v0.4.0），框架更轻量
 
 ---

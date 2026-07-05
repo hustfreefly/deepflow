@@ -1,6 +1,6 @@
 ---
 id: ship_pro/ship_judge
-version: "4.1.0"
+version: "2.0.0"
 component: ship_pro
 updated: "2026-06-26"
 ---
@@ -101,7 +101,7 @@ updated: "2026-06-26"
 3. 如果 gate=pass 但 judge=fail → 以 judge 为准(语义问题 gate 检测不到)
 4. 如果两者一致 → 直接采用
 
-## V3 Extras 语义评估（如果 Ship Package 包含这些字段）
+## 2.0.0 Extras 语义评估（如果 Ship Package 包含这些字段）
 
 ### api_conventions 评估
 - 规则是否覆盖了 work_packages 中实际的 API 差异？（对比不同 WP 的 outputs 字段）

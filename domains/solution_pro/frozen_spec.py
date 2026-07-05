@@ -9,20 +9,19 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 # =============================================================================
-# ⚠️ DEPRECATION NOTICE (V3 AI Native)
-# =============================================================================
+# ⚠️ DEPRECATION NOTICE # =============================================================================
 # frozen_spec.py 已进入废弃路径：
-#   Phase 1（当前）: frozen_spec 降级为 REQ-ID 索引生成器
-#   Phase 2（下次迭代）: 完全废弃 frozen_spec.py，REQ-ID 索引由 living_spec.py 直接生成
-#
+# Phase 1（当前）: frozen_spec 降级为 REQ-ID 索引生成器
+# Phase 2（下次迭代）: 完全废弃 frozen_spec.py，REQ-ID 索引由 living_spec.py 直接生成
+
 # 过渡期规则：
-#   - 当 living_spec 参数存在时，优先使用 living_spec.requirement_index
-#   - frozen_spec 仅作为 fallback（living_spec 不存在时）
-#   - 禁止在 living_spec 模式下读取 frozen_spec 的非索引字段
+# - 当 living_spec 参数存在时，优先使用 living_spec.requirement_index
+# - frozen_spec 仅作为 fallback（living_spec 不存在时）
+# - 禁止在 living_spec 模式下读取 frozen_spec 的非索引字段
 # =============================================================================
 
 # ============================================================================
-# V2.0: 二级分组映射（12 category → 5 group）
+# 二级分组映射（12 category → 5 group）
 # ============================================================================
 
 GROUP_MAP = {
@@ -71,7 +70,7 @@ def _add_requirement(
 
 
 def _auto_generate_hints(confirmed: Dict[str, Any]) -> List[str]:
-    """V4: 当 solution_pro_hints 为 null 时，从 confirmed 自动推导研究重点提示。"""
+    """当 solution_pro_hints 为 null 时，从 confirmed 自动推导研究重点提示。"""
     hints = []
     
     # 从 architecture 推导技术焦点
@@ -178,7 +177,7 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
             metric_name = item.get("metric", "")
             target = item.get("target", "")
             priority = item.get("priority", "P1")
-            # V4 fix: 组合 metric + target 作为 description，避免过短
+            # fix: 组合 metric + target 作为 description，避免过短
             if metric_name and target:
                 desc = f"{metric_name}: {target}"
             elif metric_name:
@@ -199,7 +198,7 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
             role = item.get("role", "")
             description = item.get("description", "")
             key_needs = item.get("key_needs", [])
-            # V4 fix: 组合 role + key_needs 作为 description
+            # fix: 组合 role + key_needs 作为 description
             if role and key_needs:
                 needs_str = "、".join(key_needs[:3]) if isinstance(key_needs, list) else str(key_needs)
                 desc = f"{role}（需求: {needs_str}）"
@@ -225,7 +224,7 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
             desc = item.get("description", "")
             severity = item.get("severity", "")
             likelihood = item.get("likelihood", "")
-            # V4 fix: 组合 description + severity/likelihood
+            # fix: 组合 description + severity/likelihood
             if desc and severity:
                 desc = f"[风险-{severity}/{likelihood}] {desc}"
             measurable = f"severity={severity}, likelihood={likelihood}"
@@ -245,9 +244,9 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
             _add_requirement(requirements, "assumption", desc, "P1", "living_spec.confirmed.risks_and_assumptions.assumptions", measurable)
 
     # Guardrails → 行为边界（guardrails 是顶层字段，不在 confirmed 下）
-    # V4 fix: 支持两种格式：
-    #   flat 格式: {always_do: [...], never_do: [...], resolved: [...]}
-    #   zone 格式: {zone_0_immutable: {rules: [...]}, zone_1_verified_change: {rules: [...]}, ...}
+    # fix: 支持两种格式：
+    # flat 格式: {always_do: [...], never_do: [...], resolved: [...]}
+    # zone 格式: {zone_0_immutable: {rules: [...]}, zone_1_verified_change: {rules: [...]}, ...}
     guardrails = (living_spec or {}).get("guardrails", {}) if isinstance(living_spec, dict) else {}
     if isinstance(guardrails, dict):
         # flat 格式
@@ -263,7 +262,7 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
                     desc = f"决策: {question} → {answer}".strip()
                     _add_requirement(requirements, "design_decision", desc, "P1", "living_spec.guardrails.resolved")
         
-        # zone 格式（V4 新增）
+        # zone 格式（新增）
         zone_map = {
             "zone_0_immutable": ("guardrail_prohibition", "P0", "绝对不可修改"),
             "zone_1_verified_change": ("guardrail", "P0", "需验证的变更"),
@@ -278,7 +277,7 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
                         desc = f"[{zone_label}] {rule}" if isinstance(rule, str) else str(rule)
                         _add_requirement(requirements, category, desc, priority, f"living_spec.guardrails.{zone_key}")
         
-        # operational_boundaries（V4 新增）
+        # operational_boundaries（新增）
         op_bounds = guardrails.get("operational_boundaries", {})
         if isinstance(op_bounds, dict):
             for key, val in op_bounds.items():
@@ -295,7 +294,7 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
             for key, value in hints.items():
                 _add_requirement(requirements, "hint", f"{key}: {value}", "P1", f"living_spec.solution_pro_hints.{key}")
     elif confirmed:
-        # V4 fix: 当 solution_pro_hints 为 null 时，从 confirmed 自动推导
+        # fix: 当 solution_pro_hints 为 null 时，从 confirmed 自动推导
         auto_hints = _auto_generate_hints(confirmed)
         for hint_text in auto_hints:
             _add_requirement(requirements, "hint", hint_text, "P1", "auto_generated_from_confirmed")
@@ -320,22 +319,22 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
         _add_requirement(requirements, "objective", topic, "P0", "topic")
 
     # ====================================================================
-    # V2.0: 合并 LLM 标注（如果存在）
+    # 合并 LLM 标注（如果存在）
     # ====================================================================
     annotations = confirmed.get("requirement_annotations") if isinstance(confirmed, dict) else None
     if annotations and isinstance(annotations, list):
         requirements = _merge_annotations(requirements, annotations)
 
     # ====================================================================
-    # V2.0: 构建 executive_summary（指针 + 上下文）
+    # 构建 executive_summary（指针 + 上下文）
     # ====================================================================
     executive_summary = _build_executive_summary(confirmed, requirements, topic, living_spec)
 
-    # V2.0: 构建 requirement_groups（二级分组）
+    # 构建 requirement_groups（二级分组）
     requirement_groups = _build_requirement_groups(requirements)
 
     # ====================================================================
-    # V3: 冲突解决策略（P0）
+    # 冲突解决策略（P0）
     # ====================================================================
     # 原则：requirement_index 是权威源（结构化、可追溯）
     # narrative 是辅助理解（语义丰富但不可精确追溯）
@@ -351,11 +350,11 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
         req_titles = [r.get("title", "") for r in req_index if isinstance(r, dict)]
         # 不做深度语义检查，只记录两者都存在的事实
     
-    # V2.0: 透传 guardrails 和 solution_pro_hints
+    # 透传 guardrails 和 solution_pro_hints
     guardrails_raw = (living_spec or {}).get("guardrails", {}) if isinstance(living_spec, dict) else {}
     solution_pro_hints_raw = (living_spec or {}).get("solution_pro_hints", None) if isinstance(living_spec, dict) else None
     
-    # V4 fix: 当 solution_pro_hints 为 null 时，从 confirmed 自动推导
+    # fix: 当 solution_pro_hints 为 null 时，从 confirmed 自动推导
     if not solution_pro_hints_raw and confirmed:
         arch = confirmed.get("architecture", {})
         innovations = confirmed.get("innovation_mechanisms", [])
@@ -389,15 +388,45 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
             if title and len(title) > 5 and title.lower() not in narrative.lower():
                 conflicts.append({"req_title": title, "issue": "not_found_in_narrative"})
 
+    # Semantic Anchors 透传（信息守恒 — 不改语义，原样传递）
+    # 契约笼子：semantic_anchors 走主路（living_spec → frozen_spec → Ship Pro），不绕路
+    semantic_anchors = []
+    if isinstance(living_spec, dict) and "semantic_anchors" in living_spec:
+        raw_anchors = living_spec["semantic_anchors"]
+        if isinstance(raw_anchors, list):
+            semantic_anchors = raw_anchors
+        else:
+            logger.warning(
+                f"契约笼子: living_spec.semantic_anchors 类型错误: "
+                f"期望 list，实际 {type(raw_anchors).__name__}，已忽略"
+            )
+
+    # 注意力优化：从 semantic_anchors 提取 priority_layers
+    # 让 LLM 一眼看到哪些约束是 MUST、哪些是 SHOULD
+    priority_layers = {"MUST_FOLLOW": [], "SHOULD_FOLLOW": [], "CONTEXT": []}
+    for anchor in semantic_anchors:
+        if not isinstance(anchor, dict):
+            continue
+        name = anchor.get("name", "")
+        cat = anchor.get("category", "")
+        if cat in ["platform_api", "architecture_principle"]:
+            priority_layers["MUST_FOLLOW"].append(name)
+        elif cat == "technical_constraint":
+            priority_layers["SHOULD_FOLLOW"].append(name)
+        else:
+            priority_layers["CONTEXT"].append(name)
+
+    # 注意力优化：重排字段顺序
+    # semantic_anchors + requirements 移到开头（高注意力区）
+    # version/generated_at/source 等元数据移到末尾
     return {
-        "version": "2.0",
-        "generated_at": datetime.now().isoformat(),
+        "priority_layers": priority_layers,  # 显式优先级分层
+        "semantic_anchors": semantic_anchors,  # 从 living_spec 原样透传
+        "requirements": requirements,
         "topic": topic,
-        "source": "living_spec.confirmed+topic+constraints",
         "executive_summary": executive_summary,
         "guardrails": guardrails_raw,
         "solution_pro_hints": solution_pro_hints_raw,
-        "requirements": requirements,
         "requirement_groups": requirement_groups,
         "coverage_policy": {
             "worker_field": "covered_req_ids",
@@ -411,11 +440,14 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
                 "detected_conflicts": conflicts,
             },
         },
+        "version": "2.0",
+        "generated_at": datetime.now().isoformat(),
+        "source": "living_spec.confirmed+topic+constraints",
     }
 
 
 # ============================================================================
-# V2.0: executive_summary 构建（指针 + 上下文模式）
+# executive_summary 构建（指针 + 上下文模式）
 # ============================================================================
 
 def _build_executive_summary(
@@ -521,7 +553,7 @@ def _build_executive_summary(
 
 
 # ============================================================================
-# V2.0: requirement_groups 构建（二级分组）
+# requirement_groups 构建（二级分组）
 # ============================================================================
 
 def _build_requirement_groups(requirements: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -555,7 +587,7 @@ def _build_requirement_groups(requirements: List[Dict[str, Any]]) -> Dict[str, A
 
 
 # ============================================================================
-# V2.0: LLM 标注合并（阶段 2：Spec Pro 标注增强）
+# LLM 标注合并（阶段 2：Spec Pro 标注增强）
 # ============================================================================
 
 def _merge_annotations(requirements: List[Dict[str, Any]], 
@@ -637,7 +669,7 @@ def write_frozen_spec(base_path: str | Path, topic: str,
 
 
 # ============================================================================
-# V3: Living Spec 优先 — 新函数
+# Living Spec 优先 — 新函数
 # ============================================================================
 
 def generate_requirement_index(living_spec: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -646,7 +678,7 @@ def generate_requirement_index(living_spec: Dict[str, Any]) -> List[Dict[str, An
 
     每条包含: id, description (≥50字), priority, source_section
 
-    V3: 这是 frozen_spec 的替代方案 — 保留完整描述，不拆成标题。
+    这是 frozen_spec 的替代方案 — 保留完整描述，不拆成标题。
 
     Args:
         living_spec: Living Spec dict（含 narrative 和 confirmed）
@@ -820,7 +852,7 @@ def format_living_spec_for_prompt(living_spec: Dict[str, Any]) -> str:
     1. narrative（叙述为主体）
     2. requirement_index 表格（REQ-ID 为附件）
 
-    V3: 这是 frozen_spec 注入方式的替代方案。
+    这是 frozen_spec 注入方式的替代方案。
 
     Args:
         living_spec: Living Spec dict

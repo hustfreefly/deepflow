@@ -1,7 +1,7 @@
 # 架构评审：Spec Pro → Frozen Spec → Solution Pro 链路
 
 > 评审日期：2026-06-02  
-> 更新日期：2026-06-03（frozen_spec V2.0 修复记录）
+> 更新日期：2026-06-03（frozen_spec 2.0.0 修复记录）
 > 评审人：架构专家（Subagent）  
 > 范围：`domains/solution_pro/frozen_spec.py` + `domains/solution_pro/task_builder.py` + 消费侧
 
@@ -9,7 +9,7 @@
 
 ## 更新记录（2026-06-03）
 
-### frozen_spec.py V2.0 修复
+### frozen_spec.py 2.0.0 修复
 
 本次修复解决了三个结构性遗漏，将信息保留率从 <5% 提升到 ~100%：
 
@@ -325,7 +325,7 @@ REQ_TRACEABILITY_INSTRUCTION = """
 | `task_builder.py` | ✅ 是 | 更新 `REQ_TRACEABILITY_INSTRUCTION` 模板 |
 | `control_contract.py` | ❌ 否 | 只读 `requirements[]`，不受影响 |
 | `orchestrator_agent.py` | ❌ 否 | 调用 `write_frozen_spec()` 接口不变 |
-| Harness V3 / Auditor | ❌ 否 | 通过 `frozen_spec.json` 文件读取，自动获得新字段 |
+| Harness 2.0.0 / Auditor | ❌ 否 | 通过 `frozen_spec.json` 文件读取，自动获得新字段 |
 | 现有 Worker | ❌ 否（可选适配） | 旧 Worker 忽略新字段即可；适配后获得全局理解 |
 
 ### 收益
@@ -341,7 +341,7 @@ REQ_TRACEABILITY_INSTRUCTION = """
 
 ## 5. 长期演进建议
 
-### V3 阶段目标
+### 2.0.0 阶段目标
 
 | 目标 | 说明 |
 |------|------|

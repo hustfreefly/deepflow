@@ -1,14 +1,14 @@
-# DeepFlow 管线错误率修复方案 V2（评审修订版）
+# DeepFlow 管线错误率修复方案 2.0.0（评审修订版）
 
-> **基于**: Doctor V2 诊断 + 三维专家评审 (2026-06-27)
+> **基于**: Doctor 2.0.0 诊断 + 三维专家评审 (2026-06-27)
 > **专家评审**: 架构 7.0 / Prompt 6.5 / 运维 6.75 → 综合 6.75 有条件通过
 > **目标**: 错误率 13% → <5%, 节省 ~40 万 tokens/次管线
 
 ---
 
-## V1 → V2 变更摘要
+## 2.0.0 → 2.0.0 变更摘要
 
-| 变更项 | V1 | V2 | 采纳专家 |
+| 变更项 | 2.0.0 | 2.0.0 | 采纳专家 |
 |--------|----|----|----------|
 | 约束风格 | "禁止xxx" 负向 | "必须xxx" 正向流程 | Prompt专家 |
 | FIX-1 主策略 | 路径注入 | BM API 优先 + 路径兜底 | 架构专家 |
@@ -27,7 +27,7 @@
 ### 问题
 子 Agent 不知道 `.deepflow` 目录结构，硬拼路径 → 17 次 ENOENT
 
-### V2 方案: BM API 优先引导 + 路径注入兜底
+### 2.0.0 方案: BM API 优先引导 + 路径注入兜底
 
 ```python
 # scripts/path_context.py — 新增
@@ -87,13 +87,13 @@ def generate_path_context(deepflow_root: Path, blackboard_id: str) -> str:
 ### 问题
 子 Agent 调用 `bm.get_spec()` 等不存在方法 → 8+ 次错误
 
-### V2 方案: 正向 API 文档（移除"禁止读源码"）
+### 2.0.0 方案: 正向 API 文档（移除"禁止读源码"）
 
 ```python
 # scripts/api_doc_inject.py — 新增
 def generate_api_doc() -> str:
     return """
-## 🔧 BlackboardManager API（V6 标准用法）
+## 🔧 BlackboardManager API（2.0.0 标准用法）
 
 ### 初始化
 ```python
@@ -135,7 +135,7 @@ python3 -c "import json; json.dump(data, open('{bb_dir}/stages/xxx.json', 'w'))"
 ### 问题
 Generator 输出不符合 Pydantic schema → 3 次门控失败
 
-### V2 方案: 字段说明表 + 占位符示例（避免照抄具体值）
+### 2.0.0 方案: 字段说明表 + 占位符示例（避免照抄具体值）
 
 ```python
 schema_hint = """
@@ -183,7 +183,7 @@ schema_hint = """
 
 ## FIX-4: 环境能力缓存（安全位置 + 短 TTL）
 
-### V2 方案
+### 2.0.0 方案
 
 ```python
 # scripts/env_capabilities.py
@@ -250,7 +250,7 @@ def get_pdf_command(deepflow_root: Path, input_path: str, output_path: str) -> s
 
 ## FIX-5: 即兴 Python 防护（标准化工具 + 正向流程）
 
-### V2 方案
+### 2.0.0 方案
 
 **A: 标准化 JSON 分析工具**
 ```python

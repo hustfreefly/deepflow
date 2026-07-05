@@ -1,6 +1,6 @@
 ---
 id: ship_pro/specifier
-version: 1.0.0
+version: 2.0.0
 description: 为每个工作包编写具体可验证的验收标准(AC)和技术约束
 author: DeepFlow Team
 created: 2026-06-18

@@ -8,7 +8,7 @@ author: 小满
 review_status: pending
 ---
 
-# Pipeline Watcher V2 — AI Native 统一组件设计
+# Pipeline Watcher 2.0.0 — AI Native 统一组件设计
 
 > **一句话**：用确定性 Python 脚本替代 LLM 做文件巡检，用 JSON 配置替代硬编码，用薄 wrapper prompt 做最小桥接。
 

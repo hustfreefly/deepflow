@@ -1,7 +1,7 @@
-# Ship Pro AI Native 改造方案 V2
+# Ship Pro AI Native 改造方案 2.0.0
 
 > **日期**: 2026-06-25  
-> **版本**: V2（吸收第一轮 4 位专家评审意见）  
+> **版本**: 2.0.0（吸收第一轮 4 位专家评审意见）  
 > **作者**: 小满（AI Agent）  
 > **决策者**: 姬忠礼  
 > **状态**: 待第二轮专家评审
@@ -12,7 +12,7 @@
 
 ### 1.1 当前问题
 
-Ship Pro V3/V4 存在根本性问题：**架构不是 AI Native**。
+Ship Pro 2.0.0/2.0.0 存在根本性问题：**架构不是 AI Native**。
 
 | 维度 | 当前实现 | 忠礼决策（2026-06-25 研讨会） |
 |------|---------|---------------------------|
@@ -27,9 +27,9 @@ Ship Pro V3/V4 存在根本性问题：**架构不是 AI Native**。
 > "全 LLM 控制，Python 不做控制流"  
 > "一步到位，不分阶段演进"
 
-### 1.3 V1 → V2 核心改进（基于专家评审）
+### 1.3 2.0.0 → 2.0.0 核心改进（基于专家评审）
 
-| 评审问题 | V1 | V2 修复 |
+| 评审问题 | 2.0.0 | 2.0.0 修复 |
 |---------|-----|---------|
 | 可靠性裸奔 | 重试/超时全靠 prompt | Python 护栏命令（check-retry-limit, check-budget） |
 | cwd 踩坑未规避 | spawn_params 无 cwd | 所有 spawn 强制 cwd + PYTHONPATH |
@@ -327,12 +327,12 @@ Orchestrator 每完成 2 个阶段后调用一次，用摘要替代完整历史�
 
 ---
 
-## 五、Orchestrator Prompt 设计（V2）
+## 五、Orchestrator Prompt 设计（2.0.0）
 
 ### 5.1 完整 Prompt
 
 ```markdown
-# Ship Pro Orchestrator（AI Native V2）
+# Ship Pro Orchestrator（AI Native 2.0.0）
 
 你是 Ship 打包管线的 Orchestrator。你的任务是：将 Living Spec 转化为可交付的 Ship Package。
 
@@ -515,7 +515,7 @@ Pydantic Schema:
 将结果写入: {output_path}    ← io_helper.py 自动注入
 ```
 
-**与 V1 的区别**：
+**与 2.0.0 的区别**：
 - Worker Prompt 模板中 `{stage_name}` 不再预定义为 5 个固定阶段，Orchestrator 可以自创阶段名
 - `auto_injected_dependencies` 由 io_helper.py 基于 stage-dependencies.json 自动注入
 - `--context-file` 替代 `--context`（避免命令行参数过长）
@@ -582,9 +582,9 @@ io_helper.py resume-context <output_dir>
 | `stage-dependencies.json` (新建) | 硬编码在 run_pipeline.py | 显式声明阶段依赖 |
 | Orchestrator prompt | "按固定列表循环" | 完整 AI Native prompt（见第五节） |
 | `start_ship_pro.py` | 生成固定 spawn_params | 精简：路径准备 + spawn_params（含 cwd）+ watcher payload |
-| `SKILL.md` V5.0 | V4.0 CLI 命令参考 | AI Native Orchestrator 指南 + 入口守卫 |
+| `SKILL.md` 2.0.0 | 2.0.0 CLI 命令参考 | AI Native Orchestrator 指南 + 入口守卫 |
 | `contracts/*.py` | Pydantic 模型 | 保留不改 |
-| Watcher | V3 AI Native | 保留不改 |
+| Watcher | 2.0.0 AI Native | 保留不改 |
 
 ---
 
@@ -596,9 +596,9 @@ io_helper.py resume-context <output_dir>
 |------|------|------|
 | 1 | 创建 `stage-dependencies.json` | 零 |
 | 2 | 从 `run_pipeline.py` 提取 I/O + 护栏 → `io_helper.py` | 低（纯提取） |
-| 3 | 写 Orchestrator prompt（V2 完整版） | 低 |
+| 3 | 写 Orchestrator prompt（2.0.0 完整版） | 低 |
 | 4 | 更新 `start_ship_pro.py`（含 cwd） | 低 |
-| 5 | 写 `SKILL.md` V5.0（含入口守卫） | 低 |
+| 5 | 写 `SKILL.md` 2.0.0（含入口守卫） | 低 |
 | 6 | 保留 `run_pipeline.py` 不删 | 零 |
 
 ### 8.2 入口守卫（SKILL.md Step 0）
@@ -623,24 +623,24 @@ io_helper.py resume-context <output_dir>
 | 3 | 多阶段串行 | 5 阶段全部完成，pipeline_state.json 正确 |
 | 4 | 断点恢复 | 中途 kill Orchestrator → 重启 → 从断点继续 |
 | 5 | 超时保护 | Orchestrator 超时 → 自动终止 → Watcher 超时告警 |
-| 6 | 回滚 | 切回 V4 → 正常运行 |
+| 6 | 回滚 | 切回 2.0.0 → 正常运行 |
 
 ### 8.4 回滚 SOP
 
 ```
 1. 停止 AI Native Orchestrator（如运行中）
-2. SKILL.md 切回 V4.0（git checkout）
-3. start_ship_pro.py 切回 V4 版本
+2. SKILL.md 切回 2.0.0（git checkout）
+3. start_ship_pro.py 切回 2.0.0 版本
 4. pipeline_state.json 增加 "version": "ai_native" 标记
-5. V4 prepare_pipeline --resume 模式：不清理已有阶段输出
+5. 2.0.0 prepare_pipeline --resume 模式：不清理已有阶段输出
 6. 重新运行
 ```
 
 ---
 
-## 九、与 V1 对比（评审改进追踪）
+## 九、与 2.0.0 对比（评审改进追踪）
 
-| V1 评审问题 | V2 修复 | 对应专家 |
+| 2.0.0 评审问题 | 2.0.0 修复 | 对应专家 |
 |------------|---------|---------|
 | Prompt 缺少阶段依赖图 | §5.1 注入依赖图 + can-parallel 命令 | AI Native |
 | Prompt 缺少质量评估维度 | §5.1 五维度质量标准 | AI Native |
@@ -670,7 +670,7 @@ io_helper.py resume-context <output_dir>
 - ❌ Spec Pro / Solution Pro AI Native 改造（独立域）
 - ❌ Dream Loop / Meta-Loop（后续，但 decisions.jsonl 提供数据基础）
 - ❌ Hermes / Codex 集成（后续）
-- ❌ Watcher 改造（已是 AI Native V3）
+- ❌ Watcher 改造（已是 AI Native 2.0.0）
 - ❌ Pydantic 模型重定义（保留现有）
 
 ---
