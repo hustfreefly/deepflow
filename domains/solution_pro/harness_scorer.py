@@ -314,7 +314,7 @@ def _validate_harness_output_legacy(output: dict) -> tuple[bool, str]:
         except ImportError:
             pass
         except Exception as e:
-            return False, f"Harness Check 验证失败: {e}"
+            raise ValueError(f"[HarnessCheckV2] 验证失败 — 契约笼子触发: {e}")
     
     # 格式（向后兼容）
     required_fields = ["completeness", "necessity", "alignment", "global_impact", "overall_score", "decision"]
@@ -354,7 +354,7 @@ def validate_harness_output(harness_check: dict) -> tuple[bool, str]:
     except ImportError:
         return False, "HarnessCheck schema 未安装"
     except Exception as e:
-        return False, f"Harness Check 验证失败: {e}"
+        raise ValueError(f"[HarnessCheckV2] 验证失败 — 契约笼子触发: {e}")
 
 
 def harness_to_scores(harness_check: dict) -> dict:

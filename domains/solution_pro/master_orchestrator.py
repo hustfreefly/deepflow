@@ -574,7 +574,7 @@ class MasterOrchestrator:
         
         [R1-P0 采纳] Summarizer 归属 Master，与 Summary convergence 不重叠
         """
-        return {
+        report = {
             "topic": config.get("topic", "Unknown"),
             "solution_type": config.get("solution_type", "architecture"),
             "planning_summary": self._summarize_planning(planning),
@@ -582,6 +582,23 @@ class MasterOrchestrator:
             "quality_assessment": self._summarize_summary(summary),
             "generated_at": time.time(),
         }
+
+        # Information conservation check (P1-1)
+        try:
+            from .information_conservation import InformationConservationValidator
+            validator = InformationConservationValidator()
+            conservation_result = validator.validate(
+                planning_output=planning if isinstance(planning, dict) else {},
+                research_output=research,
+                summary_output=summary,
+            )
+            if conservation_result.get("verdict") != "PASS":
+                logger.warning(f"Information conservation check: {conservation_result['verdict']} (score={conservation_result.get('score')})")
+                report["_conservation_warning"] = conservation_result
+        except Exception as e:
+            logger.warning(f"Information conservation check skipped: {e}")
+
+        return report
     
     # === State 管理（双层验证）===
     

@@ -134,12 +134,12 @@ class SummaryOrchestrator(ModuleOrchestrator):
         
         # Load from blackboard if not provided
         if not self.planning_output:
-            self.planning_output = self.blackboard.read_json("planning_convergence.json") or {}
+            self.planning_output = self._load_checkpoint("planning_convergence.json", stage_name="planning_convergence") or {}
         if not self.research_output:
             # Try research_digest first, then research_convergence
             self.research_output = (
                 self.blackboard.read_json("stages/research_digest.json")
-                or self.blackboard.read_json("research_convergence.json")
+                or self._load_checkpoint("research_convergence.json", stage_name="research_convergence")
                 or {}
             )
         if not self.frozen_spec:

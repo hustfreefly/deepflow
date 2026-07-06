@@ -304,7 +304,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
         if frozen_spec is None:
             frozen_spec = self.blackboard.read_json("frozen_spec.json")
         if planning_output is None:
-            planning_output = self.blackboard.read_json("planning_convergence.json")
+            planning_output = self._load_checkpoint("planning_convergence.json", stage_name="planning_convergence")
 
         self.frozen_spec = frozen_spec
         self.planning_output = planning_output

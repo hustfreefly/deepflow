@@ -218,22 +218,10 @@ class PlanningOrchestrator(ModuleOrchestrator):
         
         logger.info("Starting Planning module")
         
-        # Check for checkpoint (resume support)
+        # Check for checkpoint (resume support) — P1-2: use _load_checkpoint with StageContract validation
         if self.state and self.state.get("completed"):
             logger.info("Planning module already completed, loading from checkpoint")
-            checkpoint_data = None
-            try:
-                if hasattr(self.blackboard, 'read_json'):
-                    checkpoint_data = self.blackboard.read_json("planning_convergence.json")
-                else:
-                    result = self.blackboard.read_json("planning_convergence.json")
-                    if isinstance(result, str):
-                        import json
-                        checkpoint_data = json.loads(result)
-                    elif isinstance(result, dict):
-                        checkpoint_data = result
-            except Exception as e:
-                logger.warning(f"Failed to load planning checkpoint: {e}")
+            checkpoint_data = self._load_checkpoint("planning_convergence.json", stage_name="planning_convergence")
             
             if checkpoint_data and isinstance(checkpoint_data, dict):
                 return checkpoint_data
