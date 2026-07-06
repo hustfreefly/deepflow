@@ -8,11 +8,14 @@
 """
 import sys as _sys
 _p = __import__('pathlib').Path(__file__).resolve()
-# 契约笼子：先插入 .deepflow 根目录到 sys.path[0]，避免 namespace 冲突
-# （domains/spec_pro/contracts/ 会遮蔽 contracts/shared/）
+# 契约笼子：强制将 .deepflow 根目录插到 sys.path[0]，覆盖脚本目录优先级
+# （避免 domains/spec_pro/contracts/ 遮蔽 contracts/shared/）
 _root = next((d for d in _p.parents if (d / 'core' / 'blackboard').is_dir()), None)
-if _root and str(_root) not in _sys.path:
-    _sys.path.insert(0, str(_root))
+if _root:
+    _root_str = str(_root)
+    if _root_str in _sys.path:
+        _sys.path.remove(_root_str)
+    _sys.path.insert(0, _root_str)
 
 import json
 from pathlib import Path

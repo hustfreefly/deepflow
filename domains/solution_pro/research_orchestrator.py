@@ -1385,14 +1385,20 @@ class ResearchOrchestrator(ModuleOrchestrator):
                     raise ValueError(f"Missing required field: {field}")
             
             # 4. 代码做格式: 组装最终 Digest
+            findings_index = digest_output.get("findings_index", [])
+            high_relevance_count = sum(
+                1 for f in findings_index
+                if isinstance(f, dict) and f.get("relevance", "").upper() == "HIGH"
+            )
             digest = {
                 "schema_version": "2.0.0",
                 "generated_at": datetime.now().isoformat(),
                 "expert_count": len(expert_outputs),
-                "total_findings": len(digest_output.get("findings_index", [])),
+                "total_findings": len(findings_index),
+                "high_relevance_count": high_relevance_count,
                 "expert_summaries": digest_output["expert_summaries"],
-                "findings_index": digest_output["findings_index"],
-                "top_10_findings": digest_output["findings_index"][:10],
+                "findings_index": findings_index,
+                "top_10_findings": findings_index[:10],
                 "findings_detail": digest_output["findings_detail"],
                 "conflicts": digest_output["conflicts"],
                 "coverage": {
@@ -1774,14 +1780,14 @@ class ResearchOrchestrator(ModuleOrchestrator):
             "gate_a_scores": self._compute_gate_a_scores(expert_outputs, consolidated),
             "gate_b_results": {
                 "pass_rate": 1.0 if self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"] == "PASS" else 0.0,
-                "verdict": self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"],
-                "checks": ["Research quality gate validated via 6-dimension scoring"],
+                "verdict": "PASS" if self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"] == "PASS" else "FAIL",
+                "checks": [{"check_id": "GB-001", "name": "research_quality_gate", "verdict": self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"]}],
                 "failed_items": [],
             },
             "gate_verdict": {
                 "final_verdict": self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"],
                 "gate_a": self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"],
-                "gate_b": self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"],
+                "gate_b": "PASS" if self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"] == "PASS" else "FAIL",
             },
             "_metadata": {
                 "produced_at": datetime.now().isoformat(),
@@ -1800,12 +1806,8 @@ class ResearchOrchestrator(ModuleOrchestrator):
 
         # [S6] Pydantic 契约笼子验证 — ResearchConvergenceSchema
         try:
-            ResearchConvergenceSchema(
-                schema_version=research_convergence.get("schema_version", "2.0.0"),
-                final_findings=research_convergence.get("final_findings", []),
-                decision_packages=research_convergence.get("decision_packages", []),
-                research_coverage=research_convergence.get("research_coverage", {}),
-            )
+            _validation_data = {k: v for k, v in research_convergence.items() if not k.startswith("_")}
+            ResearchConvergenceSchema(**_validation_data)
         except Exception as ve:
             raise ValueError(
                 f"[S6] Convergence output failed ResearchConvergenceSchema validation: {ve}"
@@ -1894,7 +1896,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
             depth_score * 0.1
         )
         
-        verdict = "PASS" if total >= 0.7 else "FAIL"
+        verdict = "PASS" if total >= 0.7 else "BLOCK_RECOMMENDATION"
         
         return {
             "score": round(total, 2),
@@ -1995,6 +1997,23 @@ class ResearchOrchestrator(ModuleOrchestrator):
 - Expert coverage: {self.source_registry.summary().get('total_experts', 0)} experts contributed sources
 """
         return summary.strip()[:1000]
+
+    def _generate_research_summary(self, consolidated: dict) -> str:
+        """Generate a textual research summary from consolidated findings."""
+        findings = consolidated.get("consolidated_findings", [])
+        consensus = consolidated.get("consensus_points", [])
+        parts = []
+        if findings:
+            parts.append(f"## Key Findings ({len(findings)} total)")
+            for i, f in enumerate(findings[:10], 1):
+                desc = f.get("description", f.get("title", ""))
+                parts.append(f"{i}. {desc}")
+        if consensus:
+            parts.append("\n## Consensus Points")
+            for point in consensus:
+                parts.append(f"- {point}")
+        summary = "\n".join(parts) if parts else "No research findings available."
+        return summary[:3000]
 
     def _extract_design_decisions(self, consolidated: dict) -> list[dict]:
         """Extract design decisions from consolidated recommendations."""

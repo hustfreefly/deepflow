@@ -100,7 +100,7 @@ MOCK_EXPERT_MANIFEST = {
             "CRITICAL_WARNING": 0.60,
             "BLOCK_RECOMMENDATION": 0.0,
         },
-        "rationale": "高风险后端 API 任务，强调目标一致性和完整性",
+        "rationale": "高风险后端 API 任务，必须严格遵循安全架构设计原则，强调目标一致性和完整性，确保系统在高并发场景下的可靠性",
     },
     "gate_b": {
         "dynamic_checks": [
@@ -139,8 +139,8 @@ MOCK_EXPERT_PLAN_SECURITY = {
         {
             "constraint_id": "C-002",
             "description": "Input validation on all user-supplied data",
-            "priority": "MUST",
-            "rationale": "OWASP A03:2021 - Injection",
+            "priority": "SHOULD",
+            "rationale": "OWASP A03:2021 - Injection vulnerability prevention requiring input sanitization and parameterized queries",
         },
     ],
     "risks": [
@@ -168,13 +168,13 @@ MOCK_EXPERT_PLAN_PERFORMANCE = {
             "constraint_id": "C-003",
             "description": "API response time < 200ms for 95th percentile",
             "priority": "MUST",
-            "rationale": "Performance SLA requirement",
+            "rationale": "Performance SLA requirement: API response time must be under 200ms at P99 under peak load",
         },
         {
             "constraint_id": "C-004",
             "description": "Database queries must use indexes",
             "priority": "SHOULD",
-            "rationale": "Query optimization",
+            "rationale": "Query optimization: reduce database round-trips and implement caching for frequently accessed data",
         },
     ],
     "risks": [

@@ -113,23 +113,36 @@ def cmd_fallback(worker_type: str, output_path: str) -> None:
 
 def cmd_append_trajectory(base_path: str, round_num: int, score: float,
                           level: str, q_count: int = 0, inf_validated: int = 0) -> None:
-    """Append a trajectory point to quality_trajectory.json."""
+    """Append a trajectory point to quality_trajectory.json (dict format).
+
+    契约笼子（2026-07-06）:
+      - 写入格式统一为 dict: {"scores": [...], "trajectory": [...]}
+      - 读取时兼容旧版 list 格式，自动迁移
+      - 避免 init_session() 写 dict、append_trajectory() 写 list 的格式冲突
+    """
     trajectory_path = os.path.join(base_path, "spec", "quality_trajectory.json")
 
-    # Read existing trajectory
-    trajectory = []
+    # 读取现有轨迹（兼容旧版 list 格式）
+    data = {"scores": [], "trajectory": []}
     if os.path.exists(trajectory_path):
         try:
             with open(trajectory_path, "r", encoding="utf-8") as f:
-                trajectory = json.load(f)
+                raw = json.load(f)
+            if isinstance(raw, dict):
+                data = raw
+            elif isinstance(raw, list):
+                # 旧版 list 格式自动迁移
+                data["trajectory"] = raw
         except (json.JSONDecodeError, OSError) as e:
             logger.debug(f"trajectory read: {e}")
 
-    # Calculate delta
+    trajectory = data.get("trajectory", [])
+
+    # 计算 delta
     prev_score = trajectory[-1]["overall_score"] if trajectory else 0
     delta = round(score - prev_score, 1)
 
-    # Read quality report for dimension scores
+    # 读取 quality report 获取 dimension_scores
     quality_report_path = os.path.join(base_path, "spec", "quality_report.json")
     dimension_scores = {}
     if os.path.exists(quality_report_path):
@@ -152,10 +165,14 @@ def cmd_append_trajectory(base_path: str, round_num: int, score: float,
     }
 
     trajectory.append(point)
+    data["trajectory"] = trajectory
 
-    os.makedirs(os.path.dirname(trajectory_path), exist_ok=True)  # F5: 确保 spec/ 目录存在
+    # 同时维护 scores 数组（方便快速查看）
+    data["scores"] = [p["overall_score"] for p in trajectory]
+
+    os.makedirs(os.path.dirname(trajectory_path), exist_ok=True)
     with open(trajectory_path, "w", encoding="utf-8") as f:
-        json.dump(trajectory, f, ensure_ascii=False, indent=2)
+        json.dump(data, f, ensure_ascii=False, indent=2)
     print(f"Appended trajectory point: round={round_num}, score={score}, delta={delta}")
 
 

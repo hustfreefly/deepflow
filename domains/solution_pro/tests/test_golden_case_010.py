@@ -91,8 +91,8 @@ class TestGoldenCase010:
                     "expert_name": expert_name,
                     "domain": domain,
                     "constraints": [
-                        {"constraint_id": f"C-{domain}-001", "description": f"{domain} mobile constraint", "priority": "MUST"},
-                        {"constraint_id": f"C-{domain}-002", "description": f"{domain} performance constraint", "priority": "SHOULD"},
+                        {"constraint_id": "C-001", "description": f"{domain} mobile constraint", "priority": "MUST"},
+                        {"constraint_id": "C-002", "description": f"{domain} performance constraint", "priority": "SHOULD"},
                     ],
                     "risks": [{"risk_id": f"R-{domain}-001", "description": f"{domain} mobile risk", "mitigation": "Mitigate"}],
                     "acceptance_criteria": [{"criterion_id": f"AC-{domain}-001", "description": f"{domain} mobile AC", "verification_method": "code review"}],
@@ -147,8 +147,9 @@ class TestGoldenCase010:
                     "report": "## Executive Summary\nResearch summary for the domain.\n\n## Findings\n### F-001: Key finding one\nDetailed description.\n\n### F-002: Key finding two\nDetailed description.\n\n## Confidence\nConfidence score: 0.88\n\n## Related Constraints\n- C-001\n- C-002",
                     "executive_summary": "Research findings for the domain.",
                     "findings": [
-                        {"id": "F-001", "description": "Key finding one", "sources": ["https://example.com"]},
-                        {"id": "F-002", "description": "Key finding two", "sources": ["https://example.com"]},
+                        {"id": "F-001", "description": "Key finding one: comprehensive analysis of mobile app architecture patterns and best practices for cross-platform development in production environments, including MVVM and Clean Architecture patterns that significantly improve code maintainability and testability across iOS and Android platforms", "sources": ["https://example.com"]},
+                        {"id": "F-002", "description": "Key finding two: evaluation of performance optimization strategies including memory management and network efficiency for mobile applications, with focus on reducing cold start times and minimizing battery consumption through intelligent caching and background task scheduling", "sources": ["https://example.com"]},
+                        {"id": "F-003", "description": "Key finding three: assessment of security hardening techniques for mobile platforms including data encryption and secure authentication mechanisms", "sources": ["https://example.com"]},
                     ],
                     "confidence_score": 0.88,
                     "related_constraints": ["C-001", "C-002"],
@@ -169,6 +170,8 @@ class TestGoldenCase010:
             elif "_digest_output" in output_path or "digest" in task_key:
                 return {
                     "schema_version": "2.0",
+                    "total_findings": 2,
+                    "high_relevance_count": 2,
                     "expert_summaries": {"expert_1": "Summary 1", "expert_2": "Summary 2"},
                     "findings_index": [
                         {

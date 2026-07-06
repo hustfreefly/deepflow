@@ -109,13 +109,19 @@ def main():
     current_round = int(sys.argv[2])
 
     trajectory_path = os.path.join(base_path, "spec", "quality_trajectory.json")
-    trajectory = []
+    raw_trajectory = []
     if os.path.exists(trajectory_path):
         try:
             with open(trajectory_path, "r", encoding="utf-8") as f:
-                trajectory = json.load(f)
+                raw = json.load(f)
+            if isinstance(raw, dict):
+                raw_trajectory = raw.get("trajectory", [])
+            elif isinstance(raw, list):
+                raw_trajectory = raw
         except (json.JSONDecodeError, OSError) as e:
             logger.debug(f"process guard: {e}")
+
+    trajectory = raw_trajectory
 
     anomalies = []
     anomalies.extend(check_progress_rate(trajectory, current_round))

@@ -169,13 +169,13 @@ class TestExpertPlanSchema:
                     "constraint_id": "C-001",
                     "description": "所有 API 必须使用 HTTPS",
                     "priority": "MUST",
-                    "rationale": "防止中间人攻击",
+                    "rationale": "防止中间人攻击，确保所有API通信均使用TLS加密传输协议以保障数据安全",
                 },
                 {
                     "constraint_id": "C-002",
                     "description": "密码必须使用 bcrypt 加密",
-                    "priority": "MUST",
-                    "rationale": "防止密码泄露",
+                    "priority": "SHOULD",
+                    "rationale": "防止密码泄露，采用业界标准的bcrypt哈希加盐算法存储密码以提升安全性",
                 },
             ],
             risks=[

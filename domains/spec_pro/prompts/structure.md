@@ -166,7 +166,7 @@ updated: "2026-05-23"
     "layer2_hints": {...},
     "anti_patterns": [...]
   },
-  "inferred_pending": [
+  "inferred_items": [
     {"id": "INF-003", "content": "...", "confidence": 0.6}
   ]
 }
@@ -190,7 +190,7 @@ updated: "2026-05-23"
     "layer2_hints": {...},
     "anti_patterns": [...]
   },
-  "inferred_pending": [
+  "inferred_items": [
     {"id": "INF-003", "content": "...", "confidence": 0.6}
   ]
 }
@@ -226,7 +226,7 @@ updated: "2026-05-23"
       "num_constraints": 5
     }
   },
-  "inferred_pending": [
+  "inferred_items": [
     {"id": "INF-003", "content": "...", "confidence": 0.6}
   ]
 }

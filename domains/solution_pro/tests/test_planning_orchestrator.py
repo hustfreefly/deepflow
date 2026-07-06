@@ -172,7 +172,13 @@ class TestPlanningOrchestrator:
                             "constraint_id": "C-001",
                             "description": f"{expert_name} constraint 1",
                             "priority": "MUST",
-                            "rationale": "Critical requirement",
+                            "rationale": "Critical requirement for system integrity and compliance",
+                        },
+                        {
+                            "constraint_id": "C-002",
+                            "description": f"{expert_name} constraint 2",
+                            "priority": "SHOULD",
+                            "rationale": "Important requirement for long-term maintainability",
                         },
                     ],
                     "risks": [

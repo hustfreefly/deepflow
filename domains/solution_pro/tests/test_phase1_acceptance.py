@@ -141,16 +141,16 @@ def _make_expert_plan(expert_name: str, constraints=None, covered_req_ids=None):
         "expert_name": expert_name,
         "constraints": constraints or [
             {
-                "constraint_id": f"C-{expert_name}-001",
+                "constraint_id": "C-001",
                 "description": f"{expert_name} constraint 1",
                 "priority": "MUST",
-                "rationale": "Critical requirement",
+                "rationale": "Critical requirement for system integrity and compliance",
             },
             {
-                "constraint_id": f"C-{expert_name}-002",
+                "constraint_id": "C-002",
                 "description": f"{expert_name} constraint 2",
                 "priority": "SHOULD",
-                "rationale": "Important requirement",
+                "rationale": "Important requirement for long-term maintainability",
             },
         ],
         "risks": [

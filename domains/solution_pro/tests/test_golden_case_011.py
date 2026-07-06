@@ -91,8 +91,8 @@ class TestGoldenCase011:
                     "expert_name": expert_name,
                     "domain": domain,
                     "constraints": [
-                        {"constraint_id": f"C-{domain}-001", "description": f"{domain} pipeline constraint", "priority": "MUST"},
-                        {"constraint_id": f"C-{domain}-002", "description": f"{domain} data quality constraint", "priority": "SHOULD"},
+                        {"constraint_id": "C-001", "description": f"{domain} pipeline constraint", "priority": "MUST"},
+                        {"constraint_id": "C-002", "description": f"{domain} data quality constraint", "priority": "SHOULD"},
                     ],
                     "risks": [{"risk_id": f"R-{domain}-001", "description": f"{domain} pipeline risk", "mitigation": "Mitigate"}],
                     "acceptance_criteria": [{"criterion_id": f"AC-{domain}-001", "description": f"{domain} pipeline AC", "verification_method": "Run test X"}],
@@ -147,8 +147,9 @@ class TestGoldenCase011:
                     "report": "## Executive Summary\nResearch summary for the domain.\n\n## Findings\n### F-001: Key finding one\nDetailed description.\n\n### F-002: Key finding two\nDetailed description.\n\n## Confidence\nConfidence score: 0.88\n\n## Related Constraints\n- C-001\n- C-002",
                     "executive_summary": "Research findings for the domain.",
                     "findings": [
-                        {"id": "F-001", "description": "Key finding one", "sources": ["https://example.com"]},
-                        {"id": "F-002", "description": "Key finding two", "sources": ["https://example.com"]},
+                        {"id": "F-001", "description": "Key finding one: comprehensive analysis of data pipeline architecture patterns including stream processing and batch ETL optimization strategies, with emphasis on Apache Kafka and Flink for real-time processing and Spark for batch workloads in production environments", "sources": ["https://example.com"]},
+                        {"id": "F-002", "description": "Key finding two: evaluation of data quality frameworks and monitoring systems for ensuring reliability and consistency across pipelines, including Great Expectations and Deequ for automated validation and anomaly detection in large-scale data systems", "sources": ["https://example.com"]},
+                        {"id": "F-003", "description": "Key finding three: assessment of infrastructure scaling approaches for high-throughput data processing", "sources": ["https://example.com"]},
                     ],
                     "confidence_score": 0.88,
                     "related_constraints": ["C-001", "C-002"],
@@ -169,6 +170,8 @@ class TestGoldenCase011:
             elif "_digest_output" in output_path or "digest" in task_key:
                 return {
                     "schema_version": "2.0",
+                    "total_findings": 2,
+                    "high_relevance_count": 2,
                     "expert_summaries": {"expert_1": "Summary 1", "expert_2": "Summary 2"},
                     "findings_index": [
                         {

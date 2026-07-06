@@ -178,10 +178,19 @@ RESPONSE_SCHEMA = {
                         "properties": {
                             "directive": {
                                 "type": "str",
-                                "enum": ["deliberately_omitted"]
+                                "enum": [
+                                    "deliberately_omitted",
+                                    "benchmark_reference",
+                                    "design_delegation",
+                                    "adaptive_expectation",
+                                    "quality_priority",
+                                    "industry_reference"
+                                ]
                             },
                             "dimension": {"type": "str"},
-                            "content": {"type": "str"}
+                            "content": {"type": "str"},
+                            "reason": {"type": "str"},
+                            "status": {"type": "str"}
                         }
                     }
                 }
