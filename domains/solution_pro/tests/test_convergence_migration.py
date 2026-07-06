@@ -3,7 +3,7 @@ Phase 2 收敛层迁移对比测试
 
 验证:
 1. converge_module() 对 Research 模块正常工作
-2. converge_module() 对 Review/QC 模块正常工作
+2. converge_module() 对 Summary 模块正常工作
 3. 带契约约束的 converge_module() 正常工作
 4. Gate 判定组合逻辑正确性
 """

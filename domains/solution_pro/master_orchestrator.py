@@ -572,7 +572,7 @@ class MasterOrchestrator:
         """
         生成最终报告
         
-        [R1-P0 采纳] Summarizer 归属 Master，与 ReviewQC convergence 不重叠
+        [R1-P0 采纳] Summarizer 归属 Master，与 Summary convergence 不重叠
         """
         return {
             "topic": config.get("topic", "Unknown"),

@@ -41,7 +41,7 @@ class ConvergenceLayer:
     Phase 归属：
     - Phase 1: PlanningOrchestrator 使用内置 _generate_planning_convergence() 逻辑
       （不经过 ConvergenceLayer.run_convergence()）
-    - Phase 2: ResearchOrchestrator + ReviewQCOrchestrator 重构为使用
+    - Phase 2: ResearchOrchestrator + SummaryOrchestrator 重构为使用
       ConvergenceLayer.run_convergence() 作为共享收敛入口
     - Gate A/B 评估逻辑：Phase 1 在 ConvergenceLayer._evaluate_gates() 中已实现，
       Phase 2 扩展到所有模块复用
@@ -940,7 +940,7 @@ stages/convergence_{self.module_name}.json
         """
         通用模块收敛方法 — Phase 2 新增
 
-        适用于: Research 模块、Review/QC 模块（也可为任意模块服务）。
+        适用于: Research 模块、Summary 模块（也可为任意模块服务）。
         与 run_convergence() 的区别:
         - run_convergence(): 从 Blackboard 自动收集 Stage 输出，写入文件
         - converge_module(): 接收显式 stage_outputs 列表，返回 dict（不写文件）

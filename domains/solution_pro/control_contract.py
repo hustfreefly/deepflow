@@ -5,7 +5,7 @@ orchestrator, but planner output should be normalized by code before it changes
 the fixed 10-stage worker prompts.
 
 This file is part of pipeline (10-stage architecture).
-uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator.
 Do not import this file for new workflows.
 """
 

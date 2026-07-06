@@ -1136,6 +1136,25 @@ class ResearchOrchestrator(ModuleOrchestrator):
         worker_output.setdefault("confidence_score", 0.5)
         worker_output.setdefault("sources", [])
         worker_output.setdefault("iteration", iteration)
+        worker_output.setdefault("open_questions", [])
+        worker_output.setdefault("covered_req_ids", [])
+
+        # [S6] Pydantic 契约笼子验证 — ResearchExpertSchema
+        # Map code fields to schema fields for validation
+        schema_data = {
+            "schema_version": worker_output.get("schema_version", "2.0.0"),
+            "expert_name": worker_output["expert_name"],
+            "research_findings": worker_output.get("findings", []),
+            "technology_recommendations": worker_output.get("recommendations", []),
+            "open_questions": worker_output.get("open_questions", []),
+            "covered_req_ids": worker_output.get("covered_req_ids", []),
+        }
+        try:
+            ResearchExpertSchema(**schema_data)
+        except Exception as ve:
+            raise ValueError(
+                f"[S6] Expert {expert_name} output failed ResearchExpertSchema validation: {ve}"
+            ) from ve
 
         return worker_output
     def _save_expert_checkpoint(
@@ -1400,21 +1419,14 @@ class ResearchOrchestrator(ModuleOrchestrator):
                 else:
                     logger.info(f"Digest coverage: {validation['coverage_rate']:.0%}")
             except Exception as e:
-                logger.warning(f"Digest validation failed (non-blocking): {e}")
+                raise ValueError(f"Digest validation failed — 契约笼子拦截: {e}") from e
             
             # Pydantic 契约笼子验证 (P1-A1)
             try:
                 validated = ResearchDigest(**digest)
                 logger.info(f"Digest schema validation passed: {validated.total_findings} findings")
             except Exception as ve:
-                logger.warning(f"Digest schema validation failed (non-blocking): {ve}")
-
-            # Pydantic 契约笼子验证 (P1-A1)
-            try:
-                validated = ResearchDigest(**digest)
-                logger.info(f"Digest schema validation passed: {validated.total_findings} findings")
-            except Exception as ve:
-                logger.warning(f"Digest schema validation failed (non-blocking): {ve}")
+                raise ValueError(f"Digest schema validation failed — 契约笼子拦截: {ve}") from ve
 
             return digest
             
@@ -1492,6 +1504,20 @@ class ResearchOrchestrator(ModuleOrchestrator):
             "total_input_recommendations": len(all_recommendations),
             "covered_req_ids": self._collect_covered_req_ids(expert_outputs),
         }
+
+        # [S6] Pydantic 契约笼子验证 — ResearchConsolidatorSchema
+        try:
+            ResearchConsolidatorSchema(
+                schema_version=consolidation_output.get("schema_version", "2.0.0"),
+                consolidated_findings=consolidation_output.get("consolidated_findings", []),
+                consensus_points=consolidation_output.get("consensus_points", []),
+                divergence_points=consolidation_output.get("divergence_points", []),
+                covered_req_ids=consolidation_output.get("covered_req_ids", []),
+            )
+        except Exception as ve:
+            raise ValueError(
+                f"[S6] Consolidation output failed ResearchConsolidatorSchema validation: {ve}"
+            ) from ve
 
         self._save_checkpoint("stages/research_consolidator.json", consolidation_output)
         return consolidation_output
@@ -1771,6 +1797,19 @@ class ResearchOrchestrator(ModuleOrchestrator):
             # [Cage P1-6] 包含降级标记（如果有）
             **self._degraded_flags,
         }
+
+        # [S6] Pydantic 契约笼子验证 — ResearchConvergenceSchema
+        try:
+            ResearchConvergenceSchema(
+                schema_version=research_convergence.get("schema_version", "2.0.0"),
+                final_findings=research_convergence.get("final_findings", []),
+                decision_packages=research_convergence.get("decision_packages", []),
+                research_coverage=research_convergence.get("research_coverage", {}),
+            )
+        except Exception as ve:
+            raise ValueError(
+                f"[S6] Convergence output failed ResearchConvergenceSchema validation: {ve}"
+            ) from ve
 
         # Save convergence
         self._save_checkpoint("research_convergence.json", research_convergence)

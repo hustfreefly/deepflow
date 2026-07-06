@@ -15,17 +15,36 @@ import json
 import logging
 import os
 import sys
+import tempfile
 from datetime import datetime
 
 # Response Normalizer: 将任意格式的 ResponseWorker 输出转换为标准 v2 格式
 from domains.spec_pro.response_normalizer import normalize_response, log_format_migration
 
+# 契约笼子：Pydantic Gate 验证
+from domains.spec_pro.contracts.gate import gate_living_spec
+
 logger = logging.getLogger(__name__)
+
+
+def _atomic_write_json(path: str, data: dict) -> None:
+    """原子写入 JSON 文件（契约笼子）。
+    
+    使用 tempfile + os.replace 避免半写状态。
+    """
+    dir_name = os.path.dirname(path) or "."
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, path)
+    except Exception:
+        os.unlink(tmp_path)
+        raise
 
 
 def _char_bigrams(s: str) -> set:
     """生成字符串的字符 bigram 集合。"""
-    s = s.lower().strip()
     if len(s) < 2:
         return {s}
     return {s[i:i+2] for i in range(len(s) - 1)}
@@ -159,6 +178,14 @@ def merge_confirmed(spec: dict, updates: dict) -> None:
     for k, v in new_constraints.items():
         if v:
             constraints[k] = v
+
+    # P0 修复: 处理 v2.2 新增的用户意图声明字段（语义能力回退修复）
+    # 这些字段在 parse_response.md 中声明，但 merge_confirmed 之前不处理 → 数据丢失
+    for field in ["benchmark_references", "design_delegations", 
+                  "adaptive_requirements", "quality_priorities", "industry_references"]:
+        new_items = updates.get(field, [])
+        if isinstance(new_items, list):
+            append_unique(confirmed.setdefault(field, []), new_items)
 
     # integration
     new_integration = updates.get("integration", {})
@@ -436,9 +463,13 @@ def merge_spec_v6(base_path: str, stage_name: str) -> dict:
     meta["updated_at"] = datetime.now().isoformat()
     meta["conversation_rounds"] = meta.get("conversation_rounds", 0) + 1
 
-    # Write back
-    with open(living_spec_path, "w", encoding="utf-8") as f:
-        json.dump(spec, f, ensure_ascii=False, indent=2)
+    # 契约笼子：写入前验证 LivingSpec 格式（非阻断 — merge 是增量操作，spec 可以不完整）
+    _, gate_errors = gate_living_spec(spec)
+    if gate_errors:
+        logger.warning(f"LivingSpec 契约验证警告（非阻断）: {gate_errors}")
+
+    # 原子写入
+    _atomic_write_json(living_spec_path, spec)
 
     return {"status": "merged", "contradictions": contradictions}
 
@@ -512,9 +543,13 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
     meta["updated_at"] = datetime.now().isoformat()
     meta["conversation_rounds"] = meta.get("conversation_rounds", 0) + 1
 
-    # Write back
-    with open(living_spec_path, "w", encoding="utf-8") as f:
-        json.dump(spec, f, ensure_ascii=False, indent=2)
+    # 契约笼子：写入前验证 LivingSpec 格式（非阻断 — merge 是增量操作，spec 可以不完整）
+    _, gate_errors = gate_living_spec(spec)
+    if gate_errors:
+        logger.warning(f"LivingSpec 契约验证警告（非阻断）: {gate_errors}")
+
+    # 原子写入
+    _atomic_write_json(living_spec_path, spec)
 
     return {"status": "merged", "contradictions": contradictions}
 
@@ -557,8 +592,8 @@ def apply_revisions(confirmation_path: str, living_spec_path: str) -> dict:
     meta = spec.setdefault("meta", {})
     meta["updated_at"] = datetime.now().isoformat()
 
-    with open(living_spec_path, "w", encoding="utf-8") as f:
-        json.dump(spec, f, ensure_ascii=False, indent=2)
+    # 原子写入
+    _atomic_write_json(living_spec_path, spec)
 
     return {"status": "revised", "revisions_applied": len(revisions)}
 

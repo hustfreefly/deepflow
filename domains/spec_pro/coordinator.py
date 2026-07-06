@@ -40,7 +40,7 @@ from domains.spec_pro.models import (
     RoundAction,
     Scenario,
 )
-from domains.spec_pro.contracts.gate import gate_living_spec_density
+from domains.spec_pro.contracts.gate import gate_living_spec_density, gate_quality_report
 from domains.spec_pro.handoff import build_handoff_package, save_handoff_package
 from core.trace import start_trace, span  # 全链路追踪：跨域 trace_id
 
@@ -523,6 +523,11 @@ class SpecProCoordinator:
 
         living_spec_data = self._bb.read_json("spec/living_spec.json", default={})
         quality_report_data = self._bb.read_json("spec/quality_report.json", default={})
+
+        # 契约笼子：验证 quality_report 格式
+        _, qr_errors = gate_quality_report(quality_report_data)
+        if qr_errors:
+            raise ValueError(f"QualityReport 契约验证失败: {qr_errors}")
 
         package = build_handoff_package(
             living_spec=living_spec_data,

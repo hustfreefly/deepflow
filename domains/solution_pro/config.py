@@ -8,7 +8,7 @@ Date: 2026-06-01
 
 """
 This file is part of pipeline (10-stage architecture).
-uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator.
 Do not import this file for new workflows.
 """
 

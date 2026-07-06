@@ -11,7 +11,7 @@ Propagation Checker - 验证 Solution Pro 输出中的需求传播完整性
 
 """
 This file is part of pipeline (10-stage architecture).
-uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator.
 Do not import this file for new workflows.
 """
 import json

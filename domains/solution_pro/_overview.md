@@ -10,7 +10,7 @@ Solution Pro 2.0.0 采用三层模块化架构，由 MasterOrchestrator 调度�
 MasterOrchestrator（极简调度器）
   ├── PlanningOrchestrator（三层：Meta → Expert ×N → Convergence）
   ├── ResearchOrchestrator（多专家并行 + Knowledge Freshness）
-  └── ReviewQCOrchestrator（Fix Loop + Harness + Final Review + Convergence）
+  └── SummaryOrchestrator（5+1 Phase 收敛模块，吸收了 ReviewQC 的质量保障功能）
 ```
 
 **设计原则**：
@@ -25,12 +25,12 @@ MasterOrchestrator（极简调度器）
 
 | 文件 | 职责 | 版本 |
 |------|------|------|
-| `master_orchestrator.py` | 2.0.0 Master 调度器：Planning → Research → ReviewQC 串联 | 2.0.0 |
+| `master_orchestrator.py` | 2.0.0 Master 调度器：Planning → Research → Summary 串联 | 2.0.0 |
 | `planning_orchestrator.py` | Planning 模块：三层架构（Meta → Expert ×N → Convergence） | 2.0.0 |
 | `research_orchestrator.py` | Research 模块：Knowledge Freshness + 多专家并行 + 收敛 | 2.0.0 |
-| `review_qc_orchestrator.py` | ReviewQC 模块：Fix Loop + Harness + Final Review + Convergence | 2.0.0 |
+| `summary_orchestrator.py` | Summary 模块：5+1 Phase 收敛（吸收了 ReviewQC 功能） | 2.0.0 |
 | `module_orchestrator_base.py` | 模块基类：公共 run/stage_sequence/spawn 逻辑 | 2.0.0 |
-| `convergence_layer.py` | 收敛层：Gate 评估 + 收敛逻辑（Planning/Research/ReviewQC 共享） | 2.0.0 |
+| `convergence_layer.py` | 收敛层：Gate 评估 + 收敛逻辑（Planning/Research/Summary 共享） | 2.0.0 |
 | `blackboard.py` | Blackboard 管理：SolutionRegistry + 2.0.0/2.0.0 路径注册 | 2.0.0 |
 | `pipeline_exceptions.py` | Pipeline 异常定义：PipelineError, ModuleFailureError, ModuleTimeoutError | 2.0.0 |
 | `task_builder.py` | Worker Task 构建 + Meta-Planner/Reviewer 任务生成 | 2.0.0 |
@@ -89,15 +89,18 @@ MasterOrchestrator（极简调度器）
 | `researcher_harness.md` | Researcher Harness 验证 |
 | `consolidator_harness.md` | Consolidator Harness 验证 |
 
-### ReviewQC 模块
+### Summary 模块（吸收了 ReviewQC 功能）
 
 | Prompt | 用途 |
 |--------|------|
-| `fixer_expert_harness.md` | Fix Loop 修复 |
-| `harness_v3.md` | Harness 对抗性检查 |
-| `reviewer_harness.md` | 最终评审 |
-| `summarizer_harness.md` | Summarizer Harness 验证 |
-| `fixer_harness.md` | Fixer Harness 验证 |
+| `summary_base_synthesizer.md` | Phase 1: 基础方案合成 |
+| `summary_meta_planner.md` | Phase 2: 审查规划 |
+| `summary_analyzer_base.md` | Phase 3: 并行分析（含 Review Layer B） |
+| `summary_fix_judge.md` | Phase 4: Fix Judge（质量判断） |
+| `summary_fix_agent.md` | Phase 4: Fix Agent（问题修复） |
+| `summary_harness_check.md` | Phase 4: Harness 对抗性检查 |
+| `summary_refiner.md` | Phase 4: 方案精炼 |
+| `summary_json_extractor.md` | Phase 5b: JSON 提取 → final_solution |
 
 ### 通用
 

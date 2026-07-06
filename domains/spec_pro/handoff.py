@@ -6,7 +6,14 @@
   save_handoff_package 增加 HandoffPackage Pydantic 验证。
   验证失败 → raise ValueError，绝不静默降级。
 """
-import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
+import sys as _sys
+_p = __import__('pathlib').Path(__file__).resolve()
+# 契约笼子：先插入 .deepflow 根目录到 sys.path[0]，避免 namespace 冲突
+# （domains/spec_pro/contracts/ 会遮蔽 contracts/shared/）
+_root = next((d for d in _p.parents if (d / 'core' / 'blackboard').is_dir()), None)
+if _root and str(_root) not in _sys.path:
+    _sys.path.insert(0, str(_root))
+
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional

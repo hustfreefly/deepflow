@@ -306,7 +306,7 @@ class TestPhase3IntegrationNotes:
     2. BlackboardManager 没有 write_json() 方法, 只有 write() 和 _write_json()
        MasterOrchestrator 中多处调用 write_json() 会导致 AttributeError
     
-    3. ResearchOrchestrator 和 ReviewQCOrchestrator 有类似的参数不匹配问题
+    3. ResearchOrchestrator 和 SummaryOrchestrator 有类似的参数不匹配问题
     
     这些是 Phase 3 代码集成时发现的实际问题, 需要在后续修复。
     当前测试覆盖了可以独立验证的组件。
@@ -318,6 +318,6 @@ class TestPhase3IntegrationNotes:
             "BlackboardManager.write_json() 方法不存在",
             "PlanningOrchestrator 构造函数参数不匹配",
             "ResearchOrchestrator 构造函数参数不匹配",
-            "ReviewQCOrchestrator 构造函数参数不匹配",
+            "SummaryOrchestrator 构造函数参数不匹配",
         ]
         assert len(issues) > 0, "应该有记录的集成问题"

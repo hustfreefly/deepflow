@@ -5,7 +5,7 @@
 ## 当前版本
 
 - **版本**: 2.0.0 (三层架构)
-- **架构**: MasterOrchestrator → Planning（三层）+ Research（多专家并行）+ ReviewQC（Fix Loop + 收敛）
+- **架构**: MasterOrchestrator → Planning（三层）+ Research（多专家并行）+ Summary（5+1 Phase 收敛）
 - **模型**: 默认使用 Qwen 3.7 Plus
 
 ## 快速开始
@@ -69,16 +69,20 @@ Stage 5: Convergence → research_convergence.json
 
 **输出**: `research_convergence.json`
 
-### Module 3: ReviewQC（质量保障 + 最终收敛）
+### Module 3: Summary（5+1 Phase 收敛模块）
+
+> 吸收了原 ReviewQC 模块的质量保障功能，并增加了方案收敛能力。
 
 ```
-Stage 1: Fix Loop → 检测并修复问题（最多 3 轮）
-Stage 2: Harness Check → 对抗性检查
-Stage 3: Final Review → 最终评审
-Stage 4: Convergence → final_convergence.json
+Phase 1: Base Synthesis（运动员）→ base_solution
+Phase 2: Meta Summary Planner（裁判+导演）→ summary_plan
+Phase 3: Parallel Analysis ×N（含 Review Layer B）→ analysis_[name]
+Phase 4: Fix Judge → Fix Agent → Harness Check → refined_solution
+Phase 5a: Document Generator → solution_document
+Phase 5b: JSON Extractor → final_solution
 ```
 
-**输出**: `final_convergence.json`
+**输出**: `final_solution.json` + `solution_document.md`
 
 ## 核心特性
 
@@ -91,7 +95,7 @@ Stage 4: Convergence → final_convergence.json
 |------|---------|---------|
 | Planning | 5 min | 使用 2 个通用 expert |
 | Research | 15 min | 跳过，标记 degraded=true |
-| ReviewQC | 10 min | 使用降级收敛 Schema |
+| Summary | 20 min | 降级为简化版合成 |
 
 ### 信息守恒
 - 模块间通过 Blackboard 文件通信
@@ -126,7 +130,7 @@ Stage 4: Convergence → final_convergence.json
 
 ## 版本历史
 
-- **2.0.0** (2026-06-29): 三层架构（Planning + Research + ReviewQC）+ 断点续跑 + 超时降级
+- **2.0.0** (2026-06-29): 三层架构（Planning + Research + Summary）+ 断点续跑 + 超时降级
 - **2.0.0** (2026-06-03): 2.0.0 最终版本（固定多阶段管线）
 
 详细变更见 [CHANGELOG.md](../../CHANGELOG.md)

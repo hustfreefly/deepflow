@@ -34,6 +34,7 @@ from typing import Callable, List, Optional
 
 from .module_orchestrator_base import ModuleOrchestrator
 from .contracts.stage_contract import STAGE_CONTRACTS, validate_checkpoint
+from .schemas.schemas import FinalSolutionSchema
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +200,17 @@ class SummaryOrchestrator(ModuleOrchestrator):
         logger.info("Phase 5b: JSON Extractor")
         verification_result = review_results.get("verification") if isinstance(review_results, dict) else None
         final_solution = self._run_json_extractor(solution_document, verification_result)
+
+        # ================================================================
+        # 契约笼子: FinalSolutionSchema Pydantic 验证
+        # ================================================================
+        try:
+            FinalSolutionSchema.model_validate(final_solution)
+        except Exception as e:
+            raise ValueError(
+                f"[Cage] final_solution 未通过 FinalSolutionSchema 验证: {e}"
+            ) from e
+
         self._save_checkpoint("stages/final_solution.json", final_solution)
         
         # Mark completed

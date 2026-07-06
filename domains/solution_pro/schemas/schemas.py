@@ -663,6 +663,77 @@ class ResearchConvergenceSchema(V2BaseSchema):
     metadata: dict = Field(default_factory=dict, alias="_metadata", description="元数据")
 
 
+class ConstraintCoverage(BaseModel):
+    """约束覆盖率统计"""
+    total: int = Field(default=0, ge=0, description="总约束数")
+    covered: int = Field(default=0, ge=0, description="已覆盖约束数")
+    ratio: float = Field(default=0.0, ge=0.0, le=1.0, description="覆盖率 0-1")
+    uncovered: list[str] = Field(default_factory=list, description="未覆盖的约束 ID 列表")
+
+
+class VerificationStatus(BaseModel):
+    """验证状态统计"""
+    passed: int = Field(default=0, ge=0, description="通过的验证项数")
+    failed: int = Field(default=0, ge=0, description="失败的验证项数")
+
+
+class FinalSolutionSchema(V2BaseSchema):
+    """
+    Summary 模块最终输出 schema (final_solution)
+
+    Phase 5b JSON Extractor 产出的结构化元数据。
+    契约笼子：确保 final_solution 包含必要的元数据字段，
+    下游消费方（如 Final Convergence）能可靠解析。
+    """
+    schema_version: str = Field(default="2.0.0", description="Schema 版本号")
+    constraint_coverage: Optional[ConstraintCoverage] = Field(
+        default=None, description="约束覆盖率统计"
+    )
+    key_decisions: list[dict] = Field(
+        default_factory=list, description="关键决策列表"
+    )
+    implementation_phases: list[dict] = Field(
+        default_factory=list, description="实施阶段列表"
+    )
+    risk_summary: list[dict] = Field(
+        default_factory=list, description="风险摘要列表"
+    )
+    verification_status: Optional[VerificationStatus] = Field(
+        default=None, description="验证状态统计"
+    )
+    document_ref: str = Field(
+        default="solution_document", description="关联的方案文档引用"
+    )
+    status: Optional[str] = Field(
+        default=None, description="状态标识（如 EXTRACTION_FAILED）"
+    )
+
+    @model_validator(mode='after')
+    def _cage_fs1_coverage_consistency(self) -> 'FinalSolutionSchema':
+        """[Cage FS1] 约束覆盖率内部一致性：covered <= total"""
+        cc = self.constraint_coverage
+        if cc and cc.covered > cc.total:
+            raise ValueError(
+                f"[Cage FS1] constraint_coverage.covered ({cc.covered}) > total ({cc.total})"
+            )
+        return self
+
+    @model_validator(mode='after')
+    def _cage_fs2_failed_extraction_check(self) -> 'FinalSolutionSchema':
+        """[Cage FS2] 提取失败时必须标注 status"""
+        if (
+            not self.key_decisions
+            and not self.implementation_phases
+            and self.status is None
+            and self.constraint_coverage is None
+        ):
+            raise ValueError(
+                "[Cage FS2] final_solution 所有关键字段为空且未标注 status，"
+                "疑似提取失败但未声明。请设置 status='EXTRACTION_FAILED'。"
+            )
+        return self
+
+
 class FinalConvergenceSchema(V2BaseSchema):
     """
     收敛点 3: Final Convergence
@@ -788,6 +859,7 @@ STAGE_SCHEMA_MAP = {
     # 收敛点
     "planning_convergence": PlanningConvergenceSchema,
     "research_convergence": ResearchConvergenceSchema,
+    "final_solution": FinalSolutionSchema,
     "final_convergence": FinalConvergenceSchema,
     
     # 信息契约
@@ -861,6 +933,10 @@ __all__ = [
     # Domain categories & templates
     "DOMAIN_CATEGORIES",
     "EXPERT_TEMPLATE_REGISTRY",
+    # Summary final output
+    "FinalSolutionSchema",
+    "ConstraintCoverage",
+    "VerificationStatus",
     # Phase 2.2: 降级 Schema
     "DegradedFinalConvergenceSchema",
     # 验证函数

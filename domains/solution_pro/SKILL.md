@@ -320,7 +320,7 @@ blackboard/<session_id>/
 │   ├── research_consolidator.json    # Research 整合结果
 │   ├── architecture.json             # 架构设计
 │   ├── detailed_design.json          # 详细设计
-│   ├── consolidation.json            # ReviewQC 整合
+│   ├── consolidation.json            # Summary 整合
 │   ├── harness_report.json           # Harness 检查报告
 │   ├── fix_loop_state.json           # Fix Loop 状态
 │   └── information_contract.json     # 信息守恒契约
@@ -329,7 +329,7 @@ blackboard/<session_id>/
 │   ├── master_state.json             # Master 模块级完成状态
 │   ├── planning_output.json          # Planning 模块输出
 │   ├── research_output.json          # Research 模块输出
-│   ├── review_qc_output.json         # ReviewQC 模块输出
+│   ├── summary_output.json           # Summary 模块输出
 │   └── pipeline_metrics.json         # Pipeline 指标
 │
 ├── planning_convergence.json         # Planning 收敛点
@@ -358,16 +358,17 @@ blackboard/<session_id>/
 | `harness_agent.md` | Planning | Gate A + Gate B 评估 |
 | `research_expert_base.md` | Research | Research Expert 基础模板 |
 | `consolidator.md` | Research | 研究成果整合 |
-| `fixer_expert_harness.md` | ReviewQC | Fix Loop 修复 |
-| `harness_v3.md` | ReviewQC | Harness 对抗性检查 |
-| `reviewer_harness.md` | ReviewQC | 最终评审 |
-| `summarizer.md` | ReviewQC | 最终总结 |
+| `summary_base_synthesizer.md` | Summary | Phase 1: 基础方案合成 |
+| `summary_meta_planner.md` | Summary | Phase 2: 审查规划 |
+| `summary_analyzer_base.md` | Summary | Phase 3: 并行分析 |
+| `summary_fix_judge.md` | Summary | Phase 4: 质量判断 |
+| `summary_fix_agent.md` | Summary | Phase 4: 问题修复 |
+| `summary_harness_check.md` | Summary | Phase 4: Harness 检查 |
+| `summary_refiner.md` | Summary | Phase 4: 方案精炼 |
+| `summary_json_extractor.md` | Summary | Phase 5b: JSON 提取 |
 | `orchestrator_completion.md` | Master | 完成处理 |
 | `planner_harness.md` | Planning | Planner Harness 验证 |
 | `researcher_harness.md` | Research | Researcher Harness 验证 |
-| `reviewer_harness.md` | ReviewQC | Reviewer Harness 验证 |
-| `summarizer_harness.md` | ReviewQC | Summarizer Harness 验证 |
-| `fixer_harness.md` | ReviewQC | Fixer Harness 验证 |
 | `consolidator_harness.md` | Research | Consolidator Harness 验证 |
 | `ai_native_cognitive_base.md` | 通用 | AI Native 认知基础 |
 | `harness_scoring.md` | 通用 | Harness 评分逻辑 |
@@ -432,7 +433,7 @@ blackboard/<session_id>/
 |------|---------|---------|
 | Planning | 5 min | `default_expert_manifest`（2 个通用 expert） |
 | Research | 15 min | `skip_with_degraded_flag`（跳过，标记 degraded=true） |
-| ReviewQC | 10 min | `degraded_final_convergence`（使用 DegradedFinalConvergenceSchema） |
+| Summary | 20 min | 降级为简化版合成 |
 
 超时配置可通过 kwargs 覆盖：
 ```python
@@ -481,7 +482,7 @@ except:
 
 ## 🎯 记忆锚点
 
-> "2.0.0 三模块：Planning 三层、Research 多专家、ReviewQC Fix Loop"
+> "2.0.0 三模块：Planning 三层、Research 多专家、Summary 5+1 Phase 收敛"
 > "Master 只做调度，不做语义判断"
 > "状态靠文件，不靠内存"
 > "双层验证：master_state.json + module_output.json"
@@ -506,7 +507,7 @@ except:
 | Fix | 描述 | 文件 | 状态 |
 |-----|------|------|------|
 | Fix 1 | 研究利用追踪器 | `information_conservation.py` | ✅ |
-| Fix 4 | Finding Ledger | `review_qc_orchestrator.py` | ✅ |
+| Fix 4 | Finding Ledger | `summary_orchestrator.py` | ✅ |
 | Fix 5 | 6 个确定性检查 | `deterministic_checks.py` | ✅ |
 | Fix 2 | Python-only 控制器 | master_orchestrator.py | 📋 |
 | Fix 3 | 独立 Verification Module | 新增 | 📋 |

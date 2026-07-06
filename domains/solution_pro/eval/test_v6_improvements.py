@@ -11,7 +11,7 @@ V6 改进测试脚本 - 验证 Solution Pro V6 的关键改进
 
 """
 V1-LEGACY: This file is part of V1 pipeline (10-stage architecture).
-V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator.
+V2 uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator.
 Do not import this file for new V2 workflows.
 """
 import json
