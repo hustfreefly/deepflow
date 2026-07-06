@@ -42,6 +42,7 @@ from domains.spec_pro.models import (
 )
 from domains.spec_pro.contracts.gate import gate_living_spec_density
 from domains.spec_pro.handoff import build_handoff_package, save_handoff_package
+from core.trace import start_trace, span  # 全链路追踪：跨域 trace_id
 
 # DeepFlow base directory
 _BASE_DIR = PathConfig.resolve().base_dir
@@ -95,6 +96,10 @@ class SpecProCoordinator:
         self.current_round: int = 0
         self.state: DialogState = DialogState.START
         self._config = MODE_CONFIG[mode]
+
+        # 全链路追踪：在 Coordinator 初始化时启动 trace
+        self.trace_id: Optional[str] = start_trace()
+        span("coordinator_init", domain="spec_pro", scenario=scenario, mode=mode)
 
     # ------------------------------------------------------------------
     # BlackboardManager 属性 # ------------------------------------------------------------------
@@ -152,6 +157,9 @@ class SpecProCoordinator:
 
         # Generate session ID
         self.session_id = self._generate_session_id()
+
+        # 全链路追踪：记录 session 初始化 span
+        span("session_init", domain="spec_pro", scenario=self.scenario, session_id=self.session_id)
 
         # Initialize BlackboardManager self._bb = BlackboardManager(self.session_id)
         self._bb.init_session()
@@ -522,6 +530,8 @@ class SpecProCoordinator:
             density_gate_result=density_result,
             semantic_anchors=living_spec_data.get("semantic_anchors", []),
         )
+        # 全链路追踪：将 trace_id 注入 handoff package，供下游域继承
+        package["trace_id"] = self.trace_id
 
         output_path = save_handoff_package(package, self._bb.session_dir)
         self._write_execution_log("handoff_package_created", {

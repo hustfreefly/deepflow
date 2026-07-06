@@ -12,6 +12,7 @@ Public API:
 
 契约: cage/active/spec_pro_v2.0.yaml
 """
+import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 
 from domains.spec_pro.coordinator import SpecProCoordinator
 from domains.spec_pro.models import LivingSpec, QualityLevel, Scenario

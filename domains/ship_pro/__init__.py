@@ -36,6 +36,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
+from core.trace import start_trace, span, save_to_blackboard  # 全链路追踪：跨域 trace_id
 
 
 # ============================================================================
@@ -99,7 +100,7 @@ def _get_ship_pro_dir(project_blackboard: Path) -> Path:
 # 2.0.0 单入口
 # ============================================================================
 
-def run_ship_pro(project_name: str, **kwargs) -> dict:
+def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
     """
     Ship Pro 2.0.0 唯一入口 - Main Agent 只调这一个函数
 
@@ -110,6 +111,7 @@ def run_ship_pro(project_name: str, **kwargs) -> dict:
 
     Args:
         project_name: 项目名称(blackboard 目录名)
+        trace_id: 可选的 trace_id（从 Spec Pro handoff package 继承，实现跨域追踪）
         **kwargs: model 等可选参数
 
     Returns:
@@ -121,6 +123,12 @@ def run_ship_pro(project_name: str, **kwargs) -> dict:
             "spawn_params": dict,  # Main Agent 直接传给 sessions_spawn
         }
     """
+    # 全链路追踪：继承或新建 trace_id，记录 Ship Pro 入口 span
+    _trace_id = start_trace(trace_id)
+    span("ship_pro_entry", domain="ship_pro", project_name=project_name, trace_id=_trace_id)
+    # 全链路追踪：记录 blackboard 定位完成
+    span("blackboard_located", domain="ship_pro", project_name=project_name)
+
     # 1. 定位统一 blackboard
     project_bb = _get_project_blackboard(project_name)
     if not project_bb.exists():
@@ -153,11 +161,18 @@ def run_ship_pro(project_name: str, **kwargs) -> dict:
         },
     )
 
-    # 5. 返回 spawn params
+    # 全链路追踪：记录追踪数据到 blackboard
+    try:
+        save_to_blackboard(Path(ship_dir))
+    except Exception:
+        pass  # 追踪持久化失败不影响主流程
+
+    # 5. 返回 spawn params（包含 trace_id 供下游继承）
     return {
         "project_name": project_name,
         "project_blackboard": str(project_bb),
         "ship_pro_dir": str(ship_dir),
+        "trace_id": _trace_id,  # 全链路追踪：trace_id 供下游继承
         "input_summary": {
             "req_count": len(sol_input.get("requirements", [])),
             "decision_count": len(sol_input.get("key_decisions", [])),

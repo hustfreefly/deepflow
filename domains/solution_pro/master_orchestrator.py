@@ -25,6 +25,7 @@ from domains.solution_pro.pipeline_exceptions import (
 )
 from domains.solution_pro.pipeline_watcher import PipelineWatcher
 from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY
+from core.trace import span, save_to_blackboard  # 全链路追踪：跨域 trace_id
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,9 @@ class MasterOrchestrator:
         start_time = time.time()
         
         logger.info(f"Pipeline started: topic={config.get('topic', 'N/A')}")
+
+        # 全链路追踪：记录 Solution Pro pipeline 启动
+        span("pipeline_start", domain="solution_pro", topic=config.get('topic', 'N/A'))
         
         # 准备 Living Spec 输入
         prepared_living_spec = self._prepare_input(user_input, config, living_spec)
@@ -114,29 +118,35 @@ class MasterOrchestrator:
         try:
             # Module 1: Planning
             logger.info("[Pipeline] === Module 1/3: Planning ===")
+            span("module_start", domain="solution_pro", module="planning")
             planning_output = self._run_module(
                 "planning",
                 lambda: self._execute_planning(user_input, config, prepared_living_spec),
             )
             metrics["modules"]["planning"] = self._module_metrics("planning", planning_output)
+            span("module_end", domain="solution_pro", module="planning")
             logger.info(f"[Pipeline] Planning done, completed_modules={self.state.get('completed_modules', [])}")
             
             # Module 2: Research
             logger.info("[Pipeline] === Module 2/3: Research ===")
+            span("module_start", domain="solution_pro", module="research")
             research_output = self._run_module(
                 "research",
                 lambda: self._execute_research(planning_output, config, prepared_living_spec),
             )
             metrics["modules"]["research"] = self._module_metrics("research", research_output)
+            span("module_end", domain="solution_pro", module="research")
             logger.info(f"[Pipeline] Research done, completed_modules={self.state.get('completed_modules', [])}")
             
             # Module 3: Summary（架构设计：收敛模块）
             logger.info("[Pipeline] === Module 3/3: Summary ===")
+            span("module_start", domain="solution_pro", module="summary")
             summary_output = self._run_module(
                 "summary",
                 lambda: self._execute_summary(planning_output, research_output, config, prepared_living_spec),
             )
             metrics["modules"]["summary"] = self._module_metrics("summary", summary_output)
+            span("module_end", domain="solution_pro", module="summary")
             logger.info(f"[Pipeline] Summary done, completed_modules={self.state.get('completed_modules', [])}")
             
             # 生成最终报告
@@ -164,6 +174,13 @@ class MasterOrchestrator:
                 logger.warning(f"[Watcher] Failed to write pipeline report: {e}")
             
             logger.info(f"Pipeline completed in {metrics['total_duration']:.1f}s")
+
+            # 全链路追踪：记录 pipeline 完成 + 持久化到 blackboard
+            span("pipeline_complete", domain="solution_pro", duration=metrics['total_duration'])
+            try:
+                save_to_blackboard(Path(self.blackboard.session_dir))
+            except Exception:
+                pass  # 追踪持久化失败不影响主流程
             
             return {
                 "status": "COMPLETE",

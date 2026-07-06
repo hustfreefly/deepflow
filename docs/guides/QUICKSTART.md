@@ -33,15 +33,15 @@ git clone https://github.com/deepflow/deepflow .deepflow
 
 ```bash
 cd .deepflow
-python3 -c "from core.unified_entry import UnifiedEntry; print(UnifiedEntry().list_domains())"
-# 应输出: ['solution', 'code', 'general', 'research_pro']
+python3 -c "from core.bootstrap import get_deepflow_root; print('DeepFlow root:', get_deepflow_root())"
+# 应输出: DeepFlow root: /path/to/.deepflow
 ```
 
 ---
 
-## 三大核心模块
+## 四大核心域
 
-DeepFlow 有三个核心模块，每个都有 `/命令` 快捷入口：
+DeepFlow 有四个核心域，每个都有 `/命令` 快捷入口：
 
 ### 1. Spec Pro — 需求梳理引擎
 
@@ -70,21 +70,41 @@ AI: 好的，让我帮你梳理...
 /solution-pro 设计一个AI算力调度平台
 ```
 
-10 阶段自动化管线，产出系统级架构方案。
+多阶段自动化管线，产出系统级架构方案。
 
 ```
 你: /solution-pro 设计一个支持10000并发的实时推荐系统
 AI: 🏗️ Solution Pro · 方案设计引擎
     正在生成执行计划...
-    [自动执行 10 阶段管线]
-    ✅ 方案已生成: blackboard/sol_xxx/final_solution.md
+    [自动执行多阶段管线]
+    ✅ 方案已生成: blackboard/{project}/solution_document.md
 ```
 
 **产出**: 完整架构方案（业务+架构+技术 三层设计）
 
 ---
 
-### 3. Research Pro — 深度研究引擎
+### 3. Ship Pro — 交付编译引擎
+
+```
+/ship-pro
+```
+
+消费 Solution Pro 输出，拆分为可执行工作包（AI Coding 就绪）。
+
+```
+你: /ship-pro
+AI: 🚢 Ship Pro · 交付编译引擎
+    读取 Solution Pro 输出...
+    [Designer → Workers → Consolidator]
+    ✅ 交付包已生成: blackboard/{project}/ship_pro/stages/ship_package.json
+```
+
+**产出**: ShipPackage（工作包 + 依赖图 + 统计信息）
+
+---
+
+### 4. Research Pro — 深度研究引擎
 
 ```
 /research-pro 分析AI芯片市场趋势
@@ -105,17 +125,17 @@ AI: 🔬 Research Pro · 深度研究引擎
 
 ---
 
-## 三个模块的协作流程
+## 四个域的协作流程
 
 ```
-描述想法           梳理需求           设计方案           深度研究
-  │                 │                 │                 │
-  ▼                 ▼                 ▼                 ▼
-/spec-pro  ──────→ /solution-pro ──→ Research Pro
-(想法→需求)        (需求→方案)       (方案→调研报告)
+描述想法        梳理需求        设计方案        交付编译        深度研究
+  │              │              │              │              │
+  ▼              ▼              ▼              ▼              ▼
+/spec-pro ───→ /solution-pro ─→ /ship-pro ─→ Research Pro
+(想法→需求)    (需求→方案)     (方案→工作包)  (方案→调研报告)
 ```
 
-也可以单独使用任何一个模块。
+也可以单独使用任何一个域。
 
 ---
 
@@ -123,68 +143,46 @@ AI: 🔬 Research Pro · 深度研究引擎
 
 ```
 .deepflow/
-├── README.md          # 项目整体说明
-├── QUICKSTART.md      # ← 你在看的文件
+├── README.md              # 项目整体说明
+├── CHANGELOG.md           # 版本历史
+├── CONTRACTS.md           # 契约定义
+├── SKILL.md               # OpenClaw Skill 入口
 │
-├── core/              # 核心框架（编排器、质量门、黑板）
-│   ├── orchestrator/  #   PipelineOrchestrator
-│   ├── quality/       #   EntryHarness + QualityGate
-│   ├── blackboard/    #   状态持久化
-│   └── cage/          #   契约笼子
+├── core/                  # 核心框架
+│   ├── master_orchestrator.py  # 主编排器
+│   ├── quality/           #   质量门 + EntryHarness
+│   ├── blackboard/        #   统一 Blackboard
+│   ├── cage/              #   契约笼子
+│   └── config/            #   配置管理
 │
-├── domains/           # 三个领域（代码实现）
-│   ├── solution/      #   Solution Pro 代码
-│   ├── research_pro/  #   Research Pro 代码
-│   └── code/          #   Code domain (规划中)
+├── domains/               # 四个域（代码实现）
+│   ├── spec_pro/          #   Spec Pro 代码
+│   ├── solution_pro/      #   Solution Pro 代码
+│   ├── ship_pro/          #   Ship Pro 代码
+│   └── research_pro/      #   Research Pro 代码
 │
-└── skills/            # OpenClaw Skill 入口（用户触发）
-    ├── spec-pro/      #   /spec-pro 触发入口
-    ├── solution-pro/  #   /solution-pro 触发入口
-    ├── research-pro/  #   /research-pro 触发入口
-    └── ...            #   80+ 其他 skills
+├── contracts/             # 共享契约（Pydantic Schema）
+│
+├── docs/                  # 文档
+│   └── guides/            #   上手指南（你在这里）
+│
+└── _archive/              # 归档文件（不影响使用）
 ```
 
-**`domains/` vs `skills/` 的关系：**
-
-| 目录 | 面向 | 内容 | 类比 |
-|------|------|------|------|
-| `domains/` | 开发者 / AI 内部 | Python 代码 + 执行指南 | 引擎 |
-| `skills/` | OpenClaw 用户 | 触发入口 + 使用说明 | 方向盘 |
-
-用户在 `skills/` 里触发 → AI 读取对应 `domains/` 里的代码来执行。
+**统一 Blackboard**：所有域的产出写入 `.deepflow/blackboard/{project_name}/`，跨域信息流靠文件路径约定。
 
 ---
 
-## 完整 Skill 列表
+## 完整触发列表
 
-除了三大核心模块，DeepFlow 还提供 80+ 扩展 Skills：
-
-### 核心三大（`/命令` 触发）
-| Skill | 触发 | 说明 |
-|-------|------|------|
+| 域 | 触发命令 | 说明 |
+|------|------|------|
 | Spec Pro | `/spec-pro` | 需求梳理 |
 | Solution Pro | `/solution-pro` | 方案设计 |
+| Ship Pro | `/ship-pro` | 交付编译 |
 | Research Pro | `/research-pro` | 深度研究 |
 
-### 统一入口
-| Skill | 触发 | 说明 |
-|-------|------|------|
-| DeepFlow | `/deepflow` | 导航页，选择模块 |
-
-### 投资分析
-| Skill | 触发 | 说明 |
-|-------|------|------|
-| stock-analysis | "分析XX股票" | A股/港股分析 |
-| us-stock-analysis | "分析XX美股" | 美股分析 |
-| market-analysis-cn | "市场分析" | 市场环境分析 |
-
-### 飞书工具
-| Skill | 触发 | 说明 |
-|-------|------|------|
-| feishu-send-report | "发报告" | 飞书发送报告 |
-| feishu-doc-manager | "创建飞书文档" | 飞书文档管理 |
-
-> 💡 **查看所有 Skills**: 浏览 `skills/` 目录，每个子目录的 `SKILL.md` 的 `triggers:` 字段列出了触发方式。
+> 💡 **查看所有 Skills**: 浏览 `skills/` 目录，每个子目录的 `SKILL.md` 的 `description:` 字段列出了触发方式。
 
 ---
 
@@ -201,4 +199,4 @@ A: 编辑 `domains/research_pro/config/` 下的 JSON 配置文件。
 
 ---
 
-*DeepFlow v0.4.0 | 2026-06-11*
+*DeepFlow v2.0.0 | 2026-07-06*

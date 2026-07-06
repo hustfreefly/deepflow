@@ -1,21 +1,25 @@
-# DeepFlow Skill — 多 Agent 协作自动化管线
+---
+name: deepflow
+description: "DeepFlow — 多 Agent 协作自动化管线。触发：/spec-pro、/solution-pro、/ship-pro、/research-pro、方案设计。"
+version: "2.0.0"
+---
+
+# DeepFlow — 多 Agent 协作自动化管线
 
 > DeepFlow 2.0.0 (Spec Pro 2.0.0 + Solution Pro 2.0.0 + Ship Pro 2.0.0 + Research Pro)
 
-> **2.0.0 变更**: 新增 Ship Pro 2.0.0（Pydantic 契约笼子 + 单一执行引擎 + 状态单一化）；Phase 0-3 架构加固完成
-
 **定位**: 支持 Spec Pro（需求梳理）、Solution Pro（方案设计）、Ship Pro（交付编译）、Research Pro（深度研究）的多 Agent 协作自动化管线。
 
-**完整架构说明**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+**完整架构说明**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | **上手指南**: [docs/guides/QUICKSTART.md](docs/guides/QUICKSTART.md)
 
 ## 触发方式
 
-| 命令 | 示例 | 领域 |
-|:---|:---|:---|
-| `/spec-pro` | `/spec-pro 我要做一个 AI 算力调度平台` | spec_pro |
-| `/solution` | `/solution 设计一个智能物流仓储系统升级方案` | solution_pro |
-| `/ship-pro` | `/ship-pro` (自动消费 Solution Pro 输出) | ship_pro |
-| `方案设计` | `方案设计：设计企业级微服务架构` | solution_pro |
+| 命令 | 示例 | 领域 | 详细指南 |
+|:---|:---|:---|:---|
+| `/spec-pro` | `/spec-pro 我要做一个 AI 算力调度平台` | spec_pro | [domains/spec_pro/SKILL.md](domains/spec_pro/SKILL.md) |
+| `/solution-pro` | `/solution-pro 设计一个智能物流仓储系统升级方案` | solution_pro | [domains/solution_pro/SKILL.md](domains/solution_pro/SKILL.md) |
+| `/ship-pro` | `/ship-pro` (自动消费 Solution Pro 输出) | ship_pro | [domains/ship_pro/SKILL.md](domains/ship_pro/SKILL.md) |
+| `/research-pro` | `/research-pro 分析 AI 芯片市场趋势` | research_pro | [domains/research_pro/SKILL.md](domains/research_pro/SKILL.md) |
 
 ## 执行流程（Solution Pro）
 
@@ -87,16 +91,14 @@ sessions_yield()
 
 | 组件 | 文件 | 职责 |
 |:---|:---|:---|
-| **Unified Entry** | `core/unified_entry.py` | 统一入口，根据 domain 路由 |
-| **Entry Harness** | `core/quality/entry_harness.py` | 启动验证、配置检查、生成 execution_plan |
-| **Pipeline Orchestrator** | `core/orchestrator/pipeline_orchestrator.py` | 读取 execution_plan，按 phase 调度 Workers |
-| **Task Builder** | `core/task_builder.py` | 构建各 Worker Task |
-| **DataManager** | `core/data/data_manager_worker.py` | 数据采集+统一搜索 |
+| **MasterOrchestrator** | `core/master_orchestrator.py` | 主编排器，统一入口 |
+| **ModuleOrchestrator** | `domains/solution_pro/module_orchestrator_base.py` | 域编排器基类 |
+| **Entry Harness** | `core/quality/entry_harness.py` | 启动验证（DEPRECATED） |
 | **Contract Cage** | `core/cage/` | 契约笼子验证框架 |
-| **Pydantic Contracts** | `domains/ship_pro/contracts/` | Pydantic 模型 = 唯一真相源 |
-| **Run Pipeline CLI** | `domains/ship_pro/scripts/run_pipeline.py` | Ship Pro 唯一执行引擎 |
+| **Pydantic Contracts** | `domains/*/contracts/` | Pydantic 模型 = 唯一真相源 |
 | **Prompt Registry** | `core/prompt_registry.py` | Prompt 集中式注册表 |
 | **PathConfig** | `core/config/path_config.py` | 跨平台路径管理 |
+| **Blackboard** | `core/blackboard/` | 统一 Blackboard 状态持久化 |
 
 ## 输出
 
@@ -118,5 +120,5 @@ sessions_yield()
 ## 版本
 
 - **Version**: 2.0.0
-- **Status**: 四域架构；Pydantic 契约笼子 + 单一执行引擎 + 状态单一化；Phase 0-3 架构加固完成
-- **Date**: 2026-06-23
+- **Status**: 四域架构完成；Pydantic 契约笼子 + 统一 Blackboard + 路径模板化
+- **Date**: 2026-07-06

@@ -80,11 +80,68 @@ import json
 import os
 import pathlib
 from datetime import datetime, timezone
+from typing import Optional  # 契约笼子：_try_load_handoff_package 返回类型
 from core.blackboard.context_injector import build_agent_context
 from pathlib import Path
 
 from .blackboard import BlackboardManager
 from .master_orchestrator import MasterOrchestrator
+
+
+def _try_load_handoff_package(bm: BlackboardManager) -> Optional[dict]:
+    """从 blackboard 加载 Spec Pro 的 handoff package（契约笼子验证版）。
+
+    设计意图：
+      当 living_spec 未通过 kwargs 传入时，从 blackboard 扫描
+      最新的 spec_handoff_package.json，用 Pydantic 模型验证后
+      提取 living_spec。验证失败 → raise ValueError，不静默降级。
+
+    Args:
+        bm: 已初始化的 BlackboardManager 实例
+
+    Returns:
+        验证后的 living_spec dict，如果找不到 handoff package 则返回 None
+
+    Raises:
+        ValueError: handoff_allowed=False 或契约验证失败时抛出
+    """
+    import glob
+
+    # 契约笼子：导入 Pydantic 模型
+    from contracts.shared.handoff_contract import HandoffPackage
+
+    # 在 blackboard 根目录下扫描最新的 spec/spec_handoff_package.json
+    # 设计意图：spec_pro 和 solution_pro 共享同一个 blackboard 根目录，
+    #          但各自有独立的 session 子目录，所以需要扫描查找。
+    blackboard_root = bm._base  # blackboard 根目录
+    pattern = str(blackboard_root / "*" / "spec" / "spec_handoff_package.json")
+    candidates = sorted(glob.glob(pattern), key=lambda p: Path(p).stat().st_mtime, reverse=True)
+
+    if not candidates:
+        # 没有 handoff package → 返回 None，让调用方决定后续行为
+        return None
+
+    # 读取最新的 handoff package
+    latest_path = Path(candidates[0])
+    with open(latest_path, "r", encoding="utf-8") as f:
+        raw_package = json.load(f)
+
+    # 契约笼子：Pydantic 验证（失败直接 raise ValueError）
+    try:
+        package = HandoffPackage(**raw_package)
+    except Exception as e:
+        raise ValueError(
+            f"handoff package 契约验证失败 ({latest_path}): {e}"
+        ) from e
+
+    # 契约铁律：handoff_allowed=False → 阻断，不静默继续
+    if not package.handoff_allowed:
+        raise ValueError(
+            f"Spec Pro handoff 被拒绝: block_reason={package.block_reason}"
+        )
+
+    # 验证通过 → 提取 living_spec
+    return package.living_spec
 
 
 def run_solution_pro(user_input: str, **kwargs):
@@ -124,6 +181,15 @@ def run_solution_pro(user_input: str, **kwargs):
     # 2. 使用 frozen_spec.py 生成完整 Frozen Spec（含 REQ-IDs、executive_summary、requirement_groups）
     from domains.solution_pro.frozen_spec import build_frozen_spec
     living_spec = kwargs.get("living_spec")
+
+    # 契约笼子（2026-07-06）：handoff package 消费逻辑
+    # 设计意图：当 living_spec 未通过 kwargs 直接传入时，
+    #          从 blackboard 读取 spec_pro 产出的 handoff package，
+    #          用 Pydantic 模型验证后提取 living_spec。
+    #          确保 handoff_allowed=False 时立即阻断，不静默继续。
+    if living_spec is None:
+        living_spec = _try_load_handoff_package(bm)
+
     frozen_spec = build_frozen_spec(
         topic=topic,
         constraints=kwargs.get("constraints", []),
