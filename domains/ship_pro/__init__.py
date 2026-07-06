@@ -653,6 +653,24 @@ def _build_single_worker_prompt(worker, ctx, ctx_path: str, output_path: str) ->
     else:
         anchors_block = "(本模块无上游 Semantic Anchors)"
 
+    # 领域上下文注入（D1: domain_analysis 消费）
+    domain_context = ""
+    if hasattr(ctx, 'domain_analysis') and ctx.domain_analysis:
+        da = ctx.domain_analysis
+        domain = da.get('domain', '未知')
+        end_users = da.get('end_users', '未指定')
+        deliverable_form = da.get('deliverable_form', '未指定')
+        split_dim = da.get('split_dimension', '未指定')
+        key_constraints = ', '.join(da.get('key_constraints', [])) if da.get('key_constraints') else '无'
+        domain_context = f"""## 领域上下文（来自 Planner 分析）
+- **领域**: {domain}
+- **最终用户**: {end_users}
+- **交付物形态**: {deliverable_form}
+- **拆分维度**: {split_dim}
+- **关键约束**: {key_constraints}
+
+根据上述领域信息，推断你的产出模式。"""
+
     tier_1 = f"""你是 {worker.role} 的技术设计师。
 
 ## 核心职责
@@ -660,6 +678,8 @@ def _build_single_worker_prompt(worker, ctx, ctx_path: str, output_path: str) ->
 
 ## 数据流
 read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", WorkerDeliverable JSON object)
+
+{domain_context}
 
 ## 上游约束(Semantic Anchors - 不可违反)
 

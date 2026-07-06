@@ -56,10 +56,9 @@ class WorkPackage(BaseModel):
     )
     
     anchored_to: List[str] = Field(
-        default_factory=list,
-        description="本 WP 遵循的 Semantic Anchor 名称列表（契约笼子：信息守恒反馈字段）。"
+        ..., min_length=1,
+        description="本 WP 遵循的 Semantic Anchor 名称列表（契约笼子：每个 WP 必须至少引用 1 个 anchor）。"
                     "Worker 必须从 context.json 的 semantic_anchors 中选取与本 WP 相关的 anchor name。"
-                    "空列表 = 未引用任何上游约束，Consolidator/Gate 将标记为 WARNING。"
     )
     
     deliverables: List[str] = Field(

@@ -897,6 +897,22 @@ Planner → **【你（Worker）】** → Consolidator → 用户
                     if len(dels) < 1:
                         wp_issues.append(f"{wp_id}: deliverables 为空")
 
+                # Layer 1c: "不写代码" 约束检测（D2）
+                import re
+                _CODE_PATTERNS = [
+                    r'```(python|javascript|typescript|go|rust|java)\s*\n',  # fenced code blocks
+                    r'^\s*def\s+\w+\s*\(',   # Python function
+                    r'^\s*class\s+\w+[\(:]',  # Python class
+                    r'^\s*function\s+\w+\s*\(',  # JS function
+                    r'^\s*import\s+\w+',     # import statement
+                ]
+                for wp in wps:
+                    desc = wp.get("description", "")
+                    for pattern in _CODE_PATTERNS:
+                        if re.search(pattern, desc, re.MULTILINE):
+                            wp_issues.append(f"{wp.get('id', '?')}: description 包含代码（匹配: {pattern}）")
+                            break
+
                 if wp_issues:
                     results["all_passed"] = False
                     results["failures"].append({"worker": worker_name, "issues": wp_issues})
@@ -1124,6 +1140,27 @@ Planner → **【你（Worker）】** → Consolidator → 用户
                 raise ValueError(
                     f"契约笼子: WP {wp.get('id', wp.get('wp_id', '?'))} 缺少字段 {missing}"
                 )
+
+        # 契约笼子 (D3): WP 计数检查 — Consolidator 不能丢弃或新增 WP
+        worker_files = sorted(stages_dir.glob("worker_*.json"))
+        input_wp_count = 0
+        for wf in worker_files:
+            try:
+                wdata = json.loads(wf.read_text(encoding="utf-8"))
+                if isinstance(wdata, list):
+                    input_wp_count += len(wdata)
+                elif isinstance(wdata, dict) and "work_packages" in wdata:
+                    input_wp_count += len(wdata["work_packages"])
+            except Exception:
+                pass
+
+        output_wp_count = len(wps)
+        if input_wp_count > 0 and output_wp_count < input_wp_count * 0.7:
+            raise ValueError(
+                f"契约笼子: Consolidator 丢弃过多 WP — "
+                f"输入 {input_wp_count} 个 Worker WP，输出仅 {output_wp_count} 个 "
+                f"（保留率 {output_wp_count/input_wp_count:.0%} < 70%）"
+            )
 
         # 契约笼子:Semantic Anchors 守恒检查
         # 读取 solution_pro_input 获取上游 anchors
