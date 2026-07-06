@@ -168,6 +168,7 @@ def run_solution_pro(user_input: str, **kwargs):
         agent_context
         + "\n\n---\n\n"
         + prompt_template
+        .replace("{deepflow_root}", deepflow_root)
         .replace("{session_id}", session_id)
         .replace("{user_input}", user_input)
         .replace("{config}", config_json)

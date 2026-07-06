@@ -33,7 +33,7 @@ print(preview)
 
 ### Python 代码规范
 - **注释和 docstring 必须用英文** — 中文全角字符（，/（/）/—）会导致 SyntaxError
-- **使用绝对路径**: `/Users/allen/.openclaw/workspace/.deepflow/...`
+- **使用绝对路径**: `{deepflow_root}/...`
 - **禁止相对路径**: `data/`, `prompts/`, `stages/`（subagent cwd 可能不是 .deepflow/）
 
 ### 禁止操作（subagent 环境限制）

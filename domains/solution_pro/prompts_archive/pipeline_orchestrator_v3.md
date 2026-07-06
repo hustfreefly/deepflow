@@ -19,7 +19,7 @@ updated: "2026-06-01"
 
 ```python
 import sys, json
-sys.path.insert(0, "/Users/allen/.openclaw/workspace/.deepflow")
+sys.path.insert(0, "{deepflow_root}")
 from domains.solution import run_solution_pro
 plan = run_solution_pro(
     topic="{TOPIC}",

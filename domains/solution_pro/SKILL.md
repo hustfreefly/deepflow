@@ -125,7 +125,7 @@ sessions_yield()
         "mode": "run",
         "label": "solution_orchestrator",
         "task": "...",                 # Orchestrator prompt（已填充变量）
-        "cwd": "/Users/allen/.openclaw/workspace/.deepflow",
+        "cwd": "{deepflow_root}",
         "lightContext": True,
     },
 }

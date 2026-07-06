@@ -33,11 +33,13 @@ from pathlib import Path
 from typing import Callable, List, Optional
 
 from .module_orchestrator_base import ModuleOrchestrator
+from .contracts.stage_contract import STAGE_CONTRACTS, validate_checkpoint
 
 logger = logging.getLogger(__name__)
 
 
 class SummaryOrchestrator(ModuleOrchestrator):
+    _stage_name = "summary"
     """
     Summary 模块编排器 — 5+1 Phase 收敛流程
     
@@ -70,7 +72,7 @@ class SummaryOrchestrator(ModuleOrchestrator):
     def _load_prompt(self, filename: str) -> str:
         prompt_path = Path(__file__).parent / "prompts" / filename
         if prompt_path.exists():
-            return prompt_path.read_text()
+            return self._resolve_prompt_vars(prompt_path.read_text())
         logger.debug(f"Prompt not found: {filename}, using empty")
         return ""
 
@@ -150,7 +152,7 @@ class SummaryOrchestrator(ModuleOrchestrator):
         logger.info("Starting Summary module (5+1 Phase)")
         
         # Checkpoint
-        checkpoint = self._load_checkpoint("stages/final_solution.json", required_keys=["schema_version"])
+        checkpoint = self._load_checkpoint("stages/final_solution.json", required_keys=["schema_version"], stage_name="final_solution")
         if checkpoint:
             logger.info("Summary module already completed, loading from checkpoint")
             return checkpoint
@@ -212,7 +214,7 @@ class SummaryOrchestrator(ModuleOrchestrator):
 
     def _run_base_synthesis(self) -> dict:
         """Phase 1: 运动员 — 吸收所有上游知识，产出完整基础方案"""
-        checkpoint = self._load_checkpoint("stages/base_solution.json", required_keys=["content"])
+        checkpoint = self._load_checkpoint("stages/base_solution.json", required_keys=["content"], stage_name="base_solution")
         if checkpoint:
             return checkpoint
         
@@ -261,7 +263,7 @@ class SummaryOrchestrator(ModuleOrchestrator):
 
     def _run_meta_summary_planner(self, base_solution: dict) -> dict:
         """Phase 2: 裁判 + 导演 — 审视基础方案，动态规划 Phase 3-5 策略"""
-        checkpoint = self._load_checkpoint("stages/summary_plan.json", required_keys=["content"])
+        checkpoint = self._load_checkpoint("stages/summary_plan.json", required_keys=["content"], stage_name="summary_plan")
         if checkpoint:
             return checkpoint
         
@@ -494,7 +496,7 @@ class SummaryOrchestrator(ModuleOrchestrator):
         读所有 Review 报告，判断采纳/拒绝/折中，直接在 base_solution 上执行修复。
         合并原 Fix Judge + Fix Agent + Harness Check 的职责。
         """
-        checkpoint = self._load_checkpoint("stages/refined_solution.json", required_keys=["content"])
+        checkpoint = self._load_checkpoint("stages/refined_solution.json", required_keys=["content"], stage_name="refined_solution")
         if checkpoint:
             return checkpoint
         
@@ -543,7 +545,7 @@ class SummaryOrchestrator(ModuleOrchestrator):
         self, refined_solution: dict, review_results: list[dict], summary_plan: dict
     ) -> dict:
         """Phase 5a: Summarizer — 把所有上游工作总结成最终方案文档"""
-        checkpoint = self._load_checkpoint("stages/solution_document.json", required_keys=["content"])
+        checkpoint = self._load_checkpoint("stages/solution_document.json", required_keys=["content"], stage_name="solution_document")
         if checkpoint:
             return checkpoint
         
@@ -573,7 +575,7 @@ class SummaryOrchestrator(ModuleOrchestrator):
 
     def _run_json_extractor(self, solution_document: dict, verification_result: dict) -> dict:
         """Phase 5b: 结构化提取 — 从方案文档中提取元数据"""
-        checkpoint = self._load_checkpoint("stages/final_solution.json", required_keys=["schema_version"])
+        checkpoint = self._load_checkpoint("stages/final_solution.json", required_keys=["schema_version"], stage_name="final_solution")
         if checkpoint:
             return checkpoint
         
@@ -703,30 +705,8 @@ cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
         
         return "\n".join(reports)[:10000] if reports else "(No expert reports found)"
 
-    def _load_checkpoint(self, path: str, required_keys: Optional[List[str]] = None) -> Optional[dict]:
-        """加载阶段 checkpoint。
-
-        Args:
-            path: checkpoint 文件的 blackboard 相对路径
-            required_keys: 该阶段 checkpoint 必须包含的最小字段集。
-                           如果为 None，只做基础 dict 检查。
-        """
-        try:
-            result = self.blackboard.read_json(path)
-            if result and isinstance(result, dict):
-                # 验证 required_keys
-                if required_keys:
-                    missing = [k for k in required_keys if k not in result]
-                    if missing:
-                        logger.warning(f"Checkpoint '{path}' 缺少必需字段: {missing}，视为无效")
-                        return None
-                return result
-        except Exception:
-            pass
-        return None
+    # _load_checkpoint 已提升到 ModuleOrchestrator 基类（含 StageContract 契约笼子验证）
 
     def _save_checkpoint(self, path: str, result: dict):
-        try:
-            self.blackboard.write(path, result)
-        except Exception as e:
-            logger.error(f"Failed to save checkpoint {path}: {e}")
+        """Save checkpoint. Raises on failure."""
+        self.blackboard.write(path, result)

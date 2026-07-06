@@ -40,6 +40,8 @@ from domains.spec_pro.models import (
     RoundAction,
     Scenario,
 )
+from domains.spec_pro.contracts.gate import gate_living_spec_density
+from domains.spec_pro.handoff import build_handoff_package, save_handoff_package
 
 # DeepFlow base directory
 _BASE_DIR = PathConfig.resolve().base_dir
@@ -474,6 +476,60 @@ class SpecProCoordinator:
             return False
         return data.get("action") in ("done", "error", "safety_stop", "proposal", "summary")
 
+    def check_density_gate(self) -> dict:
+        """
+        程序化密度 Gate 检查。
+
+        从 Blackboard 读取 living_spec.json，运行 gate_living_spec_density()。
+
+        Returns:
+            dict: {"passed": bool, "issues": list[str], "score": float, "warnings": list[str]}
+        """
+        if self._bb is None:
+            return {"passed": False, "issues": ["Blackboard 未初始化"], "score": 0.0, "warnings": []}
+
+        living_spec_data = self._bb.read_json("spec/living_spec.json")
+        if living_spec_data is None:
+            return {"passed": False, "issues": ["living_spec.json 不存在"], "score": 0.0, "warnings": []}
+
+        try:
+            spec_model = LivingSpec(**living_spec_data)
+        except Exception as e:
+            return {"passed": False, "issues": [f"LivingSpec 解析失败: {e}"], "score": 0.0, "warnings": []}
+
+        return gate_living_spec_density(spec_model)
+
+    def build_handoff_on_done(self) -> Optional[Path]:
+        """
+        在 density gate 通过后构建 handoff package。
+
+        Returns:
+            handoff package 文件路径，如果 gate 未通过则返回 None
+        """
+        if self._bb is None:
+            return None
+
+        density_result = self.check_density_gate()
+        if not density_result.get("passed", False):
+            return None
+
+        living_spec_data = self._bb.read_json("spec/living_spec.json", default={})
+        quality_report_data = self._bb.read_json("spec/quality_report.json", default={})
+
+        package = build_handoff_package(
+            living_spec=living_spec_data,
+            quality_report=quality_report_data,
+            density_gate_result=density_result,
+            semantic_anchors=living_spec_data.get("semantic_anchors", []),
+        )
+
+        output_path = save_handoff_package(package, self._bb.session_dir)
+        self._write_execution_log("handoff_package_created", {
+            "path": str(output_path),
+            "density_score": density_result.get("score", 0),
+        })
+        return output_path
+
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
@@ -537,6 +593,7 @@ class SpecProCoordinator:
         Phase 3 扁平架构：构建确认阶段主 Agent 执行指令。
 
         v3 下不 spawn StructureWorker，主 Agent 直接读写文件。
+        包含 density gate 检查 + handoff package 生成。
         """
         threshold = self._compute_dynamic_threshold()
         session_dir = self._bb.session_dir if self._bb else ""
@@ -580,7 +637,24 @@ class SpecProCoordinator:
    ```
    - 如果没有不可抽象化的引用，写入空数组 []
    - 使用 write 更新 spec/living_spec.json（加入 semantic_anchors 字段）
-5. 使用 write 工具写入 spec/round_result.json：
+
+5. **🔴 Density Gate 检查（契约笼子，不可跳过）**：
+   执行以下命令检查 Living Spec 密度：
+   ```
+   python3 .deepflow/domains/spec_pro/check_density_cli.py "{session_dir}"
+   ```
+   - 如果输出 `PASSED`：继续步骤 6
+   - 如果输出 `FAILED`：**不进入 done**，改为 action="questions"：
+     - 将密度问题追加到 questions 列表
+     - 写 round_result.json (action="questions")，包含密度问题
+     - 结束本轮
+
+6. **构建 Handoff Package + 写 round_result.json**：
+   执行以下命令构建 handoff package：
+   ```
+   python3 .deepflow/domains/spec_pro/build_handoff_cli.py "{session_dir}"
+   ```
+   然后使用 write 工具写入 spec/round_result.json：
 ```json
 {{
   "action": "done",
@@ -590,7 +664,8 @@ class SpecProCoordinator:
   "quality": {{
     "overall_score": [quality_report 的 overall_score],
     "level": [quality_report 的 level]
-  }}
+  }},
+  "handoff_package_path": "spec/spec_handoff_package.json"
 }}
 ```
 
@@ -602,7 +677,9 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
 ```
 2. 对更新后的 living_spec 进行 7 维度评分
 3. 如果 overall_score >= {threshold}：
-   - 写 round_result.json (action="done")
+   - 执行 Density Gate 检查（同上步骤 5）
+   - 如果 Density Gate PASSED → 构建 Handoff Package（同上步骤 6）→ 写 round_result.json (action="done")
+   - 如果 Density Gate FAILED → 写 round_result.json (action="questions")，包含密度问题
 4. 如果 overall_score < {threshold}：
    - 生成 2-4 个补充问题
    - 写 round_result.json (action="questions")
@@ -1289,9 +1366,10 @@ write("spec/harness_report.json", {{"final_decision": "WARN", "final_reasoning":
 """
 
     def _confirmation_phase_instructions(self) -> str:
-        """Confirmation: confirm -> Structure / revise -> merge -> AssessGuide -> (Question | Harness -> Structure)"""
+        """Confirmation: confirm -> Density Gate -> Structure(+handoff) / revise -> merge -> AssessGuide -> (Question | Harness -> Structure)"""
         threshold = self._compute_dynamic_threshold()
         nn = f"{self.current_round:02d}"
+        session_dir = self._bb.session_dir if self._bb else ""
         return f"""# Phase: confirmation
 
 用户确认/修正已写入: spec/user_confirmation.json
@@ -1299,7 +1377,19 @@ write("spec/harness_report.json", {{"final_decision": "WARN", "final_reasoning":
 使用 read_json 读取 user_confirmation.json 中的 action:
 
 ## 如果 action = "confirm":
-spawn StructureWorker:
+
+### 🔴 Density Gate 检查（契约笼子，不可跳过）
+执行以下命令检查 Living Spec 密度：
+```
+python3 .deepflow/domains/spec_pro/check_density_cli.py "{session_dir}"
+```
+- 如果输出 `PASSED`：继续 spawn StructureWorker
+- 如果输出 `FAILED`：**不进入 done**，改为 action="questions"：
+  - 将密度问题追加到 questions 列表
+  - 写 round_result.json (action="questions")，包含密度问题
+  - 结束本轮
+
+### Density Gate PASSED → spawn StructureWorker:
 - task: 读取 domains/spec_pro/prompts/structure.md,注入上下文:
   - 使用 read_json 读取: spec/living_spec.json
   - 使用 read_json 读取: spec/quality_report.json
@@ -1307,6 +1397,8 @@ spawn StructureWorker:
   - 使用 write 写入: spec/round_result.json
   - action: "done"
   - 在 round_result 中包含: action="done", summary_text, quality, living_spec(完整内容), harness_report(如有), route_recommendation, solution_pro_hints, inferred_pending
+  - **构建 handoff package**: 执行 `python3 .deepflow/domains/spec_pro/build_handoff_cli.py "{session_dir}"`
+  - 在 round_result 中添加 `"handoff_package_path": "spec/spec_handoff_package.json"`
 - timeoutSeconds: 180
 
 ## 如果 action = "revise":

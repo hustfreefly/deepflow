@@ -191,3 +191,28 @@ print('Done: .completed')
 - ✅ 遇到错误时打印详细错误信息并继续尝试下一步
 - ✅ 每个搜索结果都注册到 source_registry.json（防幻觉）
 - ✅ 最终写入 .completed 文件后才算完成
+
+## 🚨 P0: 证据来源标记规则（Evidence Ledger）
+
+### degraded_search_plan.json 不是引用源
+
+当搜索引擎返回空结果时，系统会写入 `research/degraded_search_plan.json`。
+这个文件记录的是**搜索失败原因和建议的降级查询**，绝对不是引用源。
+
+- ❌ 不得将 degraded_search_plan.json 中的条目作为报告引用
+- ❌ 不得将 degraded_search_plan.json 中的 URL 写入参考资料列表
+- ✅ 这些条目仅用于记录搜索失败原因，供后续重试或人工参考
+
+### fallback content 不得出现在最终报告中
+
+当 web_fetch 失败时，系统会用搜索摘要（snippet）注册该源，但标记为 `eligible_for_citation=False`。
+
+- ❌ 不得引用 `eligible_for_citation=False` 的源
+- ❌ 不得在报告正文中使用 `[N]` 标记引用 ineligible 源
+- ✅ CitationVerifier 会自动拒绝 ineligible 源的引用
+- ✅ 如果报告中引用的源被拒绝，必须移除该引用或替换为合格源
+
+### 完成标准只计合格源
+
+`_evaluate_completion()` 只计 `eligible_for_completion=True` 的源为 `actual_sources`。
+如果所有源都是 fallback（ineligible），报告会标记为 `completed_with_warnings` 并触发降级动作 `mark_report_as_unreliable_fallback_only`。

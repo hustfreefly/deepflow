@@ -6,7 +6,7 @@ Solution Pro 启动脚本
 位置：.deepflow/scripts/start_solution_pro.py
 
 使用方式：
-    cd /Users/allen/.openclaw/workspace/.deepflow && python3 scripts/start_solution_pro.py \
+    cd {deepflow_root} && python3 scripts/start_solution_pro.py \
       --topic "跨境AI算力中转站平台" \
       --solution-type "architecture" \
       --constraints '["预算: 3000刀", "时间: 15天"]' \

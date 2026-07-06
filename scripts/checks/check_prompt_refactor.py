@@ -16,7 +16,7 @@ def validate_contract():
     print("验证契约文件 (prompt_layers.yaml)")
     print("=" * 60)
     
-    contract_path = Path("/Users/allen/.openclaw/workspace/.deepflow/cage/prompt_layers.yaml")
+    contract_path = Path("str(Path(__file__).resolve().parent.parent.parent)/cage/prompt_layers.yaml")
     
     if not contract_path.exists():
         print("❌ 契约文件不存在")
@@ -193,7 +193,7 @@ def validate_orchestrator_entry():
     print("验证Orchestrator Agent入口脚本")
     print("=" * 60)
     
-    entry_path = Path("/Users/allen/.openclaw/workspace/.deepflow/orchestrator_cage_agent.py")
+    entry_path = Path("str(Path(__file__).resolve().parent.parent.parent)/orchestrator_cage_agent.py")
     
     if not entry_path.exists():
         print(f"❌ Orchestrator入口脚本不存在: {entry_path}")

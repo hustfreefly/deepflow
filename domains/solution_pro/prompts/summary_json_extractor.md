@@ -22,7 +22,7 @@ role: json_extractor
 ## 执行环境
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
+cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 ```
 
 ```python
@@ -248,7 +248,7 @@ bb.write_stage('final_solution', json.dumps(final_solution_json, indent=2, ensur
 ## 完成后验证
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 import json

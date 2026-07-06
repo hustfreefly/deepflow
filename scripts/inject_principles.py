@@ -6,7 +6,7 @@ inject_principles.py — 从 Spec Pro planning.json 复制约束到 final_result
 位置：.deepflow/scripts/inject_principles.py
 
 使用方式：
-    cd /Users/allen/.openclaw/workspace/.deepflow && python3 scripts/inject_principles.py \
+    cd {deepflow_root} && python3 scripts/inject_principles.py \
       --planning "blackboard/<session>/stages/planning.json" \
       --final-result "blackboard/<session>/stages/final_result.json"
 

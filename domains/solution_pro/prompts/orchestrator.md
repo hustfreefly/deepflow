@@ -46,14 +46,14 @@ bb = BlackboardManager(session_id="{session_id}")
 3. **每个模块是原子操作**：spawn → yield → exec验证 → 下一个模块。中间不插入任何 text。
 4. **只有写完 `.completed` 后才能结束 turn**。
 5. **sessions_spawn 和 sessions_yield 是 tool call**，不能在 exec 里调。Blackboard 操作用 exec。
-6. **spawn 必须传 cwd**：`cwd="/Users/allen/.openclaw/workspace/.deepflow"`
+6. **spawn 必须传 cwd**：`cwd="{deepflow_root}"`
 
 ## Preamble（每个模块 task 开头必须加）
 
 ```
-你执行的所有 Python 命令必须以 `cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.` 开头。
+你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。
 否则 import 会报 ModuleNotFoundError。
-sessions_spawn 必须传 cwd="/Users/allen/.openclaw/workspace/.deepflow"。
+sessions_spawn 必须传 cwd="{deepflow_root}"。
 ```
 
 ## 执行算法
@@ -61,7 +61,7 @@ sessions_spawn 必须传 cwd="/Users/allen/.openclaw/workspace/.deepflow"。
 ### Step 0: 初始化
 
 ```bash
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 import json
@@ -104,7 +104,7 @@ print('INITIALIZED')
 
 **1a. 读取 prompt：**
 ```bash
-cd /Users/allen/.openclaw/workspace/.deepflow && python3 -c "
+cd {deepflow_root} && python3 -c "
 import pathlib
 prompt = pathlib.Path('domains/solution_pro/prompts/planning_module.md').read_text()
 prompt = prompt.replace('{session_id}', '{session_id}')
@@ -119,7 +119,7 @@ sessions_spawn(
     mode="run",
     label="planning_module",
     task=[exec 返回的完整文本],
-    cwd="/Users/allen/.openclaw/workspace/.deepflow",
+    cwd="{deepflow_root}",
     lightContext=True,
 )
 sessions_yield()
@@ -127,7 +127,7 @@ sessions_yield()
 
 **🔴 1c. 验证（yield 唤醒后的第一个 action 必须是这个 exec）：**
 ```bash
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 import json, os
@@ -164,7 +164,7 @@ PLANNING_MISSING → 写 `.failed`，结束 turn。
 
 **2a. 读取 prompt：**
 ```bash
-cd /Users/allen/.openclaw/workspace/.deepflow && python3 -c "
+cd {deepflow_root} && python3 -c "
 import pathlib
 prompt = pathlib.Path('domains/solution_pro/prompts/research_module.md').read_text()
 prompt = prompt.replace('{session_id}', '{session_id}')
@@ -179,7 +179,7 @@ sessions_spawn(
     mode="run",
     label="research_module",
     task=[exec 返回的完整文本],
-    cwd="/Users/allen/.openclaw/workspace/.deepflow",
+    cwd="{deepflow_root}",
     lightContext=True,
 )
 sessions_yield()
@@ -187,7 +187,7 @@ sessions_yield()
 
 **🔴 2c. 验证（yield 唤醒后的第一个 action 必须是这个 exec）：**
 ```bash
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 import json, os
@@ -236,7 +236,7 @@ RESEARCH_MISSING → 写 `.failed`，结束 turn。
 
 **3a. 读取 prompt：**
 ```bash
-cd /Users/allen/.openclaw/workspace/.deepflow && python3 -c "
+cd {deepflow_root} && python3 -c "
 import pathlib
 prompt = pathlib.Path('domains/solution_pro/prompts/summary_module.md').read_text()
 prompt = prompt.replace('{session_id}', '{session_id}')
@@ -251,7 +251,7 @@ sessions_spawn(
     mode="run",
     label="summary_module",
     task=[exec 返回的完整文本],
-    cwd="/Users/allen/.openclaw/workspace/.deepflow",
+    cwd="{deepflow_root}",
     lightContext=True,
 )
 sessions_yield()
@@ -259,7 +259,7 @@ sessions_yield()
 
 **🔴 3c. 验证（yield 唤醒后的第一个 action 必须是这个 exec）：**
 ```bash
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 import json, os
@@ -310,7 +310,7 @@ SUMMARY_MISSING 或缺少 solution_document/final_solution → 写 `.failed`，�
 **全部 3 个模块完成后**才执行：
 
 ```bash
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 import json, datetime
@@ -337,7 +337,7 @@ print('PIPELINE_COMPLETED')
 
 1. 写入 `.failed` 文件：
 ```bash
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 import datetime

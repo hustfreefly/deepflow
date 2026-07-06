@@ -820,9 +820,9 @@ class ShipOrchestrator:
         stages_dir = bp / "stages"
         
         # 读取 planner output
-        planner_path = stages_dir / "planner_output.json"
+        planner_path = stages_dir / "pipeline_plan.json"
         if not planner_path.exists():
-            raise ValueError(f"契约笼子: planner_output.json 不存在 ({planner_path})")
+            raise ValueError(f"契约笼子: pipeline_plan.json 不存在 ({planner_path})")
         
         planner_output = json.loads(planner_path.read_text(encoding="utf-8"))
         workers = planner_output.get("workers", [])
@@ -848,7 +848,7 @@ class ShipOrchestrator:
             judge_params.append({
                 "runtime": "subagent",
                 "mode": "run",
-                "label": f"judge_must_{role}",
+                "label": f"worker_must_{role}",
                 "task": judge_prompt,
                 "thinking": "medium",
             })
@@ -871,7 +871,7 @@ class ShipOrchestrator:
         stages_dir = bp / "stages"
         
         # 读取 planner output 获取 must_constraints 信息
-        planner_path = stages_dir / "planner_output.json"
+        planner_path = stages_dir / "pipeline_plan.json"
         planner_output = json.loads(planner_path.read_text(encoding="utf-8")) if planner_path.exists() else {}
         workers = planner_output.get("workers", [])
         

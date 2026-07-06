@@ -36,7 +36,7 @@ def test_spawn_metadata_detection():
             json.dump({"status": "accepted", "childSessionKey": "abc123"}, f)
         
         # 修改 engine 的路径指向临时目录
-        original_path = f"/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/stages/researcher_finance_output.json"
+        original_path = f"str(Path(__file__).resolve().parent.parent.parent)/blackboard/{session_id}/stages/researcher_finance_output.json"
         
         # 手动测试 _wait_for_worker_completion 的逻辑
         def check_file():
@@ -167,7 +167,7 @@ def test_valid_worker_output():
         engine.session_id = session_id
         
         # 创建输出目录和文件
-        stages_dir = Path("/Users/allen/.openclaw/workspace/.deepflow/blackboard") / session_id / "stages"
+        stages_dir = Path("str(Path(__file__).resolve().parent.parent.parent)/blackboard") / session_id / "stages"
         stages_dir.mkdir(parents=True, exist_ok=True)
         output_file = stages_dir / "summarizer_output.json"
         

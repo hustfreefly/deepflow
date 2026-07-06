@@ -22,7 +22,7 @@ role: harness_check
 ## 执行环境
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
+cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 ```
 
 ```python
@@ -223,7 +223,7 @@ bb.write_stage('verification_result', verification_result_json)
 ## 完成后验证
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 result = bb.read_stage('verification_result')

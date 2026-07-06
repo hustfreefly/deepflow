@@ -162,24 +162,15 @@ class EntryHarness:
             return existing_session_id
 
         if domain == "solution_pro":
-            from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
-
-            topic = context.get("topic", "")
-            solution_type = context.get("solution_type", "architecture")
-            session_prefix = context.get("session_prefix")
-
-            if not topic:
-                raise ValueError("Domain 'solution_pro' requires 'topic' in context")
-
-            orch = _SolutionDispatcher(
-                topic=topic,
-                solution_type=solution_type,
-                mode=context.get("mode", "standard"),
-                constraints=context.get("constraints"),
-                stakeholders=context.get("stakeholders"),
-                session_prefix=session_prefix,
+            # V2 架构: _SolutionDispatcher 已移除，使用 MasterOrchestrator
+            # EntryHarness 不直接支持 V2 三模块串联架构
+            # 请使用 core.unified_entry.run_domain_direct() 或 Agent 直接调 MasterOrchestrator
+            raise NotImplementedError(
+                "Domain 'solution_pro' V1 dispatcher (_SolutionDispatcher) has been removed.\n"
+                "V2 uses MasterOrchestrator (Planning→Research→ReviewQC).\n"
+                "Use core.unified_entry.run_domain_direct('solution_pro', context) "
+                "or call MasterOrchestrator directly via Agent."
             )
-            session_id = orch.init()
 
         elif domain == "investment":
             raise ValueError(
@@ -221,47 +212,13 @@ class EntryHarness:
         session_dir = _DEEPFLOW_BASE / "blackboard" / session_id
 
         if domain == "solution_pro":
-            # 使用 _SolutionDispatcher 生成任务和计划
-            from domains.solution_pro.orchestrator_agent import _SolutionDispatcher
-
-            topic = context.get("topic", "")
-            solution_type = context.get("solution_type", "architecture")
-            session_prefix = context.get("session_prefix")
-
-            # 🌉 Spec Pro → Solution Pro 桥接
-            living_spec = None
-            spec_session_id = context.get("spec_session_id")
-            if spec_session_id:
-                spec_path = _DEEPFLOW_BASE / "blackboard" / spec_session_id / "spec" / "living_spec.json"
-                if spec_path.exists():
-                    try:
-                        with open(spec_path, 'r', encoding='utf-8') as f:
-                            living_spec = json.load(f)
-                        if "confirmed" not in living_spec:
-                            print("[EntryHarness] ⚠️ Living Spec 缺少 confirmed 层，跳过")
-                            living_spec = None
-                        else:
-                            print(f"[EntryHarness] 🌉 已加载 Spec Pro Living Spec: {spec_session_id}")
-                    except (json.JSONDecodeError, PermissionError, OSError) as e:
-                        print(f"[EntryHarness] ⚠️ Living Spec 加载失败，跳过: {e}")
-                        living_spec = None
-
-            orch = _SolutionDispatcher(
-                topic=topic,
-                solution_type=solution_type,
-                mode=context.get("mode", "standard"),
-                constraints=context.get("constraints"),
-                stakeholders=context.get("stakeholders"),
-                session_prefix=session_prefix,
-                living_spec=living_spec,
+            # V2 架构: _SolutionDispatcher 已移除
+            # execution_plan 由 MasterOrchestrator.run() 内部生成
+            raise NotImplementedError(
+                "Domain 'solution_pro' V1 dispatcher (_SolutionDispatcher) has been removed.\n"
+                "V2 execution plan is generated internally by MasterOrchestrator.run().\n"
+                "Use core.unified_entry.run_domain_direct('solution_pro', context) instead."
             )
-            # P0-3 修复: 使用已有的 session_id 而不是重新生成
-            orch.session_id = session_id
-            orch.base_path = str(session_dir)
-            os.makedirs(f"{session_dir}/data", exist_ok=True)
-            os.makedirs(f"{session_dir}/stages", exist_ok=True)
-            # 生成任务和计划（不重新初始化 session_id）
-            tasks = orch.get_all_tasks()
             plan = orch.save_execution_plan()
             orch.save_tasks()
 

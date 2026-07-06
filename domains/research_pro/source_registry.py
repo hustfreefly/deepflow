@@ -65,7 +65,11 @@ class SourceRegistry:
         title: str,
         content: str,
         quality_tier: str,
-        summary: str = ""
+        summary: str = "",
+        source_kind: str = "unknown",
+        content_origin: str = "unknown",
+        fetch_status: str = "unknown",
+        fetch_error: str = "",
     ) -> int:
         """
         登记新来源。
@@ -76,6 +80,10 @@ class SourceRegistry:
             content: 页面内容 (用于计算 content_hash)
             quality_tier: 质量等级 (tier_1|tier_2|tier_3|unverified)
             summary: 内容摘要 (≤200字)
+            source_kind: 来源类型 ("web_search" | "fallback" | "synthetic")
+            content_origin: 内容来源 ("web_fetch" | "fallback_content" | "synthetic")
+            fetch_status: 抓取状态 ("fetched" | "failed" | "skipped")
+            fetch_error: 抓取失败的错误信息
         
         Returns:
             source_id: 分配的 ID (顺序递增, 从 1 开始)
@@ -87,6 +95,9 @@ class SourceRegistry:
         
         # 计算 content_hash (sha256 前 16 位)
         content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()[:16]
+
+        # Eligibility 推导规则：只有真正抓取到网页内容的源才可被引用/计入完成标准
+        eligible = (fetch_status == "fetched" and content_origin == "web_fetch")
 
         with self._lock:
             for source in self._sources:
@@ -109,6 +120,13 @@ class SourceRegistry:
                 "summary": summary[:SUMMARY_MAX_LENGTH] if summary else "",
                 "verification_status": "pending",
                 "verification_detail": None,
+                # Evidence Ledger provenance fields (P0 fix: fallback vs real evidence)
+                "source_kind": source_kind,
+                "content_origin": content_origin,
+                "fetch_status": fetch_status,
+                "eligible_for_citation": eligible,
+                "eligible_for_completion": eligible,
+                "fetch_error": fetch_error,
             }
 
             self._sources.append(entry)

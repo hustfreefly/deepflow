@@ -64,6 +64,7 @@ class CitationVerifier:
         步骤 2-5: 验证单个引用。
         
         步骤 2: 映射引用编号到 source_registry
+        步骤 2.5 (P0 fix): 检查 eligible_for_citation，拒绝 ineligible source
         步骤 3: HTTP HEAD 验证 URL 可达性
         步骤 4: 内容一致性验证 (content_hash)
         步骤 5: 验证失败处理
@@ -85,6 +86,25 @@ class CitationVerifier:
                 "content_hash_match": False,
                 "quality_tier": "unverified",
                 "verification_detail": f"Source ID {source_id} not found in registry",
+            }
+
+        # 步骤 2.5 (P0 fix): 检查 eligible_for_citation
+        # 如果源是 fallback/synthetic 且未真正 fetch 成功，拒绝引用
+        if not source.get("eligible_for_citation", False):
+            return {
+                "source_id": source_id,
+                "url": source.get("url", ""),
+                "status": "ineligible_source",
+                "http_status": None,
+                "content_hash_match": False,
+                "quality_tier": source.get("quality_tier", "unverified"),
+                "verification_detail": (
+                    f"Source ID {source_id} is not eligible for citation: "
+                    f"source_kind={source.get('source_kind', 'unknown')}, "
+                    f"content_origin={source.get('content_origin', 'unknown')}, "
+                    f"fetch_status={source.get('fetch_status', 'unknown')}. "
+                    f"Only sources with successful web_fetch are eligible."
+                ),
             }
 
         url = source["url"]
@@ -206,7 +226,7 @@ class CitationVerifier:
 
         # 验证每个引用
         details = []
-        counts = {"verified": 0, "unreachable": 0, "not_found": 0, "content_mismatch": 0}
+        counts = {"verified": 0, "unreachable": 0, "not_found": 0, "content_mismatch": 0, "ineligible_source": 0}
 
         for cid in citation_ids:
             result = self.verify_citation(cid)
@@ -225,6 +245,7 @@ class CitationVerifier:
                 "verification_detail": result["verification_detail"],
             })
 
+        # P0 fix: ineligible sources are treated as failures for trust score
         trust_score = counts["verified"] / total_citations if total_citations else 0.0
         if trust_score >= 0.9:
             recommendation = "accept"
@@ -237,6 +258,7 @@ class CitationVerifier:
             "total_citations": total_citations,
             "unique_citations": len(citation_ids),
             "verification_summary": counts,
+            "ineligible_source_count": counts.get("ineligible_source", 0),
             "citations": details,
             "trust_score": round(trust_score, 2),
             "recommendation": recommendation,

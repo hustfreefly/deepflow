@@ -46,11 +46,11 @@ def test_build_worker_task():
     from orchestrator_agent import build_worker_task
     
     # 先创建测试用的 blackboard 目录和数据
-    os.makedirs('/Users/allen/.openclaw/workspace/.deepflow/blackboard/test_build_task/data', exist_ok=True)
-    os.makedirs('/Users/allen/.openclaw/workspace/.deepflow/blackboard/test_build_task/stages', exist_ok=True)
+    os.makedirs('str(Path(__file__).resolve().parent.parent.parent)/blackboard/test_build_task/data', exist_ok=True)
+    os.makedirs('str(Path(__file__).resolve().parent.parent.parent)/blackboard/test_build_task/stages', exist_ok=True)
     
     # 创建测试数据
-    with open('/Users/allen/.openclaw/workspace/.deepflow/blackboard/test_build_task/data/key_metrics.json', 'w') as f:
+    with open('str(Path(__file__).resolve().parent.parent.parent)/blackboard/test_build_task/data/key_metrics.json', 'w') as f:
         import json
         json.dump({
             "company_name": "京仪装备",
@@ -62,7 +62,7 @@ def test_build_worker_task():
         }, f)
     
     # 创建测试 planner 输出
-    with open('/Users/allen/.openclaw/workspace/.deepflow/blackboard/test_build_task/stages/planner_output.json', 'w') as f:
+    with open('str(Path(__file__).resolve().parent.parent.parent)/blackboard/test_build_task/stages/planner_output.json', 'w') as f:
         import json
         json.dump({
             "research_plan": {
@@ -101,7 +101,7 @@ def test_build_worker_task():
     # 清理测试目录
     import shutil
 import core.bootstrap
-    shutil.rmtree('/Users/allen/.openclaw/workspace/.deepflow/blackboard/test_build_task', ignore_errors=True)
+    shutil.rmtree('str(Path(__file__).resolve().parent.parent.parent)/blackboard/test_build_task', ignore_errors=True)
     
     return all_pass
 
@@ -123,7 +123,7 @@ def test_prompt_no_outdated_instructions():
         "等待所有子 Agent 返回",
     ]
     
-    base_dir = "/Users/allen/.openclaw/workspace/.deepflow"
+    base_dir = "str(Path(__file__).resolve().parent.parent.parent)"
     all_pass = True
     
     for prompt_file in prompt_files:

@@ -129,6 +129,7 @@ class SourceRegistry:
 # ============================================================================
 
 class ResearchOrchestrator(ModuleOrchestrator):
+    _stage_name = "research"
     """
     Research 模块 - 多 Expert 并行调研 + 迭代收敛
 
@@ -184,38 +185,17 @@ class ResearchOrchestrator(ModuleOrchestrator):
         """Load prompt file from prompts/ directory."""
         prompt_path = Path(__file__).parent / "prompts" / filename
         if prompt_path.exists():
-            return prompt_path.read_text()
+            return self._resolve_prompt_vars(prompt_path.read_text())
         else:
             logger.warning(f"Prompt file not found: {filename}")
             return ""
 
-    def _load_checkpoint(self, path: str) -> Optional[dict]:
-        """Load checkpoint output if it exists."""
-        try:
-            # Use read_json for parsed dict/list output
-            if hasattr(self.blackboard, 'read_json'):
-                result = self.blackboard.read_json(path)
-            else:
-                result = self.blackboard.read(path)
-                if isinstance(result, str):
-                    import json
-                    result = json.loads(result)
-            if result is not None:
-                logger.debug(f"Checkpoint loaded: {path}")
-            return result
-        except FileNotFoundError:
-            return None
-        except Exception as e:
-            logger.warning(f"Failed to load checkpoint for {path}: {e}")
-            return None
+    # _load_checkpoint 已提升到 ModuleOrchestrator 基类（含 StageContract 契约笼子验证）
 
     def _save_checkpoint(self, path: str, result: dict):
-        """Save output as checkpoint."""
-        try:
-            self.blackboard.write(path, result)
-            logger.debug(f"Checkpoint saved: {path}")
-        except Exception as e:
-            logger.error(f"Failed to save checkpoint for {path}: {e}")
+        """Save output as checkpoint. Raises on failure."""
+        self.blackboard.write(path, result)
+        logger.debug(f"Checkpoint saved: {path}")
 
     def stage_sequence(self) -> list[dict]:
         """Define the 5-stage research sequence."""

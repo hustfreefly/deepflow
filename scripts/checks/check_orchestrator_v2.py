@@ -10,7 +10,7 @@ def test_file_structure():
     print("测试 1: 文件结构验证")
     print("=" * 60)
     
-    with open('/Users/allen/.openclaw/workspace/.deepflow/orchestrator_agent.py') as f:
+    with open('str(Path(__file__).resolve().parent.parent.parent)/orchestrator_agent.py') as f:
         content = f.read()
     
     checks = {
@@ -79,7 +79,7 @@ import core.bootstrap
         Path(p).mkdir(parents=True, exist_ok=True)
     
     checks = {
-        "base路径": paths["base"] == "/Users/allen/.openclaw/workspace/.deepflow/blackboard/test_session_001",
+        "base路径": paths["base"] == "str(Path(__file__).resolve().parent.parent.parent)/blackboard/test_session_001",
         "data路径": "data" in paths["data"],
         "stages路径": "stages" in paths["stages"],
         "目录已创建": os.path.exists(paths["data"]) and os.path.exists(paths["stages"]),

@@ -39,6 +39,9 @@ from domains.research_pro.citation_verifier import CitationVerifier
 from domains.research_pro.ddgs_client import search_ddgs
 from domains.research_pro.safe_fetcher import _SafeFetcher, SafeFetchError
 
+import logging
+logger = logging.getLogger(__name__)
+
 # PathConfig 跨平台路径管理
 _path_config = PathConfig.resolve()
 _BASE_DIR = _path_config.base_dir
@@ -764,10 +767,15 @@ class ResearchProOrchestrator:
         max_sources: int,
         results_per_group: int,
     ) -> Dict[str, Any]:
-        """基于 keyword_groups 搜索、抓取、分类、去重并注册来源。"""
+        """基于 keyword_groups 搜索、抓取、分类、去重并注册来源。
+        
+        P0 fix: 搜索全空时不再注册假结果到 SourceRegistry，
+        改为写 degraded_search_plan.json 记录搜索失败原因和降级查询。
+        """
         batches = []
         registered_before = len(self.registry.sources)
         groups = keyword_groups or [self._fallback_keyword_group(0)]
+        degraded_entries: List[Dict[str, Any]] = []
 
         for i, kg in enumerate(groups):
             if not self._search_budget_available():
@@ -778,14 +786,17 @@ class ResearchProOrchestrator:
             query = self._query_from_keyword_group(kg)
             batch_id = f"batch_{len(batches) + 1:02d}"
             if self._consume_search_call():
-                # P0-1: 主路径 web_search → 降级 DDGS → 降级关键词数据
+                # P0-1: 主路径 web_search → 降级 DDGS
                 results = self._search_web(query, max_results=results_per_group)
                 if not results:
                     results = self._search_ddgs(query, max_results=results_per_group)
             else:
                 results = []
+
+            # P0 fix: 搜索全空时不再调 fallback 注册假结果，改为记录降级计划
             if not results:
-                results = self._fallback_search_results(kg, results_per_group)
+                degraded_entries.append(self._build_degraded_search_plan_entry(kg, query))
+                continue
 
             batch = {"id": batch_id, "keywords": kg, "query": query, "results": []}
             for result in results:
@@ -803,29 +814,19 @@ class ResearchProOrchestrator:
 
             batches.append(batch)
 
-        fallback_index = 0
-        while (
-            len(self.registry.sources) - registered_before < max_sources
-            and self._search_budget_available()
-        ):
-            kg = groups[fallback_index % len(groups)]
-            result = self._fallback_search_results(kg, 1, offset=fallback_index)[0]
-            registered_id = self._register_search_result(result, kg)
-            if registered_id is not None:
-                batch_id = f"batch_{len(batches) + 1:02d}"
-                batches.append({
-                    "id": batch_id,
-                    "keywords": kg,
-                    "query": self._query_from_keyword_group(kg),
-                    "results": [{"source_id": registered_id, "url": result["url"], "title": result["title"]}],
-                })
-            fallback_index += 1
-            if fallback_index > max_sources * 3:
-                break
+        # P0 fix: 不再用 fallback 结果填充 registry，改为记录降级计划
+        # 移除旧的 fallback_index 循环
+
+        # 写入 degraded_search_plan.json（如果有降级条目）
+        degraded_plan_path = ""
+        if degraded_entries:
+            degraded_plan_path = self._write_degraded_search_plan(degraded_entries)
 
         registered_after = len(self.registry.sources)
         return {
             "batches": batches,
+            "degraded_search_plan_path": degraded_plan_path,
+            "degraded_group_count": len(degraded_entries),
             "progress": {
                 "searched": len(batches),
                 "registered": registered_after - registered_before,
@@ -923,6 +924,11 @@ class ResearchProOrchestrator:
         return results
 
     def _register_search_result(self, result: Dict[str, str], keyword_group: Dict[str, Any]) -> Optional[int]:
+        """注册搜索结果到 SourceRegistry，附带证据来源标记。
+        
+        P0 fix: fetch 成功和失败的源有不同的 provenance 标记，
+        fetch 失败的源不再伪装成真实证据。
+        """
         url = result.get("url", "")
         title = result.get("title", "") or self._query_from_keyword_group(keyword_group)
         snippet = result.get("snippet", "")
@@ -933,7 +939,25 @@ class ResearchProOrchestrator:
             return None
 
         fetched = self._fetch_page_content(url)
-        content = fetched or self._fallback_content(keyword_group, title, snippet, url)
+        fetch_error = ""
+        if fetched:
+            # fetch 成功：真实网页内容
+            content = fetched
+            source_kind = "web_search"
+            content_origin = "web_fetch"
+            fetch_status = "fetched"
+        else:
+            # fetch 失败：不再用 fallback content 伪装成证据
+            # 仅记录 snippet（搜索结果摘要），标记为不可引用
+            content = snippet or ""
+            source_kind = "web_search"
+            content_origin = "fallback_content"
+            fetch_status = "failed"
+            fetch_error = "web_fetch failed for this URL; content is search snippet only"
+            # 记录 debug log（不喂 SourceRegistry 伪内容）
+            debug_fallback = self._fallback_content(keyword_group, title, snippet, url)
+            logger.debug(f"[P0 fallback debug] {url}: {debug_fallback[:200]}")
+
         summary = self._summarize_content(content, snippet)
         quality_tier = self.classifier.classify(parsed.hostname or "")
 
@@ -943,6 +967,10 @@ class ResearchProOrchestrator:
             content=content,
             quality_tier=quality_tier,
             summary=summary,
+            source_kind=source_kind,
+            content_origin=content_origin,
+            fetch_status=fetch_status,
+            fetch_error=fetch_error,
         )
 
     def _fetch_page_content(self, url: str) -> str:
@@ -964,31 +992,52 @@ class ResearchProOrchestrator:
             return ""
         return text[:SUMMARY_MAX_LENGTH]
 
-    def _fallback_search_results(
+    def _build_degraded_search_plan_entry(
         self,
         keyword_group: Dict[str, Any],
-        count: int,
-        offset: int = 0,
-    ) -> List[Dict[str, str]]:
-        """搜索失败时生成与关键词相关的合理降级来源。"""
-        query = self._query_from_keyword_group(keyword_group)
-        slug = quote_plus(query)[:80] or "research"
-        source_templates = [
-            ("https://www.sec.gov/search-filings?keys={slug}&fallback={n}", "官方披露"),
-            ("https://www.reuters.com/search/news?blob={slug}&fallback={n}", "权威新闻"),
-            ("https://www.bloomberg.com/search?query={slug}&fallback={n}", "市场资讯"),
-            ("https://finance.sina.com.cn/search?keywords={slug}&fallback={n}", "财经数据"),
-        ]
-        results = []
-        for i in range(count):
-            template, label = source_templates[(offset + i) % len(source_templates)]
-            n = offset + i + 1
-            results.append({
-                "url": template.format(slug=slug, n=n),
-                "title": f"{query} - {label}参考资料 {n}",
-                "snippet": f"围绕“{query}”的{label}降级资料，用于搜索服务不可用时保留研究路径。",
-            })
-        return results
+        query: str,
+    ) -> Dict[str, Any]:
+        """搜索失败时构建降级计划条目，写入 degraded_search_plan.json 而非 SourceRegistry。
+        
+        P0 fix: 不再生成假 URL 注册到 SourceRegistry，
+        而是记录搜索失败原因和建议的降级查询，供后续重试或人工参考。
+        """
+        return {
+            "query": query,
+            "keyword_group": keyword_group,
+            "reason": "all_search_engines_returned_empty",
+            "suggested_alternative_queries": [
+                f"{query} site:sec.gov",
+                f"{query} site:reuters.com",
+                f"{query} 深度分析",
+            ],
+            "timestamp": datetime.now().isoformat(),
+            "note": "This is a degraded search plan entry, NOT a citation source. "
+                    "Do not use as evidence in the final report.",
+        }
+
+    def _write_degraded_search_plan(self, entries: List[Dict[str, Any]]) -> str:
+        """将降级搜索计划写入 research/degraded_search_plan.json。
+        
+        Returns:
+            文件路径字符串，无降级条目时返回空字符串。
+        """
+        plan_path = self.base_path / "research" / "degraded_search_plan.json"
+        plan_data = {
+            "generated_at": datetime.now().isoformat(),
+            "degraded_group_count": len(entries),
+            "entries": entries,
+            "warning": "These entries represent failed search groups. "
+                       "They are NOT citation sources and must NOT appear in the final report.",
+        }
+        try:
+            with open(plan_path, 'w', encoding='utf-8') as f:
+                json.dump(plan_data, f, ensure_ascii=False, indent=2)
+            logger.info(f"[P0] Wrote degraded_search_plan.json with {len(entries)} entries")
+            return str(plan_path)
+        except OSError as e:
+            logger.warning(f"[P0] Failed to write degraded_search_plan.json: {e}")
+            return ""
 
     def _fallback_content(
         self,
@@ -997,6 +1046,12 @@ class ResearchProOrchestrator:
         snippet: str,
         url: str,
     ) -> str:
+        """生成 fallback 内容用于 debug log。
+        
+        P0 fix: 此函数不再被 _register_search_result 调用以填充 SourceRegistry。
+        仅用于 debug 日志记录，帮助诊断搜索失败原因。
+        Fallback content 不得出现在最终报告中。
+        """
         query = self._query_from_keyword_group(keyword_group)
         domain = urlparse(url).hostname or "unknown"
         variants = keyword_group.get("variants", [])
@@ -1007,9 +1062,8 @@ class ResearchProOrchestrator:
             f"Source domain: {domain}\n"
             f"Keyword variants: {variant_text}\n"
             f"Summary: {snippet or query}\n"
-            "Note: This keyword-grounded fallback content was generated because live search "
-            "or page fetching failed. It preserves the research topic, URL, and source tier "
-            "for downstream registry, citation, and completion checks."
+            "Note: [DEBUG ONLY] This fallback content is for diagnostic logging only. "
+            "It must NOT be used as evidence or appear in the final report."
         )
 
     def generate_report(self) -> Dict[str, Any]:
@@ -1096,11 +1150,26 @@ class ResearchProOrchestrator:
         citations: Optional[Dict[str, Any]] = None,
         timeout_reached: bool = False,
     ) -> Dict[str, Any]:
-        """按 completion_criteria.json 全字段计算完成状态。"""
+        """按 completion_criteria.json 全字段计算完成状态。
+        
+        P0 fix: 只计 eligible_for_completion=True 的源为 actual_sources，
+        fallback-only 报告不能通过 completion gate。
+        """
         registry_sources = self.registry.sources
-        actual_sources = len(registry_sources)
+        # P0 fix: 区分 eligible 和 ineligible 源
+        eligible_sources = [
+            s for s in registry_sources if s.get("eligible_for_completion", False)
+        ]
+        ineligible_sources_list = [
+            s for s in registry_sources if not s.get("eligible_for_completion", False)
+        ]
+        actual_sources = len(eligible_sources)
+        fallback_source_count = sum(
+            1 for s in ineligible_sources_list
+            if s.get("content_origin") == "fallback_content"
+        )
         actual_tier_1_sources = sum(
-            1 for source in registry_sources
+            1 for source in eligible_sources
             if source.get("quality_tier") == "tier_1"
         )
         min_sources = self._completion.get("min_data_sources", 3)
@@ -1122,9 +1191,10 @@ class ResearchProOrchestrator:
         unique_citations = int((citations or {}).get("unique_citations", 0))
         verified_count = int(citation_summary.get("verified", 0))
         unreachable_count = int(citation_summary.get("unreachable", 0))
+        ineligible_citation_count = int(citation_summary.get("ineligible_source", 0))
         suspect_count = sum(
             int(citation_summary.get(status, 0))
-            for status in ("unreachable", "not_found", "content_mismatch")
+            for status in ("unreachable", "not_found", "content_mismatch", "ineligible_source")
         )
         verified_ratio = verified_count / unique_citations if unique_citations else 0.0
         url_reachability = (
@@ -1153,6 +1223,9 @@ class ResearchProOrchestrator:
             degradation_actions.append(self._degradation_rules.get("no_data_sources_after_search"))
         if timeout_marker_required:
             degradation_actions.append(self._degradation_rules.get("timeout_reached"))
+        # P0 fix: fallback-only 报告（所有源都是 ineligible）必须触发降级
+        if actual_sources == 0 and len(registry_sources) > 0:
+            degradation_actions.append("mark_report_as_unreliable_fallback_only")
         degradation_actions = [action for action in degradation_actions if action]
 
         checks = {
@@ -1172,6 +1245,9 @@ class ResearchProOrchestrator:
         return {
             "min_sources_required": min_sources,
             "actual_sources": actual_sources,
+            "eligible_evidence_sources": actual_sources,
+            "ineligible_sources": len(ineligible_sources_list),
+            "fallback_source_count": fallback_source_count,
             "min_tier_1_sources_required": min_tier_1_sources,
             "actual_tier_1_sources": actual_tier_1_sources,
             "min_citations_required": min_citations,
@@ -1181,6 +1257,7 @@ class ResearchProOrchestrator:
             "max_citation_suspect_rate": max_suspect_rate,
             "actual_citation_suspect_rate": round(citation_suspect_rate, 2),
             "citation_verified_ratio": round(verified_ratio, 2),
+            "ineligible_citation_count": ineligible_citation_count,
             "min_trust_score": min_trust_score,
             "actual_trust_score": round(trust_score, 2),
             "tier_1_ratio_min": tier_1_ratio_min,

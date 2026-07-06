@@ -28,7 +28,7 @@ Research 是整个 pipeline 中最重的模块。它的输出质量直接决定�
 
 ```python
 # 所有 Python 命令必须以这个开头
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
+cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 ```
 
 ```python
@@ -56,7 +56,7 @@ bb = BlackboardManager('{session_id}')
 **目的**：确保研究基于最新技术信息，不用过时知识做决策。
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 # 优先读取 living_spec，向后兼容 frozen_spec
@@ -152,7 +152,7 @@ sessions_spawn(
     mode="run",
     label="research_planner",
     task=[渲染后的 Research Planner prompt],
-    cwd="/Users/allen/.openclaw/workspace/.deepflow",
+    cwd="{deepflow_root}",
     lightContext=True,
 )
 sessions_yield()
@@ -218,7 +218,7 @@ sessions_spawn(
     mode="run",
     label=f"research_expert_{expert_name}",
     task=[渲染后的 Expert prompt，包含 research_questions + planning_convergence],
-    cwd="/Users/allen/.openclaw/workspace/.deepflow",
+    cwd="{deepflow_root}",
     lightContext=True,
 )
 # 全部 spawn 完后

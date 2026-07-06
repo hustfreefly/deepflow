@@ -56,7 +56,7 @@ sessions_spawn(label="reviewer_feasibility_...")
 依此类推...
 
 ## Blackboard 路径
-- Base: `/Users/allen/.openclaw/workspace/.deepflow/blackboard/<session_id>/`
+- Base: `{deepflow_root}/blackboard/<session_id>/`
 - Stage 1: `stage_01_planner_output.json`
 - Stage 2: `stage_02_reviewer_<type>_output.json`
 - Stage 3: `stage_03_fixer_planner_output.json`

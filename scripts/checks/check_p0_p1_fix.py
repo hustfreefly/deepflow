@@ -12,7 +12,7 @@ def check_orchestrator_p0():
     """检查 Orchestrator P0 修复"""
     print("\n[Orchestrator P0 验证]")
     
-    filepath = "/Users/allen/.openclaw/workspace/.deepflow/orchestrator_agent.py"
+    filepath = "str(Path(__file__).resolve().parent.parent.parent)/orchestrator_agent.py"
     with open(filepath, 'r') as f:
         content = f.read()
     
@@ -35,7 +35,7 @@ def check_datamanager_p1():
     print("\n[DataManager P1 验证]")
     
     # 检查 Task Builder 中的 DataManager Task
-    filepath = "/Users/allen/.openclaw/workspace/.deepflow/core/task_builder.py"
+    filepath = "str(Path(__file__).resolve().parent.parent.parent)/core/task_builder.py"
     with open(filepath, 'r') as f:
         content = f.read()
     
@@ -60,9 +60,9 @@ def check_syntax():
     import py_compile
     
     files = [
-        "/Users/allen/.openclaw/workspace/.deepflow/core/task_builder.py",
-        "/Users/allen/.openclaw/workspace/.deepflow/core/master_agent.py",
-        "/Users/allen/.openclaw/workspace/.deepflow/core/data_manager_worker.py",
+        "str(Path(__file__).resolve().parent.parent.parent)/core/task_builder.py",
+        "str(Path(__file__).resolve().parent.parent.parent)/core/master_agent.py",
+        "str(Path(__file__).resolve().parent.parent.parent)/core/data_manager_worker.py",
     ]
     
     for filepath in files:

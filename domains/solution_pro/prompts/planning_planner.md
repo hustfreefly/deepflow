@@ -20,7 +20,7 @@ role: planning_planner
 ## 执行环境
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
+cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 ```
 
 ```python

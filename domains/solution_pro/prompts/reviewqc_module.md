@@ -25,9 +25,9 @@ status: active
 ## Preamble（每个 Worker task 开头必须加）
 
 ```
-你执行的所有 Python 命令必须以 `cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.` 开头。
+你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。
 否则 import 会报 ModuleNotFoundError。
-sessions_spawn 必须传 cwd="/Users/allen/.openclaw/workspace/.deepflow"。
+sessions_spawn 必须传 cwd="{deepflow_root}"。
 ```
 
 ## 你的 Blackboard
@@ -40,7 +40,7 @@ sessions_spawn 必须传 cwd="/Users/allen/.openclaw/workspace/.deepflow"。
 
 1. `sessions_spawn`:
    - label: "reviewqc_schema_validator"
-   - cwd: "/Users/allen/.openclaw/workspace/.deepflow"
+   - cwd: "{deepflow_root}"
    - task: preamble + 以下内容：
 
 ```
@@ -49,7 +49,7 @@ sessions_spawn 必须传 cwd="/Users/allen/.openclaw/workspace/.deepflow"。
 ## 步骤
 
 1. 读取所有上游输出：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
@@ -72,7 +72,7 @@ print(json.dumps(research, ensure_ascii=False, indent=2))
    - 所有 UC-ID 格式正确（UC-XXX）
 
 3. 写入 Blackboard：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
@@ -98,7 +98,7 @@ print('SCHEMA_VALIDATION_WRITTEN')
 
 1. `sessions_spawn`:
    - label: "reviewqc_harness_check"
-   - cwd: "/Users/allen/.openclaw/workspace/.deepflow"
+   - cwd: "{deepflow_root}"
    - task: preamble + 以下内容：
 
 ```
@@ -107,7 +107,7 @@ print('SCHEMA_VALIDATION_WRITTEN')
 ## 步骤
 
 1. 读取所有上游输出：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
@@ -132,7 +132,7 @@ print(json.dumps(schema, ensure_ascii=False, indent=2))
    - 信息守恒：living_spec（或 frozen_spec）中的需求是否在最终方案中有对应
 
 3. 写入 Blackboard：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
@@ -160,7 +160,7 @@ print('HARNESS_CHECK_WRITTEN')
 
 1. `sessions_spawn`:
    - label: "reviewqc_convergence"
-   - cwd: "/Users/allen/.openclaw/workspace/.deepflow"
+   - cwd: "{deepflow_root}"
    - task: preamble + 以下内容：
 
 ```
@@ -169,7 +169,7 @@ print('HARNESS_CHECK_WRITTEN')
 ## 步骤
 
 1. 读取所有上游输出：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
@@ -217,7 +217,7 @@ for name, data in [('spec', spec), ('schema', schema), ('harness', harness), ('p
 请在 reasoning 中引用具体数据说明判定依据。
 
 3. 写入 Blackboard：
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')

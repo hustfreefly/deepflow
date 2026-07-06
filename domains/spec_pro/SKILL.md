@@ -21,8 +21,8 @@ version: "2.0.0"
 ```python
 # 在 spawn 前执行:
 exec(
-    command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c \"from core.blackboard.context_injector import build_agent_context; print(build_agent_context(deepflow_root=__import__('pathlib').Path('.'), blackboard_id='<session_id>'))\"",
-    workdir="/Users/allen/.openclaw/workspace/.deepflow"
+    command="cd {deepflow_root} && PYTHONPATH=. python3 -c \"from core.blackboard.context_injector import build_agent_context; print(build_agent_context(deepflow_root=__import__('pathlib').Path('.'), blackboard_id='<session_id>'))\"",
+    workdir="{deepflow_root}"
 )
 # 将输出拼接到 spawn task 的前面
 ```
@@ -55,7 +55,7 @@ exec(
 # 主 Agent 调用 spec_pro_api.py
 exec(
     command="PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py init '{user_input}' --mode standard --scenario genesis",
-    workdir="/Users/allen/.openclaw/workspace/.deepflow"
+    workdir="{deepflow_root}"
 )
 ```
 
@@ -84,19 +84,19 @@ exec(
 # 1. 提交用户回复
 exec(
     command="PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py next_round {session_id} '{user_response}'",
-    workdir="/Users/allen/.openclaw/workspace/.deepflow"
+    workdir="{deepflow_root}"
 )
 
 # 2. 读取 Orchestrator 生成的下一个问题
 exec(
     command="PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py read_output {session_id}",
-    workdir="/Users/allen/.openclaw/workspace/.deepflow"
+    workdir="{deepflow_root}"
 )
 
 # 3. 检查状态
 exec(
     command="PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py status {session_id}",
-    workdir="/Users/allen/.openclaw/workspace/.deepflow"
+    workdir="{deepflow_root}"
 )
 ```
 
@@ -116,7 +116,7 @@ exec(
 # 运行 Harness 评估（使用 session_id，自动通过 BlackboardManager API 读取）
 exec(
     command="PYTHONPATH=. python3 domains/spec_pro/eval/harness.py {session_id}",
-    workdir="/Users/allen/.openclaw/workspace/.deepflow"
+    workdir="{deepflow_root}"
 )
 
 # 读取评估报告（Harness 已自动写入 Blackboard）
@@ -161,7 +161,7 @@ living_spec = read(
 # 2. 获取 Spec Pro 状态（会自动写 .completed 标记文件）
 exec(
     command="PYTHONPATH=. python3 domains/spec_pro/spec_pro_api.py status {session_id}",
-    workdir="/Users/allen/.openclaw/workspace/.deepflow"
+    workdir="{deepflow_root}"
 )
 
 # 3. pipeline_watcher 检测到 .completed 后会自动发送消息：
@@ -171,7 +171,7 @@ exec(
 # 4. 收到触发消息后，执行 Solution Pro 启动
 exec(
     command="PYTHONPATH=. python3 scripts/start_solution_pro.py '{topic}'",
-    workdir="/Users/allen/.openclaw/workspace/.deepflow"
+    workdir="{deepflow_root}"
 )
 # 其中 topic 从 living_spec.json 的 title 字段提取
 ```

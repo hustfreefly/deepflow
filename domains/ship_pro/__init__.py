@@ -424,6 +424,50 @@ import json; print(json.dumps(result))
 
 FAIL → 输出失败详情,不 retry。
 
+### Step 4.5: Worker MUST Judge（L2 语义验证）
+
+L1 通过后，对每个有 MUST 约束的 Worker 执行语义验证。这不是可选的。
+
+**Phase A: 准备 Worker Judge Tasks**
+
+exec: python3 -c "
+import sys, json; sys.path.insert(0, '{deepflow_root}')
+from pathlib import Path
+from domains.ship_pro.orchestrator.ship_orchestrator import ShipOrchestrator
+orch = ShipOrchestrator('{ship_pro_dir}')
+planner_path = Path('{ship_pro_dir}/stages/pipeline_plan.json')
+planner = json.loads(planner_path.read_text()) if planner_path.exists() else None
+worker_outputs_dir = Path('{ship_pro_dir}/stages/worker_outputs')
+worker_outputs = {{}}
+if worker_outputs_dir.exists():
+    for f in worker_outputs_dir.glob('*.json'):
+        worker_outputs[f.stem] = json.loads(f.read_text())
+tasks = orch.prepare_worker_judge_tasks(planner or {{}}, worker_outputs)
+Path('{ship_pro_dir}/stages/_worker_judge_tasks.json').write_text(json.dumps(tasks, ensure_ascii=False, indent=2))
+print(json.dumps({{'task_count': len(tasks), 'names': [t['name'] for t in tasks]}}))
+"
+
+**Phase B: Spawn Worker Judge Agents**
+
+如果 task_count > 0，并行 spawn 所有 Worker Judge Agent。用 cron wake 等待完成。
+完成后将 verdict 写入 `{ship_pro_dir}/stages/worker_judge_results.json`。
+
+**Phase C: 验证 Worker MUST 约束**
+
+exec: python3 -c "
+import sys, json; sys.path.insert(0, '{deepflow_root}')
+from pathlib import Path
+from domains.ship_pro.orchestrator.ship_orchestrator import ShipOrchestrator
+orch = ShipOrchestrator('{ship_pro_dir}')
+judge_results_path = Path('{ship_pro_dir}/stages/worker_judge_results.json')
+judge_results = json.loads(judge_results_path.read_text()) if judge_results_path.exists() else {{}}
+failed = [k for k, v in judge_results.items() if isinstance(v, dict) and not v.get('passed', True)]
+print(json.dumps({{'total': len(judge_results), 'passed': len(judge_results) - len(failed), 'failed': failed}}))
+"
+
+任何 Worker MUST 约束 FAIL → 不进入 Consolidator，输出失败详情。
+全部 PASS → 进入 Step 5。
+
 ### Step 5: Consolidator
 
 exec: python3 -c "
@@ -448,7 +492,9 @@ from domains.ship_pro.orchestrator.ship_orchestrator import ShipOrchestrator
 orch = ShipOrchestrator('{ship_pro_dir}')
 sol = json.loads(open('{ship_pro_dir}/stages/solution_pro_input.json').read())
 sp = json.loads(open('{ship_pro_dir}/stages/ship_package.json').read())
-planner = json.loads(open('{ship_pro_dir}/stages/planner_output.json').read()) if open('{ship_pro_dir}/stages/planner_output.json').exists() else None
+from pathlib import Path as _Path
+_planner_path = _Path('{ship_pro_dir}/stages/pipeline_plan.json')
+planner = json.loads(_planner_path.read_text()) if _planner_path.exists() else None
 tasks = orch.prepare_gate_judge_tasks(sol, sp, planner)
 open('{ship_pro_dir}/stages/_gate_judge_tasks.json', 'w').write(json.dumps(tasks, ensure_ascii=False, indent=2))
 print(json.dumps({{'task_count': len(tasks), 'names': [t['name'] for t in tasks]}}))
@@ -498,8 +544,10 @@ from domains.ship_pro.orchestrator.ship_orchestrator import ShipOrchestrator
 orch = ShipOrchestrator('{ship_pro_dir}')
 sol = json.loads(open('{ship_pro_dir}/stages/solution_pro_input.json').read())
 sp = json.loads(open('{ship_pro_dir}/stages/ship_package.json').read())
-planner = json.loads(open('{ship_pro_dir}/stages/planner_output.json').read()) if open('{ship_pro_dir}/stages/planner_output.json').exists() else None
-judge_results = json.loads(open('{ship_pro_dir}/stages/gate_judge_results.json').read())
+from pathlib import Path as _Path
+_planner_path = _Path('{ship_pro_dir}/stages/pipeline_plan.json')
+planner = json.loads(_planner_path.read_text()) if _planner_path.exists() else None
+judge_results = json.loads(_Path('{ship_pro_dir}/stages/gate_judge_results.json').read_text())
 result = orch.verify_ship_package(sol, sp, planner, judge_results)
 print(json.dumps({{k: {{'passed': v.passed, 'details': str(v.details)[:200]}} for k, v in result.items()}}))
 "
@@ -596,7 +644,7 @@ def _build_single_worker_prompt(worker, ctx, ctx_path: str, output_path: str) ->
 将分配给本模块的需求拆解为可执行的 Work Packages（WP）。你只负责 {worker.role}，不负责其他模块。
 
 ## 数据流
-read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", JSON 数组)
+read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", WorkerDeliverable JSON object)
 
 ## 上游约束（Semantic Anchors — 不可违反）
 
@@ -664,12 +712,34 @@ read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", JS
 下游消费者：{downstream}
 
 ## 输出规范
-write 到 "{output_path}"，JSON 数组，每个 WP：
+write 到 "{output_path}"，**WorkerDeliverable JSON object**（不是数组！），格式：
+```json
+{{
+  "worker_role": "{worker.role}",
+  "wp_id_prefix": "{worker.wp_id_prefix}",
+  "work_packages": [
+    {{
+      "id": "{worker.wp_id_prefix}-001",
+      "title": "...",
+      "description": "≥100 字",
+      "acceptance_criteria": ["...", "..."],
+      "deliverables": ["..."],
+      "dependencies": [],
+      "anchored_to": ["anchor_name_1"],
+      "covered_req_ids": ["REQ-001"],
+      "effort_hours": 40
+    }}
+  ],
+  "metadata": {{}},
+  "web_search_logs": []
+}}
+```
+每个 WP 要求：
 - description ≥ 100 字
 - acceptance_criteria ≥ 2 条
 - deliverables ≥ 1 项
 - anchored_to — 遵循的 anchor name 列表
-示例格式：{example_compact}"""
+示例 WP 格式：{example_compact}"""
     
     # ====================================================================
     # Tier 3: 护栏（结尾 — 高注意力区）

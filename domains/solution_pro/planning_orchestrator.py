@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 class PlanningOrchestrator(ModuleOrchestrator):
+    _stage_name = "planning"
     """
     PlanningOrchestrator — Planning 三层架构编排器
 
@@ -111,7 +112,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
         """Load prompt file"""
         prompt_path = Path(__file__).parent / "prompts" / filename
         if prompt_path.exists():
-            return prompt_path.read_text()
+            return self._resolve_prompt_vars(prompt_path.read_text())
         else:
             logger.warning(f"Prompt file not found: {filename}")
             return ""
@@ -146,39 +147,18 @@ class PlanningOrchestrator(ModuleOrchestrator):
         except Exception:
             return "(No input available)"
     
-    def _load_checkpoint(self, path: str) -> Optional[dict]:
-        """
-        加载断点输出（如果存在）
-        
-        Args:
-            path: Blackboard 相对路径
-        
-        Returns:
-            dict if exists, None otherwise
-        """
-        try:
-            result = self.blackboard.read(path)
-            logger.debug(f"Checkpoint loaded: {path}")
-            return result
-        except FileNotFoundError:
-            return None
-        except Exception as e:
-            logger.warning(f"Failed to load checkpoint for {path}: {e}")
-            return None
-    
+    # _load_checkpoint 已提升到 ModuleOrchestrator 基类（含 StageContract 契约笼子验证）
+
     def _save_checkpoint(self, path: str, result: dict):
         """
-        保存输出（checkpoint）
+        保存输出（checkpoint）。失败时 raise，不吞异常。
         
         Args:
             path: Blackboard 相对路径
             result: 输出 dict
         """
-        try:
-            self.blackboard.write(path, result)
-            logger.debug(f"Checkpoint saved: {path}")
-        except Exception as e:
-            logger.error(f"Failed to save checkpoint for {path}: {e}")
+        self.blackboard.write(path, result)
+        logger.debug(f"Checkpoint saved: {path}")
     
     def run(
         self,
@@ -567,7 +547,11 @@ class PlanningOrchestrator(ModuleOrchestrator):
                 p0_block = self._load_p0_constraints_prompt_block()
                 soft_constraints = self._get_system_soft_constraints()
                 # Note: trace_block removed - Expert Planners run BEFORE Convergence Planner
-                # so requirement_traceability.json doesn't exist yet prompt += f"\n{soft_constraints}\n"
+                # so requirement_traceability.json doesn't exist yet
+                if p0_block:
+                    prompt += f"\n{p0_block}\n"
+                if soft_constraints:
+                    prompt += f"\n{soft_constraints}\n"
                 
                 # Spawn LLM worker
                 worker_output = self._adapted_spawn(

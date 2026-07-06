@@ -5,12 +5,12 @@
 
 **每次 exec 调用必须这样写**：
 ```python
-exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c \"...\"")
+exec(command="cd {deepflow_root} && PYTHONPATH=. python3 -c \"...\"")
 ```
 
 或者先设置环境变量：
 ```python
-exec(command="cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c \"
+exec(command="cd {deepflow_root} && PYTHONPATH=. python3 -c \"
 import sys; sys.path.insert(0, '.')
 from core.blackboard.blackboard_manager import BlackboardManager
 ...\"")

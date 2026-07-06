@@ -62,7 +62,8 @@ class TestCitationVerifier(unittest.TestCase):
 
     def test_verify_citation_returns_dict(self):
         """verify_citation() 返回统一 schema。"""
-        self.sr.register('https://httpbin.org/status/200', 'Test', 'content', 'tier_1')
+        self.sr.register('https://httpbin.org/status/200', 'Test', 'content', 'tier_1',
+                         fetch_status='fetched', content_origin='web_fetch')
         result = self.cv.verify_citation(1)
         self.assertIsInstance(result, dict)
         self.assertIn('status', result)
@@ -76,16 +77,18 @@ class TestCitationVerifier(unittest.TestCase):
         self.assertIn('not found', result['verification_detail'].lower())
 
     def test_verify_citation_unreachable_url(self):
-        """URL 不可达时返回 status=unreachable。"""
-        self.sr.register('https://this-domain-does-not-exist-12345.com/page', 'Test', 'content', 'tier_1')
+        """URL 不可达时返回 status=unreachable 或 ineligible_source。"""
+        self.sr.register('https://this-domain-does-not-exist-12345.com/page', 'Test', 'content', 'tier_1',
+                         fetch_status='fetched', content_origin='web_fetch')
         result = self.cv.verify_citation(1)
-        self.assertEqual(result['status'], 'unreachable')
+        self.assertIn(result['status'], ['unreachable', 'ineligible_source'])
 
     def test_verify_citation_reachable_url(self):
-        """URL 可达时返回 verified 或 content_mismatch。"""
-        self.sr.register('https://httpbin.org/status/200', 'Test', 'content', 'tier_1')
+        """URL 可达时返回 verified、content_mismatch 或 ineligible_source。"""
+        self.sr.register('https://httpbin.org/status/200', 'Test', 'content', 'tier_1',
+                         fetch_status='fetched', content_origin='web_fetch')
         result = self.cv.verify_citation(1)
-        self.assertIn(result['status'], ['verified', 'content_mismatch', 'unreachable'])
+        self.assertIn(result['status'], ['verified', 'content_mismatch', 'unreachable', 'ineligible_source'])
 
     # --- verify_all() ---
 
@@ -102,7 +105,8 @@ class TestCitationVerifier(unittest.TestCase):
 
     def test_verify_all_details_structure(self):
         """verify_all() citations 包含正确结构。"""
-        self.sr.register('https://example.com', 'Test', 'content', 'tier_1')
+        self.sr.register('https://example.com', 'Test', 'content', 'tier_1',
+                         fetch_status='fetched', content_origin='web_fetch')
         result = self.cv.verify_all("引用[1]")
         self.assertIsInstance(result['citations'], list)
         if result['citations']:
@@ -118,15 +122,19 @@ class TestCitationVerifier(unittest.TestCase):
 
     def test_verify_all_counts(self):
         """verify_all() 统计数量正确。"""
-        self.sr.register('https://example.com/1', 'T1', 'c1', 'tier_1')
-        self.sr.register('https://example.com/2', 'T2', 'c2', 'tier_1')
+        self.sr.register('https://example.com/1', 'T1', 'c1', 'tier_1',
+                         fetch_status='fetched', content_origin='web_fetch')
+        self.sr.register('https://example.com/2', 'T2', 'c2', 'tier_1',
+                         fetch_status='fetched', content_origin='web_fetch')
         result = self.cv.verify_all("[1][2][999]")
         summary = result['verification_summary']
+        # V2: 新增 ineligible_source 状态
         total = (
-            summary['verified']
-            + summary['unreachable']
-            + summary['not_found']
-            + summary['content_mismatch']
+            summary.get('verified', 0)
+            + summary.get('unreachable', 0)
+            + summary.get('not_found', 0)
+            + summary.get('content_mismatch', 0)
+            + summary.get('ineligible_source', 0)
         )
         self.assertEqual(total, 3)  # 2 个真实 + 1 个 not_found
         self.assertEqual(result['total_citations'], 3)

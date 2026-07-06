@@ -35,7 +35,7 @@ print(f"Blackboard: {bb.base_path}")
 
 ```python
 # 读取Prompt
-prompt = open("/Users/allen/.openclaw/workspace/.deepflow/prompts/solution/worker_planner.md").read()
+prompt = open("{deepflow_root}/prompts/solution/worker_planner.md").read()
 
 # 填充变量
 filled_prompt = prompt.format(
@@ -63,7 +63,7 @@ reviewers = ["reviewer_completeness", "reviewer_architecture", "reviewer_feasibi
 
 # 并行spawn
 for reviewer in reviewers:
-    prompt = open("/Users/allen/.openclaw/workspace/.deepflow/prompts/solution/worker_reviewer.md").read()
+    prompt = open("{deepflow_root}/prompts/solution/worker_reviewer.md").read()
     filled = prompt.format(
         blackboard_path=str(bb.base_path),
         reviewer_type=reviewer.replace("reviewer_", "")
@@ -88,7 +88,7 @@ for reviewer in reviewers:
 **任务**: 根据Reviewer反馈修复计划
 
 ```python
-prompt = open("/Users/allen/.openclaw/workspace/.deepflow/prompts/solution/worker_fixer.md").read()
+prompt = open("{deepflow_root}/prompts/solution/worker_fixer.md").read()
 # 填充并spawn...
 ```
 

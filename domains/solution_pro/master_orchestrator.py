@@ -223,16 +223,16 @@ class MasterOrchestrator:
             result = self._execute_with_timeout(execute_fn, timeout, module_name)
             logger.info(f"[Module:{module_name}] execution returned (type={type(result).__name__})")
             
-            # 保存输出（原子写入）— 保存失败不应阻塞状态更新
+            # 保存输出并验证 — 失败时不标记 completed
             try:
-                self._save_module_output(module_name, result)
-                logger.info(f"[Module:{module_name}] output saved")
-            except Exception as save_err:
-                logger.error(f"[Module:{module_name}] failed to save output: {save_err}")
-                # 输出保存失败但模块已执行完成，仍标记为 completed
+                artifact = self._save_and_validate_module_output(module_name, result)
+                self._mark_module_completed(module_name, artifact)
+                logger.info(f"[Module:{module_name}] output saved and validated")
+            except RuntimeError as save_err:
+                logger.error(f"[Module:{module_name}] 完成失败: {save_err}")
+                # 不标记 completed！模块保持 incomplete
+                raise ModuleFailureError(module_name, "save_failed", save_err)
             
-            # 更新 state — 无论输出保存是否成功，执行成功即标记完成
-            self._mark_module_completed(module_name)
             logger.info(f"[Module:{module_name}] marked as completed")
             
             # Watcher: module completed
@@ -585,7 +585,7 @@ class MasterOrchestrator:
         self.blackboard.write(path, self.state)
     
     def _is_module_completed(self, module_name: str) -> bool:
-        """双层验证：master state + module state"""
+        """双层验证：master state + module state + artifact integrity"""
         # Layer 1: master state
         if module_name not in self.state.get("completed_modules", []):
             return False
@@ -594,17 +594,55 @@ class MasterOrchestrator:
         try:
             module_state_path = f"v2/{module_name}_output.json"
             output = self.blackboard.read_json(module_state_path)
-            return output is not None and isinstance(output, dict)
+            if output is None or not isinstance(output, dict):
+                return False
         except Exception:
             return False
+        
+        # Layer 3: artifact integrity check (if artifact record exists)
+        artifacts = self.state.get("module_artifacts", {})
+        if module_name in artifacts:
+            artifact = artifacts[module_name]
+            artifact_path = artifact.get("path")
+            expected_hash = artifact.get("sha256")
+            if not artifact_path or not expected_hash:
+                return False
+            # Verify file exists and hash matches
+            try:
+                with open(artifact_path) as f:
+                    saved_data = json.load(f)
+                actual_hash = hashlib.sha256(
+                    json.dumps(saved_data, sort_keys=True).encode()
+                ).hexdigest()
+                if actual_hash != expected_hash:
+                    logger.warning(
+                        f"[Module:{module_name}] artifact hash mismatch "
+                        f"(expected={expected_hash[:8]}..., actual={actual_hash[:8]}...)"
+                    )
+                    return False
+            except Exception:
+                return False
+        
+        return True
     
-    def _mark_module_completed(self, module_name: str):
-        """标记模块完成"""
+    def _mark_module_completed(self, module_name: str, artifact: dict = None):
+        """标记模块完成，可选记录 artifact 信息"""
         with self._state_lock:
             if "completed_modules" not in self.state:
                 self.state["completed_modules"] = []
             if module_name not in self.state["completed_modules"]:
                 self.state["completed_modules"].append(module_name)
+            
+            # Record artifact if provided
+            if artifact is not None:
+                if "module_artifacts" not in self.state:
+                    self.state["module_artifacts"] = {}
+                self.state["module_artifacts"][module_name] = artifact
+            else:
+                logger.warning(
+                    f"[Module:{module_name}] completed without artifact record"
+                )
+            
             self._save_state()
     
     def _load_module_output(self, module_name: str) -> dict:
@@ -612,10 +650,51 @@ class MasterOrchestrator:
         path = f"v2/{module_name}_output.json"
         return self.blackboard.read_json(path)
     
-    def _save_module_output(self, module_name: str, output: dict):
-        """保存模块输出（原子写入）"""
+    def _save_module_output(self, module_name: str, output: dict) -> str:
+        """保存模块输出（原子写入）。失败时 raise，不吞异常。
+        
+        Returns:
+            artifact_path: 保存后的文件路径
+        """
         path = f"v2/{module_name}_output.json"
         self.blackboard.write(path, output)
+        # Return the full path for verification
+        artifact_path = os.path.join(
+            str(self.blackboard.session_dir), path
+        )
+        return artifact_path
+    
+    def _save_and_validate_module_output(self, module_name: str, output: dict) -> dict:
+        """保存模块输出并验证。返回 artifact 信息。
+        
+        失败时 raise，不返回。
+        """
+        # 1. 保存
+        artifact_path = self._save_module_output(module_name, output)
+        if not artifact_path:
+            raise RuntimeError(f"模块 {module_name} 输出保存失败")
+        
+        # 2. Read back 验证
+        try:
+            with open(artifact_path) as f:
+                saved_data = json.load(f)
+        except Exception as e:
+            raise RuntimeError(f"模块 {module_name} 输出保存后无法读回: {e}")
+        
+        # 3. Hash
+        content_hash = hashlib.sha256(
+            json.dumps(saved_data, sort_keys=True).encode()
+        ).hexdigest()
+        
+        # 4. 基本 schema 检查（至少是 dict 且有内容）
+        if not isinstance(saved_data, dict) or len(saved_data) == 0:
+            raise RuntimeError(f"模块 {module_name} 输出为空或格式错误")
+        
+        return {
+            "path": str(artifact_path),
+            "sha256": content_hash,
+            "validated": True
+        }
     
     # === 超时保护 ===
     

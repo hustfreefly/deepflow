@@ -182,7 +182,69 @@ class ModuleOrchestrator:
         if set(data.keys()).issubset(spawn_metadata_keys):
             return False
         return True
-    
+
+    _stage_name: Optional[str] = None  # 子类设置以自动映射 STAGE_CONTRACTS
+
+    def _load_checkpoint(self, path: str, required_keys: Optional[list] = None, stage_name: Optional[str] = None) -> Optional[dict]:
+        """加载阶段 checkpoint（契约笼子验证）。
+
+        验证流程：
+        1. 读取数据
+        2. 检查 required_keys（如果指定）
+        3. StageContract 验证（schema + 最小内容长度 + 损坏检测）
+        4. 验证失败 → return None + log warning
+
+        Args:
+            path: Blackboard 相对路径
+            required_keys: 该阶段 checkpoint 必须包含的最小字段集
+            stage_name: 阶段名称，用于查找 StageContract。未指定时从 _stage_name 或 path 自动推断。
+        """
+        from .contracts.stage_contract import STAGE_CONTRACTS, validate_checkpoint
+        try:
+            if hasattr(self.blackboard, 'read_json'):
+                result = self.blackboard.read_json(path)
+            else:
+                result = self.blackboard.read(path)
+                if isinstance(result, str):
+                    result = json.loads(result)
+            if result is None or not isinstance(result, dict):
+                return None
+
+            # Layer 1: required_keys 检查
+            if required_keys:
+                missing = [k for k in required_keys if k not in result]
+                if missing:
+                    logger.warning(f"Checkpoint '{path}' 缺少必需字段: {missing}，视为无效")
+                    return None
+
+            # Layer 2: StageContract 验证
+            effective_stage = stage_name or self._stage_name
+            if not effective_stage:
+                effective_stage = path.split("/")[-1].replace(".json", "")
+            if effective_stage in STAGE_CONTRACTS:
+                contract = STAGE_CONTRACTS[effective_stage]
+                valid, reason = validate_checkpoint(contract, result)
+                if not valid:
+                    logger.warning(f"Checkpoint '{path}' StageContract[{effective_stage}] 失败: {reason}")
+                    return None
+
+            logger.debug(f"Checkpoint loaded and validated: {path}")
+            return result
+        except FileNotFoundError:
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to load checkpoint for {path}: {e}")
+            return None
+
+    def _resolve_prompt_vars(self, content: str) -> str:
+        """替换 prompt 模板中的路径变量。
+
+        支持的变量：
+        - {deepflow_root}: DeepFlow 根目录（从 core.bootstrap 自动检测）
+        """
+        from core.bootstrap import get_deepflow_root
+        return content.replace("{deepflow_root}", str(get_deepflow_root()))
+
     def _load_or_init_state(self) -> dict:
         """加载或初始化 state.json"""
         state_path = f"module_{self.module_name}_state.json"
@@ -444,23 +506,24 @@ stages/harness_{stage_name}.json
             raise
     
     def validate_stage_output(self, module_name: str, stage_name: str, output: dict) -> bool:
-        """Validate stage output against schema. Non-blocking on failure."""
-        try:
-            # check_contract removed in 2.0.0 (was in _archive/v1/)
-            # Contract validation now handled by Pydantic schemas in contracts/
-            result = None  # Placeholder: contract validation via schemas
-            if not result.get("valid"):
-                logger.warning("Schema validation failed for %s/%s: %s",
-                              module_name, stage_name, result.get("errors"))
-                return False
-            logger.info("Schema validation passed for %s/%s", module_name, stage_name)
-            return True
-        except ImportError:
-            logger.debug("check_contract deprecated in 2.0.0, using Pydantic schema validation")
-            return True
-        except Exception as e:
-            logger.warning("Schema validation error for %s/%s: %s", module_name, stage_name, e)
-            return True
+        """Validate stage output against schema.
+        
+        V2 契约笼子: Pydantic schema 验证是硬约束。
+        验证失败返回 False，不再静默吞掉错误。
+        """
+        if not isinstance(output, dict):
+            logger.error("Stage output %s/%s is not a dict (got %s)",
+                        module_name, stage_name, type(output).__name__)
+            return False
+        
+        if not output:
+            logger.error("Stage output %s/%s is empty", module_name, stage_name)
+            return False
+        
+        # Pydantic schema 验证由各域 contracts/ 模块负责
+        # 这里只做基础完整性检查（非空 + dict 类型）
+        logger.info("Schema validation passed for %s/%s (basic check)", module_name, stage_name)
+        return True
 
     def _execute_parallel(
         self,

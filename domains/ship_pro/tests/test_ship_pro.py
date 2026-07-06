@@ -76,16 +76,17 @@ def sample_solution_pro_output():
 
 @pytest.fixture
 def sample_planner_output():
-    """Planner 输出示例"""
+    """Planner 输出示例 — 匹配 PipelinePlan schema (V2)"""
     return {
         "input_type": "engineering",
         "complexity": "high",
         "domain": "AI 工程框架",
-        "analysis_summary": "这是一个复杂的 AI 工程框架项目，需要拆解为多个可执行工作包。",
+        "rationale": "这是一个复杂的 AI 工程框架项目，需要拆解为多个可执行工作包。架构设计先行，工作包拆解跟进，确保信息守恒和平台对齐。",
+        "execution_order": [["architecture_designer"], ["wp_decomposer"]],
         "workers": [
             {
                 "role": "architecture_designer",
-                "task_description": "设计架构模块",
+                "module_purpose": "设计整体架构模块，确保 DAG 并行执行和信息守恒原则得到贯彻",
                 "required_inputs": ["final_solution"],
                 "expected_output_stage": "worker_architecture_designer",
                 "output_schema": "WorkerDeliverable",
@@ -94,11 +95,13 @@ def sample_planner_output():
                 "must_constraints": ["必须支持 DAG 并行执行"],
                 "solution_pro_refs": ["architecture_overview"],
                 "covered_req_ids": ["REQ-001"],
-                "wp_id_prefix": "ARCH"
+                "wp_id_prefix": "ARCH",
+                "estimated_wps": 4,
+                "estimated_effort_hours": 40
             },
             {
                 "role": "wp_decomposer",
-                "task_description": "拆解工作包",
+                "module_purpose": "拆解工作包为可执行的细粒度任务，确保每个工作包有明确的验收标准",
                 "required_inputs": ["final_solution", "worker_architecture_designer"],
                 "expected_output_stage": "worker_wp_decomposer",
                 "output_schema": "WorkerDeliverable",
@@ -108,7 +111,9 @@ def sample_planner_output():
                 "must_constraints": ["必须实现信息守恒"],
                 "solution_pro_refs": ["key_design_decisions"],
                 "covered_req_ids": ["REQ-002"],
-                "wp_id_prefix": "WP"
+                "wp_id_prefix": "WP",
+                "estimated_wps": 6,
+                "estimated_effort_hours": 80
             }
         ],
         "integration_strategy": "hierarchical"
@@ -180,10 +185,11 @@ class TestContracts:
     """测试 Pydantic Schema 验证"""
     
     def test_planner_output_schema(self, sample_planner_output):
-        """PlannerOutput Schema 验证"""
+        """PlannerOutput Schema 验证 — PlannerOutput = PipelinePlan (V2)"""
         planner_output = PlannerOutput.model_validate(sample_planner_output)
-        assert planner_output.input_type == "engineering"
         assert len(planner_output.workers) == 2
+        assert len(planner_output.execution_order) == 2
+        assert planner_output.workers[0].role == "architecture_designer"
     
     def test_worker_deliverable_schema(self, sample_worker_output):
         """WorkerDeliverable Schema 验证"""
@@ -213,10 +219,13 @@ class TestGates:
     
     def test_planner_gate_fail_worker_count(self, sample_planner_output):
         """PlannerGate 失败测试（Worker 数量超限）"""
-        sample_planner_output["workers"] = sample_planner_output["workers"] * 5  # 10 workers
+        # PipelinePlan 限制 max 8 workers，5x 复制 = 10 workers 触发 Pydantic 验证
+        sample_planner_output["workers"] = sample_planner_output["workers"] * 5
+        sample_planner_output["execution_order"] = [[w["role"]] for w in sample_planner_output["workers"]]
         result = PlannerGate.check(sample_planner_output)
         assert not result.passed
-        assert "Worker 数量" in result.issues[0]
+        # V2: Pydantic 先拦截（at most 8），然后 Gate 才检查
+        assert len(result.issues) > 0
     
     def test_planner_gate_fail_cycle(self, sample_planner_output):
         """PlannerGate 失败测试（依赖环）"""
@@ -238,10 +247,22 @@ class TestGates:
         assert result.passed
     
     def test_completeness_gate_pass(self, sample_solution_pro_output, sample_planner_output):
-        """CompletenessGate 通过测试 — 契约笼子：100% 覆盖"""
-        result = CompletenessGate.check(sample_solution_pro_output, sample_planner_output)
+        """CompletenessGate 通过测试 — 契约笼子：需要 Judge Agent 结果"""
+        # V2 契约笼子: CompletenessGate 必须有 judge_results
+        judge_results = {
+            "completeness": {
+                "passed": True,
+                "coverage_rate": 1.0,
+                "covered": ["REQ-001", "REQ-002"],
+                "missing": [],
+                "issues": []
+            }
+        }
+        result = CompletenessGate.check(
+            sample_solution_pro_output, sample_planner_output,
+            judge_results=judge_results
+        )
         assert result.passed
-        assert result.details["coverage_rate"] == 1.0
 
 
 # ============================================================================

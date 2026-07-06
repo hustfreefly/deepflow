@@ -806,11 +806,18 @@ stages/convergence_{self.module_name}.json
         return self._evaluate_check_local(check, compressed)
 
     def _evaluate_check_via_harness(self, check: dict, compressed: dict) -> dict:
-        """通过 Harness Agent (spawn_fn) 进行语义判定"""
+        """通过 Harness Agent (spawn_fn) 进行语义判定。
+
+        spawn 后等待结果文件写入 blackboard，读取并解析 verdict。
+        文件不存在或 verdict 非 PASS → 返回 FAIL。
+        """
+        check_name = check["name"]
+        output_path = f"stages/gate_b/{check_name}.json"
+
         task = (
             f"You are a Gate B harness evaluator.\n\n"
             f"## Check\n"
-            f"- name: {check['name']}\n"
+            f"- name: {check_name}\n"
             f"- description: {check['description']}\n"
             f"- pass_criteria: {check['pass_criteria']}\n"
             f"- severity: {check.get('severity', 'MINOR')}\n\n"
@@ -818,16 +825,42 @@ stages/convergence_{self.module_name}.json
             f"```json\n{json.dumps(compressed, ensure_ascii=False, indent=2)}\n```\n\n"
             f"## Task\n"
             f"Evaluate whether the compressed data satisfies the pass_criteria.\n"
-            f"Respond with ONLY a JSON object: {{\"result\": \"PASS\" or \"FAIL\", \"reason\": \"brief explanation\"}}"
+            f"Write your result as a JSON object to the blackboard path: {output_path}\n"
+            f"The JSON must have format: {{\"result\": \"PASS\" or \"FAIL\", \"reason\": \"brief explanation\"}}"
         )
         try:
-            self.spawn_fn(task=task, mode="run", label=f"gate_b_{check['name']}")
-            # Harness agent writes result to blackboard; for now we do a
-            # best-effort: if spawn succeeded but we can't read result, PASS
-            return {"name": check["name"], "severity": check.get("severity", "MINOR"), "result": "PASS", "reason": "harness_evaluated"}
+            self.spawn_fn(task=task, mode="run", label=f"gate_b_{check_name}")
         except Exception as e:
-            logger.warning(f"Harness spawn failed for check {check['name']}: {e}, falling back to local")
+            logger.warning(f"Harness spawn failed for check {check_name}: {e}, falling back to local")
             return self._evaluate_check_local(check, compressed)
+
+        # 等待并读取结果
+        result_data = self._wait_for_gate_b_result(output_path, check_name)
+        if result_data is None:
+            logger.warning(f"Gate B harness did not produce result for '{check_name}' at {output_path}, marking FAIL")
+            return {"name": check_name, "severity": check.get("severity", "MINOR"), "result": "FAIL", "reason": "harness_no_output"}
+
+        verdict = result_data.get("result", "FAIL")
+        return {
+            "name": check_name,
+            "severity": check.get("severity", "MINOR"),
+            "result": verdict if verdict in ("PASS", "FAIL") else "FAIL",
+            "reason": result_data.get("reason", "harness_evaluated"),
+        }
+
+    def _wait_for_gate_b_result(self, output_path: str, check_name: str, timeout: float = 120.0) -> Optional[dict]:
+        """轮询等待 Gate B harness 结果文件出现，解析并返回。超时返回 None。"""
+        import time
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                data = self.blackboard.read_json(output_path)
+                if data and isinstance(data, dict):
+                    return data
+            except Exception:
+                pass
+            time.sleep(2.0)
+        return None
 
     def _evaluate_check_local(self, check: dict, compressed: dict) -> dict:
         """

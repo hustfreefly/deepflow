@@ -28,7 +28,7 @@ Summary 是收敛模块。Planning 和 Research 是发散（从一个点展开�
 
 ```python
 # 所有 Python 命令必须以这个开头
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
+cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 ```
 
 ```python
@@ -110,7 +110,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="summary_base_synthesizer",
-    task=f"""cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+    task=f"""cd {deepflow_root} && PYTHONPATH=.
 
 {pathlib.Path('prompts/summary_base_synthesizer.md').read_text()}
 
@@ -121,7 +121,7 @@ sessions_spawn(
 `{session_id}`
 """,
     lightContext=True,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+    cwd="{deepflow_root}"
 )
 sessions_yield()
 ```
@@ -129,7 +129,7 @@ sessions_yield()
 **yield 后第一个 action 必须是 exec 验证**：
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 result = bb.read_stage('base_solution')
@@ -155,7 +155,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="finding_coverage_gate",
-    task=f"""cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+    task=f"""cd {deepflow_root} && PYTHONPATH=.
 
 你是 Finding 覆盖度检查器（LLM-as-Judge）。
 
@@ -202,7 +202,7 @@ base = bb.read_stage('base_solution')
 
 """,
     lightContext=True,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+    cwd="{deepflow_root}"
 )
 sessions_yield()
 ```
@@ -244,7 +244,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="summary_meta_planner",
-    task=f"""cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+    task=f"""cd {deepflow_root} && PYTHONPATH=.
 
 {pathlib.Path('prompts/summary_meta_planner.md').read_text()}
 
@@ -255,7 +255,7 @@ sessions_spawn(
 `{session_id}`
 """,
     lightContext=True,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+    cwd="{deepflow_root}"
 )
 sessions_yield()
 ```
@@ -263,7 +263,7 @@ sessions_yield()
 **yield 后第一个 action 必须是 exec 验证**：
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 result = bb.read_stage('summary_plan')
@@ -299,7 +299,7 @@ summary_plan 中的 Analyzer 面板使用固定格式 `## Analyzer: [name]`，Mo
 **Step 1: 解析 Analyzer 面板**
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 plan = bb.read_stage('summary_plan')
@@ -360,7 +360,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label=f"summary_analyzer_{analyzer_name}",
-    task=f"""cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+    task=f"""cd {deepflow_root} && PYTHONPATH=.
 
 {analyzer_prompt}
 
@@ -374,7 +374,7 @@ sessions_spawn(
 `{session_id}`
 """,
     lightContext=True,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+    cwd="{deepflow_root}"
 )
 # 全部 spawn 完后
 sessions_yield()
@@ -383,7 +383,7 @@ sessions_yield()
 **yield 后第一个 action 必须是 exec 验证**：
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import os, glob
 bb = BlackboardManager('{session_id}')
@@ -443,7 +443,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="summary_fix_judge",
-    task=f"""cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+    task=f"""cd {deepflow_root} && PYTHONPATH=.
 
 {pathlib.Path('prompts/summary_fix_judge.md').read_text()}
 
@@ -454,7 +454,7 @@ sessions_spawn(
 `{session_id}`
 """,
     lightContext=True,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+    cwd="{deepflow_root}"
 )
 sessions_yield()
 ```
@@ -462,7 +462,7 @@ sessions_yield()
 **yield 后第一个 action 必须是 exec 验证**：
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 result = bb.read_stage('fix_plan')
@@ -490,7 +490,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="summary_fix_agent",
-    task=f"""cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+    task=f"""cd {deepflow_root} && PYTHONPATH=.
 
 {pathlib.Path('prompts/summary_fix_agent.md').read_text()}
 
@@ -501,7 +501,7 @@ sessions_spawn(
 `{session_id}`
 """,
     lightContext=True,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+    cwd="{deepflow_root}"
 )
 sessions_yield()
 ```
@@ -509,7 +509,7 @@ sessions_yield()
 **yield 后第一个 action 必须是 exec 验证**：
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 result = bb.read_stage('refined_solution')
@@ -537,7 +537,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="summary_harness_check",
-    task=f"""cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+    task=f"""cd {deepflow_root} && PYTHONPATH=.
 
 {pathlib.Path('prompts/summary_harness_check.md').read_text()}
 
@@ -548,7 +548,7 @@ sessions_spawn(
 `{session_id}`
 """,
     lightContext=True,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+    cwd="{deepflow_root}"
 )
 sessions_yield()
 ```
@@ -556,7 +556,7 @@ sessions_yield()
 **yield 后第一个 action 必须是 exec 验证**：
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
@@ -623,7 +623,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="summary_document_generator",
-    task=f"""cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+    task=f"""cd {deepflow_root} && PYTHONPATH=.
 
 {pathlib.Path('prompts/summary_summarizer.md').read_text()}
 
@@ -634,7 +634,7 @@ sessions_spawn(
 `{session_id}`
 """,
     lightContext=True,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+    cwd="{deepflow_root}"
 )
 sessions_yield()
 ```
@@ -642,7 +642,7 @@ sessions_yield()
 **yield 后第一个 action 必须是 exec 验证**：
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 result = bb.read_stage('solution_document')
@@ -675,7 +675,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="summary_json_extractor",
-    task=f"""cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+    task=f"""cd {deepflow_root} && PYTHONPATH=.
 
 {pathlib.Path('prompts/summary_json_extractor.md').read_text()}
 
@@ -686,7 +686,7 @@ sessions_spawn(
 `{session_id}`
 """,
     lightContext=True,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow"
+    cwd="{deepflow_root}"
 )
 sessions_yield()
 ```
@@ -694,7 +694,7 @@ sessions_yield()
 **yield 后第一个 action 必须是 exec 验证**：
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
@@ -767,7 +767,7 @@ else:
 **Phase 5b 完成后**，写入 Summary 模块的完成标记：
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 

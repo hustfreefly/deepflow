@@ -20,7 +20,7 @@ def check_orchestrator_guide():
     """检查 Orchestrator 是否为文本指南"""
     print("\n[Check] Orchestrator Agent 指南格式")
     
-    filepath = "/Users/allen/.openclaw/workspace/.deepflow/orchestrator_agent.py"
+    filepath = "str(Path(__file__).resolve().parent.parent.parent)/orchestrator_agent.py"
     with open(filepath, 'r') as f:
         content = f.read()
     
@@ -83,7 +83,7 @@ def check_data_manager():
     """检查 DataManager Worker"""
     print("\n[Check] DataManager Worker 功能")
     
-    filepath = "/Users/allen/.openclaw/workspace/.deepflow/core/data_manager_worker.py"
+    filepath = "str(Path(__file__).resolve().parent.parent.parent)/core/data_manager_worker.py"
     with open(filepath, 'r') as f:
         content = f.read()
     
@@ -111,15 +111,15 @@ def main():
     
     checks = [
         ("Orchestrator 指南文件", 
-         check_file_exists("/Users/allen/.openclaw/workspace/.deepflow/orchestrator_agent.py", 
+         check_file_exists("str(Path(__file__).resolve().parent.parent.parent)/orchestrator_agent.py", 
                           "Orchestrator Agent 指南")),
         ("Orchestrator 格式", check_orchestrator_guide()),
         ("Master Agent 文件", 
-         check_file_exists("/Users/allen/.openclaw/workspace/.deepflow/core/master_agent.py", 
+         check_file_exists("str(Path(__file__).resolve().parent.parent.parent)/core/master_agent.py", 
                           "Master Agent")),
         ("Master Agent 功能", check_master_agent()),
         ("DataManager Worker 文件", 
-         check_file_exists("/Users/allen/.openclaw/workspace/.deepflow/core/data_manager_worker.py", 
+         check_file_exists("str(Path(__file__).resolve().parent.parent.parent)/core/data_manager_worker.py", 
                           "DataManager Worker")),
         ("DataManager Worker 功能", check_data_manager()),
     ]

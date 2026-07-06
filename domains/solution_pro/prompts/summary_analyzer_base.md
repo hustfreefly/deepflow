@@ -27,7 +27,7 @@ role: analyzer
 ## 执行环境
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
+cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 ```
 
 ```python
@@ -149,7 +149,7 @@ bb.write_stage(f'analysis_{analyzer_name}', analysis_report_markdown)
 ## 完成后验证
 
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 result = bb.read_stage(f'analysis_{analyzer_name}')

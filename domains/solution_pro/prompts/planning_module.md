@@ -28,7 +28,7 @@ Planning 是整个 pipeline 中最先执行的模块。它的输出（`planning_
 
 ```python
 # 所有 Python 命令必须以这个开头
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
+cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 ```
 
 ```python
@@ -83,7 +83,7 @@ sessions_yield 返回后：
 
 ```python
 # 先读取 living_spec（优先）或 frozen_spec 确定搜索方向
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/frozen_spec.json', default={})
@@ -122,14 +122,14 @@ sessions_spawn(
     mode="run",
     label="planning_planner",
     task=f"""
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+cd {deepflow_root} && PYTHONPATH=.
 
 {planner_prompt}
 
 ## 你的 session_id
 `{session_id}`
 """,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow",
+    cwd="{deepflow_root}",
     lightContext=True,
 )
 sessions_yield()
@@ -137,7 +137,7 @@ sessions_yield()
 
 **yield 返回后第一个 action 必须是 exec 验证**：
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 plan = bb.read_stage('planning_plan')
@@ -165,7 +165,7 @@ PLANNING_PLAN_MISSING → 重新 spawn 一次。仍 MISSING → 记录错误，p
 
 ```python
 # 1. 读取 planning_plan，提取专家面板
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import re
 bb = BlackboardManager('{session_id}')
@@ -195,7 +195,7 @@ for expert_name in experts:
         mode="run",
         label=f"planning_expert_{expert_name}",
         task=f"""
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+cd {deepflow_root} && PYTHONPATH=.
 
 {expert_base_prompt}
 
@@ -211,7 +211,7 @@ cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
 
 重点需求：{focus_req_ids}
 """,
-        cwd="/Users/allen/.openclaw/workspace/.deepflow",
+        cwd="{deepflow_root}",
     lightContext=True,
     )
 
@@ -221,7 +221,7 @@ sessions_yield()
 
 **yield 返回后第一个 action 必须是 exec 验证**：
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import os, glob
 bb = BlackboardManager('{session_id}')
@@ -260,7 +260,7 @@ sessions_spawn(
     mode="run",
     label="planning_gap_analyst",
     task=f"""
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+cd {deepflow_root} && PYTHONPATH=.
 
 {gap_prompt}
 
@@ -271,7 +271,7 @@ cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
 你正在 Planning 模块中工作。Expert 输出在 `planning_experts/` 目录下。
 质量计划是 `planning_plan` stage（不是 research_plan）。
 """,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow",
+    cwd="{deepflow_root}",
     lightContext=True,
 )
 sessions_yield()
@@ -279,7 +279,7 @@ sessions_yield()
 
 **yield 返回后验证**：
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 gap = bb.read_stage('gap_analysis')
@@ -311,7 +311,7 @@ sessions_spawn(
     mode="run",
     label="planning_devil_advocate",
     task=f"""
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+cd {deepflow_root} && PYTHONPATH=.
 
 {da_prompt}
 
@@ -321,7 +321,7 @@ cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
 ## 模块上下文
 你正在 Planning 模块中工作。Expert 输出在 `planning_experts/` 目录下。
 """,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow",
+    cwd="{deepflow_root}",
     lightContext=True,
 )
 sessions_yield()
@@ -329,7 +329,7 @@ sessions_yield()
 
 **yield 返回后验证**：
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 da = bb.read_stage('devil_advocate')
@@ -359,7 +359,7 @@ else:
 
 ```python
 # 读取补充任务清单
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
 gap = bb.read_stage('gap_analysis')
@@ -383,7 +383,7 @@ for supp_name in supplementary_experts:
         mode="run",
         label=f"planning_supp_{supp_name}",
         task=f"""
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+cd {deepflow_root} && PYTHONPATH=.
 
 {expert_base_prompt}
 
@@ -402,7 +402,7 @@ cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
 
 重点需求：{supp_focus_req_ids}
 """,
-        cwd="/Users/allen/.openclaw/workspace/.deepflow",
+        cwd="{deepflow_root}",
     lightContext=True,
     )
 
@@ -411,7 +411,7 @@ sessions_yield()
 
 **yield 返回后验证**：
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import os, glob
 bb = BlackboardManager('{session_id}')
@@ -439,7 +439,7 @@ for f in supp_files:
 
 ```python
 # Step 1: 收集所有 Expert 报告
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import os, glob
 bb = BlackboardManager('{session_id}')
@@ -462,7 +462,7 @@ sessions_spawn(
     mode="run",
     label="planning_convergence",
     task=f"""
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.
+cd {deepflow_root} && PYTHONPATH=.
 
 你是 Planning 模块的 Phase 5 收敛 Agent。
 
@@ -552,7 +552,7 @@ else:
     print('CONVERGENCE_MISSING')
 ```
 """,
-    cwd="/Users/allen/.openclaw/workspace/.deepflow",
+    cwd="{deepflow_root}",
     lightContext=True,
 )
 sessions_yield()
@@ -560,7 +560,7 @@ sessions_yield()
 
 **yield 返回后验证**：
 ```python
-cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bb = BlackboardManager('{session_id}')
@@ -615,5 +615,5 @@ bb.write_stage('planning_completed', {
 5. **最多 1 轮补充研究** — 避免无限循环
 6. **yield 唤醒后只做 exec 验证** — 不生成文字
 7. **Devil's Advocate 必做** — 不是条件触发
-8. **每个 spawn 的 task 开头必须加 Preamble** — `cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=.`
+8. **每个 spawn 的 task 开头必须加 Preamble** — `cd {deepflow_root} && PYTHONPATH=.`
 9. **Worker 自己读 Blackboard** — 不嵌入大段 JSON 到 prompt

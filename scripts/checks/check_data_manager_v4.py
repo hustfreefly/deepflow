@@ -15,7 +15,7 @@ class DataManagerContractVerifier:
     
     def __init__(self, session_id: str):
         self.session_id = session_id
-        self.base_path = f"/Users/allen/.openclaw/workspace/.deepflow/blackboard/{session_id}/data"
+        self.base_path = f"str(Path(__file__).resolve().parent.parent.parent)/blackboard/{session_id}/data"
         self.errors = []
         self.warnings = []
         self.checks_passed = 0
@@ -230,7 +230,7 @@ if __name__ == "__main__":
         session_id = sys.argv[1]
     else:
         # 查找最新的 session
-        blackboard_base = "/Users/allen/.openclaw/workspace/.deepflow/blackboard"
+        blackboard_base = "str(Path(__file__).resolve().parent.parent.parent)/blackboard"
         if os.path.exists(blackboard_base):
             sessions = [d for d in os.listdir(blackboard_base) 
                        if os.path.isdir(os.path.join(blackboard_base, d))]

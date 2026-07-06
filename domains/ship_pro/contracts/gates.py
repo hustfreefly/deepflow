@@ -141,9 +141,14 @@ class WorkerGate:
         - 语义：MUST 约束 → judge_results[f"worker_must_{role}"] 必须存在
         """
         from .worker_deliverable import WorkerDeliverable
+        from .repair_adapters import legacy_array_to_worker_deliverable
         
         issues = []
         role = worker_spec.get("role", "unknown")
+        
+        # 0. 兼容修复：Worker 可能输出 JSON 数组（旧格式），转换为 WorkerDeliverable object
+        if isinstance(worker_output, list):
+            worker_output = legacy_array_to_worker_deliverable(worker_spec, worker_output)
         
         # 1. Pydantic Schema
         try:
@@ -328,73 +333,76 @@ Ship Package 保留: {json.dumps([a.get('name','?') for a in ship_anchors_preser
 # CompletenessGate — 纯确定性（REQ-ID 覆盖）
 # ============================================================================
 
-class CompletenessGate:
-    """
-    G2: 完整性验证
+def legacy_string_completeness_check(solution_pro_output: Dict[str, Any],
+                                      planner_output: Dict[str, Any]) -> Dict[str, Any]:
+    """Legacy REQ-ID 字符串匹配（仅供 diagnostics，不再作为 Gate 判定）。
     
-    变更：支持双模式
-    - 有 judge_results["completeness"] → LLM Judge 语义验证（优先）
-    - 无 judge_results → 回退到 REQ-ID 字符串匹配（向后兼容）
+    Returns:
+        {"mode": "string_match", "total_req_ids": int, "covered": int,
+         "coverage_rate": float, "worker_coverage": dict, "missing": list}
     """
-    
-    @staticmethod
     def _extract_req_ids(data: dict) -> list:
         if isinstance(data, dict) and 'covered_req_ids' in data:
             return list(set(data['covered_req_ids']))
         return []
     
-    @staticmethod
-    def _extract_covered(planner_output: dict) -> list:
+    def _extract_covered(planner: dict) -> list:
         ids = []
-        for w in planner_output.get('workers', []):
+        for w in planner.get('workers', []):
             ids.extend(w.get('covered_req_ids', []))
         return list(set(ids))
+    
+    req_ids = _extract_req_ids(solution_pro_output)
+    covered = _extract_covered(planner_output)
+    missing = set(req_ids) - set(covered)
+    rate = len(set(req_ids) & set(covered)) / len(req_ids) if req_ids else 1.0
+    worker_cov = {
+        w.get('role', '?'): len(w.get('covered_req_ids', []))
+        for w in planner_output.get('workers', [])
+    }
+    return {
+        "mode": "string_match",
+        "total_req_ids": len(req_ids),
+        "covered": len(covered),
+        "coverage_rate": rate,
+        "worker_coverage": worker_cov,
+        "missing": sorted(missing),
+    }
+
+
+class CompletenessGate:
+    """
+    G2: 完整性验证
+    
+    契约铁律：judge_results["completeness"] 必须存在。
+    不再有 string-match fallback — 缺失 judge 结果 = raise ValueError。
+    """
     
     @staticmethod
     def check(solution_pro_output: Dict[str, Any],
               planner_output: Dict[str, Any],
               judge_results: Dict[str, Any] = None) -> GateResult:
-        # 优先使用 LLM Judge 语义验证
-        if judge_results and "completeness" in judge_results:
-            verdict = judge_results["completeness"]
-            passed = verdict.get("passed", False)
-            issues = verdict.get("issues", [])
-            rate = verdict.get("coverage_rate", 0.0)
-            details = {
-                "mode": "llm_judge",
-                "coverage_rate": rate,
-                "covered_decisions": verdict.get("covered_decisions", []),
-                "uncovered_decisions": verdict.get("uncovered_decisions", []),
-                "covered_risks": verdict.get("covered_risks", []),
-                "uncovered_risks": verdict.get("uncovered_risks", []),
-            }
-            return GateResult(passed=passed, issues=issues, details=details)
-        
-        # 回退模式：REQ-ID 字符串匹配
-        req_ids = CompletenessGate._extract_req_ids(solution_pro_output)
-        covered = CompletenessGate._extract_covered(planner_output)
-        missing = set(req_ids) - set(covered)
-        rate = len(set(req_ids) & set(covered)) / len(req_ids) if req_ids else 1.0
-        
-        worker_cov = {
-            w.get('role', '?'): len(w.get('covered_req_ids', []))
-            for w in planner_output.get('workers', [])
-        }
-        details = {
-            "mode": "string_match",
-            "total_req_ids": len(req_ids),
-            "covered": len(covered),
-            "coverage_rate": rate,
-            "worker_coverage": worker_cov
-        }
-        
-        if missing:
-            return GateResult(
-                passed=False,
-                issues=[f"{len(missing)} 个 REQ-ID 未覆盖: {sorted(missing)}"],
-                details=details
+        # 契约笼子：judge_results 必须存在且包含 completeness key
+        if judge_results is None or "completeness" not in judge_results:
+            raise ValueError(
+                "契约笼子违规: CompletenessGate 需要 judge_results['completeness']。"
+                "缺失 judge 结果不允许 fallback 到字符串匹配。"
+                "请先执行 prepare_gate_judge_tasks() 并 spawn Judge Agent。"
             )
-        return GateResult(passed=True, issues=[], details=details)
+        
+        verdict = judge_results["completeness"]
+        passed = verdict.get("passed", False)
+        issues = verdict.get("issues", [])
+        rate = verdict.get("coverage_rate", 0.0)
+        details = {
+            "mode": "llm_judge",
+            "coverage_rate": rate,
+            "covered_decisions": verdict.get("covered_decisions", []),
+            "uncovered_decisions": verdict.get("uncovered_decisions", []),
+            "covered_risks": verdict.get("covered_risks", []),
+            "uncovered_risks": verdict.get("uncovered_risks", []),
+        }
+        return GateResult(passed=passed, issues=issues, details=details)
 
 
 # ============================================================================
