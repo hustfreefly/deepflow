@@ -111,7 +111,7 @@ updated: "2026-05-01"
       "completeness": {"verdict": "STRONG|ADEQUATE|WEAK|FAIL", "evidence": {"structural": "REQ-ID / JSON 路径", "semantic": "为什么支持判定"}, "unhandled_requirements": [], "deferred_requirements": []},
       "necessity": {"verdict": "STRONG|ADEQUATE|WEAK|FAIL", "evidence": {"structural": "...", "semantic": "..."}, "beyond_spec_items": []},
       "alignment": {"verdict": "STRONG|ADEQUATE|WEAK|FAIL", "evidence": {"structural": "...", "semantic": "..."}},
-      "global_impact": {"verdict": "STRONG|ADEQUATE|WEAK|FAIL", "evidence": {"structural": "...", "semantic": "..."}, "downstream_consumers": ["Base Synthesizer", "Devil's Advocate"]}
+      "global_impact": {"verdict": "STRONG|ADEQUATE|WEAK|FAIL", "evidence": {"structural": "...", "semantic": "..."}, "downstream_consumers": ["Base Synthesizer"]}
     },
     "layer2_role_quality": {
       "evidence_quality": {"verdict": "STRONG", "sub_checks": {"findings有来源支撑": {"pass": true, "note": "..."}, "正反证据覆盖": {"pass": true, "note": "..."}}, "evidence": {"structural": "...", "semantic": "..."}},

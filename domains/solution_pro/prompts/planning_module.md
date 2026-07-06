@@ -204,7 +204,7 @@ cd {deepflow_root} && PYTHONPATH=.
 
 ## 你的角色
 **角色名称**:{expert_name}
-**分析视角**:{expert_perspective}
+**分析视角**:{evaluation_lens}
 
 ## 你的分析问题
 {analysis_questions}
