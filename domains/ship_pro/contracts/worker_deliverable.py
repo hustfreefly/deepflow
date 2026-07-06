@@ -66,6 +66,11 @@ class WorkPackage(BaseModel):
         ..., min_length=1,
         description="交付物列表（≥1 项，不能为空）"
     )
+    
+    source_worker: Optional[str] = Field(
+        default=None,
+        description="产出此 WP 的 Worker 角色名（Consolidator 组装时标记来源，用于追溯）"
+    )
 
 
 class WorkerDeliverable(BaseModel):
