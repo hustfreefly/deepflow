@@ -103,12 +103,6 @@ python3 .deepflow/domains/spec_pro/worker_fallback.py <worker_type> <output_path
 python3 .deepflow/domains/spec_pro/merge_spec.py <response_json_path> <living_spec_path>
 ```
 
-该脚本自动处理：
-- confirmed 层：追加新项，不删除已有项
-- inferred 层：status=confirmed → 移入 confirmed；status=rejected → 标记 rejected；新增推断 → 追加
-- guardrails：追加新项
-- 矛盾处理：保留两者并标注 contradiction
-
 ## Process Guard（collecting 阶段每轮执行，在 AssessWorker 之前运行）
 
 ```bash
@@ -124,67 +118,6 @@ python3 .deepflow/domains/spec_pro/process_guard.py {Blackboard} {round_num}
 
 **优先级规则**：如果 ProcessGuard 输出 adjustment_instruction，其调整建议**优先级高于 QuestionWorker 的默认策略**。QuestionWorker 必须优先遵守 ProcessGuard 的调整建议。
 
-## v2.2 新增机制 (2026-05-31)
-
-### 已问去重规则 (D1)
-
-QuestionWorker 生成问题时，必须读取：
-- `spec/conversation_log.json` — 检查历史 meta_directives
-- `stages/round_XX_questions.json` — 检查上轮已问问题
-- `stages/round_XX_response.json` — 检查用户回答和 meta_signals
-
-**规则**：
-- 用户明确说"不要再问 X"的维度 → 禁止提问
-- 已问过且用户已回答的问题 → 不再重复
-- `deliberately_omitted` 标记的维度 → 跳过
-
-### 评分区分拒绝 (D2)
-
-如果用户在某维度明确表达"不需要/不考虑"：
-- ResponseWorker 提取 `deliberately_omitted` 字段到 `parsed_updates.user_directives`
-- merge_spec 将其合并到 `living_spec.confirmed.user_directives`
-- AssessWorker 评分时：该维度给默认分 50（不扣分），不出现在 top_missing 中
-
-### 7 维分数展示 (D3)
-
-round_result.json 的 `quality` 字段现在包含完整的 7 维度分数：
-```json
-{
-  "quality": {
-    "overall_score": 52,
-    "level": "C",
-    "dimension_scores": {
-      "objective": {"score": 55, "delta": 15, "change": "up"},
-      "users": {"score": 50, "delta": 0, "change": "flat"},
-      ...
-    },
-    "top_improvements": [{"dimension": "integration", "delta": 50, "reason": "..."}],
-    "top_missing": ["缺少 timeline", "未识别风险"]
-  }
-}
-```
-
-主 Agent 应将此格式化为表格展示给用户。
-
-### 停滞检测 (D5)
-
-如果满足以下**所有**条件，不再问问题，直接输出 Spec 草稿让用户确认：
-1. `round_num >= 3`
-2. 最近 2 轮 `delta` 绝对值都 < 3（质量停滞）
-3. `overall_score >= 50`（至少有基础信息）
-
-此时输出 `action: "proposal"`（不是 "questions"），包含 `stagnation_reason` 字段。
-
-### 动态阈值 (D6)
-
-质量阈值不再是固定值，而是动态计算：
-- 基础阈值来自 MODE_CONFIG（standard: 75）
-- 连续 2 轮 delta < 3 → 降 10 分（75 → 65）
-- 连续 3 轮 delta < 3 → 降 15 分（75 → 60）
-- 最低不低于 50 分
-
-避免"用户不配合某维度 → 分数永远上不去 → 系统永远不结束"的死循环。
-
 ## 执行指令
 
 [由 SpecProCoordinator._build_orchestrator_task() 动态注入]
@@ -195,11 +128,6 @@ round_result.json 的 `quality` 字段现在包含完整的 7 维度分数：
 1. **报错并停止**，不自行模拟
 2. 告知用户："Spec Pro API 不存在，请先安装或联系管理员"
 3. 不生成 Living Spec，不继续流程
-
-### 为什么不能自行模拟
-- 自行模拟会导致质量不可控
-- 没有留下可追溯的日志
-- 违反了 Spec Pro 的设计原则（Worker 化 + Blackboard 协作）
 
 ### 当 Worker 输出格式不符合预期时
 1. 记录错误信息到 `spec/error_log.json`

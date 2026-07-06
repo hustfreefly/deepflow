@@ -44,7 +44,6 @@ def save_coord_state(coord: SpecProCoordinator) -> str:
         "mode": coord.mode,
         "current_round": coord.current_round,
         "state": coord.state.value,
-        "architecture_version": getattr(coord, 'architecture_version', 'v2_nested'),
     }
     coord.bb.write("coord_state.json", state)
     return str(coord.bb.session_dir / "coord_state.json")
@@ -79,8 +78,6 @@ def reconstruct_coord(state: dict) -> SpecProCoordinator:
         base_dir = _Path(persisted_base).parent  # session_dir's parent is blackboard_dir
         coord._bb = BlackboardManager(coord.session_id, base_dir=str(base_dir))
     coord.current_round = state["current_round"]
-    # v3: 恢复 architecture_version
-    coord.architecture_version = state.get("architecture_version", "v2_nested")
     # 恢复 DialogState 枚举（JSON 中存的是字符串）
     state_val = state.get("state", "start")
     try:

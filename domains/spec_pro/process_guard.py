@@ -23,21 +23,34 @@ logger = logging.getLogger(__name__)
 
 
 
-EXPECTED_DELTA = {
-    (1, 3): (8, 15),
-    (4, 6): (3, 8),
-    (7, 999): (1, 3),
+EXPECTED_DELTA_BY_MODE = {
+    "quick": {
+        (1, 2): (10, 20),
+        (3, 4): (5, 10),
+        (5, 999): (2, 5),
+    },
+    "standard": {
+        (1, 3): (8, 15),
+        (4, 6): (3, 8),
+        (7, 999): (1, 3),
+    },
+    "deep": {
+        (1, 5): (6, 12),
+        (6, 10): (3, 8),
+        (11, 999): (1, 3),
+    },
 }
 
 
-def get_expected_delta(round_num: int) -> tuple:
-    for (low, high), (min_d, max_d) in EXPECTED_DELTA.items():
+def get_expected_delta(round_num: int, mode: str = "standard") -> tuple:
+    delta_map = EXPECTED_DELTA_BY_MODE.get(mode, EXPECTED_DELTA_BY_MODE["standard"])
+    for (low, high), (min_d, max_d) in delta_map.items():
         if low <= round_num <= high:
             return min_d, max_d
     return 1, 3
 
 
-def check_progress_rate(trajectory: list, current_round: int) -> list:
+def check_progress_rate(trajectory: list, current_round: int, mode: str = "standard") -> list:
     anomalies = []
     if len(trajectory) < 2:
         return anomalies
@@ -45,7 +58,7 @@ def check_progress_rate(trajectory: list, current_round: int) -> list:
     for i, point in enumerate(trajectory[1:], 1):
         delta = point.get("delta", 0)
         round_num = point.get("round", i + 1)
-        min_d, max_d = get_expected_delta(round_num)
+        min_d, max_d = get_expected_delta(round_num, mode)
 
         if delta < min_d - 2:
             anomalies.append(
@@ -101,12 +114,17 @@ def check_conversation_balance(trajectory: list) -> list:
 
 
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: process_guard.py <base_path> <current_round>")
-        sys.exit(1)
+    import argparse
+    parser = argparse.ArgumentParser(description="Process Guard for Spec Pro")
+    parser.add_argument("base_path", help="Session base path")
+    parser.add_argument("current_round", type=int, help="Current round number")
+    parser.add_argument("--mode", choices=["quick", "standard", "deep"],
+                        default="standard", help="Conversation mode (default: standard)")
+    args = parser.parse_args()
 
-    base_path = sys.argv[1]
-    current_round = int(sys.argv[2])
+    base_path = args.base_path
+    current_round = args.current_round
+    mode = args.mode
 
     trajectory_path = os.path.join(base_path, "spec", "quality_trajectory.json")
     raw_trajectory = []
@@ -124,7 +142,7 @@ def main():
     trajectory = raw_trajectory
 
     anomalies = []
-    anomalies.extend(check_progress_rate(trajectory, current_round))
+    anomalies.extend(check_progress_rate(trajectory, current_round, mode))
     anomalies.extend(check_inference_integrity(trajectory))
     anomalies.extend(check_conversation_balance(trajectory))
 
