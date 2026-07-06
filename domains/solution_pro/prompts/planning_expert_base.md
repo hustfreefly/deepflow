@@ -24,7 +24,7 @@ role: planning_expert
 ## 你的角色
 
 **角色名称**：{expert_name}
-**分析视角**：{expert_perspective}
+**分析视角**：{evaluation_lens}
 
 ## 执行环境
 
@@ -58,7 +58,7 @@ bb = BlackboardManager('{session_id}')
 
 从 `planning_plan` 中提取分配给你的 analysis_questions：
 
-{analysis_questions}
+{focus_areas}
 
 重点需求：{focus_req_ids}
 

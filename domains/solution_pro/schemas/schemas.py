@@ -937,6 +937,7 @@ __all__ = [
     "FinalSolutionSchema",
     "ConstraintCoverage",
     "VerificationStatus",
+    "HarnessCheckV2",
     # Phase 2.2: 降级 Schema
     "DegradedFinalConvergenceSchema",
     # 验证函数
@@ -1226,6 +1227,10 @@ class HarnessCheck(BaseModel):
                             f"当存在未标注的超出 spec 内容时，verdict 不能是 STRONG。"
                         )
         return self
+
+
+# V2 别名 — harness_scorer.py 和 task_builder.py 使用 HarnessCheckV2 引用
+HarnessCheckV2 = HarnessCheck
 
 
 def validate_harness_check(data: dict) -> tuple[bool, str]:

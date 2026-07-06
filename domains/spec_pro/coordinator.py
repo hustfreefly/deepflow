@@ -1411,7 +1411,7 @@ python3 .deepflow/domains/spec_pro/check_density_cli.py "{session_dir}"
   - 使用 read_json 读取: spec/harness_report.json(如果存在)
   - 使用 write 写入: spec/round_result.json
   - action: "done"
-  - 在 round_result 中包含: action="done", summary_text, quality, living_spec(完整内容), harness_report(如有), route_recommendation, solution_pro_hints, inferred_pending
+  - 在 round_result 中包含: action="done", summary_text, quality, living_spec(完整内容), harness_report(如有), route_recommendation, solution_pro_hints, inferred_items
   - **构建 handoff package**: 执行 `python3 .deepflow/domains/spec_pro/build_handoff_cli.py "{session_dir}"`
   - 在 round_result 中添加 `"handoff_package_path": "spec/spec_handoff_package.json"`
 - timeoutSeconds: 180

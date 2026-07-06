@@ -536,6 +536,8 @@ class PlanningOrchestrator(ModuleOrchestrator):
                 prompt = prompt.replace("{evaluation_lens}", expert["evaluation_lens"])
                 prompt = prompt.replace("{frozen_spec}", json.dumps(frozen_spec, indent=2))
                 prompt = prompt.replace("{structured_requirements}", json.dumps(structured_requirements, indent=2))
+                prompt = prompt.replace("{focus_req_ids}", ", ".join(expert.get("focus_req_ids", [])))
+                prompt = prompt.replace("{expert_filename}", expert["expert_name"])
                 
                 # 契约笼子：显式提取 semantic_anchors 到 prompt 开头
                 from domains.solution_pro.task_builder import _extract_anchors_block

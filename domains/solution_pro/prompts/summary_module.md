@@ -46,8 +46,7 @@ bb = BlackboardManager('{session_id}')
 |------|-----------|------|
 | Planning 模块 | `planning_convergence` | 统一约束 + 验证清单 + REQ 覆盖（**必须读**） |
 | Research 模块 | `research_digest` | **Research Digest（Findings 完整分析 + Expert 摘要 + 冲突标记）** | **🔴 唯一 Research 输入** |
-| Research 模块 | `gap_analysis` | Gap Analyst 报告 | 必须读 |
-| Research 模块 | `devil_advocate` | Devil's Advocate 报告 | 必须读 |
+
 | 原始需求 | `data/living_spec`（优先）或 `data/frozen_spec` | 需求清单 | 必须读 |
 
 > **关键**：Digest 是 Research 的唯一输入（~180KB）。不需要读 `research_report`、`research_experts/`、`research_metadata`——Digest 已包含所有 Finding 的完整分析。
@@ -99,8 +98,6 @@ Phase 5b: JSON Extractor
 **输入**：
 - `planning_convergence`（约束体系）
 - `research_digest`（Research Digest — **唯一 Research 输入**，含 Findings 完整分析 + Expert 摘要 + 冲突标记）
-- `gap_analysis`（Gap Analyst 报告）
-- `devil_advocate`（Devil's Advocate 报告）
 - `data/living_spec`（优先）或 `data/frozen_spec`（原始需求）
 
 **执行**：

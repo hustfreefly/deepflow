@@ -29,92 +29,9 @@ updated: "2026-06-03"
 
 ## Phase 1: 质量评估（对应 AssessWorker）
 
-对 Living Spec 进行 7 维度加权评分，输出 S/A/B/C 等级。
+**评分规则完全复用 assess.md**（评估维度、评分标准、详细评分规则、质量等级、deliberately_omitted 处理、评分哲学）。
 
-### 评估维度
-
-| 维度 | 权重 | 评估要点 |
-|------|------|---------|
-| **objective** | 20% | 问题清晰、目标可衡量、有成功指标 |
-| **users** | 15% | 角色明确、场景具体 |
-| **capabilities** | 15% | Always/Should/Never 三层清晰 |
-| **quality_attributes** | 15% | 有具体指标和优先级 |
-| **constraints** | 15% | 预算/时间/技术约束明确 |
-| **integration** | 10% | 已有系统、集成接口清晰 |
-| **risks** | 10% | 已识别关键风险和假设 |
-
-### 评分标准（每维度 0-100）
-
-| 分数 | 含义 |
-|------|------|
-| 0 | 完全缺失（空字符串/空列表/空对象） |
-| 30 | 有信息但严重不足（过于简略） |
-| 50 | 部分覆盖（1-2项，但不够完整） |
-| 70 | 基本满足（多项，基本清晰） |
-| 85 | 充分（多项 + 量化指标） |
-| 100 | 卓越（全面 + 量化 + 有依据） |
-
-### 详细评分规则
-
-**objective (20%)**:
-- objective 字段非空: +40
-- pain_points 有 2+ 项: +30
-- success_metrics 有量化指标: +30
-
-**users (15%)**:
-- users 有 1+ 角色: +40
-- 角色有 count/key_needs: +30
-- key_scenarios 有 2+ 场景: +30
-
-**capabilities (15%)**:
-- always_do 有 2+ 项: +40
-- should_do 有 1+ 项: +30
-- never_do 有 1+ 项: +30
-
-**quality_attributes (15%)**:
-- 有 2+ 属性: +40
-- 属性有具体数字: +30
-- 有 priority 标注: +30
-
-**constraints (15%)**:
-- budget 非空: +30
-- timeline 非空: +30
-- tech_stack 有 1+ 项: +20
-- 其他约束有 1+ 项: +20
-
-**integration (10%)**:
-- existing_systems 有 1+ 项: +50
-- requirements 有 1+ 项: +50
-
-**risks (10%)**:
-- risks 有 1+ 项: +35
-- assumptions 有 1+ 项: +35
-- dependencies 有 1+ 项: +30
-
-### 质量等级
-
-| 等级 | 分数范围 | 含义 |
-|------|---------|------|
-| S | 90-100 | 卓越：7维全覆盖，三层边界清晰 |
-| A | 75-89 | 良好：核心维度覆盖，部分推断 |
-| B | 60-74 | 可用：目标+能力+约束覆盖 |
-| C | <60 | 不足：建议继续收集 |
-
-### 特殊状态：deliberately_omitted（用户主动放弃）
-
-在评分前，先检查 `confirmed.user_directives` 数组。如果某维度被标记为 `deliberately_omitted`：
-1. **该维度不扣分**，给默认分 **50**
-2. 该维度**不出现在 `top_missing`** 中
-3. 该维度**不计入维度分差检查**
-4. 在 `reasoning` 中标注 `"用户主动放弃，deliberately_omitted"`
-
-### 评分哲学
-
-**宽容评分，不对用户苛求。** 以下情况**不应扣分**：
-1. "参考业界规范/对标 XXX" → 有效需求声明，视为已覆盖
-2. "这个你们来设计" → 设计层面的事，不扣分
-3. "自适应/智能调整" → 合理的质量期望，不扣分
-4. 委托后续阶段处理 → 明确的流程选择，不扣分
+仅输出格式在此明确：
 
 ### Phase 1 输出：`spec/quality_report.json`
 
@@ -138,6 +55,7 @@ updated: "2026-06-03"
 ```
 
 ---
+
 
 ## Phase 2: 问题生成（对应 QuestionWorker）
 

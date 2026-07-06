@@ -1097,6 +1097,11 @@ class ResearchOrchestrator(ModuleOrchestrator):
                 ensure_ascii=False,
             ),
         )
+        prompt = prompt.replace(
+            "{focus_req_ids}",
+            ", ".join(config.get("focus_req_ids", [])),
+        )
+        prompt = prompt.replace("{expert_filename}", expert_name)
 
         # Add iteration context if > 1
         if iteration > 1:

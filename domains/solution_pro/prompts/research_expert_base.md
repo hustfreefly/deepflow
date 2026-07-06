@@ -20,7 +20,7 @@ role: research_expert
 ## 你的角色
 
 **角色名称**:{expert_name}
-**研究视角**:{expert_perspective}
+**研究视角**:{evaluation_lens}
 
 ## 执行环境
 
@@ -56,7 +56,7 @@ bb = BlackboardManager('{session_id}')
 
 从 `research_plan` 中提取分配给你的 research_questions:
 
-{research_questions}
+{focus_areas}
 
 重点需求:{focus_req_ids}
 

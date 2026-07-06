@@ -38,16 +38,13 @@ bb = BlackboardManager('{session_id}')
 |------|-----------|------|--------|
 | Planning 模块 | `planning_convergence` | 统一约束 + 验证清单 + REQ 覆盖 | **必须读** |
 | Research 模块 | `research_digest` | **Research Digest（Findings 索引 + 完整分析 + Expert 摘要 + 冲突标记）** | **🔴 唯一 Research 输入** |
-| Research 模块 | `gap_analysis` | Gap Analyst 报告 | 必须读 |
-| Research 模块 | `devil_advocate` | Devil's Advocate 挑战报告 | 必须读 |
+
 | 原始需求 | `data/living_spec`（优先）或 `data/frozen_spec` | 需求清单 | 必须读 |
 
 **读取顺序**：
 1. `planning_convergence` — 理解约束体系，特别是 MUST 约束
 2. `research_digest` — **唯一 Research 输入**：Findings 索引 + 每个 Finding 的完整分析 + Expert 摘要 + 冲突标记
-3. `gap_analysis` — 了解已识别的缺失和补充
-4. `devil_advocate` — 了解已识别的挑战和反面证据
-5. `data/living_spec`（优先）或 `data/frozen_spec` — 理解原始需求细节
+3. `data/living_spec`（优先）或 `data/frozen_spec` — 理解原始需求细节
 
 > **关键**：Digest 是 Research 的唯一输入（~180KB，约 2x 压缩）。不需要读 `research_experts/` 或 `research_report`——Digest 保留了每个 Finding 的完整分析，只去重不截断。
 > 
@@ -60,8 +57,6 @@ bb = BlackboardManager('{session_id}')
 1. **完整吸收 Research 的所有发现** — 不遗漏任何 Expert 的重要 Finding
 2. **在 Planning 约束框架内综合方案** — 所有 MUST 约束必须被遵守
 3. **产出一份可直接审视的完整基础方案** — 足够详细，让 Phase 3 Analyzer 有东西可审
-4. **整合 Devil's Advocate 的挑战** — 在方案中主动回应已知挑战
-5. **覆盖 Gap Analysis 的缺失** — 确保方案填补了已识别的知识空白
 
 ---
 
@@ -111,7 +106,7 @@ bb = BlackboardManager('{session_id}')
 
 | 风险 | Severity | Mitigation | 来源 |
 |------|----------|------------|------|
-| ... | 高/中/低 | ... | Expert X / Devil's Advocate |
+| ... | 高/中/低 | ... | Expert X |
 
 ## 10. 约束覆盖说明
 （逐条说明每个 MUST 约束如何在方案中体现）
@@ -141,7 +136,7 @@ bb = BlackboardManager('{session_id}')
 4. **技术选型必须有具体版本号** — "PostgreSQL 16" 而非 "关系数据库"
 5. **可以使用 web_search 搜索方案模板/行业案例** — 鼓励搜索最佳实践
 6. **不做审查，不做对抗** — 只管产出最好的方案
-7. **必须回应 Devil's Advocate 的挑战** — 在方案中体现对已知挑战的应对
+7. **如有补充分析报告则回应** — 在方案中体现对已知挑战的应对
 
 ---
 
