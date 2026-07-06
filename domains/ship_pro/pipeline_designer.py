@@ -87,7 +87,7 @@ class WorkerSpec(BaseModel):
 
 class PipelinePlan(BaseModel):
     """PipelineDesigner 的完整输出"""
-    domain_analysis: Optional[Dict[str, Any]] = Field(default=None, description="领域分析（domain/end_users/deliverable_form/split_dimension/key_constraints）")
+    domain_analysis: Optional[Dict[str, Any]] = Field(default=None, validate_default=True, description="领域分析（domain/end_users/deliverable_form/split_dimension/key_constraints）")
     workers: List[WorkerSpec] = Field(..., min_length=2, max_length=8, description="Worker 列表 2-8 个")
     execution_order: List[List[str]] = Field(..., min_length=1, description="分层执行顺序")
     rationale: str = Field(..., min_length=50, description="拆分理由（≥50 字）")
@@ -107,6 +107,18 @@ class PipelinePlan(BaseModel):
                 raise ValueError(f"execution_order 缺少 Worker: {missing}")
         return v
 
+    @field_validator("domain_analysis")
+    @classmethod
+    def domain_analysis_should_exist(cls, v):
+        if v is None:
+            import warnings
+            warnings.warn(
+                "domain_analysis 为空 — Planner 未识别领域。"
+                "泛化能力降级：Worker 将无法推断产出模式。",
+                UserWarning
+            )
+        return v
+
 
 class WorkerContext(BaseModel):
     """裁剪后的 Worker 上下文（context.json）"""
@@ -118,6 +130,7 @@ class WorkerContext(BaseModel):
     interface_contracts: Dict[str, Any] = Field(default_factory=dict, description="接口契约")
     output_schema: Dict[str, Any] = Field(default_factory=dict, description="输出 Schema")
     output_example: Dict[str, Any] = Field(default_factory=dict, description="高质量 WP 示例")
+    domain_analysis: Optional[Dict[str, Any]] = Field(default=None, description="领域分析（来自 Planner，含 domain/end_users/deliverable_form/split_dimension）")
     # Semantic Anchors — 信息守恒实体，注入到每个 Worker 的 context.json
     semantic_anchors: List[Dict[str, Any]] = Field(
         default_factory=list,
@@ -405,6 +418,7 @@ class PipelineDesigner:
                 },
                 output_schema=self._get_worker_schema_compact(),
                 output_example=self.HIGH_QUALITY_WP_EXAMPLE,
+                domain_analysis=plan.domain_analysis,
                 semantic_anchors=worker_anchors,
             )
             

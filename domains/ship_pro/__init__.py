@@ -36,7 +36,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from core.trace import start_trace, span, save_to_blackboard  # 全链路追踪：跨域 trace_id
+from core.trace import start_trace, span, save_to_blackboard  # 全链路追踪:跨域 trace_id
 
 
 # ============================================================================
@@ -111,7 +111,7 @@ def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
 
     Args:
         project_name: 项目名称(blackboard 目录名)
-        trace_id: 可选的 trace_id（从 Spec Pro handoff package 继承，实现跨域追踪）
+        trace_id: 可选的 trace_id(从 Spec Pro handoff package 继承,实现跨域追踪)
         **kwargs: model 等可选参数
 
     Returns:
@@ -123,10 +123,10 @@ def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
             "spawn_params": dict,  # Main Agent 直接传给 sessions_spawn
         }
     """
-    # 全链路追踪：继承或新建 trace_id，记录 Ship Pro 入口 span
+    # 全链路追踪:继承或新建 trace_id,记录 Ship Pro 入口 span
     _trace_id = start_trace(trace_id)
     span("ship_pro_entry", domain="ship_pro", project_name=project_name, trace_id=_trace_id)
-    # 全链路追踪：记录 blackboard 定位完成
+    # 全链路追踪:记录 blackboard 定位完成
     span("blackboard_located", domain="ship_pro", project_name=project_name)
 
     # 1. 定位统一 blackboard
@@ -161,18 +161,18 @@ def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
         },
     )
 
-    # 全链路追踪：记录追踪数据到 blackboard
+    # 全链路追踪:记录追踪数据到 blackboard
     try:
         save_to_blackboard(Path(ship_dir))
     except Exception:
         pass  # 追踪持久化失败不影响主流程
 
-    # 5. 返回 spawn params（包含 trace_id 供下游继承）
+    # 5. 返回 spawn params(包含 trace_id 供下游继承)
     return {
         "project_name": project_name,
         "project_blackboard": str(project_bb),
         "ship_pro_dir": str(ship_dir),
-        "trace_id": _trace_id,  # 全链路追踪：trace_id 供下游继承
+        "trace_id": _trace_id,  # 全链路追踪:trace_id 供下游继承
         "input_summary": {
             "req_count": len(sol_input.get("requirements", [])),
             "decision_count": len(sol_input.get("key_decisions", [])),
@@ -374,7 +374,7 @@ B. `mode=prompt`(自动设计失败,回退到 LLM 手动分析):
    - 按交付物模块(代码内聚性)拆分 Workers(4-6 个)
    - 将 PipelinePlan JSON write 到 {ship_pro_dir}/stages/pipeline_plan.json
 
-PipelinePlan 格式（统一 Schema，替代原 PlannerOutput）:
+PipelinePlan 格式(统一 Schema,替代原 PlannerOutput):
 ```json
 {{
   "workers": [
@@ -439,9 +439,9 @@ import json; print(json.dumps(result))
 
 FAIL → 输出失败详情,不 retry。
 
-### Step 4.5: Worker MUST Judge（L2 语义验证）
+### Step 4.5: Worker MUST Judge(L2 语义验证)
 
-L1 通过后，对每个有 MUST 约束的 Worker 执行语义验证。这不是可选的。
+L1 通过后,对每个有 MUST 约束的 Worker 执行语义验证。这不是可选的。
 
 **Phase A: 准备 Worker Judge Tasks**
 
@@ -464,7 +464,7 @@ print(json.dumps({{'task_count': len(tasks), 'names': [t['name'] for t in tasks]
 
 **Phase B: Spawn Worker Judge Agents**
 
-如果 task_count > 0，并行 spawn 所有 Worker Judge Agent。用 cron wake 等待完成。
+如果 task_count > 0,并行 spawn 所有 Worker Judge Agent。用 cron wake 等待完成。
 完成后将 verdict 写入 `{ship_pro_dir}/stages/worker_judge_results.json`。
 
 **Phase C: 验证 Worker MUST 约束**
@@ -480,7 +480,7 @@ failed = [k for k, v in judge_results.items() if isinstance(v, dict) and not v.g
 print(json.dumps({{'total': len(judge_results), 'passed': len(judge_results) - len(failed), 'failed': failed}}))
 "
 
-任何 Worker MUST 约束 FAIL → 不进入 Consolidator，输出失败详情。
+任何 Worker MUST 约束 FAIL → 不进入 Consolidator,输出失败详情。
 全部 PASS → 进入 Step 5。
 
 ### Step 5: Consolidator
@@ -495,9 +495,9 @@ import json; print(json.dumps({{'task_len': len(params['task'])}}))
 
 spawn Consolidator → cron wake 等待完成。
 
-### Step 5.5: L2/L3 语义验证（契约笼子强制）
+### Step 5.5: L2/L3 语义验证(契约笼子强制)
 
-在 Consolidator 产出 ship_package 后，**必须**执行语义验证。这不是可选的。
+在 Consolidator 产出 ship_package 后,**必须**执行语义验证。这不是可选的。
 
 **Phase A: 准备 Judge Tasks**
 
@@ -517,12 +517,12 @@ print(json.dumps({{'task_count': len(tasks), 'names': [t['name'] for t in tasks]
 
 **Phase B: Spawn Judge Agent**
 
-用 sessions_spawn 启动 Judge Agent，task 内容：
+用 sessions_spawn 启动 Judge Agent,task 内容:
 ```
-读取 {{ship_pro_dir}}/stages/_gate_judge_tasks.json，逐个执行验证。
+读取 {{ship_pro_dir}}/stages/_gate_judge_tasks.json,逐个执行验证。
 每个 task 包含 name、prompt、expected_output。
-对每个 task，按 prompt 指示检查 ship_package，输出 JSON verdict。
-将所有 verdict 写入 {{ship_pro_dir}}/stages/gate_judge_results.json，格式：
+对每个 task,按 prompt 指示检查 ship_package,输出 JSON verdict。
+将所有 verdict 写入 {{ship_pro_dir}}/stages/gate_judge_results.json,格式:
 {{"info_conservation": {{"passed": true/false, ...}}, "completeness": {{...}}, "harness_v3": {{...}}}}
 ```
 
@@ -530,16 +530,16 @@ spawn 后 cron wake 等待完成。
 
 **Phase C: 检查结果 + 重试**
 
-Judge Agent 完成后：
+Judge Agent 完成后:
 1. read gate_judge_results.json
 2. 检查每个 gate 的 passed 字段
-3. 如果任一 gate FAIL → 分析 issues，spawn Worker 修复（最多 1 次重试）
-4. 重试后仍 FAIL → 标记为 CONDITIONAL，在最终报告中注明
+3. 如果任一 gate FAIL → 分析 issues,spawn Worker 修复(最多 1 次重试)
+4. 重试后仍 FAIL → 标记为 CONDITIONAL,在最终报告中注明
 5. 全部 PASS → 继续 Step 6
 
 **不要跳过这步。跳过 = 契约笼子失效 = 下游 Gate hard raise。**
 
-### Step 6: ShipPackage 验证（L1 结构 + L2/L3 语义）
+### Step 6: ShipPackage 验证(L1 结构 + L2/L3 语义)
 
 **Step 6a: L1 结构验证**
 
@@ -551,7 +551,7 @@ result = orch.validate_ship_package_v8('{ship_pro_dir}')
 import json; print(json.dumps(result))
 "
 
-**Step 6b: L2/L3 语义验证（消费 Judge 结果）**
+**Step 6b: L2/L3 语义验证(消费 Judge 结果)**
 
 exec: python3 -c "
 import sys, json; sys.path.insert(0, '{deepflow_root}')
@@ -572,9 +572,9 @@ print(json.dumps({{k: {{'passed': v.passed, 'details': str(v.details)[:200]}} fo
 输出:
 - ShipPackage 路径: {ship_pro_dir}/stages/ship_package.json
 - WP 总数 / 总工时 / REQ 覆盖率
-- L1 验证结果（Step 6a）
-- L2/L3 语义验证结果（Step 6b）：各 Gate PASS/FAIL + conservation_rate/score
-- CONDITIONAL 项（如有）
+- L1 验证结果(Step 6a)
+- L2/L3 语义验证结果(Step 6b):各 Gate PASS/FAIL + conservation_rate/score
+- CONDITIONAL 项(如有)
 - Issues
 - Pending REQs
 
@@ -622,25 +622,25 @@ def _build_worker_prompts(
 
 def _build_single_worker_prompt(worker, ctx, ctx_path: str, output_path: str) -> str:
     """
-    构建单个 Worker 的 prompt（2.0.0: 三层注意力结构）
-    
-    AI Native 设计原则（基于 LLM U 型注意力曲线）：
-    - Tier 1（开头 — 高注意力）: 角色 + 上游约束（Semantic Anchors）+ 模块概述
-    - Tier 2（中间 — 正常注意力）: 需求列表 + 架构约束 + 接口契约 + 输出规范
-    - Tier 3（结尾 — 高注意力）: 护栏（禁止行为）
-    
-    关键变化（vs 2.0.0 旧版）：
-    - 去掉 3KB 限制（现代模型不需要）
+    构建单个 Worker 的 prompt(2.0.0: 三层注意力结构)
+
+    AI Native 设计原则(基于 LLM U 型注意力曲线):
+    - Tier 1(开头 - 高注意力): 角色 + 上游约束(Semantic Anchors)+ 模块概述
+    - Tier 2(中间 - 正常注意力): 需求列表 + 架构约束 + 接口契约 + 输出规范
+    - Tier 3(结尾 - 高注意力): 护栏(禁止行为)
+
+    关键变化(vs 2.0.0 旧版):
+    - 去掉 3KB 限制(现代模型不需要)
     - Semantic Anchors 从 context.json 提取到 prompt 开头
-    - 保留 2.0.0 的所有信息（REQ 表格、架构约束、接口契约、完整示例）
-    - 结构调整：最重要的信息放开头/结尾高注意力区
+    - 保留 2.0.0 的所有信息(REQ 表格、架构约束、接口契约、完整示例)
+    - 结构调整:最重要的信息放开头/结尾高注意力区
     """
-    
+
     # ====================================================================
-    # Tier 1: 核心任务 + 上游约束（开头 — 高注意力区）
+    # Tier 1: 核心任务 + 上游约束(开头 - 高注意力区)
     # ====================================================================
-    
-    # 契约笼子：从 context.json 提取 semantic_anchors，放到开头
+
+    # 契约笼子:从 context.json 提取 semantic_anchors,放到开头
     anchors = ctx.semantic_anchors if hasattr(ctx, 'semantic_anchors') and ctx.semantic_anchors else []
     if anchors:
         anchor_lines = []
@@ -651,44 +651,44 @@ def _build_single_worker_prompt(worker, ctx, ctx_path: str, output_path: str) ->
             anchor_lines.append(f"- **{name}** [{cat}]: {constraint}")
         anchors_block = "\n".join(anchor_lines)
     else:
-        anchors_block = "（本模块无上游 Semantic Anchors）"
-    
+        anchors_block = "(本模块无上游 Semantic Anchors)"
+
     tier_1 = f"""你是 {worker.role} 的技术设计师。
 
 ## 核心职责
-将分配给本模块的需求拆解为可执行的 Work Packages（WP）。你只负责 {worker.role}，不负责其他模块。
+将分配给本模块的需求拆解为可执行的 Work Packages(WP)。你只负责 {worker.role},不负责其他模块。
 
 ## 数据流
 read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", WorkerDeliverable JSON object)
 
-## 上游约束（Semantic Anchors — 不可违反）
+## 上游约束(Semantic Anchors - 不可违反)
 
-以下约束来自 Spec Pro / Solution Pro，每个 WP 必须遵循：
+以下约束来自 Spec Pro / Solution Pro,每个 WP 必须遵循:
 {anchors_block}
 
 每个 WP 必须在 `anchored_to` 字段中列出遵循的 anchor name。空列表 = 未引用任何约束。
 
-## 产出模式（从你的角色和交付物推断）
+## 产出模式(从你的角色和交付物推断)
 
-- 如果你的交付物是**代码文件**（如 .py/.js/.go）→ 产出 WP 描述（做什么、验收标准），不生成代码
-- 如果你的交付物是**内容文件**（如 .md/.pdf/.xlsx）→ 产出实际内容（段落、数据、分析），可被直接组装
-- 如果你的交付物是**混合类型** → 代码部分写描述，内容部分写实际内容
+- 如果你的交付物是**代码文件**(如 .py/.js/.go)→ 产出 WP 描述(做什么、验收标准),不生成代码
+- 如果你的交付物是**内容文件**（如 .md/.pdf/.xlsx）→ WP 描述中标注“此 WP 产出内容文件”，description 中写明内容大纲和关键要点
+- 如果你的交付物是**混合类型** → 代码部分写描述,内容部分写实际内容
 
 | 领域 | 产出应该是 | 示例 |
 |------|-----------|------|
-| 软件开发 | WP 描述（不写代码） | "实现用户认证模块，包含 JWT..." |
-| 投资分析 | 实际分析内容 | "新能源汽车行业 2024 年增速 35%..." |
-| 内容创作 | 实际文章/章节 | "## 引言：LLM 正在改变客服行业..." |
-| 市场调研 | 实际调研发现 | "目标市场规模 500 亿，CR3 集中度 45%..." |
+| 软件开发 | WP 描述(不写代码) | "实现用户认证模块,包含 JWT..." |
+| 投资分析 | WP 描述（含分析框架） | “行业分析：市场规模、增速、竞争格局，数据源≥3...” |
+| 内容创作 | WP 描述（含内容大纲） | “引言：2000字，以案例开头，引出核心论点...” |
+| 市场调研 | WP 描述（含调研维度） | “目标市场：规模、CR3、增长率，时间跨度≥3年...” |
 
 ## 模块概述
 {ctx.module_overview}"""
-    
+
     # ====================================================================
-    # Tier 2: 任务详情（中间 — 正常注意力区）
+    # Tier 2: 任务详情(中间 - 正常注意力区)
     # ====================================================================
-    
-    # 需求列表：保留完整表格
+
+    # 需求列表:保留完整表格
     if len(ctx.module_reqs) <= 10:
         req_lines = []
         for r in ctx.module_reqs:
@@ -702,23 +702,23 @@ read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", Wo
 {req_table}"""
     else:
         req_ids = ", ".join(r.get("id", "?") for r in ctx.module_reqs)
-        req_section = f"""共 {len(ctx.module_reqs)} 个需求（详情见 context.json）：
+        req_section = f"""共 {len(ctx.module_reqs)} 个需求(详情见 context.json):
 {req_ids}"""
 
     decisions_text = "\n".join(f"- {d}" for d in ctx.relevant_decisions[:3]) if ctx.relevant_decisions else "无"
     constraints_text = "\n".join(f"- {c}" for c in ctx.extracted_constraints[:3]) if ctx.extracted_constraints else "无"
 
-    # 接口契约：保留完整详情
+    # 接口契约:保留完整详情
     contracts = ctx.interface_contracts
     provides = "\n".join(f"- {p}" for p in contracts.get("provides", [])) or "无"
     requires = "\n".join(f"- {r}" for r in contracts.get("requires", [])) or "无"
     downstream = ", ".join(contracts.get("downstream_consumers", [])) or "无"
 
-    # 输出规范：保留完整示例
+    # 输出规范:保留完整示例
     example_compact = json.dumps(ctx.output_example, ensure_ascii=False, separators=(',', ':'))
     if len(example_compact) > 400:
         example_compact = example_compact[:400] + "..."
-    
+
     tier_2 = f"""
 
 ## 本模块需求
@@ -731,16 +731,16 @@ read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", Wo
 {constraints_text}
 
 ## 接口契约
-本模块对外暴露：
+本模块对外暴露:
 {provides}
 
-本模块依赖：
+本模块依赖:
 {requires}
 
-下游消费者：{downstream}
+下游消费者:{downstream}
 
 ## 输出规范
-write 到 "{output_path}"，**WorkerDeliverable JSON object**（不是数组！），格式：
+write 到 "{output_path}",**WorkerDeliverable JSON object**(不是数组!),格式:
 ```json
 {{
   "worker_role": "{worker.role}",
@@ -762,36 +762,36 @@ write 到 "{output_path}"，**WorkerDeliverable JSON object**（不是数组！�
   "web_search_logs": []
 }}
 ```
-每个 WP 要求：
+每个 WP 要求:
 - description ≥ 100 字
 - acceptance_criteria ≥ 2 条
 - deliverables ≥ 1 项
-- anchored_to — 遵循的 anchor name 列表
-示例 WP 格式：{example_compact}"""
-    
+- anchored_to - 遵循的 anchor name 列表
+示例 WP 格式:{example_compact}"""
+
     # ====================================================================
-    # Tier 3: 护栏（结尾 — 高注意力区）
+    # Tier 3: 护栏(结尾 - 高注意力区)
     # ====================================================================
-    
+
     tier_3 = """
 
 ## 可选工具
-- **web_search**: 当你的模块涉及前沿技术、最新 API、或不确定的技术选型时，可以用 web_search 查证。不强制，但鼓励在需要时搜索。
+- **web_search**: 当你的模块涉及前沿技术、最新 API、或不确定的技术选型时,可以用 web_search 查证。不强制,但鼓励在需要时搜索。
 
 ## 禁止行为
-1. ❌ 产出 Python/JS/任何实际代码 — 只产出 WP JSON
-2. ❌ read() 除 context.json 以外的本地文件（web_search 不受此限制）
+1. ❌ 产出 Python/JS/任何实际代码 - 只产出 WP JSON
+2. ❌ read() 除 context.json 以外的本地文件(web_search 不受此限制)
 3. ❌ 创建跨越模块边界的 WP
 4. ❌ 写"完成开发"这种无法验收的 AC
 5. ❌ 将多个独立功能合并为一个 WP
-6. ❌ 忽略上述 Semantic Anchors（每个 WP 必须有 anchored_to 字段）
+6. ❌ 忽略上述 Semantic Anchors(每个 WP 必须有 anchored_to 字段)
 
-## 最终用户视角自检（产出完成后必须检查）
+## 最终用户视角自检(产出完成后必须检查)
 
-1. 最终用户能直接使用我的产出吗？
-2. 我的产出与其他 Worker 的产出能无缝组装吗？
-3. 我的产出覆盖了分配给本模块的所有需求吗？"""
-    
+1. 最终用户能直接使用我的产出吗?
+2. 我的产出与其他 Worker 的产出能无缝组装吗?
+3. 我的产出覆盖了分配给本模块的所有需求吗?"""
+
     return f"{tier_1}{tier_2}{tier_3}"
 
 

@@ -1062,7 +1062,7 @@ Planner → **【你（Worker）】** → Consolidator → 用户
             prompt = prompt.replace("{output_path}", output_path)
             prompt = prompt.replace("{worker_file_paths}", worker_file_paths)
             prompt = prompt.replace("{solution_name}", solution_name)
-            prompt = prompt.replace
+            prompt = prompt.replace("{pipeline_plan_path}", str(stages_dir / "pipeline_plan.json"))
         else:
             # fallback: 内嵌 prompt
             prompt = f"""你是 ShipPackage 装配师。

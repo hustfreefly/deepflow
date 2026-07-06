@@ -8,7 +8,7 @@
 
 ### Step 0: 领域判断（从 domain_analysis 推断组装策略）
 
-读取 Planner 输出的 `domain_analysis` 字段（如有），判断组装策略：
+read `{pipeline_plan_path}`，提取 `domain_analysis` 字段（如有），判断组装策略：
 
 | 领域 | 组装策略 |
 |------|----------|
@@ -23,8 +23,8 @@
 - 混合 → 按类型分组组装
 
 ### Step 1: 收集（完整保留所有 WP）
-read 所有 worker_*.json 文件。每个文件包含一个 Worker 的 WP 数组。
-**将所有 Worker 的所有 WP 合并到一个列表中，不丢弃任何一个。**
+read 所有 worker_*.json 文件。每个文件包含一个 **WorkerDeliverable JSON object**（WP 在 `work_packages` 字段中）。
+**提取每个文件的 `work_packages` 数组，将所有 Worker 的所有 WP 合并到一个列表中，不丢弃任何一个。**
 
 ### Step 2: 语义整合（不是去重）
 检查是否有多个 WP 覆盖相同的功能领域（不只是 REQ-ID 相同，而是功能语义重叠）：
