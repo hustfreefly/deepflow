@@ -677,22 +677,24 @@ Planner → **【你（Worker）】** → Consolidator → 用户
 - ❌ 不要跳过 acceptance_criteria（没有 AC 的 WP 无法验收）
 - ❌ 不要跳过 deliverables（没有交付物的 WP 无法执行）
 
-## 产出模式（从你的 role 和 deliverables 推断）
+## 产出模式
 
-根据 Planner 分配给你的 role 和 deliverables，判断你的产出应该是哪种模式：
+所有 Worker 统一产出 Work Package 描述（不生成实际代码或内容文件）。
 
-- **代码文件**（如 .py/.js/.ts/.go/.java/.vue/.css）→ 产出 WP 描述（做什么、验收标准），不生成代码实现
-- **内容文件**（如 .md/.pdf/.xlsx/.docx/.txt）→ 产出实际内容（段落、数据、分析），可被 Consolidator 直接组装
-- **混合类型** → 代码部分写描述，内容部分写实际内容
+- 代码类交付物 → WP 描述：做什么、验收标准、交付物清单
+- 内容类交付物 → WP 描述：内容大纲、关键论点、预期字数、质量标准
+- 混合类交付物 → 分别描述各部分
+
+**核心原则**: WP 描述的是"做什么"和"验收标准"，实际内容由后续执行者完成。
 
 ### 领域自适应参考
 
-| 领域 | 你的产出应该是 | 示例 |
+| 领域 | WP 描述应包含 | 示例 |
 |------|-------------|------|
-| 软件开发 | WP 描述（不写代码） | "实现用户认证模块，包含 JWT..." |
-| 投资分析 | 实际分析内容 | "新能源汽车行业 2024 年增速 35%..." |
-| 内容创作 | 实际文章/章节内容 | "## 引言：LLM 正在改变客服行业..." |
-| 市场调研 | 实际调研发现 | "目标市场规模 500 亿，CR3 集中度 45%..." |
+| 软件开发 | 技术实现方案 + 测试标准 | "实现 JWT 认证模块，响应时间<200ms" |
+| 投资分析 | 分析框架 + 数据要求 | "行业分析：市场规模、增速、竞争格局，数据来源≥3个" |
+| 内容创作 | 内容大纲 + 风格要求 | "引言：2000字，以案例开头，引出核心论点" |
+| 市场调研 | 调研维度 + 数据标准 | "目标市场：规模、CR3、增长率，时间跨度≥3年" |
 
 ## 你的任务
 
@@ -718,7 +720,7 @@ Planner → **【你（Worker）】** → Consolidator → 用户
 ### 输出边界（契约笼子 — 违反即拒绝）
 - 输出必须符合 WorkerDeliverable Schema
 - 额外建议标记为 optional_suggestion
-- 根据产出模式决定：代码类交付物只写 WP 描述，内容类交付物写实际内容
+- 所有交付物统一写 WP 描述（做什么 + 验收标准 + 交付物清单），禁止生成实际内容文件
 - ❌ 不要运行测试
 - ✅ 只输出符合 Schema 的 JSON
 
@@ -1046,10 +1048,20 @@ Planner → **【你（Worker）】** → Consolidator → 用户
         prompt_template_path = Path(__file__).parent.parent / "prompts" / "consolidator.md"
         if prompt_template_path.exists():
             prompt = prompt_template_path.read_text(encoding="utf-8")
+            # 读取 solution_pro_input 获取 solution_name
+            solution_name = "Unknown"
+            sol_input_file = bp / "solution_pro_input.json"
+            if sol_input_file.exists():
+                import json as _json
+                solution_pro_input = _json.loads(sol_input_file.read_text(encoding="utf-8"))
+                solution_name = solution_pro_input.get("solution_name",
+                    solution_pro_input.get("project_name", "Unknown"))
+
             prompt = prompt.replace("{stages_dir}", str(stages_dir))
             prompt = prompt.replace("{solution_pro_input_path}", solution_pro_input_path)
             prompt = prompt.replace("{output_path}", output_path)
             prompt = prompt.replace("{worker_file_paths}", worker_file_paths)
+            prompt = prompt.replace("{solution_name}", solution_name)
             prompt = prompt.replace
         else:
             # fallback: 内嵌 prompt

@@ -87,6 +87,7 @@ class WorkerSpec(BaseModel):
 
 class PipelinePlan(BaseModel):
     """PipelineDesigner 的完整输出"""
+    domain_analysis: Optional[Dict[str, Any]] = Field(default=None, description="领域分析（domain/end_users/deliverable_form/split_dimension/key_constraints）")
     workers: List[WorkerSpec] = Field(..., min_length=2, max_length=8, description="Worker 列表 2-8 个")
     execution_order: List[List[str]] = Field(..., min_length=1, description="分层执行顺序")
     rationale: str = Field(..., min_length=50, description="拆分理由（≥50 字）")
@@ -261,7 +262,7 @@ class PipelineDesigner:
             payload = json.dumps({
                 "model": "qwen-plus",
                 "input": {"messages": [
-                    {"role": "system", "content": "你是软件架构师，输出纯 JSON，不要 markdown 包裹。"},
+                    {"role": "system", "content": "你是任务拆解与交付规划专家，输出纯 JSON，不要 markdown 包裹。"},
                     {"role": "user", "content": prompt}
                 ]},
                 "parameters": {"result_format": "message"}
@@ -457,63 +458,100 @@ class PipelineDesigner:
     # ============================================================================
     
     def _build_designer_prompt(self, solution_pro_input: Dict[str, Any]) -> str:
-        """构建 PipelineDesigner LLM prompt"""
+        """构建 PipelineDesigner LLM prompt（领域无关版本）"""
         reqs = solution_pro_input["requirements"]
         decisions = solution_pro_input.get("key_decisions", [])
         risks = solution_pro_input.get("risk_mitigations", [])
         arch = solution_pro_input.get("architecture", {})
-        
-        return f"""你是一个软件工程架构师。分析以下 Solution Pro 输出，设计 Worker 拆分方案。
+
+        return f"""你是任务拆解与交付规划专家。分析上游方案输出，设计 Worker 并行拆分方案。
+
+## 你的架构位置
+上游方案 → 【你(Planner)】→ Workers(并行) → Consolidator(组装) → 最终用户
+
+## 第一步：领域分析（domain_analysis，必填）
+在拆分前，先回答 4 个问题：
+1. **domain**: 这是什么领域？（软件/投资/创作/咨询/...）
+2. **end_users**: 最终用户是谁？（谁消费最终交付物？）
+3. **deliverable_form**: 最终交付物形态？（代码模块/分析报告/文章/方案/...）
+4. **split_dimension**: 按什么维度拆分？（模块/分析维度/章节/阶段/...）
+5. **key_constraints**: 关键约束？（≤3 条）
 
 ## 拆分原则
-- 按**交付物模块**（代码内聚性）拆分，不按 REQ 分组
-- 每个 Worker = 一个可独立开发、独立测试、独立交付的软件模块
-- Worker 数量：4-6 个（中型项目）
+- 按**交付物组成单元**拆分，不按需求分组
+- 每个 Worker = 一个可独立执行、独立验证、独立交付的工作单元
+- Worker 数量：2-8 个
 - 三个判断维度：内聚性 + 可并行性 + 可验证性
 
-## Solution Pro 输入摘要
+## 跨域示例
+
+### 示例 1（软件开发）
+domain_analysis: {{"domain": "软件开发", "end_users": ["开发者","运维"], "deliverable_form": "可部署代码模块+测试", "split_dimension": "按代码内聚性(模块)", "key_constraints": ["接口兼容","零宕机部署"]}}
+workers: [CoreInfra(3WPs,0deps), UserInterface(4WPs,deps:[CoreInfra]), QAGate(2WPs,deps:[CoreInfra,UserInterface])]
+execution_order: [["CoreInfra"],["UserInterface"],["QAGate"]]
+
+### 示例 2（投资分析）
+domain_analysis: {{"domain": "投资分析", "end_users": ["投资决策者","投委会"], "deliverable_form": "完整投资分析报告", "split_dimension": "按分析维度", "key_constraints": ["数据可溯源","合规审查"]}}
+workers: [IndustryAnalyst(3WPs,0deps), CompanyAnalyst(4WPs,deps:[IndustryAnalyst]), FinancialModeler(3WPs,deps:[CompanyAnalyst]), ValuationExpert(2WPs,deps:[FinancialModeler])]
+execution_order: [["IndustryAnalyst"],["CompanyAnalyst"],["FinancialModeler"],["ValuationExpert"]]
+
+### 示例 3（内容创作）
+domain_analysis: {{"domain": "内容创作", "end_users": ["读者","编辑"], "deliverable_form": "完整文章", "split_dimension": "按章节结构", "key_constraints": ["风格统一","事实准确"]}}
+workers: [Researcher(2WPs,0deps), OutlineWriter(1WP,deps:[Researcher]), ChapterWriter(3WPs,deps:[OutlineWriter])]
+execution_order: [["Researcher"],["OutlineWriter"],["ChapterWriter"]]
+
+## 上游方案输入摘要
 - 需求数量：{len(reqs)}
-- 架构决策：{len(decisions)} 条
+- 关键决策：{len(decisions)} 条
 - 风险缓解：{len(risks)} 条
-- 架构概述：{json.dumps(arch, ensure_ascii=False)[:500] if arch else '无'}
+- 架构/方案概述：{json.dumps(arch, ensure_ascii=False)[:500] if arch else '无'}
 
 ## 需求列表
 {json.dumps(reqs[:80], ensure_ascii=False, indent=2)[:3000]}
 
-## 架构决策
+## 关键决策
 {json.dumps(decisions, ensure_ascii=False, indent=2)[:1000] if decisions else '无'}
 
-## 输出格式（严格 JSON）
-```json
+## 输出格式（严格 JSON，PipelinePlan Schema）
 {{
+  "domain_analysis": {{
+    "domain": "领域名称",
+    "end_users": ["用户角色1", "用户角色2"],
+    "deliverable_form": "最终交付物形态",
+    "split_dimension": "拆分维度",
+    "key_constraints": ["约束1", "约束2"]
+  }},
   "workers": [
     {{
-      "role": "模块名称",
-      "module_purpose": "模块目的（≥20 字）",
+      "role": "Worker 角色名",
+      "module_purpose": "工作单元目的（≥20 字）",
       "covered_req_ids": ["REQ-001", "REQ-002"],
       "depends_on": [],
-      "interface_provides": ["method_name(param) → return_type"],
+      "interface_provides": ["输出接口描述"],
       "interface_requires": [],
       "relevant_decisions": ["D1: 决策描述"],
       "relevant_risks": ["RISK-1: 风险描述"],
       "estimated_wps": 5,
-      "estimated_effort_hours": 40
+      "estimated_effort_hours": 40,
+      "must_constraints": ["继承的硬约束"],
+      "wp_id_prefix": "ABC"
     }}
   ],
   "execution_order": [
-    ["基础模块"],
-    ["模块A", "模块B"],
-    ["上层模块"]
+    ["基础 Worker"],
+    ["Worker A", "Worker B"],
+    ["上层 Worker"]
   ],
-  "rationale": "拆分理由（≥50 字）"
+  "rationale": "拆分理由（≥50 字，需解释为什么这样拆分对最终用户最优）"
 }}
-```
 
 ## 约束
 - workers 数量 2-8
+- execution_order 必须构成 DAG 无环图
 - **每个 REQ-ID 只能分配给一个 Worker，禁止跨 Worker 重复**
 - 每个 Worker 的 covered_req_ids 必须是输入中存在的 REQ-ID
 - execution_order 必须包含所有 Worker role
+- wp_id_prefix 每个 Worker 唯一（如 IND-、FIN-、VAL-）
 - relevant_decisions ≤ 5 个
 - relevant_risks ≤ 3 个
 
