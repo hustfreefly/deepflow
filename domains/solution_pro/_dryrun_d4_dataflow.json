@@ -1,0 +1,247 @@
+{
+  "_meta": {
+    "dimension": "D4: 法（编排 + 数据流）",
+    "version": "1.0.0",
+    "generated": "2026-07-06T22:25:00+08:00",
+    "sources": [
+      "master_orchestrator.py",
+      "planning_orchestrator.py",
+      "research_orchestrator.py",
+      "review_qc_orchestrator.py",
+      "summary_orchestrator.py",
+      "frozen_spec.py",
+      "spec_context.py",
+      "prompts/meta_planner.md",
+      "prompts/expert_planner_base.md",
+      "prompts/convergence_planner.md",
+      "prompts/harness_agent.md",
+      "prompts/research_expert_base.md",
+      "prompts/reviewer_convergence.md"
+    ]
+  },
+  "info_conservation_per_hop": {
+    "hops_checked": 14,
+    "intact": 10,
+    "broken": [
+      {
+        "id": "HOP-B1",
+        "severity": "🔴",
+        "location": "Module 3 命名不一致: 架构地图 vs 代码",
+        "description": "架构地图声明 Module 3 = 'ReviewQC' (ReviewQCOrchestrator), 但实际 MasterOrchestrator.run() 调用的是 _execute_summary() → SummaryOrchestrator. ReviewQCOrchestrator 代码存在但从未被 Master 调用.",
+        "impact": "架构地图与代码现实脱节，后续维护和新人理解会产生严重偏差",
+        "evidence": "master_orchestrator.py:140-148 调用 SummaryOrchestrator; review_qc_orchestrator.py 存在但无调用方"
+      },
+      {
+        "id": "HOP-B2",
+        "severity": "🔴",
+        "location": "Research Convergence Gate 评分为空壳 (Hop 9→跨模块)",
+        "description": "_generate_research_convergence() 硬编码 gate_a_scores={score:0.0, verdict:'PASS'} 和 gate_b_results={pass_rate:1.0, verdict:'PASS'}，无任何实际评估逻辑。研究模块产出的 gate_verdict 永远是 PASS，无论内容质量如何。",
+        "impact": "研究模块没有质量门禁，低质量研究可以无条件通过并流入下游 Summary 模块",
+        "evidence": "research_orchestrator.py:1694-1710 gate_a_scores 和 gate_b_results 全为硬编码默认值"
+      },
+      {
+        "id": "HOP-B3",
+        "severity": "🟡",
+        "location": "Fix Loop 不传递 planning_output 到修复 Agent (Hop 10)",
+        "description": "_run_fix_loop() 初始化 current_output = research_output，planning_output 仅用于 issue 检测阶段，但不传入 fixer Agent 的 spawn prompt。Fixer Agent 无法访问 planning 约束来验证修复是否与规划一致。",
+        "impact": "修复 Agent 可能在不知晓规划约束的情况下做出不一致的修复",
+        "evidence": "review_qc_orchestrator.py:164 current_output = research_output; planning_output 仅用于 _detect_issues()"
+      }
+    ],
+    "risky": [
+      {
+        "id": "HOP-R1",
+        "severity": "⚠️",
+        "location": "Expert Planner 不读取 p0_constraints.json 文件 (Hop 2→3)",
+        "description": "架构地图声明 Expert Planner 输入包含 'stages/p0_constraints.json'，实际 runner 通过 _load_p0_constraints_prompt_block() 注入为 prompt 文本块而非文件读取。Prompt 也未声明此输入。功能上等价但架构地图与代码不一致。",
+        "evidence": "planning_orchestrator.py:547 p0_block = self._load_p0_constraints_prompt_block(); expert_planner_base.md 未提及 p0_constraints.json"
+      },
+      {
+        "id": "HOP-R2",
+        "severity": "⚠️",
+        "location": "Harness Agent prompt 变量名与数据来源不一致 (Hop 5→Harness)",
+        "description": "Prompt 使用 {stage_output}/{gate_a_config}/{gate_b_config} 变量名，runner 传入 convergence_output/expert_manifest['gate_a']/expert_manifest['gate_b']。语义映射正确但命名不一致，增加维护心智负担。",
+        "evidence": "planning_orchestrator.py:796-798 prompt.replace('{stage_output}', convergence_output) vs prompt 声明"
+      },
+      {
+        "id": "HOP-R3",
+        "severity": "⚠️",
+        "location": "Research Expert prompt 使用 blackboard 读取指令但 runner 用模板替换 (Hop 7)",
+        "description": "research_expert_base.md 包含 Python 代码示例 instructing LLM 用 bb.read_json('data/living_spec.json') 读取数据，但实际 runner 用 prompt.replace('{frozen_spec}', ...) 直接注入 JSON。LLM 可能混淆两种数据获取方式。",
+        "evidence": "research_expert_base.md 代码块 vs research_orchestrator.py:1042 prompt.replace"
+      },
+      {
+        "id": "HOP-R4",
+        "severity": "⚠️",
+        "location": "Summary 模块输入覆盖不完整 (Hop 跨模块 14→)",
+        "description": "SummaryOrchestrator 接收 planning_output + research_output，但 Research convergence 的 gate 评分为空壳(B2)，Summary 模块无法基于有效的 gate 评分做决策。",
+        "evidence": "summary_orchestrator.py:run() 接收 planning_output + research_output; research gate 全为默认值"
+      }
+    ]
+  },
+  "prompt_runner_consistency": {
+    "agents_checked": 8,
+    "consistent": 5,
+    "mismatches": [
+      {
+        "id": "PR-1",
+        "severity": "🟡",
+        "agent": "Expert Planner",
+        "prompt_declares": ["Spec data (living_spec/frozen_spec)", "Structured Requirements", "focus_areas"],
+        "runner_provides": ["frozen_spec (含 living_spec_prompt)", "structured_requirements", "p0_constraints (injected block)", "soft_constraints (injected block)", "semantic_anchors (prepended block)"],
+        "gap": "Runner 传了 p0_constraints + soft_constraints + semantic_anchors 但 Prompt 未声明这些输入。Agent 可能不理解这些额外注入块的用途。",
+        "risk": "Agent 忽略注入的约束块，导致 P0 约束未被遵循"
+      },
+      {
+        "id": "PR-2",
+        "severity": "🟡",
+        "agent": "Research Expert",
+        "prompt_declares": ["Spec data (living_spec优先)", "Structured Requirements", "focus_areas", "(代码示例: bb.read_json blackboard 读取)"],
+        "runner_provides": ["frozen_spec (JSON 注入)", "freshness_context (compressed_context 注入)", "planning_constraints (key_constraints 注入)", "constraint_brief (追加注入)", "iteration context (追加)"],
+        "gap": "Prompt 包含 Python 代码示例让 LLM 用 blackboard API 读数据，但 runner 实际用模板变量注入。两种方式共存可能混淆 LLM。",
+        "risk": "LLM 尝试调用 blackboard API 而非使用已注入的数据"
+      },
+      {
+        "id": "PR-3",
+        "severity": "🟡",
+        "agent": "Meta Planner",
+        "prompt_declares": ["data/living_spec.json (优先) 或 data/frozen_spec.json", "data/structured_requirements.json"],
+        "runner_provides": ["frozen_spec (含 living_spec_prompt 字段)", "structured_requirements", "(task_builder 格式)"],
+        "gap": "Prompt 说 '你会收到以下文件' 暗示文件级读取，但 runner 实际通过 build_meta_planner_task() 构建 task prompt 直接注入数据。Prompt 的文件路径声明与实际数据注入方式不一致。",
+        "risk": "低风险 — task_builder 会正确组装数据"
+      }
+    ]
+  },
+  "gate_validation": {
+    "gates_checked": 5,
+    "three_layer_design": true,
+    "layer_details": {
+      "L1_deterministic": {
+        "status": "✅ IMPLEMENTED",
+        "evidence": [
+          "ExpertManifestSchema (GateAWeights sum=1.0)",
+          "ExpertPlanSchema (constraints min=1)",
+          "UnifiedConstraintsSchema + VerificationChecklistSchema",
+          "PlanningConvergenceSchema",
+          "ResearchConvergenceSchema",
+          "FixLoopStateSchema",
+          "HarnessCheck (8 cages)"
+        ]
+      },
+      "L2_llm_semantic": {
+        "status": "⚠️ PARTIAL",
+        "evidence": [
+          "Planning Harness: GateALayer2Calibration.run_majority_vote() ✅",
+          "Reviewer_Meta: LLM Judge ✅",
+          "Reviewer_Convergence: LLM Judge ✅",
+          "Research Harness: ❌ 不存在 — 硬编码 PASS",
+          "ReviewQC Harness: 代码存在但未被 Master 调用"
+        ]
+      },
+      "L3_combined": {
+        "status": "✅ IMPLEMENTED",
+        "evidence": [
+          "Planning: Layer2 FAIL → override to FAIL + Gate B CRITICAL check",
+          "Research: ❌ 无合并逻辑 — 直接硬编码",
+          "ReviewQC: DegradedFinalConvergenceSchema for ABORT"
+        ]
+      }
+    },
+    "issues": [
+      {
+        "id": "GATE-1",
+        "severity": "🔴",
+        "description": "Research 模块完全没有 L2 语义验证和 L3 合并逻辑。gate_a_scores 和 gate_b_results 硬编码为默认 PASS，score=0.0。这意味着低质量研究可以无条件流入 Summary 模块。",
+        "location": "research_orchestrator.py:_generate_research_convergence()",
+        "fix": "为 Research 模块添加 Harness Agent（类似 Planning 模块的双层 Gate），或至少添加 LLM-as-Judge 对 research_summary 和 key_findings 的语义评估"
+      },
+      {
+        "id": "GATE-2",
+        "severity": "🟡",
+        "description": "ReviewQC 模块的 Harness Check 和 Final Review 在 ReviewQCOrchestrator 中实现完整，但 Master 实际调用 SummaryOrchestrator。ReviewQC 的 8 cages (H1-H8) 设计未被 Summary 模块继承。",
+        "location": "review_qc_orchestrator.py vs master_orchestrator.py:140",
+        "fix": "要么让 Master 调用 ReviewQCOrchestrator（如架构地图所述），要么让 SummaryOrchestrator 继承 ReviewQC 的 cage 验证逻辑"
+      }
+    ]
+  },
+  "information_degradation": {
+    "checks": [
+      {
+        "id": "DEG-1",
+        "name": "build_frozen_spec() reads narrative?",
+        "result": "✅ YES",
+        "detail": "narrative 被读取并用于冲突检测（narrative vs requirement_index），但 narrative 本身不包含在 frozen_spec 输出中。narrative 通过 _get_prompt_input() 和 format_living_spec_for_prompt() 间接传递给 prompt。"
+      },
+      {
+        "id": "DEG-2",
+        "name": "build_frozen_spec() reads semantic_anchors?",
+        "result": "✅ YES",
+        "detail": "semantic_anchors 从 living_spec 原样透传到 frozen_spec（line 393-397），并提取 priority_layers 用于注意力优化。_extract_anchors_block() 还会将 anchors 注入到 convergence_planner、expert_planner、reviewer_convergence 的 prompt 开头。"
+      },
+      {
+        "id": "DEG-3",
+        "name": "conversation_digest passed to downstream?",
+        "result": "⚠️ PARTIAL",
+        "detail": "conversation_digest 存在于 living_spec 中（Spec Pro 产出）。spec_context.py:build_conversation_digest_for_prompt() 可将其格式化。但 build_frozen_spec() 不包含 conversation_digest。传递路径: living_spec → format_living_spec_for_prompt() → prompt 注入。frozen_spec 本身不携带此数据。"
+      },
+      {
+        "id": "DEG-4",
+        "name": "platform_capabilities cross-domain (Solution Pro → Ship Pro)?",
+        "result": "❌ NOT FOUND",
+        "detail": "frozen_spec 输出不包含 platform_capabilities 字段。semantic_anchors 可能隐含平台约束（category='platform_api'），但没有显式的 platform_capabilities 跨域传递机制。Meta Planner 的 P0 约束识别维度包含 'platform'，但产出存于 meta_planning.json 而非跨域接口。",
+        "risk": "Ship Pro 可能不知道 Solution Pro 识别的平台约束，导致部署方案与平台不兼容"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "F-1",
+      "severity": "🔴 CRITICAL",
+      "title": "架构地图 Module 3 与代码不一致",
+      "description": "架构地图声明 Module 3 = ReviewQC (ReviewQCOrchestrator)，实际代码使用 SummaryOrchestrator。ReviewQCOrchestrator 完整实现（含 Fix Loop + Harness Check + Final Review + ABORT 降级）但无调用方。",
+      "recommendation": "决策: (A) 将 Master 改回调用 ReviewQC → Summary 两阶段，(B) 让 SummaryOrchestrator 继承 ReviewQC 的验证逻辑，(C) 更新架构地图承认 Summary 替代了 ReviewQC。"
+    },
+    {
+      "id": "F-2",
+      "severity": "🔴 CRITICAL",
+      "title": "Research 模块无质量门禁",
+      "description": "Research convergence 的 gate_a_scores 和 gate_b_results 全部硬编码为默认 PASS/0.0。研究质量完全依赖隐式的格式合规检查（<50% = RuntimeError），无语义层面的质量评估。",
+      "recommendation": "添加 Research Harness Agent，至少评估: (1) findings 是否覆盖 planning constraints (2) 是否存在低置信度 finding 占主导 (3) 是否与 P0 约束冲突"
+    },
+    {
+      "id": "F-3",
+      "severity": "🟡 WARNING",
+      "title": "平台能力跨域断裂",
+      "description": "Meta Planner 识别 platform P0 约束，但这些约束停留在 Planning 模块内部。Ship Pro 无法获取 Solution Pro 的平台约束发现。",
+      "recommendation": "在 frozen_spec 或 pipeline 输出中添加 platform_capabilities 字段，供 Ship Pro 读取"
+    },
+    {
+      "id": "F-4",
+      "severity": "🟡 WARNING",
+      "title": "Prompt 声明与 Runner 注入的数据契约漂移",
+      "description": "多个 Agent 的 Prompt 声明的输入与 Runner 实际注入的数据存在差异（PR-1, PR-2, PR-3）。虽然功能上不影响运行，但增加了维护成本和 LLM 混淆风险。",
+      "recommendation": "为每个 Prompt 添加 '## 注入变量' 节明确声明所有 runner 注入的变量名和含义"
+    },
+    {
+      "id": "F-5",
+      "severity": "🟢 INFO",
+      "title": "conversation_digest 传递路径非标准化",
+      "description": "conversation_digest 通过 living_spec → format_living_spec_for_prompt() 间接传递，不在 frozen_spec 中。当 frozen_spec 是唯一可用输入时（如 fallback 场景），conversation_digest 丢失。",
+      "recommendation": "将 conversation_digest 纳入 frozen_spec 输出，或在 _prepare_input() 中确保 living_spec 总是可用"
+    }
+  ],
+  "summary": {
+    "total_hops": 14,
+    "intact_hops": 10,
+    "broken_hops": 3,
+    "risky_hops": 4,
+    "total_agents": 8,
+    "consistent_agents": 5,
+    "mismatched_agents": 3,
+    "gate_coverage": "Planning=完整 | Research=缺失 | ReviewQC=存在但未调用",
+    "critical_findings": 2,
+    "warning_findings": 2,
+    "info_findings": 1,
+    "overall_verdict": "CONDITIONAL PASS — 核心管线数据流基本完整，但 Research 模块缺乏质量门禁且架构地图与代码存在 Module 3 命名不一致的严重偏差"
+  }
+}

@@ -107,6 +107,16 @@ class PipelinePlan(BaseModel):
                 raise ValueError(f"execution_order 缺少 Worker: {missing}")
         return v
 
+    @field_validator("workers")
+    @classmethod
+    def wp_id_prefix_unique(cls, v):
+        prefixes = [w.wp_id_prefix for w in v]
+        if len(prefixes) != len(set(prefixes)):
+            from collections import Counter
+            dupes = [p for p, c in Counter(prefixes).items() if c > 1]
+            raise ValueError(f"wp_id_prefix 必须唯一，重复: {dupes}")
+        return v
+
     @field_validator("domain_analysis")
     @classmethod
     def domain_analysis_should_exist(cls, v):
@@ -483,7 +493,7 @@ class PipelineDesigner:
 ## 你的架构位置
 上游方案 → 【你(Planner)】→ Workers(并行) → Consolidator(组装) → 最终用户
 
-## 第一步：领域分析（domain_analysis，必填）
+## 第一步：领域分析（domain_analysis，强烈建议）
 在拆分前，先回答 4 个问题：
 1. **domain**: 这是什么领域？（软件/投资/创作/咨询/...）
 2. **end_users**: 最终用户是谁？（谁消费最终交付物？）

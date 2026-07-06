@@ -66,8 +66,7 @@ read {solution_pro_input_path}，提取 `semantic_anchors` 字段。
 ## 输出格式
 ```json
 {
-  "ship_package_version": "v9",
-  "solution": "{solution_name}",
+  "solution_name": "{solution_name}",
   "work_packages": [
     {
       "wp_id": "CORE-001",
@@ -77,21 +76,23 @@ read {solution_pro_input_path}，提取 `semantic_anchors` 字段。
       "deliverables": ["交付物1", "交付物2"],
       "effort_hours": 48,
       "dependencies": ["CORE-002"],
+      "covered_req_ids": ["REQ-001"],
+      "anchored_to": ["sessions_spawn"],
       "source_worker": "CoreInfrastructure"
     }
   ],
   "dependency_graph": {
-    "nodes": ["WP-ID-1", "WP-ID-2"],
-    "edges": [["WP-ID-1", "WP-ID-2"]]
+    "edges": [{"from": "CORE-001", "to": "CORE-002"}],
+    "execution_layers": [["CORE-001"], ["CORE-002"]]
   },
-  "statistics": {
+  "metadata": {
     "total_wps": 25,
     "total_effort_hours": 200,
     "req_coverage_rate": 0.92,
-    "dependency_edges": 15
+    "dependency_edges": 15,
+    "issues": ["整合: REQ-005 被 CORE-002 和 LOOP-001 同时覆盖，已合并"],
+    "pending_req_ids": ["REQ-080"]
   },
-  "issues": ["整合: REQ-005 被 CORE-002 和 LOOP-001 同时覆盖，已合并为 CORE-002（互补型重叠）"],
-  "pending_req_ids": ["REQ-080"],
   "semantic_anchors": [{"name": "sessions_spawn", "category": "platform_api", "constraint": "..."}],
   "anchor_coverage": {"sessions_spawn": ["CORE-001", "CORE-007"], "_uncovered": ["Hermes"]}
 }

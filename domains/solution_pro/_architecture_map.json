@@ -1,0 +1,692 @@
+{
+  "_meta": {
+    "version": "2.0.0",
+    "generated": "2026-07-06T21:55:00+08:00",
+    "sources": [
+      "_overview.md",
+      "schemas.py",
+      "master_orchestrator.py",
+      "planning_orchestrator.py",
+      "research_orchestrator.py",
+      "review_qc_orchestrator.py",
+      "module_orchestrator_base.py",
+      "convergence_layer.py",
+      "blackboard.py",
+      "harness_scorer.py",
+      "stage_contract.py",
+      "orchestrator.md",
+      "meta_planner.md",
+      "expert_planner_base.md",
+      "convergence_planner.md"
+    ]
+  },
+  "pipeline_flow": {
+    "description": "MasterOrchestrator 3-module sequential: Planning->Research->ReviewQC. Code controls flow, LLM generates content.",
+    "entry": "MasterOrchestrator.run()",
+    "modules": [
+      {
+        "order": 1,
+        "name": "planning",
+        "orchestrator": "PlanningOrchestrator",
+        "timeout": 600,
+        "degradation": "DEPRECATED raise-direct",
+        "input": "living_spec->frozen_spec",
+        "output": "planning_convergence.json",
+        "stages": [
+          {
+            "step": 1,
+            "name": "meta_planner",
+            "agent": "Meta-Planner",
+            "prompt": "prompts/meta_planner.md",
+            "schema": "ExpertManifestSchema",
+            "input": [
+              "frozen_spec.json",
+              "structured_requirements.json",
+              "data/living_spec.json"
+            ],
+            "output": "stages/meta_planning.json",
+            "contract": "Analyze task->select 1-5 experts->Gate A(sum=1.0)->Gate B(3-8)->P0 constraints. P0 REQ 100% trace.",
+            "validation": "Pydantic ExpertManifestSchema + GateAWeights sum=1.0"
+          },
+          {
+            "step": 2,
+            "name": "reviewer_meta",
+            "agent": "Reviewer_Meta",
+            "prompt": "prompts/reviewer_meta.md",
+            "input": [
+              "stages/meta_planning.json",
+              "frozen_spec.json"
+            ],
+            "output": "stages/reviewer_meta.json",
+            "contract": "Validate Meta-Planner. FAIL->raise ValueError, pipeline aborts."
+          },
+          {
+            "step": 3,
+            "name": "expert_planners_parallel",
+            "agent": "Expert Planner xN(1-5 parallel)",
+            "prompt": "prompts/expert_planner_base.md",
+            "schema": "ExpertPlanSchema",
+            "input": [
+              "frozen_spec.json",
+              "structured_requirements.json",
+              "stages/p0_constraints.json"
+            ],
+            "output": "stages/expert_plans/{expert_name}.json",
+            "contract": "constraints(5-15,MUST/SHOULD/MAY)+risks+acceptance_criteria. rationale required.",
+            "parallelism": "ThreadPoolExecutor max_workers=min(5,N) per-expert 120s global 600s",
+            "retry": "max 2 exponential backoff",
+            "degradation": "MIN_VIABLE {1:1,2:2,3:2,4:3,5:3}",
+            "concurrent_write": true
+          },
+          {
+            "step": 4,
+            "name": "convergence_planner",
+            "agent": "Convergence Planner",
+            "prompt": "prompts/convergence_planner.md",
+            "schema": "UnifiedConstraintsSchema+VerificationChecklistSchema",
+            "input": [
+              "frozen_spec.json",
+              "stages/meta_planning.json",
+              "stages/expert_plans/*.json"
+            ],
+            "output": "convergence_planning.json+unified_constraints.json+verification_checklist.json+requirement_traceability.json",
+            "contract": "Semantic dedup+conflict resolution+P0 100% coverage+executable checklist+traceability matrix. merge_ratio 0.5-0.8.",
+            "cages": [
+              "F6:LLM control scope",
+              "F7:threshold consistency"
+            ]
+          },
+          {
+            "step": 5,
+            "name": "reviewer_convergence",
+            "agent": "Reviewer_Convergence",
+            "prompt": "prompts/reviewer_convergence.md",
+            "input": [
+              "frozen_spec.json",
+              "meta_planning.json",
+              "expert_plans/*.json",
+              "unified_constraints.json",
+              "verification_checklist.json"
+            ],
+            "output": "stages/reviewer_convergence.json",
+            "contract": "Validate Convergence. FAIL->raise ValueError."
+          },
+          {
+            "step": 6,
+            "name": "harness_agent",
+            "agent": "Harness Agent",
+            "prompt": "prompts/harness_agent.md",
+            "schema": "HarnessReportSchema",
+            "input": [
+              "convergence_planning.json",
+              "meta_planning.json(gate config)"
+            ],
+            "output": "stages/harness_planning.json",
+            "contract": "Gate A 4-dim+Gate B dynamic. Layer2 semantic calibration+CRITICAL safety.",
+            "dual_layer": "Layer1 rule->Layer2 LLM-as-Judge majority vote"
+          },
+          {
+            "step": 7,
+            "name": "planning_convergence",
+            "agent": "Code(non-LLM)",
+            "schema": "PlanningConvergenceSchema",
+            "input": [
+              "all stages/*.json"
+            ],
+            "output": "planning_convergence.json",
+            "contract": "Assemble: constraints+checklist+summary+divergence+references(hash)+gates"
+          }
+        ]
+      },
+      {
+        "order": 2,
+        "name": "research",
+        "orchestrator": "ResearchOrchestrator",
+        "timeout": 900,
+        "degradation": "DEPRECATED raise-direct",
+        "input": "planning_convergence+living_spec",
+        "output": "research_convergence.json",
+        "stages": [
+          {
+            "step": 1,
+            "name": "knowledge_freshness",
+            "agent": "Knowledge Freshness(LLM+web_search+compress)",
+            "input": [
+              "frozen_spec.json",
+              "planning_convergence.json"
+            ],
+            "output": "stages/knowledge_freshness.json",
+            "contract": "LLM 8-12 queries->web_search->compress<500w+injection filter",
+            "fallback": "keyword queries"
+          },
+          {
+            "step": 2,
+            "name": "expert_config",
+            "agent": "Code(deterministic)",
+            "input": [
+              "planning_convergence.json",
+              "frozen_spec.json"
+            ],
+            "output": "stages/expert_config_determination.json",
+            "contract": "Dynamic configs from risk_areas+1 generalist"
+          },
+          {
+            "step": 3,
+            "name": "research_experts",
+            "agent": "Research Expert xM(parallel+iteration)",
+            "prompt": "prompts/research_expert_base.md",
+            "schema": "ResearchExpertSchema",
+            "input": [
+              "frozen_spec.json",
+              "knowledge_freshness.json",
+              "planning_convergence.json",
+              "constraint brief"
+            ],
+            "output": "stages/research_experts/{expert_name}.json",
+            "contract": "Parallel research. spawn->LLM-as-Judge sufficiency->gaps->next. MAX_ITER=3.",
+            "parallelism": "ThreadPoolExecutor PER_EXPERT=600s GLOBAL=600s",
+            "degradation": "min_viable=max(1,M//2)",
+            "format": "<50%=RuntimeError",
+            "concurrent_write": true
+          },
+          {
+            "step": 4,
+            "name": "consolidation",
+            "agent": "Consolidator(LLM batch dedup)",
+            "schema": "ResearchConsolidatorSchema",
+            "input": [
+              "stages/research_experts/*.json"
+            ],
+            "output": "stages/research_consolidator.json",
+            "contract": "Batch dedup O(1)+conflict+Tier(tier1/2/3)",
+            "fallback": "keyword overlap"
+          },
+          {
+            "step": "4.3",
+            "name": "format_check",
+            "agent": "Code",
+            "output": "stages/expert_format_check.json",
+            "contract": "compliance<50%=RuntimeError"
+          },
+          {
+            "step": "4.5",
+            "name": "digest",
+            "agent": "Digest Generator(LLM)",
+            "schema": "ResearchDigest",
+            "input": [
+              "research_experts/*.json",
+              "research_consolidator.json"
+            ],
+            "output": "stages/research_digest.json",
+            "contract": "LLM semantic dedup/conflict/importance. No degraded mode.",
+            "validation": "ResearchDigest Pydantic+coverage>=0.8"
+          },
+          {
+            "step": 5,
+            "name": "research_convergence",
+            "agent": "ConvergenceLayer(code)",
+            "schema": "ResearchConvergenceSchema",
+            "input": [
+              "consolidator.json",
+              "research_experts/*.json",
+              "planning_convergence.json"
+            ],
+            "output": "research_convergence.json",
+            "contract": "summary+findings+decisions+gate_scores(GateA/GateB tightened)",
+            "concurrent_write": true
+          }
+        ]
+      },
+      {
+        "order": 3,
+        "name": "review_qc",
+        "orchestrator": "ReviewQCOrchestrator",
+        "timeout": 600,
+        "degradation": "ABORT->DegradedFinalConvergenceSchema",
+        "input": "planning+research convergence",
+        "output": "review_qc_convergence.json",
+        "stages": [
+          {
+            "step": 1,
+            "name": "fix_loop",
+            "agent": "Fix Loop(code+spawn)",
+            "prompt": "prompts/fixer_expert_harness.md",
+            "schema": "FixLoopStateSchema",
+            "input": [
+              "planning_convergence.json",
+              "research_convergence.json"
+            ],
+            "output": "fix_result(internal)",
+            "contract": "Max 3 rounds: detect(coverage<80%,inconsistency,unaddressed)->fix->FIXED/ABORT. Finding Ledger.",
+            "abort_degradation": true
+          },
+          {
+            "step": 2,
+            "name": "harness_check",
+            "agent": "Harness Check",
+            "prompt": "prompts/harness_v3.md",
+            "schema": "HarnessCheck",
+            "input": [
+              "fix_result.output"
+            ],
+            "output": "stages/harness_check.json",
+            "contract": "2-layer defense+reflection. 8 cages.",
+            "cages": [
+              "H1:4dims",
+              "H2:P0=FAIL",
+              "H3:aggregation",
+              "H4:no-L2-comp",
+              "H5:anti-complacency",
+              "H6:anti-evasion",
+              "H7:mandatory",
+              "H8:beyond-spec"
+            ]
+          },
+          {
+            "step": 3,
+            "name": "final_review",
+            "agent": "Final Review",
+            "prompt": "prompts/reviewer_harness.md",
+            "output": "stages/final_review.json",
+            "contract": "verdict+quality_score+reasoning"
+          },
+          {
+            "step": 4,
+            "name": "review_qc_convergence",
+            "agent": "Code",
+            "output": "review_qc_convergence.json",
+            "contract": "fix_summary+harness_summary+verdict+quality. ABORT: DegradedFinalConvergenceSchema."
+          }
+        ]
+      }
+    ]
+  },
+  "data_flow": {
+    "living_spec": "user_input->_prepare_input()->living_spec.json+snapshot(hash)->all modules",
+    "m1_to_m2": "planning_convergence.json->ResearchOrchestrator",
+    "m2_to_m3": "research_convergence.json->ReviewQCOrchestrator",
+    "m1_internal": [
+      "frozen_spec->meta_planning",
+      "meta->reviewer_meta(gate)",
+      "meta->expert_plans(xN)",
+      "expert_plans->convergence",
+      "convergence->reviewer_convergence(gate)",
+      "convergence+meta->harness",
+      "all->planning_convergence"
+    ],
+    "m2_internal": [
+      "frozen_spec+planning->knowledge_freshness",
+      "planning->expert_config",
+      "freshness+configs->research_experts(xM iter)",
+      "experts->consolidator",
+      "experts+consolidator->digest",
+      "consolidator+experts->research_convergence"
+    ],
+    "m3_internal": [
+      "planning+research->fix_loop",
+      "fix->harness_check",
+      "harness->final_review",
+      "all->review_qc_convergence"
+    ],
+    "state_files": [
+      "v2/master_state.json",
+      "module_*_state.json",
+      "v2/*_output.json",
+      "v2/pipeline_metrics.json"
+    ]
+  },
+  "critical_paths": {
+    "paths": [
+      "living_spec->meta->reviewer_meta(gate)->experts(min_viable)->convergence->reviewer_convergence(gate)->harness(L2)->planning_convergence",
+      "planning_convergence->freshness->configs->experts(min_viable,format)->consolidation->digest->research_convergence",
+      "research_convergence->fix_loop(ABORT=degrade)->harness->final_review->review_qc_convergence"
+    ],
+    "breakpoints": [
+      {
+        "location": "reviewer_meta FAIL",
+        "effect": "raise ValueError, abort",
+        "recovery": "Re-run meta_planner"
+      },
+      {
+        "location": "reviewer_convergence FAIL",
+        "effect": "raise ValueError, abort",
+        "recovery": "Re-run convergence"
+      },
+      {
+        "location": "experts < min_viable",
+        "effect": "RuntimeError",
+        "recovery": "Re-run failed experts"
+      },
+      {
+        "location": "format_compliance < 50%",
+        "effect": "RuntimeError",
+        "recovery": "Re-run non-compliant"
+      },
+      {
+        "location": "fix_loop ABORT",
+        "effect": "DegradedFinalConvergenceSchema",
+        "recovery": "Partial results, DEGRADED"
+      },
+      {
+        "location": "module timeout",
+        "effect": "ModuleTimeoutError raise",
+        "recovery": "Checkpoint resume"
+      },
+      {
+        "location": "harness Layer2 FAIL",
+        "effect": "Override to FAIL",
+        "recovery": "Re-run convergence+harness"
+      },
+      {
+        "location": "Gate B CRITICAL FAIL",
+        "effect": "Override to FAIL",
+        "recovery": "Same"
+      }
+    ]
+  },
+  "agent_contracts": {
+    "meta_planner": {
+      "role": "L0: task->experts->gates",
+      "output": "ExpertManifestSchema",
+      "rules": [
+        "P0 required",
+        "Experts 1-5",
+        "Gate A sum=1.0",
+        "P0 REQ 100% trace",
+        "Domain coverage"
+      ]
+    },
+    "expert_planner": {
+      "role": "L1: constraints/risks/criteria",
+      "output": "ExpertPlanSchema",
+      "rules": [
+        "5-15 constraints",
+        "rationale",
+        "C/R/AC IDs",
+        "P0 only"
+      ]
+    },
+    "convergence_planner": {
+      "role": "L2: merge+validate+trace",
+      "output": "UnifiedConstraints+Checklist",
+      "rules": [
+        "Semantic dedup",
+        "P0 100%",
+        "Executable",
+        "merge 0.5-0.8"
+      ]
+    },
+    "harness_agent": {
+      "role": "Gate A+B",
+      "output": "HarnessReportSchema",
+      "dual": "L1 rule->L2 LLM-judge"
+    },
+    "research_expert": {
+      "role": "Parallel research+iteration",
+      "output": "ResearchExpertSchema",
+      "rules": [
+        "ExecSummary/Findings/Confidence",
+        "format<50%=Error",
+        "MAX_ITER=3"
+      ]
+    },
+    "fix_loop": {
+      "role": "Detect+fix max 3",
+      "output": "FixLoopStateSchema",
+      "rules": [
+        "MAX_ROUNDS=3",
+        "Finding Ledger",
+        "ABORT->Degraded"
+      ]
+    }
+  },
+  "contract_cages": {
+    "pydantic": [
+      {
+        "schema": "ExpertManifestSchema",
+        "cages": [
+          "GateAWeights sum=1.0"
+        ],
+        "at": "_run_meta_planner()"
+      },
+      {
+        "schema": "ExpertPlanSchema",
+        "cages": [
+          "constraints min=1",
+          "criteria min=1"
+        ],
+        "at": "_run_single_expert_with_retry()"
+      },
+      {
+        "schema": "UnifiedConstraintsSchema",
+        "cages": [
+          "F6:LLM control scope",
+          "F7:threshold consistency"
+        ],
+        "at": "_run_convergence_planner()"
+      },
+      {
+        "schema": "VerificationChecklistSchema",
+        "cages": [
+          "checklist min=1"
+        ],
+        "at": "_run_convergence_planner()"
+      },
+      {
+        "schema": "PlanningConvergenceSchema",
+        "cages": [
+          "summary max=500",
+          "module Literal",
+          "SemanticVerification enum"
+        ],
+        "at": "_generate_planning_convergence()"
+      },
+      {
+        "schema": "ResearchConvergenceSchema",
+        "cages": [
+          "summary max=1000",
+          "GateAScoresSchema",
+          "GateBResultsSchema"
+        ],
+        "at": "_generate_research_convergence()"
+      },
+      {
+        "schema": "HarnessCheck",
+        "cages": [
+          "H1:4dims",
+          "H2:P0=FAIL",
+          "H3:aggregation",
+          "H4:no-L2",
+          "H5:anti-complacency",
+          "H6:anti-evasion",
+          "H7:mandatory",
+          "H8:beyond-spec"
+        ],
+        "at": "_run_harness_check()"
+      },
+      {
+        "schema": "FixLoopStateSchema",
+        "cages": [
+          "round 0-2",
+          "status enum"
+        ],
+        "at": "_run_fix_loop()"
+      },
+      {
+        "schema": "DegradedFinalConvergenceSchema",
+        "cages": [
+          "degradation_flag=True",
+          "status=DEGRADED"
+        ],
+        "at": "_handle_abort_degradation()"
+      },
+      {
+        "schema": "ResearchDigest",
+        "cages": [
+          "confidence 0-1",
+          "relevance enum"
+        ],
+        "at": "_generate_research_digest() non-blocking"
+      },
+      {
+        "schema": "ModuleOrchestratorStateSchema",
+        "cages": [
+          "status enum",
+          "retry>=0"
+        ],
+        "at": "_load_or_init_state()"
+      },
+      {
+        "schema": "StageContract",
+        "cages": [
+          "required_keys",
+          "min_content_length",
+          "schema"
+        ],
+        "at": "_load_checkpoint()"
+      }
+    ],
+    "runtime_errors": [
+      {
+        "location": "master_orchestrator.py",
+        "trigger": "spawn_fn=None in prod"
+      },
+      {
+        "location": "planning_orchestrator.py",
+        "trigger": "reviewer_meta FAIL"
+      },
+      {
+        "location": "planning_orchestrator.py",
+        "trigger": "reviewer_convergence FAIL"
+      },
+      {
+        "location": "planning_orchestrator.py",
+        "trigger": "spawn_fn=None"
+      },
+      {
+        "location": "planning_orchestrator.py",
+        "trigger": "experts < min_viable"
+      },
+      {
+        "location": "research_orchestrator.py",
+        "trigger": "format < 50%"
+      },
+      {
+        "location": "research_orchestrator.py",
+        "trigger": "experts < min_viable"
+      },
+      {
+        "location": "research_orchestrator.py",
+        "trigger": "digest failure"
+      },
+      {
+        "location": "module_orchestrator_base.py",
+        "trigger": "worker timeout"
+      },
+      {
+        "location": "master_orchestrator.py",
+        "trigger": "save failure"
+      }
+    ]
+  },
+  "degradations": [
+    {
+      "name": "default_expert_manifest",
+      "module": "planning",
+      "status": "DEPRECATED",
+      "note": "raise directly"
+    },
+    {
+      "name": "skip_with_degraded_flag",
+      "module": "research",
+      "status": "DEPRECATED",
+      "note": "raise directly"
+    },
+    {
+      "name": "degraded_final_convergence",
+      "module": "review_qc",
+      "status": "ACTIVE",
+      "trigger": "fix_loop ABORT",
+      "location": "_handle_abort_degradation()"
+    },
+    {
+      "name": "expert_planners graceful",
+      "module": "planning",
+      "status": "ACTIVE",
+      "trigger": "some fail >= min_viable"
+    },
+    {
+      "name": "research_experts graceful",
+      "module": "research",
+      "status": "ACTIVE",
+      "trigger": "some fail >= min_viable"
+    },
+    {
+      "name": "fallback_consolidate",
+      "module": "research",
+      "status": "ACTIVE",
+      "trigger": "LLM unavailable"
+    }
+  ],
+  "concurrent_writes": [
+    {
+      "file": "stages/expert_plans/{name}.json",
+      "writers": "Expert xN parallel",
+      "protection": "tempfile+fsync+rename atomic"
+    },
+    {
+      "file": "stages/research_experts/{name}.json",
+      "writers": "Research xM parallel",
+      "protection": "atomic write"
+    },
+    {
+      "file": "v2/master_state.json",
+      "writers": "MasterOrchestrator",
+      "protection": "threading.Lock"
+    },
+    {
+      "file": "module_{name}_state.json",
+      "writers": "ModuleOrchestrator",
+      "protection": "sequential single-thread"
+    },
+    {
+      "file": "SourceRegistry",
+      "writers": "Research parallel",
+      "protection": "threading.Lock"
+    },
+    {
+      "file": "convergence .processing",
+      "writers": "write_convergence()",
+      "protection": "two-phase write"
+    },
+    {
+      "file": "errors.jsonl",
+      "writers": "_log_worker_error()",
+      "protection": "append-only OS atomicity"
+    },
+    {
+      "file": "v2/pipeline_metrics.json",
+      "writers": "_save_pipeline_metrics()",
+      "protection": "single-thread try/except"
+    }
+  ],
+  "checkpoint_resume": {
+    "L1": "v2/master_state.json (SHA256 hash)",
+    "L2": "v2/{module}_output.json (readback+hash)",
+    "per_stage": {
+      "planning": "meta,reviewer_meta,expert_plans/*,convergence,reviewer_convergence,harness,planning_convergence",
+      "research": "freshness,config,experts/*,consolidator,digest,research_convergence",
+      "review_qc": "review_qc_convergence"
+    },
+    "contract": "_load_checkpoint()->STAGE_CONTRACTS->validate()"
+  },
+  "architecture_decisions": {
+    "code_controls_flow": "Python deterministic, LLM semantic only",
+    "no_mock_prod": "spawn_fn=None->raise",
+    "degradation=failure": "Except ReviewQC ABORT",
+    "dual_state": "master+module+artifact hash",
+    "harness_2layer": "system guardrails+role quality+reflection",
+    "living_spec_priority": "living_spec>frozen_spec>user_input",
+    "p0_traceability": "P0 REQ->Gate B->Expert->UC->Checklist->Matrix"
+  }
+}

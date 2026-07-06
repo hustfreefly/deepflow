@@ -138,7 +138,7 @@ def sample_worker_output():
                 "dependencies": [],
                 "estimated_effort": "5 人天",
                 "deliverables": ["dag_engine.py", "test_dag_engine.py"],
-                "anchored_to": ["modularity"],
+                "anchored_to": [],
             }
         ],
         "metadata": {},
@@ -165,7 +165,7 @@ def sample_ship_package():
                 "dependencies": [],
                 "estimated_effort": "5 人天",
                 "deliverables": ["dag_engine.py", "test_dag_engine.py"],
-                "anchored_to": ["modularity"],
+                "anchored_to": [],
             }
         ],
         "dependency_graph": {

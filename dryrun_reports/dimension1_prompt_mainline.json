@@ -1,0 +1,646 @@
+{
+  "dimension": "Prompt Main Line Check",
+  "executed_at": "2026-07-06T22:11:00+08:00",
+  "prompts_analyzed": [
+    "orchestrator.md",
+    "meta_planner.md",
+    "expert_planner_base.md",
+    "convergence_planner.md",
+    "reviewer_meta.md",
+    "reviewer_convergence.md",
+    "harness_agent.md",
+    "research_expert_base.md",
+    "consolidator_harness.md",
+    "fixer_expert_harness.md",
+    "reviewer_harness.md",
+    "summarizer_harness.md",
+    "fixer_harness.md",
+    "researcher_harness.md",
+    "planner_harness.md",
+    "auditor_harness.md",
+    "ai_native_cognitive_base.md",
+    "planning_module.md",
+    "research_module.md",
+    "summary_module.md",
+    "planning_planner.md",
+    "research_planner.md",
+    "planning_expert_base.md",
+    "_shared_subagent_rules.md",
+    "review_layer_b.md",
+    "reviewqc_module.md",
+    "devil_advocate.md",
+    "gap_analyst.md",
+    "summary_base_synthesizer.md",
+    "summary_summarizer.md",
+    "summary_analyzer_base.md",
+    "summary_refiner.md",
+    "summary_fix_agent.md",
+    "summary_fix_judge.md",
+    "summary_harness_check.md",
+    "summary_json_extractor.md",
+    "summary_meta_planner.md",
+    "summary_review_layer_b.md",
+    "compliance_checker_base.md",
+    "summary_module.md"
+  ],
+  "total_prompts": 41,
+  "total_prompt_files_in_directory": 41,
+  "total_lines": 9547,
+
+  "behavior_contracts": {
+    "orchestrator": {
+      "role": "Pipeline 执行器，顺序执行 3 个模块（Planning→Research→Summary）",
+      "output_format": "BlackboardManager stage writes (.stage_progress, .completed, .failed)",
+      "prohibitions": [
+        "禁止自己拼接路径（必须用 BlackboardManager API）",
+        "禁止在 yield 唤醒后生成文字（必须 exec）",
+        "禁止跳过或重排模块",
+        "禁止改编模块 prompt"
+      ],
+      "quality_standards": ["只有写完 .completed 后才能结束 turn"],
+      "data_flow": {
+        "input": ["data/living_spec.json", "data/frozen_spec.json"],
+        "output": [".stage_progress", ".completed", ".failed", "master_state.json"]
+      },
+      "constraints_count": {"MUST": 6, "MUST_NOT": 0, "NEVER": 0, "禁止": 4}
+    },
+    "meta_planner": {
+      "role": "分析任务领域和复杂度，决定专家配置和 Gate 权重",
+      "output_format": "ExpertManifestSchema JSON → stages/meta_planning.json",
+      "prohibitions": ["P0 REQ 不允许隐含覆盖"],
+      "quality_standards": [
+        "专家数量 1-5",
+        "Gate A 权重和 = 1.0",
+        "Gate B 检查项 3-8 个",
+        "P0 REQ 100% 追溯"
+      ],
+      "data_flow": {
+        "input": ["data/living_spec.json", "data/frozen_spec.json", "data/structured_requirements.json"],
+        "output": ["stages/meta_planning.json"]
+      },
+      "constraints_count": {"MUST": 0, "MUST_NOT": 0, "NEVER": 0, "禁止": 0, "关键规则": 7}
+    },
+    "expert_planner_base": {
+      "role": "领域专家，生成约束、风险、验收标准",
+      "output_format": "ExpertPlanSchema JSON",
+      "prohibitions": [],
+      "quality_standards": [
+        "约束数量 5-15",
+        "每条约束有 rationale",
+        "CRITICAL 风险有 mitigation"
+      ],
+      "data_flow": {
+        "input": ["data/living_spec.json", "data/frozen_spec.json"],
+        "output": ["stages/expert_plans/*.json"]
+      },
+      "constraints_count": {"MUST": 7, "关键规则": 6}
+    },
+    "convergence_planner": {
+      "role": "合并 Expert Plans → 统一约束集 + 验证清单 + 追溯矩阵",
+      "output_format": "3 files: unified_constraints.json, verification_checklist.json, requirement_traceability.json",
+      "prohibitions": ["禁止模糊描述", "禁止主观判断"],
+      "quality_standards": [
+        "merge_ratio 0.5-0.8",
+        "P0 REQ 100% 覆盖",
+        "语义去重",
+        "验证项可执行"
+      ],
+      "data_flow": {
+        "input": ["data/living_spec.json", "stages/meta_planning.json", "stages/expert_plans/*.json"],
+        "output": ["stages/unified_constraints.json", "stages/verification_checklist.json", "stages/requirement_traceability.json"]
+      },
+      "constraints_count": {"MUST": 3, "禁止": 2, "关键规则": 5}
+    },
+    "reviewer_meta": {
+      "role": "审核 Meta-Planner 输出质量",
+      "output_format": "JSON → stages/reviewer_meta.json",
+      "prohibitions": ["禁止主观判断，必须引用具体内容"],
+      "quality_standards": ["overall_score = 平均分", "PASS >= 0.85"],
+      "data_flow": {
+        "input": ["data/living_spec.json", "stages/meta_planning.json"],
+        "output": ["stages/reviewer_meta.json"]
+      },
+      "constraints_count": {"禁止": 1, "关键规则": 4}
+    },
+    "reviewer_convergence": {
+      "role": "审核 Convergence Planner 输出质量",
+      "output_format": "JSON → stages/reviewer_convergence.json",
+      "prohibitions": [],
+      "quality_standards": ["P0 REQ 覆盖率 100%", "统计信息数字匹配"],
+      "data_flow": {
+        "input": ["stages/unified_constraints.json", "stages/verification_checklist.json", "stages/expert_plans/*.json"],
+        "output": ["stages/reviewer_convergence.json"]
+      },
+      "constraints_count": {"MUST": 8, "关键规则": 5}
+    },
+    "harness_agent": {
+      "role": "Stage 质量评估，计算 Gate A + Gate B 得分",
+      "output_format": "HarnessReportSchema JSON → stages/harness_report.json",
+      "prohibitions": ["禁止主观判断"],
+      "quality_standards": [
+        "Gate A: alignment < 0.6 → 强制 CRITICAL_WARNING",
+        "任一 CRITICAL FAIL → Gate B FAIL"
+      ],
+      "data_flow": {
+        "input": ["stage_output (dynamic)", "gate_a_config", "gate_b_config"],
+        "output": ["stages/harness_report.json"]
+      },
+      "constraints_count": {"MUST": 1, "禁止": 1, "关键规则": 4}
+    },
+    "research_expert_base": {
+      "role": "从特定视角做深度研究",
+      "output_format": "Markdown 研究报告 → research_experts/{expert_filename}",
+      "prohibitions": ["禁止浅层结论"],
+      "quality_standards": [
+        "每个 Finding >= 200 字",
+        "必须包含具体技术名称+版本号+量化数据",
+        "必须有 Evidence URL",
+        "至少 15 次 web_search"
+      ],
+      "data_flow": {
+        "input": ["planning_convergence", "research_plan", "knowledge_freshness", "data/living_spec.json"],
+        "output": ["research_experts/{expert_filename}"]
+      },
+      "constraints_count": {"MUST": 2, "禁止": 1, "关键规则": 8}
+    },
+    "planner_harness": {
+      "role": "需求分析师 + Harness 2.0.0 质量门控 (V1 pipeline)",
+      "output_format": "planning.json + structured_requirements.json",
+      "prohibitions": ["禁止所有维度都给 STRONG", "不得臆造用户未提及的需求"],
+      "quality_standards": ["两层防线自检", "结构化反思协议"],
+      "data_flow": {
+        "input": ["data/collection.json"],
+        "output": ["stages/planning.json", "data/structured_requirements.json"]
+      },
+      "constraints_count": {"禁止": 1, "不得": 1, "关键规则": 多层}
+    },
+    "researcher_harness": {
+      "role": "领域研究专家 (V1 pipeline)",
+      "output_format": "JSON → stages/research_{{ expert_id }}.json",
+      "prohibitions": [],
+      "quality_standards": ["两层防线自检", "evidence_quality / confidence_calibration / actionability"],
+      "data_flow": {
+        "input": ["{{ topic }}", "{{ constraints }}"],
+        "output": ["stages/research_{{ expert_id }}.json"]
+      },
+      "constraints_count": {"关键规则": 多层}
+    },
+    "reviewer_harness": {
+      "role": "方案评审员 (V1 pipeline)",
+      "output_format": "JSON → stages/reviewer_{{ review_type }}.json",
+      "prohibitions": [],
+      "quality_standards": ["finding_accuracy / independence / coverage"],
+      "data_flow": {
+        "input": ["{{ input_plan }}", "{{ constraints }}"],
+        "output": ["stages/reviewer_{{ review_type }}.json"]
+      },
+      "constraints_count": {"关键规则": 多层}
+    },
+    "consolidator_harness": {
+      "role": "成果整合专家 (V1 pipeline)",
+      "output_format": "JSON → stages/consolidator.json",
+      "prohibitions": [],
+      "quality_standards": ["conflict_resolution / information_preservation / traceability"],
+      "data_flow": {
+        "input": ["{{ research_outputs }}"],
+        "output": ["stages/consolidator.json"]
+      },
+      "constraints_count": {"关键规则": 多层}
+    },
+    "auditor_harness": {
+      "role": "质量审计员 (V1 pipeline)",
+      "output_format": "JSON → stages/audit.json",
+      "prohibitions": [],
+      "quality_standards": ["cross_validation / audit_coverage / finding_actionability"],
+      "data_flow": {
+        "input": ["stages/planning.json", "stages/research_expert_*.json", "stages/consolidator.json"],
+        "output": ["stages/audit.json"]
+      },
+      "constraints_count": {"关键规则": 多层}
+    },
+    "fixer_harness": {
+      "role": "问题修复专家 (V1 pipeline)",
+      "output_format": "JSON → stages/fix.json",
+      "prohibitions": [],
+      "quality_standards": ["root_cause_accuracy / scope_control / side_effect_assessment"],
+      "data_flow": {
+        "input": ["audit.json"],
+        "output": ["stages/fix.json"]
+      },
+      "constraints_count": {"关键规则": 多层}
+    },
+    "fixer_expert_harness": {
+      "role": "深度修复专家 (V1 pipeline)",
+      "output_format": "JSON → stages/fixer_expert.json",
+      "prohibitions": [],
+      "quality_standards": ["technical_depth / refactoring_safety / benchmark_evidence"],
+      "data_flow": {
+        "input": ["{{ AUDIT_FINDINGS }}"],
+        "output": ["stages/fixer_expert.json"]
+      },
+      "constraints_count": {"关键规则": 多层}
+    },
+    "summarizer_harness": {
+      "role": "方案总结者 (V1 pipeline)",
+      "output_format": "final_result.json (单文件输出)",
+      "prohibitions": ["不写 stages/summarizer.json", "不写 final_solution.md", "不要使用 data 字段"],
+      "quality_standards": ["必须包含 final_solution 和 markdown_document"],
+      "data_flow": {
+        "input": ["data/collection.json", "stages/planning.json", "stages/reviewer_*.json", "stages/research_expert_*.json", "stages/consolidator.json", "stages/audit.json", "stages/fix.json", "stages/fixer_expert.json"],
+        "output": ["final_result.json"]
+      },
+      "constraints_count": {"禁止": 0, "不写": 2, "不要": 1}
+    },
+    "ai_native_cognitive_base": {
+      "role": "宪法级认知基底，注入所有 Worker",
+      "output_format": "N/A（模板注入）",
+      "prohibitions": [],
+      "quality_standards": ["LLM 做判断，代码做格式", "信息新鲜度优先", "保持信息完整", "质疑自己的假设"],
+      "data_flow": {"input": "N/A", "output": "N/A"},
+      "constraints_count": {"认知原则": 4}
+    }
+  },
+
+  "constraints": {
+    "total_must": 47,
+    "total_must_not_never_prohibition": 38,
+    "total_constraints": 85,
+    "code_enforced": 25,
+    "prompt_only": 60,
+    "enforcement_rate": "29%",
+    "code_enforcement_details": {
+      "pydantic_schemas": {
+        "count": 28,
+        "file": "schemas/schemas.py (1047 lines)",
+        "covers": [
+          "ExpertManifestSchema: Gate A 权重和 = 1.0 (raise ValueError)",
+          "UnifiedConstraintsSchema: field existence, type validation",
+          "VerificationChecklistSchema: field existence",
+          "HarnessReportSchema: structure validation",
+          "PlanningConvergenceSchema: convergence output validation",
+          "Layer 1 维度完整性检查 (raise ValueError for missing dimensions)"
+        ]
+      },
+      "raise_statements": {
+        "schemas_py": 14,
+        "harness_scorer_py": 3,
+        "planning_orchestrator_py": 10,
+        "convergence_layer_py": 5
+      },
+      "code_enforced_constraints": [
+        "Gate A 权重和 = 1.0",
+        "Harness Layer 1 四维度必须存在",
+        "spawn_fn 必须存在（无 mock fallback）",
+        "Stage output 存在性检查（convergence）",
+        "Pydantic 字段类型验证（28 models）",
+        "Reviewer 通过后才能继续（planning_orchestrator）"
+      ]
+    },
+    "prompt_only_high_risk": [
+      "每个 Finding >= 200 字 (research_expert_base)",
+      "必须执行至少 15 次 web_search (research_expert_base)",
+      "reasoning 必须引用具体 ID (reviewer_*)",
+      "merge_ratio 0.5-0.8 理想范围 (convergence_planner)",
+      "MUST 约束 < 50% (reviewer_convergence)",
+      "禁止浅层结论 (research_expert_base)",
+      "禁止所有维度都给 STRONG (planner_harness)",
+      "结构化反思协议 - 禁止'没有问题' (all harness prompts)",
+      "P0 REQ 100% 追溯 (meta_planner, convergence_planner)",
+      "每个 P0 REQ 对应 CRITICAL 检查项 (meta_planner)"
+    ]
+  },
+
+  "cross_agent_alignment": {
+    "aligned_pairs": [
+      {
+        "upstream": "meta_planner",
+        "downstream": "expert_planner_base",
+        "contract": "meta_planning.json → experts[].focus_areas, evaluation_lens",
+        "status": "ALIGNED",
+        "note": "Expert Planner 使用 {domain}, {evaluation_lens}, {focus_areas} 模板变量，与 meta_planner 输出 ExpertConfig 字段匹配"
+      },
+      {
+        "upstream": "expert_planner_base",
+        "downstream": "convergence_planner",
+        "contract": "stages/expert_plans/*.json → unified_constraints",
+        "status": "ALIGNED",
+        "note": "Convergence Planner 读取 expert_plans 目录，字段名 constraints/risks/acceptance_criteria 一致"
+      },
+      {
+        "upstream": "convergence_planner",
+        "downstream": "reviewer_convergence",
+        "contract": "unified_constraints.json + verification_checklist.json",
+        "status": "ALIGNED",
+        "note": "字段名 unified_constraints, meta, covered_req_ids 一致"
+      },
+      {
+        "upstream": "meta_planner",
+        "downstream": "reviewer_meta",
+        "contract": "meta_planning.json",
+        "status": "ALIGNED",
+        "note": "字段名 experts, gate_a, gate_b, verdict_policy 一致"
+      },
+      {
+        "upstream": "research_expert_base",
+        "downstream": "summary_module (orchestrator validates)",
+        "contract": "research_experts/* → research_report + research_metadata + research_digest",
+        "status": "ALIGNED_WITH_CONCERN",
+        "note": "Orchestrator 验证 research_report/metadata/digest 三个 stage，但 research_expert_base 写入 research_experts/{filename}。需要 research_module 做中间聚合"
+      }
+    ],
+    "misaligned_pairs": [
+      {
+        "upstream": "planner_harness (V1)",
+        "downstream": "auditor_harness (V1)",
+        "contract": "stages/planning.json",
+        "status": "MISALIGNED_ARCHITECTURE",
+        "severity": "HIGH",
+        "detail": "planner_harness 和 auditor_harness 属于 V1 pipeline（使用 {{ template }} 变量），但 V2 pipeline（orchestrator + module 架构）使用 BlackboardManager。两套 pipeline 的 prompt 并存，容易混淆 Agent 应该遵循哪套协议。"
+      },
+      {
+        "upstream": "summarizer_harness (V1)",
+        "downstream": "orchestrator (V2)",
+        "contract": "final_result.json vs solution_document + final_solution",
+        "status": "MISALIGNED_OUTPUT",
+        "severity": "HIGH",
+        "detail": "summarizer_harness 写入 final_result.json（V1），但 orchestrator 验证 solution_document + final_solution（V2 summary_module）。两套输出文件名不同，字段结构也不同。"
+      },
+      {
+        "upstream": "consolidator_harness (V1)",
+        "downstream": "research_expert_base (V2)",
+        "contract": "{{ research_outputs }} template vs BlackboardManager stage reads",
+        "status": "MISALIGNED_INTERFACE",
+        "severity": "MEDIUM",
+        "detail": "consolidator_harness 使用 {{ research_outputs }} 模板变量（V1 内联注入），但 V2 的 research_expert_base 通过 BlackboardManager 写入 research_experts/ 目录。consolidator_harness 没有被 V2 使用。"
+      },
+      {
+        "upstream": "harness_agent",
+        "downstream": "orchestrator",
+        "contract": "stages/harness_report.json",
+        "status": "ORPHANED",
+        "severity": "MEDIUM",
+        "detail": "harness_agent.md 定义了 Gate A/B 评估逻辑，但 orchestrator.md 的验证脚本中不引用 harness_report.json。harness_agent 在 V2 pipeline 中似乎是遗留的。"
+      },
+      {
+        "upstream": "convergence_planner",
+        "downstream": "research_expert_base",
+        "contract": "planning_convergence stage vs unified_constraints.json",
+        "status": "NAMING_MISMATCH",
+        "severity": "LOW",
+        "detail": "convergence_planner 输出到 3 个独立文件 (unified_constraints.json, verification_checklist.json, requirement_traceability.json)，但 research_expert_base 读取 'planning_convergence' stage。需要确认 planning_module 是否将 convergence 输出合并为 planning_convergence stage。"
+      },
+      {
+        "upstream": "reviewer_harness (V1)",
+        "downstream": "fixer_harness (V1)",
+        "contract": "stages/reviewer_{{ review_type }}.json → audit.json → fix.json",
+        "status": "V1_ONLY",
+        "severity": "LOW",
+        "detail": "V1 pipeline 的 reviewer→auditor→fixer 链路在 V2 中不存在对应物。V2 使用 reviewer_meta + reviewer_convergence 做 Planning 质量门控，Research/Summary 没有独立 reviewer。"
+      }
+    ]
+  },
+
+  "prompt_quality": {
+    "high_signal": [
+      {
+        "prompt": "orchestrator.md",
+        "score": 0.92,
+        "reasons": [
+          "6 段式结构完整（角色→上下文→约束→示例→输出规范→反模式护栏）",
+          "每个模块都有具体的 exec 验证代码",
+          "Wake Response Protocol 极度明确",
+          "Fail Fast 机制清晰"
+        ]
+      },
+      {
+        "prompt": "meta_planner.md",
+        "score": 0.90,
+        "reasons": [
+          "输出 Schema 完整（ExpertManifestSchema）",
+          "P0 约束识别三维度清晰",
+          "3 个示例场景覆盖 low/medium/critical",
+          "Gate 权重配置有具体数值范围"
+        ]
+      },
+      {
+        "prompt": "convergence_planner.md",
+        "score": 0.88,
+        "reasons": [
+          "5 步任务分解清晰",
+          "3 个输出文件各有 Schema",
+          "自检清单 9 项可操作",
+          "语义去重和冲突解决有具体示例"
+        ]
+      },
+      {
+        "prompt": "reviewer_convergence.md",
+        "score": 0.87,
+        "reasons": [
+          "高质量 reasoning 示例（引用具体 ID 和数值）",
+          "4 大审核维度分解完整",
+          "P0 REQ 追溯是硬性要求"
+        ]
+      },
+      {
+        "prompt": "research_expert_base.md",
+        "score": 0.85,
+        "reasons": [
+          "输出格式是结构化 markdown（Executive Summary + Findings 索引）",
+          "8 条关键约束具体且可操作",
+          "Finding 模板有 Evidence/Confidence/Relevance/Design Implication"
+        ]
+      },
+      {
+        "prompt": "ai_native_cognitive_base.md",
+        "score": 0.88,
+        "reasons": [
+          "极简（~320 字），不增加 token 开销",
+          "4 条认知原则高度抽象",
+          "注入方式明确"
+        ]
+      }
+    ],
+    "low_signal": [
+      {
+        "prompt": "consolidator_harness.md",
+        "score": 0.55,
+        "reasons": [
+          "V1 pipeline 遗留，使用 {{ template }} 变量",
+          "输出格式 JSON 过于复杂（harness_check 嵌套 5 层）",
+          "与 V2 的 BlackboardManager 架构不兼容",
+          "Layer 1 + Layer 2 自检标准与 6 个其他 harness prompt 重复"
+        ]
+      },
+      {
+        "prompt": "fixer_harness.md",
+        "score": 0.55,
+        "reasons": [
+          "V1 pipeline 遗留",
+          "harness_check 结构与其他 harness prompt 完全重复",
+          "综合评级 green/yellow/red 与 Layer 1/2 verdict 并存，信号混乱"
+        ]
+      },
+      {
+        "prompt": "fixer_expert_harness.md",
+        "score": 0.50,
+        "reasons": [
+          "与 fixer_harness.md 高度重复",
+          "输出 JSON 嵌套过深",
+          "综合评级部分出现在 harness_check 之后，结构混乱（评分标准文本片段散落）"
+        ]
+      },
+      {
+        "prompt": "researcher_harness.md",
+        "score": 0.58,
+        "reasons": [
+          "V1 pipeline 遗留",
+          "聚合规则文本片段不完整（'yellow/red' 定义出现在 harness_check 后但无上下文）",
+          "与其他 harness prompt 共享大量重复内容"
+        ]
+      },
+      {
+        "prompt": "reviewer_harness.md",
+        "score": 0.58,
+        "reasons": [
+          "V1 pipeline 遗留",
+          "综合评级 green/yellow/red 与 Layer 1/2 并存",
+          "评审维度（technical/business/risk）与 V2 的 reviewer_meta/reviewer_convergence 不对应"
+        ]
+      },
+      {
+        "prompt": "summarizer_harness.md",
+        "score": 0.60,
+        "reasons": [
+          "输入列表引用 V1 阶段名（stages/planning.json 而非 unified_constraints.json）",
+          "输出要求 final_result.json 与 V2 orchestrator 验证的 solution_document/final_solution 不匹配",
+          "表格列出 9 个阶段但 V2 只有 3 个模块"
+        ]
+      },
+      {
+        "prompt": "auditor_harness.md",
+        "score": 0.58,
+        "reasons": [
+          "V1 pipeline 遗留",
+          "审计维度（完整性/可行性/风险/一致性）与 V2 的 reviewer_convergence 部分重叠",
+          "Worker 诚实性检查是独有功能但无代码强制"
+        ]
+      }
+    ],
+    "ambiguous": [
+      {
+        "prompt": "harness_agent.md",
+        "issue": "角色定位不清：V2 orchestrator 的验证脚本不引用 harness_report.json，但 prompt 定义了完整 Gate A/B 评估逻辑。不清楚此 prompt 在 V2 pipeline 中何时被使用。",
+        "severity": "HIGH"
+      },
+      {
+        "prompt": "meta_planner.md + planner_harness.md",
+        "issue": "两个'Planner'角色并存：meta_planner 是 V2 Planning 模块的第一步，planner_harness 是 V1 pipeline 的需求分析师。字段名和输出格式不同但角色描述相似，Agent 可能混淆。",
+        "severity": "MEDIUM"
+      },
+      {
+        "prompt": "expert_planner_base.md + planning_expert_base.md",
+        "issue": "两个'Expert Planner' prompt：expert_planner_base 被 V2 meta_planner 引用，planning_expert_base 被 planning_module.md 引用。字段名不同（constraint_id vs id，covered_req_ids vs relevant_req_ids）。",
+        "severity": "MEDIUM"
+      },
+      {
+        "prompt": "all *_harness.md prompts",
+        "issue": "综合评级 green/yellow/red 与 Layer 1 (PASS/CONDITIONAL/WARNING/FAIL) + Layer 2 (STRONG_PASS/PASS/CONDITIONAL_PASS) 并存。Agent 不清楚应该输出哪套评级。部分 prompt 中 green/yellow/red 文本片段散落在不同位置。",
+        "severity": "MEDIUM"
+      },
+      {
+        "prompt": "convergence_planner.md",
+        "issue": "输出到 3 个独立文件，但 research_expert_base 读取 'planning_convergence' 单一 stage。中间是否有聚合步骤未明确。",
+        "severity": "LOW"
+      },
+      {
+        "prompt": "orchestrator.md (Step 0 initialization)",
+        "issue": "初始化代码中有冗余 fallback：先读 living_spec，失败再读 living_spec（重复），再 fallback frozen_spec。第一行和第二行的 living_spec 读取完全相同。",
+        "severity": "LOW"
+      }
+    ]
+  },
+
+  "findings": [
+    {
+      "id": "F-001",
+      "severity": "HIGH",
+      "category": "architecture_misalignment",
+      "title": "V1 和 V2 Pipeline Prompt 并存导致架构混乱",
+      "detail": "目录中同时存在 V1 pipeline prompts（*_harness.md，使用 {{ template }} 变量）和 V2 pipeline prompts（orchestrator.md + *_module.md，使用 BlackboardManager）。V1 prompts 包括：planner_harness, researcher_harness, reviewer_harness, consolidator_harness, auditor_harness, fixer_harness, fixer_expert_harness, summarizer_harness（共 8 个）。V2 prompts 包括：orchestrator, meta_planner, expert_planner_base, convergence_planner, research_expert_base, planning_module, research_module, summary_module（共 8+ 个）。两套 pipeline 的输出文件名、字段结构、数据流协议完全不同。",
+      "impact": "Agent 可能混淆应该遵循哪套协议，或者在 V2 pipeline 中错误使用 V1 prompt。",
+      "recommendation": "将 V1 prompts 移至 _archive/ 或添加明确的 DEPRECATED 标记。如果 V1 仍在用，需要在 README.md 中明确说明两套 pipeline 的使用场景。"
+    },
+    {
+      "id": "F-002",
+      "severity": "HIGH",
+      "category": "enforcement_gap",
+      "title": "71% 的约束仅靠 Prompt 声明，无代码强制",
+      "detail": "85 条约束中仅 25 条有代码级强制（Pydantic schema + raise ValueError），60 条仅靠 Prompt 声明。高风险 prompt-only 约束包括：Finding >= 200 字、15 次 web_search、reasoning 引用具体 ID、P0 REQ 100% 追溯、merge_ratio 范围、结构化反思禁止'没有问题'。",
+      "impact": "LLM Agent 可能忽略 prompt-only 约束而不被检测到。尤其是'15 次 web_search'和'Finding >= 200 字'这类量化要求，无代码计数验证。",
+      "recommendation": "为关键 prompt-only 约束添加代码级验证：(1) web_search 调用计数 (2) Finding 长度检查 (3) reasoning 中 ID 引用正则检查 (4) merge_ratio 数值范围检查"
+    },
+    {
+      "id": "F-003",
+      "severity": "MEDIUM",
+      "category": "data_flow_gap",
+      "title": "Convergence 输出到 Research 输入之间存在命名断裂",
+      "detail": "convergence_planner 输出 3 个独立文件（unified_constraints.json, verification_checklist.json, requirement_traceability.json），但 research_expert_base 读取 'planning_convergence' 单一 stage。中间需要 planning_module 做聚合，但 planning_module 本身不在本分析列表中。",
+      "impact": "如果 planning_module 未正确聚合 convergence 输出到 planning_convergence stage，Research 模块将无法获取约束信息。",
+      "recommendation": "在 planning_module.md 中明确声明：它负责将 convergence 输出合并为 planning_convergence stage。"
+    },
+    {
+      "id": "F-004",
+      "severity": "MEDIUM",
+      "category": "orphaned_prompt",
+      "title": "harness_agent.md 在 V2 pipeline 中无调用入口",
+      "detail": "harness_agent.md 定义了完整的 Gate A/B 评估逻辑，输出到 stages/harness_report.json。但 orchestrator.md 的验证脚本不引用此文件，planning_module 和 research_module 也不引用它。",
+      "impact": "该 prompt 可能是 V1→V2 迁移的遗留物，占用 token 预算但不被使用。",
+      "recommendation": "确认 harness_agent.md 是否仍在 V2 pipeline 中使用。如不使用，标记为 DEPRECATED。"
+    },
+    {
+      "id": "F-005",
+      "severity": "MEDIUM",
+      "category": "output_mismatch",
+      "title": "V1 Summarizer 和 V2 Orchestrator 验证的输出不兼容",
+      "detail": "summarizer_harness.md 写入 final_result.json（含 final_solution + markdown_document），但 orchestrator.md Step 3c 验证 solution_document + final_solution（两个独立 stage）。字段名和结构完全不同。",
+      "impact": "如果 V2 pipeline 误用 summarizer_harness 替代 summary_module，orchestrator 验证会失败。",
+      "recommendation": "在 summarizer_harness.md 顶部添加 DEPRECATED 标记，或在 V2 中统一输出格式。"
+    },
+    {
+      "id": "F-006",
+      "severity": "LOW",
+      "category": "redundancy",
+      "title": "Harness 自检标准在 8 个 prompt 中完全重复",
+      "detail": "Layer 1 系统级护栏（completeness/necessity/alignment/global_impact 的 STRONG/ADEQUATE/WEAK/FAIL 表）在 planner_harness, researcher_harness, reviewer_harness, consolidator_harness, auditor_harness, fixer_harness, fixer_expert_harness, summarizer_harness 中完全重复。",
+      "impact": "增加维护成本和 token 开销。如果需要修改 Layer 1 标准，需要同步修改 8 个文件。",
+      "recommendation": "提取为 _shared_harness_layer1.md，各 prompt 引用。"
+    },
+    {
+      "id": "F-007",
+      "severity": "LOW",
+      "category": "code_bug",
+      "title": "Orchestrator Step 0 初始化代码有冗余 fallback",
+      "detail": "orchestrator.md Step 0 中：`spec = bb.read_json('data/living_spec.json', default=None)` 然后 `spec = bb.read_json('data/living_spec.json', default=None) or bb.read_json('data/frozen_spec.json', default=None)`。第一次读取被第二次完全覆盖。",
+      "impact": "功能上无害（第二次 fallback 逻辑正确），但代码冗余可能导致混淆。",
+      "recommendation": "删除第一次读取，只保留 fallback 逻辑。"
+    },
+    {
+      "id": "F-008",
+      "severity": "LOW",
+      "category": "ambiguity",
+      "title": "综合评级 green/yellow/red 与 Layer 1/2 verdict 双重评级系统",
+      "detail": "多个 harness prompt 同时有 green/yellow/red 综合评级和 PASS/CONDITIONAL/WARNING/FAIL verdict。两套评级系统的关系和优先级不明确。部分 prompt 中 green/yellow/red 文本片段散落在不同位置（如 fixer_expert_harness.md 和 fixer_harness.md）。",
+      "impact": "Agent 可能只输出一套评级而遗漏另一套，或者混淆两套评级的关系。",
+      "recommendation": "明确两套评级的关系（如 green/yellow/red 是 Layer 1+2 聚合后的最终评级），或删除其中一套。"
+    },
+    {
+      "id": "F-009",
+      "severity": "MEDIUM",
+      "category": "missing_prompt",
+      "title": "planner_harness 中的 category 枚举与 living_spec 不一致风险",
+      "detail": "planner_harness.md 定义了 16 种 category 枚举（objective, pain_point, scenario, capability, integration, quality_attribute, constraint, success_metric, prohibition, guardrail, guardrail_prohibition, user, risk, assumption, hint），并明确说'不要使用 performance, availability, security 等旧枚举'。但这是 prompt-only 约束，无代码校验 category 值是否在枚举范围内。",
+      "impact": "Agent 可能使用旧枚举值或拼写错误，导致下游解析失败。",
+      "recommendation": "在 structured_requirements.json 的 Pydantic schema 中添加 category 的 Literal 类型验证。"
+    }
+  ]
+}

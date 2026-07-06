@@ -1124,6 +1124,16 @@ Planner → **【你（Worker）】** → Consolidator → 用户
             raise ValueError(f"契约笼子: ship_package.json 不存在 ({sp_path})")
 
         ship_package = json.loads(sp_path.read_text(encoding="utf-8"))
+
+        # 契约笼子 (K2): ShipPackage Pydantic 验证
+        from ..contracts.ship_package import ShipPackage
+        try:
+            ShipPackage.model_validate(ship_package)
+        except Exception as e:
+            logger.warning(f"契约笼子 WARNING: ShipPackage Schema 验证失败: {e}")
+            # 不 raise — ShipPackage Schema 可能比手工检查更严格
+            # 手工检查继续执行
+
         wps = ship_package.get("work_packages", [])
 
         if not wps:
