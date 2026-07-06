@@ -41,23 +41,6 @@ class TestConvergenceMigration:
         assert "gate_b" in convergence
         assert convergence["overall_verdict"] in ("PASS", "FAIL")
 
-    def test_converge_module_review_qc(self, mock_blackboard):
-        """测试 Review/QC 模块使用 converge_module()"""
-        cl = ConvergenceLayer(module_name="review_qc", blackboard=mock_blackboard)
-
-        # 模拟 Review/QC stage 输出
-        stage_outputs = [
-            {"status": "PASS", "issues": []},
-            {"verdict": "PASS", "quality_score": 0.9},
-        ]
-
-        convergence = cl.converge_module("review_qc", stage_outputs)
-
-        assert convergence["module"] == "review_qc"
-        assert convergence["schema_version"] == "review_qc_v2.0"
-        assert convergence["status"] == "COMPLETE"
-        assert convergence["stage_count"] == 2
-
     def test_converge_module_with_contract(self, mock_blackboard):
         """测试带契约的 converge_module()"""
         cl = ConvergenceLayer(module_name="research", blackboard=mock_blackboard)

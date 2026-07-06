@@ -59,7 +59,7 @@ class ModuleOrchestrator:
         初始化 Module Orchestrator
         
         Args:
-            module_name: 模块名称（如 "planning", "research", "review_qc"）
+            module_name: 模块名称（如 "planning", "research", "summary"）
             session_id: Session ID
             spawn_fn: spawn 函数（由主 Agent 注入，用于 spawn Worker）
             base_dir: Blackboard 基础目录（可选，默认使用系统默认路径）
@@ -742,9 +742,6 @@ def create_module_orchestrator(
     elif module_name == "research":
         from .research_orchestrator import ResearchOrchestrator
         return ResearchOrchestrator(session_id, spawn_fn)
-    elif module_name == "review_qc":
-        from .review_qc_orchestrator import ReviewQCOrchestrator
-        return ReviewQCOrchestrator(session_id, spawn_fn)
     elif module_name == "summary":
         from .summary_orchestrator import SummaryOrchestrator
         return SummaryOrchestrator(session_id, spawn_fn)

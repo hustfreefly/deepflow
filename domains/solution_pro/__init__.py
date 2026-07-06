@@ -4,7 +4,7 @@ Solution Pro 模块入口
 Version: 2.0.0
 Date: 2026-07-05
 
-2.0.0: AI Native 重构，三模块架构（Planning → Research → ReviewQC）
+2.0.0: AI Native 重构，三模块架构（Planning → Research → Summary）
 2.0.0: 2.0.0 入口 run_solution_pro()，使用 MasterOrchestrator 三模块架构
 
 ## 唯一入口
@@ -15,10 +15,10 @@ result = run_solution_pro(user_input="...", topic="...", ...)
 sessions_spawn(**result["spawn_params"])
 ```
 
-- **run_solution_pro**: 3 模块编排架构（推荐）（Planning → Research → ReviewQC）
+- **run_solution_pro**: 3 模块编排架构（推荐）（Planning → Research → Summary）
   - 适用于：新流程、需要模块化、断点续跑、降级策略
   - 入口：run_solution_pro(user_input, **kwargs)
-  - 核心：MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + ReviewQCOrchestrator
+  - 核心：MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator
 """
 
 """

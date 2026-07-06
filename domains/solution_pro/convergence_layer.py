@@ -71,7 +71,7 @@ class ConvergenceLayer:
         初始化收敛层
         
         Args:
-            module_name: 模块名称（"planning", "research", "review_qc"）
+            module_name: 模块名称（"planning", "research", "summary"）
             blackboard: BlackboardManager 实例
             spawn_fn: spawn 函数（用于 spawn LLM 做语义压缩）
         """
@@ -181,12 +181,6 @@ class ConvergenceLayer:
                 "research_consolidator",
                 "architecture",
                 "detailed_design",
-            ]
-        elif self.module_name == "review_qc":
-            stage_names = [
-                "consolidation",
-                "harness_report",
-                "fix_loop_state",
             ]
         else:
             raise ValueError(f"Unknown module: {self.module_name}")
@@ -373,21 +367,6 @@ stages/convergence_{self.module_name}.json
                     "divergences": [],
                 },
             }
-        elif self.module_name == "review_qc":
-            return {
-                "module": "review_qc",
-                "final_solution": stage_outputs.get("consolidation", {}),
-                "traceability_matrix": {},
-                "quality_report": stage_outputs.get("harness_report", {}),
-                "remaining_risks": [],
-                "constraint_conservation": {},
-                "original_references": {},
-                "semantic_verification": {
-                    "verdict": "EQUIVALENT",
-                    "confidence": 1.0,
-                    "divergences": [],
-                },
-            }
         else:
             raise ValueError(f"Unknown module: {self.module_name}")
     
@@ -400,8 +379,6 @@ stages/convergence_{self.module_name}.json
             schema_class = PlanningConvergenceSchema
         elif self.module_name == "research":
             schema_class = ResearchConvergenceSchema
-        elif self.module_name == "review_qc":
-            schema_class = FinalConvergenceSchema
         else:
             raise ValueError(f"Unknown module: {self.module_name}")
         
@@ -969,7 +946,7 @@ stages/convergence_{self.module_name}.json
         - converge_module(): 接收显式 stage_outputs 列表，返回 dict（不写文件）
 
         Args:
-            module_name: 模块名称（"research" | "review_qc" | 任意）
+            module_name: 模块名称（"research" | "summary" | 任意）
             stage_outputs: 该模块的所有 stage 输出列表
             contract: 可选的契约约束（影响 Gate A/B 评估）
 

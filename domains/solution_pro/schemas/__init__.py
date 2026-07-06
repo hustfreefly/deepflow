@@ -23,10 +23,7 @@ from .schemas import (
     ResearchConsolidatorSchema,
     ArchitectureSchema,
     DetailedDesignSchema,
-    # Module 3: Review & QC
-    ConsolidationSchema,
-    HarnessReportSchema,
-    FixLoopStateSchema,
+    # Module 3: Summary (absorbed ReviewQC functionality)
     # 收敛点
     PlanningConvergenceSchema,
     ResearchConvergenceSchema,

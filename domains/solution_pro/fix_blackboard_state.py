@@ -83,7 +83,7 @@ def fix_blackboard_state(blackboard_path: Path) -> dict:
             elif stage_name.startswith("research_"):
                 module_name = "research"
             elif stage_name.startswith("review_"):
-                module_name = "review_qc"
+                module_name = "summary"
             elif stage_name in ["solution_document", "refined_solution", "final_solution", "verification_result"]:
                 module_name = "summary"
             
@@ -100,7 +100,7 @@ def fix_blackboard_state(blackboard_path: Path) -> dict:
         print(f"  ✅ Restored {len(stage_files)} stages from stages/ directory")
     
     # 4. 修复 convergence.converged 标记
-    for module_name in ["planning", "research", "review_qc"]:
+    for module_name in ["planning", "research", "summary"]:
         convergence_file = stages_dir / f"{module_name}_convergence.json"
         
         if convergence_file.exists():

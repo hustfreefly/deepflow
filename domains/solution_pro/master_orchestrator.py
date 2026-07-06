@@ -2,7 +2,7 @@
 Master Orchestrator — Solution Pro 三模块串联 Pipeline
 
 [R1-P0 采纳] 极简调度器，不做语义判断，只做：
-1. 模块顺序调度（Planning → Research → ReviewQC）
+1. 模块顺序调度（Planning → Research → Summary）
 2. 状态管理（master_state.json + module_state.json 双层验证）
 3. 错误隔离（ModuleFailure 不影响其他模块的已完成输出）
 4. 断点续跑（skip_completed 机制 + 双层 state 验证）
@@ -34,7 +34,6 @@ logger = logging.getLogger(__name__)
 DEGRADATION_STRATEGIES = {
     "planning": "default_expert_manifest",
     "research": "skip_with_degraded_flag",
-    "review_qc": "degraded_final_convergence",
 }
 
 # 模块级差异化超时 [R1-P1 采纳]
@@ -42,7 +41,6 @@ MODULE_TIMEOUTS = {
     "planning": 600,    # 5 min
     "research": 900,    # 15 min
     "summary": 1200,    # 20 min (5+1 Phase，含并行 Analyzer)
-    "review_qc": 600,   # 10 min
 }
 
 
@@ -50,7 +48,7 @@ class MasterOrchestrator:
     """
     Solution Pro Master Orchestrator
     
-    职责：调度 Planning → Research → ReviewQC 三模块串联执行。
+    职责：调度 Planning → Research → Summary 三模块串联执行。
     不做任何语义判断（AI Native 合规）。
     """
     
@@ -767,6 +765,9 @@ class MasterOrchestrator:
             "mode": config.get("mode", "standard"),
             "domain": config.get("domain", "backend_api"),
             "constraints": config.get("constraints", []),
+            # [Cage P1-6] 降级标记
+            "_degraded": True,
+            "_degradation_reason": "Failed to build frozen_spec from living_spec, fallback to hardcoded minimal spec",
         }
     
     def _build_structured_requirements(self, user_input: str, config: dict) -> dict:

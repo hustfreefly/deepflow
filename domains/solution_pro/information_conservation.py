@@ -1,6 +1,6 @@
 """Information Conservation Validator — Phase 2.5
 
-Validates end-to-end information preservation: Planning → Research → ReviewQC.
+Validates end-to-end information preservation: Planning → Research → Summary.
 [R1-B-P1-6] PASS (>=0.8) / WARNING (0.5-0.8) / FAIL (<0.5); req_coverage < 0.5 → forced FAIL.
 """
 
@@ -17,7 +17,7 @@ L2_THRESHOLDS = {
         "req_coverage_min": 0.9,
         "constraint_propagation_min": 0.85,
     },
-    "research_to_review_qc": {
+    "research_to_summary": {
         "req_coverage_min": 0.85,
         "constraint_propagation_min": 0.8,
         "research_utilization_min": 0.6,  # Fix 1: Expert finding 利用率下限
@@ -47,14 +47,14 @@ class InformationConservationValidator:
         self,
         planning_output: dict,
         research_output: dict | None = None,
-        review_qc_output: dict | None = None,
+        summary_output: dict | None = None,
     ) -> dict:
         """Returns verdict + scores for req_coverage, constraint_propagation, source_traceability, research_utilization."""
-        req_cov = self._check_req_coverage(planning_output, research_output, review_qc_output)
-        const_prop = self._check_constraint_propagation(planning_output, research_output, review_qc_output)
+        req_cov = self._check_req_coverage(planning_output, research_output, summary_output)
+        const_prop = self._check_constraint_propagation(planning_output, research_output, summary_output)
         src_trace = self._check_source_traceability(planning_output)
         # Fix 1: 研究利用率检查 — 防止 Expert findings 被静默忽略
-        research_util = self._check_research_utilization(research_output, review_qc_output)
+        research_util = self._check_research_utilization(research_output, summary_output)
 
         # 权重分配: 需求 35% + 约束 30% + 追溯 15% + 研究利用 20%
         score = (
@@ -93,15 +93,15 @@ class InformationConservationValidator:
 
     # --- Dimension 1: Requirement coverage ---
 
-    def _check_req_coverage(self, planning_output: dict, research_output: dict | None, review_qc_output: dict | None) -> dict:
+    def _check_req_coverage(self, planning_output: dict, research_output: dict | None, summary_output: dict | None = None) -> dict:
         p0_reqs = self._extract_p0_req_ids(planning_output)
-        covered = {r for r in p0_reqs if self._id_in(r, research_output, review_qc_output)}
+        covered = {r for r in p0_reqs if self._id_in(r, research_output, summary_output)}
         rate = len(covered) / len(p0_reqs) if p0_reqs else 1.0
         return {"total": len(p0_reqs), "covered": len(covered), "rate": round(rate, 4), "missing": sorted(set(p0_reqs) - covered)}
 
     # --- Dimension 2: Constraint propagation ---
 
-    def _check_constraint_propagation(self, planning_output: dict, research_output: dict | None, review_qc_output: dict | None) -> dict:
+    def _check_constraint_propagation(self, planning_output: dict, research_output: dict | None, summary_output: dict | None = None) -> dict:
         # Fix: unified_constraints 可能是 list 或 dict
         raw = planning_output.get("unified_constraints", [])
         if isinstance(raw, dict):
@@ -113,7 +113,7 @@ class InformationConservationValidator:
         # 兼容 id / constraint_id 两种字段名
         cids = [c.get("id", c.get("constraint_id", "")) for c in constraints if isinstance(c, dict)]
         cids = [c for c in cids if c]
-        propagated = {c for c in cids if self._id_in(c, research_output, review_qc_output)}
+        propagated = {c for c in cids if self._id_in(c, research_output, summary_output)}
         rate = len(propagated) / len(cids) if cids else 1.0
         return {"total": len(cids), "propagated": len(propagated), "rate": round(rate, 4), "dropped": sorted(set(cids) - propagated)}
 
@@ -135,7 +135,7 @@ class InformationConservationValidator:
 
     # --- Dimension 4: Research utilization (Fix 1) ---
 
-    def _check_research_utilization(self, research_output: dict | None, review_qc_output: dict | None) -> dict:
+    def _check_research_utilization(self, research_output: dict | None, summary_output: dict | None = None) -> dict:
         """Check whether expert findings were utilized in the solution.
 
         E2E 发现: 56% Expert 零引用，360KB research → 45KB solution 压缩后仅 1 处引用标记。
@@ -164,8 +164,8 @@ class InformationConservationValidator:
         if not experts:
             return {"total": 0, "utilized": 0, "rate": 1.0, "uncited_experts": []}
 
-        # 检查每个 expert 的 findings 是否在 review_qc_output 中被引用
-        solution_text = str(review_qc_output) if review_qc_output else ""
+        # 检查每个 expert 的 findings 是否在 summary_output 中被引用
+        solution_text = str(summary_output) if summary_output else ""
         cited = []
         uncited = []
 

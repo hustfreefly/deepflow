@@ -174,7 +174,35 @@ class Constraint(BaseModel):
     constraint_id: str = Field(description="约束 ID（如 C-001）")
     description: str = Field(description="约束描述")
     priority: Literal["MUST", "SHOULD", "MAY"] = Field(description="优先级")
-    rationale: str = Field(default="", description="约束理由（可选）")
+    rationale: str = Field(default="", description="约束理由")
+
+    @field_validator("constraint_id")
+    def validate_constraint_id_format(cls, v: str) -> str:
+        """[Cage P1-5a] 约束ID必须是C-XXX格式"""
+        import re
+        if not re.match(r"^C-\d{3,}$", v):
+            raise ValueError(
+                f"[Cage P1-5a] Constraint ID must be C-XXX format (e.g., C-001), got: {v}"
+            )
+        return v
+    
+    @field_validator("description")
+    def validate_description_min_length(cls, v: str) -> str:
+        """[Cage P1-5b] 约束描述不能为空且至少10个字符"""
+        if len(v.strip()) < 10:
+            raise ValueError(
+                f"[Cage P1-5b] Constraint description must be >= 10 chars, got: {len(v)} chars"
+            )
+        return v
+    
+    @field_validator("rationale")
+    def validate_rationale_min_length(cls, v: str) -> str:
+        """[Cage P1-5c] 约束理由必须非空且至少30个字符"""
+        if len(v.strip()) < 30:
+            raise ValueError(
+                f"[Cage P1-5c] Constraint rationale must be >= 30 chars, got: {len(v)} chars"
+            )
+        return v
 
 
 class Risk(BaseModel):
@@ -212,7 +240,45 @@ class ExpertPlanSchema(V2BaseSchema):
     risks: list[Risk] = Field(default_factory=list, description="风险项")
     acceptance_criteria: list[AcceptanceCriterion] = Field(min_length=1, description="验收标准")
     covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
-    extensions: Optional[dict] = Field(default=None, description="领域特定扩展数据（如 frontend 的 responsive breakpoints, ml 的 model_card）")
+    extensions: Optional[dict] = Field(default=None, description="领域特定扩展数据")
+
+    @model_validator(mode='after')
+    def validate_constraint_id_uniqueness(self) -> 'ExpertPlanSchema':
+        """[Cage P1-5d] 约束ID必须唯一"""
+        ids = [c.constraint_id for c in self.constraints]
+        if len(ids) != len(set(ids)):
+            from collections import Counter
+            duplicates = {id for id, count in Counter(ids).items() if count > 1}
+            raise ValueError(
+                f"[Cage P1-5d] Duplicate constraint IDs found: {duplicates}"
+            )
+        return self
+    
+    @model_validator(mode='after')
+    def validate_must_ratio(self) -> 'ExpertPlanSchema':
+        """[Cage P1-5e] MUST约束占比不能超过50%"""
+        if not self.constraints:
+            return self
+        must_count = sum(1 for c in self.constraints if c.priority == "MUST")
+        ratio = must_count / len(self.constraints)
+        if ratio > 0.5:
+            raise ValueError(
+                f"[Cage P1-5e] MUST constraints {must_count}/{len(self.constraints)} = {ratio:.1%} > 50%. "
+                f"Too many hard constraints reduce flexibility."
+            )
+        return self
+    
+    @model_validator(mode='after')
+    def validate_p0_coverage(self) -> 'ExpertPlanSchema':
+        """[Cage P1-5f] 如果声明了P0 REQ覆盖，必须真实覆盖"""
+        if self.covered_req_ids:
+            # 检查covered_req_ids格式正确
+            for req_id in self.covered_req_ids:
+                if not req_id or not req_id.strip():
+                    raise ValueError(
+                        f"[Cage P1-5f] Empty P0 REQ ID in covered_req_ids"
+                    )
+        return self
 
 
 class UnifiedConstraint(BaseModel):
@@ -326,6 +392,59 @@ class ResearchExpertSchema(V2BaseSchema):
     technology_recommendations: list[dict] = Field(default_factory=list, description="技术推荐")
     open_questions: list[str] = Field(default_factory=list, description="未解决问题")
     covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
+
+    @field_validator("research_findings")
+    def validate_findings_count(cls, v: list[dict]) -> list[dict]:
+        """[Cage P1-5g] Research findings数量至少3个"""
+        if len(v) < 3:
+            raise ValueError(
+                f"[Cage P1-5g] Research findings count {len(v)} < 3 minimum. "
+                f"Each expert must produce at least 3 findings."
+            )
+        return v
+    
+    @model_validator(mode='after')
+    def validate_findings_quality(self) -> 'ResearchExpertSchema':
+        """[Cage P1-5h] Research findings质量检查"""
+        findings = self.research_findings or []
+        
+        # 检查至少50%的finding有evidence或sources
+        with_evidence = sum(
+            1 for f in findings 
+            if f.get("evidence_url") or f.get("sources") or f.get("references")
+        )
+        if len(findings) > 0 and with_evidence / len(findings) < 0.5:
+            raise ValueError(
+                f"[Cage P1-5h] Evidence coverage {with_evidence}/{len(findings)} < 50%. "
+                f"At least 50% of findings must have evidence/sources."
+            )
+        
+        # 检查至少50%的finding描述>=200字符
+        deep_findings = sum(
+            1 for f in findings 
+            if len(f.get("description", "")) >= 200
+        )
+        if len(findings) > 0 and deep_findings / len(findings) < 0.5:
+            raise ValueError(
+                f"[Cage P1-5h] Deep findings {deep_findings}/{len(findings)} < 50%. "
+                f"At least 50% of findings must have description >= 200 chars."
+            )
+        
+        # 检查confidence分布
+        confidences = []
+        for f in findings:
+            conf = f.get("confidence")
+            if conf is not None and isinstance(conf, (int, float)):
+                confidences.append(float(conf))
+        if confidences:
+            avg_conf = sum(confidences) / len(confidences)
+            if avg_conf < 0.3:
+                raise ValueError(
+                    f"[Cage P1-5h] Average confidence {avg_conf:.2f} < 0.3. "
+                    f"Research too speculative."
+                )
+        
+        return self
 
 
 class ResearchConsolidatorSchema(V2BaseSchema):
@@ -554,7 +673,7 @@ class FinalConvergenceSchema(V2BaseSchema):
     - quality_report: 质量报告
     - remaining_risks: 剩余风险
     """
-    module: Literal["review_qc"] = Field(default="review_qc")
+    module: Literal["summary"] = Field(default="summary")
     final_solution: dict = Field(description="最终方案引用")
     traceability_matrix: dict = Field(description="追溯矩阵")
     quality_report: dict = Field(description="质量报告")
@@ -678,8 +797,8 @@ STAGE_SCHEMA_MAP = {
     "module_orchestrator_state": ModuleOrchestratorStateSchema,
     "task_builder_output": TaskBuilderOutputSchema,
     
-    # Phase 2.2: Review/QC
-    "review_qc_convergence": DegradedFinalConvergenceSchema,
+    # Summary convergence
+    "summary_convergence": DegradedFinalConvergenceSchema,
 }
 
 

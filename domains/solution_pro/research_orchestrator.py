@@ -176,10 +176,48 @@ class ResearchOrchestrator(ModuleOrchestrator):
         # Source registry (thread-safe)
         self.source_registry = SourceRegistry()
 
+        # [Cage P1-6] 降级追踪器 - 记录哪些stage使用了fallback
+        self._degraded_flags: dict[str, dict] = {}
+
         # Load prompts
         self.research_expert_prompt = self._load_prompt("research_expert_base.md")
 
         logger.info("ResearchOrchestrator initialized")
+
+    def _mark_degraded(self, stage: str, reason: str, details: dict = None):
+        """[Cage P1-6] 标记stage降级状态"""
+        self._degraded_flags[stage] = {
+            "_degraded": True,
+            "_degradation_reason": reason,
+            "_degradation_timestamp": datetime.now().isoformat(),
+            "_degradation_details": details or {},
+        }
+        logger.warning(f"[DEGRADED] {stage}: {reason}")
+
+    def _validate_input_quality(self, data: dict, source: str = ""):
+        """[Cage P1-6] 检测降级输入 - 如果检测到降级标记且不允许降级则raise"""
+        # 检查嵌套的降级标记
+        def _check_degraded(obj, path=""):
+            if isinstance(obj, dict):
+                if obj.get("_degraded"):
+                    reason = obj.get("_degradation_reason", "unknown")
+                    full_path = f"{source}.{path}" if path else source
+                    logger.error(f"[DEGRADED INPUT] {full_path}: {reason}")
+                    # 暂时只记录warning，不阻断（渐进式部署）
+                    # TODO: 观察1周后改为raise ValueError
+                    return True
+                for k, v in obj.items():
+                    if k.startswith("_"):
+                        continue
+                    if _check_degraded(v, f"{path}.{k}" if path else k):
+                        return True
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    if _check_degraded(item, f"{path}[{i}]" if path else f"[{i}]"):
+                        return True
+            return False
+        
+        return _check_degraded(data)
 
     def _load_prompt(self, filename: str) -> str:
         """Load prompt file from prompts/ directory."""
@@ -409,6 +447,12 @@ class ResearchOrchestrator(ModuleOrchestrator):
                     return parsed[:12]
         except Exception as e:
             logger.warning(f"LLM query extraction failed: {e}, using fallback")
+            # [Cage P1-6] 标记降级
+            self._mark_degraded(
+                "knowledge_freshness",
+                f"LLM query extraction failed: {e}. Fallback to keyword-based queries.",
+                {"fallback_type": "keyword_extraction", "error": str(e)}
+            )
 
         return self._fallback_extract_queries(frozen_spec, planning_output)
 
@@ -1516,6 +1560,13 @@ class ResearchOrchestrator(ModuleOrchestrator):
 
         Uses simple keyword overlap for deduplication.
         """
+        # [Cage P1-6] 标记降级
+        self._mark_degraded(
+            "consolidation",
+            "LLM consolidation failed, fallback to keyword overlap deduplication",
+            {"dedup_method": "keyword_overlap", "llm_available": False}
+        )
+        
         # Simple dedup by description similarity
         deduped_findings = self._simple_dedup(findings, "description")
         deduped_risks = self._simple_dedup(risks, "description")
@@ -1551,6 +1602,9 @@ class ResearchOrchestrator(ModuleOrchestrator):
                 }
                 for rec in deduped_recs
             ],
+            # [Cage P1-6] 降级标记
+            "_degraded": True,
+            "_degradation_reason": "LLM consolidation failed, fallback to keyword overlap deduplication",
         }
 
     def _simple_dedup(
@@ -1691,22 +1745,17 @@ class ResearchOrchestrator(ModuleOrchestrator):
                     for d in consolidated.get("divergence_points", [])
                 ],
             },
-            "gate_a_scores": {
-                "score": 0.0,
-                "verdict": "PASS",
-                "scores": {},
-                "reasoning": {},
-            },
+            "gate_a_scores": self._compute_gate_a_scores(expert_outputs, consolidated),
             "gate_b_results": {
-                "pass_rate": 1.0,
-                "verdict": "PASS",
-                "checks": [],
+                "pass_rate": 1.0 if self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"] == "PASS" else 0.0,
+                "verdict": self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"],
+                "checks": ["Research quality gate validated via 6-dimension scoring"],
                 "failed_items": [],
             },
             "gate_verdict": {
-                "final_verdict": "PASS",
-                "gate_a": "PASS",
-                "gate_b": "PASS",
+                "final_verdict": self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"],
+                "gate_a": self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"],
+                "gate_b": self._compute_gate_a_scores(expert_outputs, consolidated)["verdict"],
             },
             "_metadata": {
                 "produced_at": datetime.now().isoformat(),
@@ -1719,6 +1768,8 @@ class ResearchOrchestrator(ModuleOrchestrator):
                 ),
                 "source_registry": self.source_registry.summary(),
             },
+            # [Cage P1-6] 包含降级标记（如果有）
+            **self._degraded_flags,
         }
 
         # Save convergence
@@ -1726,7 +1777,139 @@ class ResearchOrchestrator(ModuleOrchestrator):
 
         return research_convergence
 
-    def _generate_research_summary(self, consolidated: dict) -> str:
+    def _compute_gate_a_scores(
+        self, 
+        expert_outputs: list[dict], 
+        consolidated: dict
+    ) -> dict:
+        """
+        6维度Research质量评估（契约笼子P0-2）
+        
+        维度:
+        1. Finding数量 (权重0.2) - 至少3个=满分
+        2. Evidence覆盖率 (权重0.2) - 至少50%有URL=满分
+        3. Confidence分布 (权重0.2) - 平均>=0.5=满分
+        4. REQ覆盖度 (权重0.2) - P0 REQ 100%=满分
+        5. Expert数量 (权重0.1) - 至少2个=满分
+        6. 深度检查 (权重0.1) - 至少50% Finding>=200字=满分
+        
+        总分>=0.7: PASS, <0.7: FAIL
+        """
+        findings = consolidated.get("consolidated_findings", [])
+        n_findings = len(findings)
+        n_experts = len(expert_outputs)
+        
+        # 维度1: Finding数量 (权重0.2)
+        finding_score = min(n_findings / 3, 1.0) if n_experts > 0 else 0.0
+        
+        # 维度2: Evidence覆盖率 (权重0.2)
+        if n_findings > 0:
+            with_evidence = sum(
+                1 for f in findings 
+                if f.get("evidence_url") or f.get("sources")
+            )
+            evidence_score = min(with_evidence / n_findings / 0.5, 1.0)
+        else:
+            evidence_score = 0.0
+        
+        # 维度3: Confidence分布 (权重0.2)
+        confidences = []
+        for f in findings:
+            conf = f.get("confidence", 0.5)
+            if isinstance(conf, (int, float)):
+                confidences.append(float(conf))
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0.5
+        confidence_score = min(avg_confidence / 0.5, 1.0)
+        
+        # 维度4: REQ覆盖度 (权重0.2)
+        # 从planning_convergence获取P0 REQ列表
+        all_p0_reqs = self._get_p0_req_ids()
+        covered = set()
+        for f in findings:
+            covered.update(f.get("covered_req_ids", []))
+        if all_p0_reqs:
+            req_coverage = len(covered & set(all_p0_reqs)) / len(all_p0_reqs)
+        else:
+            req_coverage = 1.0  # 无P0 REQ时视为满分
+        
+        # 维度5: Expert数量 (权重0.1)
+        expert_score = min(n_experts / 2, 1.0) if n_experts > 0 else 0.0
+        
+        # 维度6: 深度检查 (权重0.1) - Finding描述>=200字
+        if n_findings > 0:
+            deep_findings = sum(
+                1 for f in findings 
+                if len(f.get("description", "")) >= 200
+            )
+            depth_score = min(deep_findings / n_findings / 0.5, 1.0)
+        else:
+            depth_score = 0.0
+        
+        # 加权总分
+        total = (
+            finding_score * 0.2 + 
+            evidence_score * 0.2 + 
+            confidence_score * 0.2 + 
+            req_coverage * 0.2 + 
+            expert_score * 0.1 + 
+            depth_score * 0.1
+        )
+        
+        verdict = "PASS" if total >= 0.7 else "FAIL"
+        
+        return {
+            "score": round(total, 2),
+            "verdict": verdict,
+            "scores": {
+                "finding_count": round(finding_score, 2),
+                "evidence_coverage": round(evidence_score, 2),
+                "confidence_distribution": round(confidence_score, 2),
+                "req_coverage": round(req_coverage, 2),
+                "expert_count": round(expert_score, 2),
+                "depth_check": round(depth_score, 2),
+            },
+            "reasoning": {
+                "finding_count": f"{n_findings} findings (min 3 for full score)",
+                "evidence_coverage": f"{with_evidence if n_findings > 0 else 0}/{n_findings} with evidence",
+                "confidence": f"avg {avg_confidence:.2f} (min 0.5 for full score)",
+                "req_coverage": f"{len(covered & set(all_p0_reqs)) if all_p0_reqs else 0}/{len(all_p0_reqs) if all_p0_reqs else 0} P0 REQ covered",
+                "expert_count": f"{n_experts} experts (min 2 for full score)",
+                "depth": f"{deep_findings if n_findings > 0 else 0}/{n_findings} deep findings (>=200 chars)",
+            }
+        }
+    
+    def _get_p0_req_ids(self) -> list[str]:
+        """从planning_convergence获取P0 REQ ID列表"""
+        try:
+            # 尝试从blackboard读取planning_convergence
+            planning_conv = self._load_checkpoint("planning_convergence.json")
+            if not planning_conv:
+                # 尝试从living_spec获取
+                import json
+                living_spec_path = self.state_manager.data_dir / "living_spec.json"
+                if living_spec_path.exists():
+                    with open(living_spec_path) as f:
+                        spec = json.load(f)
+                    return [
+                        r.get("id", "") for r in spec.get("requirements", [])
+                        if r.get("priority") == "P0" or r.get("priority") == "must"
+                    ]
+                return []
+            
+            # 从planning_convergence提取P0 REQ
+            p0_reqs = []
+            for key in ["p0_requirements", "requirements", "covered_req_ids"]:
+                reqs = planning_conv.get(key, [])
+                if reqs:
+                    if isinstance(reqs, list) and len(reqs) > 0:
+                        if isinstance(reqs[0], dict):
+                            p0_reqs.extend([r.get("id", "") for r in reqs])
+                        else:
+                            p0_reqs.extend(reqs)
+            return list(set(filter(None, p0_reqs)))
+        except Exception as e:
+            logger.warning(f"Failed to get P0 req IDs: {e}")
+            return []
         """Generate research summary (≤1000 words)."""
         finding_count = len(consolidated.get("consolidated_findings", []))
         risk_count = len(consolidated.get("consolidated_risks", []))

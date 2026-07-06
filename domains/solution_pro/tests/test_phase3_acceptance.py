@@ -86,7 +86,7 @@ class TestPhase3Acceptance:
         assert "convergence" in str(e4).lower()
         
         # DegradedPipelineError
-        e5 = DegradedPipelineError(["research", "review_qc"], "timeout")
+        e5 = DegradedPipelineError(["research", "summary"], "timeout")
         assert isinstance(e5, PipelineError)
         assert "degraded" in str(e5).lower()
     
@@ -112,8 +112,8 @@ class TestPhase3Acceptance:
         watcher.on_module_start("research")
         watcher.on_module_timeout("research", 900)
         
-        watcher.on_module_start("review_qc")
-        watcher.on_module_degraded("review_qc", "timeout")
+        watcher.on_module_start("summary")
+        watcher.on_module_degraded("summary", "timeout")
         
         # 验证摘要
         summary = watcher.get_summary()
@@ -239,7 +239,7 @@ class TestPhase3Acceptance:
         pipeline_result = {
             "planning": {"schema_version": "2.0"},
             "research": {"degradation_flag": True},
-            "degraded_modules": ["research", "review_qc"]
+            "degraded_modules": ["research", "summary"]
         }
         
         result = auditor.audit_pipeline(pipeline_result)
@@ -255,11 +255,9 @@ class TestPhase3Acceptance:
         
         assert "planning" in DEGRADATION_STRATEGIES
         assert "research" in DEGRADATION_STRATEGIES
-        assert "review_qc" in DEGRADATION_STRATEGIES
         
         assert DEGRADATION_STRATEGIES["planning"] == "default_expert_manifest"
         assert DEGRADATION_STRATEGIES["research"] == "skip_with_degraded_flag"
-        assert DEGRADATION_STRATEGIES["review_qc"] == "degraded_final_convergence"
     
     def test_module_timeouts_defined(self):
         """验证模块超时配置已定义"""
@@ -267,11 +265,11 @@ class TestPhase3Acceptance:
         
         assert "planning" in MODULE_TIMEOUTS
         assert "research" in MODULE_TIMEOUTS
-        assert "review_qc" in MODULE_TIMEOUTS
+        assert "summary" in MODULE_TIMEOUTS
         
         assert MODULE_TIMEOUTS["planning"] == 600
         assert MODULE_TIMEOUTS["research"] == 900
-        assert MODULE_TIMEOUTS["review_qc"] == 600
+        assert MODULE_TIMEOUTS["summary"] == 1200
     
     # === BlackboardManager 集成 ===
     
