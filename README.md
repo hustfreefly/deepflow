@@ -127,9 +127,9 @@ DeepFlow is a **multi-agent collaborative automation pipeline** running on the *
 ```
 
 **Key Components**:
-- **EntryHarness** (`core/entry_harness.py`): Startup validation, configuration check
-- **PipelineOrchestrator** (`core/pipeline_orchestrator.py`): Schedules Workers by phase
-- **Three-Layer Separation**: EntryHarness → PipelineOrchestrator → Workers
+- **MasterOrchestrator** (`core/master_orchestrator.py`): Main entry point for all domains
+- **ModuleOrchestrator** (`core/module_orchestrator_base.py`): Base class for domain orchestrators
+- **Three-Layer Separation**: MasterOrchestrator → ModuleOrchestrator → Workers
 
 ---
 

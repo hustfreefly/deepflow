@@ -491,11 +491,35 @@ stages/convergence_{self.module_name}.json
         return []
     
     def _get_input_constraints(self) -> list[str]:
-        """获取输入约束列表（从 Expert Plans）"""
-        # 简化实现：返回空列表
-        # 实际实现需要读取所有 Expert Plans 的 constraints
-        logger.warning("_get_input_constraints not fully implemented")
-        return []
+        """获取输入约束列表（从 Expert Plans 目录提取所有 constraints 描述）"""
+        try:
+            import os
+            expert_plans_dir = self.blackboard.session_dir / "stages" / "expert_plans"
+            if not expert_plans_dir.exists():
+                logger.info(f"No expert_plans directory found at {expert_plans_dir}")
+                return []
+            
+            constraints = []
+            for f in sorted(expert_plans_dir.glob("*.json")):
+                try:
+                    plan = self.blackboard.read_json(f"stages/expert_plans/{f.name}")
+                    if not isinstance(plan, dict):
+                        continue
+                    plan_constraints = plan.get("constraints", [])
+                    if isinstance(plan_constraints, list):
+                        for c in plan_constraints:
+                            if isinstance(c, dict):
+                                desc = c.get("description", "")
+                                if desc:
+                                    constraints.append(desc)
+                except Exception as e:
+                    logger.warning(f"Failed to read expert plan {f.name}: {e}")
+            
+            logger.info(f"Loaded {len(constraints)} constraints from {len(list(expert_plans_dir.glob('*.json')))} expert plans")
+            return constraints
+        except Exception as e:
+            logger.warning(f"Failed to read expert_plans directory: {e}")
+            return []
     
     def _evaluate_gates(self, compressed: dict) -> dict:
         """
@@ -798,12 +822,16 @@ stages/convergence_{self.module_name}.json
         """
         评估单个 Gate B 检查项
 
-        优先使用 spawn_fn 调用 Harness Agent 做语义判定；
-        不可用时 fallback 到本地启发式评估。
+        优先使用 spawn_fn 调用 Harness Agent 做语义判定。
+        - spawn_fn 不存在（测试环境）→ SKIP
+        - spawn_fn 存在但调用失败 → hard raise（生产零容忍）
         """
         if self.spawn_fn is not None:
             return self._evaluate_check_via_harness(check, compressed)
-        return self._evaluate_check_local(check, compressed)
+        # 测试环境：无 spawn_fn，明确标记 SKIP（不做关键词匹配假阳性）
+        check_name = check["name"]
+        logger.info(f"Gate B check '{check_name}': SKIP (no spawn_fn in test environment)")
+        return {"name": check_name, "severity": check.get("severity", "MINOR"), "result": "SKIP", "reason": "no_spawn_fn"}
 
     def _evaluate_check_via_harness(self, check: dict, compressed: dict) -> dict:
         """通过 Harness Agent (spawn_fn) 进行语义判定。
@@ -831,8 +859,11 @@ stages/convergence_{self.module_name}.json
         try:
             self.spawn_fn(task=task, mode="run", label=f"gate_b_{check_name}")
         except Exception as e:
-            logger.warning(f"Harness spawn failed for check {check_name}: {e}, falling back to local")
-            return self._evaluate_check_local(check, compressed)
+            # 生产环境：spawn_fn 存在但调用失败 → hard raise（与 "No silent fallback" 哲学一致）
+            raise RuntimeError(
+                f"Gate B harness spawn failed for check '{check_name}': {e}. "
+                f"Production requires LLM semantic judgment — keyword matching fallback is disabled."
+            ) from e
 
         # 等待并读取结果
         result_data = self._wait_for_gate_b_result(output_path, check_name)

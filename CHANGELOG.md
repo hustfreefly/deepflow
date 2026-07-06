@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-06
+
+### Added
+- **Ship Pro V8.2 单入口架构** — Orchestrator 统一入口 + 统一 blackboard
+  - `run_ship_pro(project_name)` 单入口 API
+  - Orchestrator (depth-1) 全权负责：设计 → 执行 → 验证 → 报告
+  - Dispatcher 内部用 cron wake（禁止 sessions_yield）
+- **路径模板系统** — `{deepflow_root}` 模板变量 + 运行时解析
+  - 替换 25+ 文件中的硬编码路径
+  - `_resolve_prompt_vars()` 方法（ModuleOrchestrator 基类）
+  - `scripts/checks/check_path_fix.py` 契约检查脚本
+- **StageContract 契约笼子** — 检查点验证
+  - `_stage_name` + `_load_checkpoint()` 基类方法
+  - Planning/Research/Summary Orchestrator 统一验证
+- **结构化错误日志** — `errors.jsonl` + 异常分类
+  - Worker 失败记录：timestamp/output_path/module/error_type
+  - 确定性决策树：timeout → raise, schema → raise, spawn → switch model
+
+### Changed
+- **Hermes 诊断修复** — 38 个测试失败修复
+  - pytest.ini testpaths 隔离
+  - 死引用修复（_SolutionDispatcher）
+  - check_contract bypass bug
+  - ship_pro/research_pro/solution_pro 测试夹具更新
+- **Codex 审查修复** — P0/P1 全部完成
+  - P0-1: `open().exists()` → `Path().exists()`
+  - P0-2: `judge_must` → `worker_must` 命名统一
+  - P0-3: Step 4.5 Worker MUST Judge 插入
+  - P1-1: Checkpoint Contract Cage
+  - P1-2: Path Templating
+- **AI Native 合规** — 4 个域全部通过
+  - Gate B fallback 修复（生产 hard raise + 测试 SKIP）
+  - EntryHarness 标记 DEPRECATED
+  - `_get_input_constraints()` 从 expert_plans/ 读取
+
+### Fixed
+- **测试套件** — 316 passed, 0 failed, 46 skipped
+  - solution_pro: 128 passed, 10 skipped
+  - ship_pro: 19 passed
+  - tests/: 154 passed, 36 skipped
+  - research_pro/citation_verifier: 15 passed
+
+### Removed
+- **文档归档** — ~270 个文件移入 `_archive/`
+  - research/ 7 个专家报告
+  - reviews/ 15 个评审报告
+  - docs/ 189 个过期文档
+  - domains/ 各域审计/评审报告
+
+### Component Versions
+- **Spec Pro: 2.0.0**
+- **Solution Pro: 2.0.0**
+- **Ship Pro: 2.0.0**
+- **Research Pro: 1.0.0**
+
+---
+
 ## [0.4.0] - 2026-06-05
 
 ### Changed

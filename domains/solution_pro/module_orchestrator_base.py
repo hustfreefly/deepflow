@@ -128,6 +128,10 @@ class ModuleOrchestrator:
                 session_info = self.spawn_fn(task=task, output_path=output_path)
             except TypeError:
                 session_info = self.spawn_fn(task=task)
+        except Exception as e:
+            # 确定性决策树：spawn 异常 → 记录 + raise
+            self._log_worker_error(output_path, "spawn_exception", str(e))
+            raise RuntimeError(f"Worker spawn exception for {output_path}: {e}") from e
         
         # Step 3: 如果 spawn_fn 直接返回了有效 worker 输出（同步模式）
         if isinstance(session_info, dict) and "session_id" not in session_info:
@@ -139,13 +143,36 @@ class ModuleOrchestrator:
         
         # Step 4: 检查启动是否成功
         if isinstance(session_info, dict) and session_info.get("status") == "failed":
-            raise RuntimeError(f"Worker failed to start: {session_info.get('error')}")
+            error_msg = session_info.get('error', 'unknown')
+            self._log_worker_error(output_path, "spawn_failed", error_msg)
+            raise RuntimeError(f"Worker failed to start: {error_msg}")
         
         # Step 5: 等待 worker 完成并写入 blackboard
         try:
             return self._wait_for_output(output_path, timeout)
         except TimeoutError:
+            self._log_worker_error(output_path, "timeout", f"Worker did not produce output within {timeout}s")
             raise RuntimeError(f"Worker timeout after {timeout}s — FAILING. No silent fallback allowed.")
+    
+    def _log_worker_error(self, output_path: str, error_type: str, error_message: str) -> None:
+        """结构化错误日志：写入 errors.jsonl（append-only）供后续分析"""
+        import json as _json
+        import time as _time
+        error_record = {
+            "timestamp": _time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "output_path": output_path,
+            "module": self.module_name,
+            "session_id": self.session_id,
+            "error_type": error_type,
+            "error_message": error_message,
+        }
+        try:
+            errors_path = self.blackboard.session_dir / "errors.jsonl"
+            with open(errors_path, "a", encoding="utf-8") as f:
+                f.write(_json.dumps(error_record, ensure_ascii=False) + "\n")
+            logger.info(f"Error logged: {error_type} for {output_path}")
+        except Exception as e:
+            logger.warning(f"Failed to write error log: {e}")
     
     def _wait_for_output(self, output_path: str, timeout: int) -> dict:
         """轮询 blackboard 等待 worker 写入输出"""

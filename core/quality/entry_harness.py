@@ -29,9 +29,16 @@ _DEEPFLOW_BASE = PathConfig.resolve().base_dir
 
 class EntryHarness:
     """
-    Entry/Startup Harness
+    Entry/Startup Harness (DEPRECATED — V2.0)
 
-    负责启动前的验证、初始化和管线编排器创建。
+    .. deprecated:: 2.0.0
+        EntryHarness 是 V1 架构的入口，已被 V2 的 MasterOrchestrator 取代。
+        V2 用户请直接使用:
+        - solution_pro: ``MasterOrchestrator`` 或 ``domains.solution_pro.run_solution_pro()``
+        - ship_pro: ``domains.ship_pro.run_ship_pro()``
+        - spec_pro: ``domains.spec_pro`` 的协调器
+
+    保留原因: ``general`` domain 路径仍可用（webhook_task_processor 等可能依赖）。
     """
 
     def __init__(self):
@@ -118,7 +125,8 @@ class EntryHarness:
         Raises:
             ValueError: domain 不支持
         """
-        supported_domains = ["solution_pro", "code", "general"]
+        # V2.0: solution_pro 已迁移到 MasterOrchestrator，不再通过 EntryHarness 入口
+        supported_domains = ["code", "general"]
         if domain not in supported_domains:
             raise ValueError(
                 f"Unsupported domain: '{domain}'. "
@@ -162,14 +170,13 @@ class EntryHarness:
             return existing_session_id
 
         if domain == "solution_pro":
-            # V2 架构: _SolutionDispatcher 已移除，使用 MasterOrchestrator
-            # EntryHarness 不直接支持 V2 三模块串联架构
-            # 请使用 core.unified_entry.run_domain_direct() 或 Agent 直接调 MasterOrchestrator
+            # V2.0: solution_pro 已弃用 EntryHarness 入口
             raise NotImplementedError(
-                "Domain 'solution_pro' V1 dispatcher (_SolutionDispatcher) has been removed.\n"
-                "V2 uses MasterOrchestrator (Planning→Research→ReviewQC).\n"
-                "Use core.unified_entry.run_domain_direct('solution_pro', context) "
-                "or call MasterOrchestrator directly via Agent."
+                "Domain 'solution_pro' 不再支持 EntryHarness 入口 (V2.0 deprecated).\n"
+                "请使用 V2 入口:\n"
+                "  - MasterOrchestrator 直接调用\n"
+                "  - domains.solution_pro.run_solution_pro(user_input, ...)\n"
+                "  - Agent 层直接 spawn Solution Pro Orchestrator"
             )
 
         elif domain == "investment":
@@ -212,19 +219,11 @@ class EntryHarness:
         session_dir = _DEEPFLOW_BASE / "blackboard" / session_id
 
         if domain == "solution_pro":
-            # V2 架构: _SolutionDispatcher 已移除
-            # execution_plan 由 MasterOrchestrator.run() 内部生成
+            # V2.0: solution_pro 已弃用 EntryHarness 入口
             raise NotImplementedError(
-                "Domain 'solution_pro' V1 dispatcher (_SolutionDispatcher) has been removed.\n"
-                "V2 execution plan is generated internally by MasterOrchestrator.run().\n"
-                "Use core.unified_entry.run_domain_direct('solution_pro', context) instead."
+                "Domain 'solution_pro' 不再支持 EntryHarness 入口 (V2.0 deprecated).\n"
+                "V2 execution plan 由 MasterOrchestrator.run() 内部生成。"
             )
-            plan = orch.save_execution_plan()
-            orch.save_tasks()
-
-            # 返回 plan 文件路径
-            plan_path = session_dir / "execution_plan.json"
-            return str(plan_path)
 
         elif domain == "investment":
             raise ValueError(
