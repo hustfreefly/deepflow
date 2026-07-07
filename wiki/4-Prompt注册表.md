@@ -1,7 +1,7 @@
 # Prompt 注册表
 
 > 所有 Prompt 模板的完整清单和调用关系  
-> 最后更新：2026-06-22
+> 最后更新：2026-07-08
 
 ---
 
@@ -9,12 +9,12 @@
 
 | 域 | Prompt 数量 | 文件位置 |
 |:---|:---|:---|
-| Spec Pro | 10 | `domains/spec_pro/prompts/` |
-| Solution Pro | 25 | `domains/solution_pro/prompts/` |
+| Spec Pro | 8 | `domains/spec_pro/prompts/` |
+| Solution Pro | 40+ | `domains/solution_pro/prompts/` |
 | Ship Pro | 9 | `domains/ship_pro/prompts/` |
 | Research Pro | 6 | `domains/research_pro/prompts/` |
 | 通用 | 20+ | `prompts/` |
-| **总计** | **70+** | |
+| **总计** | **83+** | |
 
 ---
 
@@ -22,12 +22,12 @@
 
 | 文件名 | 版本 | 调用者 | 用途 |
 |:---|:---|:---|:---|
-| `parse.md` | 2.0.0 | coordinator.py | 初始解析用户输入 |
+| `parse.md` | 2.2.0 | coordinator.py | 初始解析用户输入（域自推断） |
 | `parse_response.md` | 2.0.0 | coordinator.py | 解析用户回复 |
-| `structure.md` | 2.0.0 | coordinator.py | 结构化提取需求 |
-| `assess.md` | 2.0.0 | coordinator.py | 质量评估 |
-| `harness.md` | 2.0.0 | harness.py | Harness 评分 |
-| `guide.md` | 2.0.0 | coordinator.py | 对话引导 |
+| `structure.md` | 2.2.0 | coordinator.py | 结构化提取需求（预计算复杂度） |
+| `assess.md` | 2.2.0 | coordinator.py | 质量评估（跨域评分锚点） |
+| `harness.md` | 2.2.0 | harness.py | Harness 评分（三层门控） |
+| `guide.md` | 2.2.0 | coordinator.py | 对话引导（三测试边界过滤） |
 | `assess_guide.md` | 2.0.0 | coordinator.py | 评估引导 |
 | `orchestrator.md` | 2.0.0 | coordinator.py | 编排任务 |
 | `structure_guide.md` | 2.0.0 | coordinator.py | 结构化引导 |

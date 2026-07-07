@@ -1,6 +1,6 @@
 # DeepFlow Overview
 
-> 最后更新: 2026-06-23
+> 最后更新: 2026-07-08
 
 ---
 
@@ -18,6 +18,8 @@ DeepFlow 是一个多 Agent 管线框架，运行在 OpenClaw 平台上。核心
 │ Spec Pro（需求收集与结构化）                            │
 │  苏格拉底式对话 → Living Spec                          │
 │  5维度 Output Guard 质量门禁                           │
+│  DAL: LLM 域自推断 + 域上下文注入                      │
+│  三层门控: L1(代码) + L2(LLM) + L3(合并)               │
 └─────────────────────────────────────────────────────────┘
     │
     ▼
@@ -27,6 +29,8 @@ DeepFlow 是一个多 Agent 管线框架，运行在 OpenClaw 平台上。核心
 │  Consolidator → Audit → Fix → Fixer Expert →           │
 │  Harness Final → Summarizer                            │
 │  4维度 Harness 评分 + Multi-Reviewer 机制              │
+│  DAL: DomainProfile 全链路透传 + 16+ prompt 泛化       │
+│  AI Native: 代码粗筛 + LLM 语义判断                    │
 └─────────────────────────────────────────────────────────┘
     │ final_result.json 自动交接
     ▼
