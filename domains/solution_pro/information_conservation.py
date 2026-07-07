@@ -11,6 +11,22 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+# 默认权重: 需求 35% + 约束 30% + 追溯 15% + 研究利用 20%
+# 注意: 完整实现需要从 domain_profile 加载，当前先参数化
+DEFAULT_WEIGHTS = {
+    "req_coverage": 0.35,
+    "constraint_propagation": 0.30,
+    "source_traceability": 0.15,
+    "research_utilization": 0.20,
+}
+
+DEFAULT_THRESHOLDS = {
+    "pass_min": 0.8,
+    "warn_min": 0.5,
+    "req_coverage_floor": 0.5,  # 低于此值强制 FAIL
+    "research_util_floor": 0.3,  # 低于此值降级
+}
+
 # L2: 模块级阈值（per-module transition）
 L2_THRESHOLDS = {
     "planning_to_research": {
@@ -43,6 +59,18 @@ class InformationConservationValidator:
     3. 来源追溯: 每条约束可追溯到 source_experts
     """
 
+    def __init__(self, weights=None, thresholds=None):
+        """初始化验证器，支持自定义权重和阈值。
+
+        Args:
+            weights: 维度权重 dict，key 为 req_coverage/constraint_propagation/
+                     source_traceability/research_utilization。默认使用 DEFAULT_WEIGHTS。
+            thresholds: 判定阈值 dict，key 为 pass_min/warn_min/req_coverage_floor/
+                        research_util_floor。默认使用 DEFAULT_THRESHOLDS。
+        """
+        self.weights = weights or DEFAULT_WEIGHTS
+        self.thresholds = thresholds or DEFAULT_THRESHOLDS
+
     def validate(
         self,
         planning_output: dict,
@@ -56,26 +84,31 @@ class InformationConservationValidator:
         # Fix 1: 研究利用率检查 — 防止 Expert findings 被静默忽略
         research_util = self._check_research_utilization(research_output, summary_output)
 
-        # 权重分配: 需求 35% + 约束 30% + 追溯 15% + 研究利用 20%
+        # 权重分配（从 self.weights 读取）
         score = (
-            req_cov["rate"] * 0.35
-            + const_prop["rate"] * 0.30
-            + src_trace["rate"] * 0.15
-            + research_util["rate"] * 0.20
+            req_cov["rate"] * self.weights.get("req_coverage", 0.35)
+            + const_prop["rate"] * self.weights.get("constraint_propagation", 0.30)
+            + src_trace["rate"] * self.weights.get("source_traceability", 0.15)
+            + research_util["rate"] * self.weights.get("research_utilization", 0.20)
         )
 
-        if score >= 0.8:
+        pass_min = self.thresholds.get("pass_min", 0.8)
+        warn_min = self.thresholds.get("warn_min", 0.5)
+
+        if score >= pass_min:
             verdict = "PASS"
-        elif score >= 0.5:
+        elif score >= warn_min:
             verdict = "WARNING"
         else:
             verdict = "FAIL"
 
-        # 安全底线: 需求覆盖率 < 0.5 → 强制 FAIL
-        if req_cov["rate"] < 0.5:
+        # 安全底线: 需求覆盖率 < floor → 强制 FAIL
+        req_floor = self.thresholds.get("req_coverage_floor", 0.5)
+        if req_cov["rate"] < req_floor:
             verdict = "FAIL"
-        # Fix 1: 研究利用率 < 0.3 → 降级为 WARNING（不强制 FAIL，因为有些研究可能确实不相关）
-        if research_util["rate"] < 0.3:
+        # Fix 1: 研究利用率 < floor → 降级为 WARNING
+        util_floor = self.thresholds.get("research_util_floor", 0.3)
+        if research_util["rate"] < util_floor:
             verdict = "WARNING" if verdict == "PASS" else verdict
 
         logger.info("InfoConservation verdict=%s score=%.2f research_util=%.2f", verdict, score, research_util["rate"])
@@ -170,15 +203,9 @@ class InformationConservationValidator:
         uncited = []
 
         for expert_id, findings in experts.items():
-            # 粗粒度检查: expert_id 或任一 finding 关键词出现在方案文本中
-            expert_cited = expert_id in solution_text
-            if not expert_cited and findings:
-                # 检查 finding 关键词
-                finding_keywords = [
-                    f[:20] for f in (findings if isinstance(findings, list) else [findings])
-                    if isinstance(f, str) and len(f) > 5
-                ]
-                expert_cited = any(kw.lower() in solution_text.lower() for kw in finding_keywords)
+            # 结构化引用标记检查（确定性）：检查 [REF-expert_id] 标记是否存在
+            ref_tag = f"[REF-{expert_id}"
+            expert_cited = ref_tag.lower() in solution_text.lower()
 
             if expert_cited:
                 cited.append(expert_id)

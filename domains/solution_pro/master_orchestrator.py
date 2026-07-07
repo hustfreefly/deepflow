@@ -79,7 +79,10 @@ class MasterOrchestrator:
         except Exception as e:
             logger.warning(f"Failed to initialize PipelineWatcher: {e}")
             self.watcher = None
-    
+
+        # AI Native 领域 profile（由 domain_analysis 前置步骤注入）
+        self._domain_profile = None
+
     def run(self, user_input: str, config: dict = None, living_spec: dict = None) -> dict:
         """
         Pipeline 主入口
@@ -96,6 +99,10 @@ class MasterOrchestrator:
         start_time = time.time()
         
         logger.info(f"Pipeline started: topic={config.get('topic', 'N/A')}")
+
+        # AI Native 领域自适应警告
+        if self._domain_profile is None:
+            logger.warning("domain_profile not set — pipeline will use meta.domain_type or fallback to 'software'. Call set_domain_profile() for AI Native domain adaptation.")
 
         # 全链路追踪：记录 Solution Pro pipeline 启动
         span("pipeline_start", domain="solution_pro", topic=config.get('topic', 'N/A'))
@@ -496,6 +503,7 @@ class MasterOrchestrator:
             session_id=self.blackboard.session_id,
             spawn_fn=self.spawn_fn,
             base_dir=str(self.blackboard.session_dir.parent),
+            domain_profile=self._domain_profile,
         )
 
         # 使用 snapshot（保证一致性）
@@ -515,6 +523,7 @@ class MasterOrchestrator:
             structured_requirements=structured_requirements,
             spawn_fn=self.spawn_fn,
             living_spec=effective_living_spec,
+            domain_profile=self._domain_profile,
         )
 
     def _execute_research(self, planning_output: dict, config: dict, living_spec: dict = None) -> dict:
@@ -525,6 +534,7 @@ class MasterOrchestrator:
             session_id=self.blackboard.session_id,
             spawn_fn=self.spawn_fn,
             base_dir=str(self.blackboard.session_dir.parent),
+            domain_profile=self._domain_profile,
         )
 
         # 使用 snapshot（保证一致性）
@@ -542,6 +552,7 @@ class MasterOrchestrator:
             planning_output=planning_output,
             spawn_fn=self.spawn_fn,
             living_spec=effective_living_spec,
+            domain_profile=self._domain_profile,
         )
 
     def _execute_summary(self, planning_output: dict, research_output: dict, config: dict, living_spec: dict = None) -> dict:
@@ -552,6 +563,7 @@ class MasterOrchestrator:
             session_id=self.blackboard.session_id,
             spawn_fn=self.spawn_fn,
             base_dir=str(self.blackboard.session_dir.parent),
+            domain_profile=self._domain_profile,
         )
 
         # 使用 snapshot（保证一致性）
@@ -566,6 +578,7 @@ class MasterOrchestrator:
             research_output=research_output,
             spawn_fn=self.spawn_fn,
             living_spec=effective_living_spec,
+            domain_profile=self._domain_profile,
         )
     
     def _generate_final_report(self, planning, research, summary, config) -> dict:
@@ -758,6 +771,30 @@ class MasterOrchestrator:
     
     # === 辅助方法 ===
     
+    def set_domain_profile(self, profile):
+        """设置 LLM 生成的领域 profile（由 domain_analysis 前置步骤调用）"""
+        from domains.solution_pro.domain_analysis import DomainProfile
+        if isinstance(profile, dict):
+            profile = DomainProfile.model_validate(profile)
+        self._domain_profile = profile
+        # 自动同步到 meta.domain_type（向后兼容，逐步迁移到 domain_id）
+        if hasattr(self, '_living_spec') and isinstance(self._living_spec, dict):
+            self._living_spec.setdefault("meta", {})["domain_type"] = profile.domain_id
+        logger.info(f"Domain profile set: {profile.domain_id} ({profile.domain_label})")
+
+    def _infer_domain_id(self, living_spec: dict) -> str:
+        """AI Native 领域推断 — domain_analysis 前置步骤
+
+        优先级：domain_profile > meta.domain_type > software 回退
+        """
+        domain_profile = getattr(self, '_domain_profile', None)
+        if domain_profile:
+            return domain_profile.domain_id
+        domain_id = living_spec.get("meta", {}).get("domain_type")
+        if domain_id and isinstance(domain_id, str) and domain_id.strip():
+            return domain_id.strip().lower()
+        return "software"
+
     def _build_frozen_spec(self, user_input: str, config: dict, living_spec: dict = None) -> dict:
         """
         构建 Frozen Spec
@@ -767,6 +804,14 @@ class MasterOrchestrator:
         新代码应直接使用 living_spec。
         """
         if living_spec:
+            # 泛化性：推断并注入 domain_type
+            domain_type = self._infer_domain_id(living_spec)
+            # 确保 meta 存在并注入 domain_type
+            if "meta" not in living_spec:
+                living_spec["meta"] = {}
+            living_spec["meta"]["domain_type"] = domain_type
+            logger.info(f"Inferred domain_type: {domain_type}")
+            
             # 从 living_spec 构建 frozen_spec（通过 frozen_spec.py）
             try:
                 from domains.solution_pro.frozen_spec import build_frozen_spec as _build_fs
@@ -782,6 +827,7 @@ class MasterOrchestrator:
             "mode": config.get("mode", "standard"),
             "domain": config.get("domain", "backend_api"),
             "constraints": config.get("constraints", []),
+            "domain_type": getattr(self._domain_profile, 'domain_id', '') or 'software',  # P1-8: 动态获取，software 仅作最终 fallback
             # [Cage P1-6] 降级标记
             "_degraded": True,
             "_degradation_reason": "Failed to build frozen_spec from living_spec, fallback to hardcoded minimal spec",

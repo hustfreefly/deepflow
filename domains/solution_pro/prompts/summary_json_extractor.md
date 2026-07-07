@@ -51,7 +51,7 @@ bb = BlackboardManager('{session_id}')
 
 1. **从 solution_document 中提取结构化元数据** — 不重新生成方案内容
 2. **统计约束覆盖率** — 从 planning_convergence 对比
-3. **提取关键决策** — 技术选型、架构决策
+3. **提取关键决策** — 关键选型、方案设计决策
 4. **提取实施阶段** — 从实施计划 section
 5. **提取风险摘要** — 从风险缓解 section
 6. **引用 verification_result** — 验证状态
@@ -81,47 +81,47 @@ bb = BlackboardManager('{session_id}')
   
   "key_decisions": [
     {
-      "decision": "采用 PostgreSQL 16 作为主数据库",
-      "rationale": "支持 JSONB、全文搜索、成熟稳定",
-      "alternatives": ["MySQL 8", "MongoDB 7"],
-      "doc_section": "Section 3 技术选型"
+      "decision": "核心数据存储方案选型（根据领域自适应：软件=数据库, 投资=数据源, 硬件=材料）",
+      "rationale": "基于领域约束的具体选型理由",
+      "alternatives": ["备选方案A", "备选方案B"],
+      "doc_section": "Section 3 关键选型"
     },
     {
-      "decision": "使用 Redis 7 作为缓存层",
-      "rationale": "低延迟、支持数据结构丰富",
-      "alternatives": ["Memcached"],
-      "doc_section": "Section 3 技术选型"
+      "decision": "关键组件/模块方案选型",
+      "rationale": "基于领域约束的具体选型理由",
+      "alternatives": ["备选方案X"],
+      "doc_section": "Section 3 关键选型"
     }
   ],
   
   "implementation_phases": [
     {
       "phase": "Phase 1",
-      "name": "基础架构搭建",
+      "name": "基础架构/核心组件搭建",
       "duration": "2 周",
-      "milestones": ["数据库部署", "API 框架搭建"],
+      "milestones": ["核心组件A部署/准备", "核心组件B部署/准备"],
       "doc_section": "Section 8.1"
     },
     {
       "phase": "Phase 2",
-      "name": "核心功能开发",
+      "name": "核心功能/能力开发",
       "duration": "4 周",
-      "milestones": ["用户认证", "数据 CRUD"],
+      "milestones": ["关键能力1实现", "关键能力2实现"],
       "doc_section": "Section 8.2"
     }
   ],
   
   "risk_summary": [
     {
-      "risk": "数据库性能瓶颈",
+      "risk": "核心组件性能/容量瓶颈（领域自适应）",
       "severity": "高",
-      "mitigation": "读写分离 + 索引优化",
+      "mitigation": "领域特定的性能缓解策略",
       "doc_section": "Section 9"
     },
     {
-      "risk": "缓存穿透",
+      "risk": "关键路径失效风险（领域自适应）",
       "severity": "中",
-      "mitigation": "布隆过滤器 + 空值缓存",
+      "mitigation": "领域特定的冗余/备份策略",
       "doc_section": "Section 9"
     }
   ],
@@ -146,7 +146,7 @@ bb = BlackboardManager('{session_id}')
         "content": "完整内容（不截断）"
       },
       {
-        "heading": "架构设计",
+        "heading": "方案设计",
         "content": "完整内容（不截断）"
       }
     ]
@@ -156,7 +156,7 @@ bb = BlackboardManager('{session_id}')
   "document_stats": {
     "total_chars": 12000,
     "total_sections": 12,
-    "key_sections": ["方案概述", "架构设计", "技术选型", "实施计划"]
+    "key_sections": ["方案概述", "方案设计", "关键选型", "实施计划"]
   },
   
   "metadata": {
@@ -279,3 +279,29 @@ else:
 1. **数据保真** — JSON 中的每个数字、每个 ID、每个比率都必须从 solution_document 中**直接提取**，不能估计、四舍五入或编造。"39/39" 不能写成 "约 40/40"，"100%" 不能写成 "约 100%"。
 2. **找不到就标 null** — 如果 solution_document 中没有对应某个 required key 的内容，该字段的值设为 `null` 或空数组 `[]`，不填假数据。
 3. **不评价方案** — 你是提取器，只提取结构化数据。不在 JSON 中添加 "comment"、"note"、"assessment" 等评价性字段。
+
+
+---
+
+## 多域示例参考
+
+### 软件域提取维度示例
+```
+关键决策：核心组件选型、架构模式、安全方案
+实施阶段：基础架构搭建、核心功能开发、性能优化、部署上线
+风险摘要：性能瓶颈、安全漏洞、数据一致性风险
+```
+
+### 投资域提取维度示例
+```
+关键决策：估值模型选择、数据源策略、风险缓解方案
+实施阶段：尽职调查、估值分析、谈判签约、整合计划
+风险摘要：市场风险、监管风险、整合风险、估值偏差风险
+```
+
+### 硬件域提取维度示例
+```
+关键决策：散热方案、TIM 材料、可靠性设计策略
+实施阶段：热设计仿真、原型制作、测试验证、量产准备
+风险摘要：热设计失败、可靠性不达标、DFM 不可行、BOM 超成本
+```

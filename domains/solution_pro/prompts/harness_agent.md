@@ -174,7 +174,7 @@ else:
     "reasoning": {
       "completeness": "覆盖了所有 P0 REQ，约束数量合理（12 个）",
       "necessity": "大部分约束必要，但有 2 个 SHOULD 约束可以降级为 MAY",
-      "alignment": "与 backend_api 领域高度相关，覆盖了所有 risk_areas",
+      "alignment": "与推断领域高度相关，覆盖了所有 risk_areas",
       "global_impact": "考虑了性能和安全影响，但未明确提及成本影响"
     }
   },
@@ -185,7 +185,7 @@ else:
       {
         "name": "security_audit",
         "result": "PASS",
-        "reasoning": "所有 OWASP Top 10 风险已缓解，有 HTTPS、bcrypt、审计日志等约束"
+        "reasoning": "领域关键风险已缓解（软件域: OWASP/HTTPS/bcrypt; 投资域: 数据源覆盖/假设验证; 硬件域: TDP 验证/安全裕量）"
       },
       {
         "name": "p0_req_coverage",
@@ -213,6 +213,39 @@ else:
         "reasoning": "有单元测试、集成测试、E2E 测试计划"
       }
     ],
+    "_domain_adaptation_note": "以上 checks 为软件域参考。Gate B checks 应根据 task_profile.domain 自适应：投资域关注数据源覆盖/假设验证/风险维度；硬件域关注热设计/DFM/BOM/可靠性。",
+    "_domain_output_examples": {
+      "software": {
+        "checks": [
+          {"name": "security_audit", "result": "PASS", "reasoning": "（软件域参考）OWASP Top 10 风险已缓解，有 HTTPS、bcrypt、审计日志等约束"},
+          {"name": "performance_benchmarks", "result": "PASS", "reasoning": "API 响应时间 < 200ms，吞吐量 > 1000 req/s"},
+          {"name": "testing_strategy", "result": "PASS", "reasoning": "有单元测试、集成测试、E2E 测试计划"}
+        ]
+      },
+      "investment": {
+        "checks": [
+          {"name": "data_source_coverage", "result": "PASS", "reasoning": "关键财务结论经 3 个独立数据源交叉验证（Bloomberg、公司年报、行业报告）"},
+          {"name": "assumption_validation", "result": "PASS", "reasoning": "核心假设（收入增长率、折现率）经敏感性分析验证，覆盖乐观/基准/悲观三种情景"},
+          {"name": "risk_dimensions", "result": "PASS", "reasoning": "技术风险、市场风险、监管风险三维度均已覆盖，有具体缓解措施"},
+          {"name": "compliance_check", "result": "PASS", "reasoning": "数据来源合规性检查通过，敏感信息脱敏处理"},
+          {"name": "model_validation", "result": "PASS", "reasoning": "估值模型经 Monte Carlo 模拟 10000 次，结果分布合理"}
+        ]
+      },
+      "hardware": {
+        "checks": [
+          {"name": "thermal_design", "result": "PASS", "reasoning": "Tj < Tj_max - 10°C 安全裕量满足，TIM 材料热阻 < 0.1°C·cm²/W 实测确认"},
+          {"name": "dfm_review", "result": "PASS", "reasoning": "DFM 评审通过，预估良率 > 95%，BOM 成本在目标范围内"},
+          {"name": "reliability", "result": "PASS", "reasoning": "MTBF > 50000 小时（基于 Arrhenius 模型），降额设计合规"},
+          {"name": "manufacturing_feasibility", "result": "PASS", "reasoning": "关键工艺能力指数 Cpk > 1.33，供应链双源策略已确认"},
+          {"name": "safety_margin", "result": "PASS", "reasoning": "热设计裕量 10°C，电压降额 20%，所有安全裕量满足规格要求"}
+        ]
+      }
+    },
+    "_domain_examples_summary": {
+      "software": ["security_audit (软件域: OWASP/加密/HTTPS)", "performance_benchmarks (响应时间/吞吐量)", "testing_strategy (单元/集成/E2E)"],
+      "investment": ["data_source_coverage (关键结论有 3+ 独立数据源)", "assumption_validation (核心假设已验证)", "risk_dimensions (技术/市场/监管已覆盖)"],
+      "hardware": ["thermal_design (TDP 满足规格, TIM 已验证)", "dfm_review (DFM 评审通过, BOM 在目标内)", "reliability (MTBF 满足要求, 降额设计合规)"]
+    },
     "failed_items": [
       {
         "name": "api_documentation",

@@ -162,6 +162,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
         session_id: str,
         spawn_fn: Optional[Callable] = None,
         base_dir: Optional[str] = None,
+        domain_profile=None,
     ):
         """
         Initialize Research Orchestrator
@@ -170,8 +171,10 @@ class ResearchOrchestrator(ModuleOrchestrator):
             session_id: Session ID
             spawn_fn: Spawn function (provided by main Agent)
             base_dir: Blackboard 基础目录
+            domain_profile: DomainProfile from MasterOrchestrator (AI Native domain adaptation)
         """
         super().__init__("research", session_id, spawn_fn, base_dir=base_dir)
+        self._domain_profile = domain_profile
 
         # Source registry (thread-safe)
         self.source_registry = SourceRegistry()
@@ -255,6 +258,7 @@ class ResearchOrchestrator(ModuleOrchestrator):
         planning_output: Optional[dict] = None,
         spawn_fn: Optional[Callable] = None,
         living_spec: Optional[dict] = None,
+        domain_profile=None,
     ) -> dict:
         """
         Research 模块主入口
@@ -270,6 +274,8 @@ class ResearchOrchestrator(ModuleOrchestrator):
         """
         if spawn_fn is not None:
             self.spawn_fn = spawn_fn
+        if domain_profile is not None:
+            self._domain_profile = domain_profile
         if frozen_spec is not None:
             self.blackboard.write("frozen_spec.json", frozen_spec)
         if planning_output is not None:
@@ -1120,6 +1126,15 @@ class ResearchOrchestrator(ModuleOrchestrator):
         if constraint_brief:
             prompt = prompt + "\n\n" + constraint_brief
 
+        # 领域分析上下文注入（AI Native domain adaptation）
+        domain_profile = getattr(self, '_domain_profile', None)
+        if domain_profile:
+            try:
+                from domains.solution_pro.domain_analysis import domain_profile_to_prompt_context
+                prompt += "\n\n" + domain_profile_to_prompt_context(domain_profile)
+            except Exception:
+                pass
+
         # Execute via spawn_fn
         output_path = f"stages/research_experts/{expert_name}.json"
         worker_output = self._adapted_spawn(
@@ -1232,6 +1247,15 @@ class ResearchOrchestrator(ModuleOrchestrator):
             "```\n"
             "Return ONLY the JSON object."
         )
+
+        # 领域分析上下文注入（AI Native domain adaptation）
+        domain_profile = getattr(self, '_domain_profile', None)
+        if domain_profile:
+            try:
+                from domains.solution_pro.domain_analysis import domain_profile_to_prompt_context
+                task += "\n\n" + domain_profile_to_prompt_context(domain_profile)
+            except Exception:
+                pass
 
         try:
             result = self._adapted_spawn(
@@ -1367,7 +1391,16 @@ class ResearchOrchestrator(ModuleOrchestrator):
             "```\n\n"
             f"将输出写入 `stages/_digest_output.json`"
         )
-        
+
+        # 领域分析上下文注入（AI Native domain adaptation）
+        domain_profile = getattr(self, '_domain_profile', None)
+        if domain_profile:
+            try:
+                from domains.solution_pro.domain_analysis import domain_profile_to_prompt_context
+                task += "\n\n" + domain_profile_to_prompt_context(domain_profile)
+            except Exception:
+                pass
+
         try:
             result = self._adapted_spawn(
                 task=task,
@@ -1570,6 +1603,15 @@ class ResearchOrchestrator(ModuleOrchestrator):
             "```\n"
             "Return ONLY the JSON object."
         )
+
+        # 领域分析上下文注入（AI Native domain adaptation）
+        domain_profile = getattr(self, '_domain_profile', None)
+        if domain_profile:
+            try:
+                from domains.solution_pro.domain_analysis import domain_profile_to_prompt_context
+                task += "\n\n" + domain_profile_to_prompt_context(domain_profile)
+            except Exception:
+                pass
 
         try:
             result = self._adapted_spawn(

@@ -286,12 +286,13 @@ def _overwrite_dimension(parsed_updates: Dict[str, Any], dim: str, content: Any)
             if "target" in content and "new_value" in content:
                 target = content["target"]
                 new_value = content["new_value"]
-                # 查找并替换
+                # 查找并替换：精确匹配（LLM 应输出完整原始文本）
                 for sub_key in ["always_do", "should_do", "never_do"]:
                     for i, item in enumerate(caps.get(sub_key, [])):
-                        if target in str(item):
+                        if str(item) == target or str(item).strip() == target.strip():
                             caps[sub_key][i] = new_value
                             return
+                # 精确匹配找不到 → 不修改，不猜测（避免改错项）
             # 否则合并
             for sub_key in ["always_do", "should_do", "never_do"]:
                 if sub_key in content:

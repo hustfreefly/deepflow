@@ -50,7 +50,7 @@ bb = BlackboardManager('{session_id}')
 ### 1. 需求特征分析
 - 核心领域是什么？（安全敏感？合规密集？性能关键？数据密集？集成复杂？）
 - 技术复杂度：高/中/低
-- 约束维度分布预估：安全 X 项 / 合规 Y 项 / 性能 Z 项 / 可用性 W 项 / 兼容性 V 项 / ...
+- 约束维度分布预估（领域自适应，不固定维度）：安全 X 项 / 合规 Y 项 / 性能 Z 项 / 可用性 W 项 / 兼容性 V 项 / 或其他领域相关维度
 
 ### 2. 专家面板设计（动态，不预设）
 
@@ -75,6 +75,8 @@ bb = BlackboardManager('{session_id}')
 - **analysis_questions**（3-5 个）：
   - 🔴 每个问题必须聚焦"必须遵守什么约束"，不是"怎么实现"
   - ✅ "在 GDPR 合规下，用户数据的存储和传输必须遵守哪些加密约束？"
+  - ✅ "目标市场的专利保护范围和有效期是否足以覆盖产品生命周期？"（投资域）
+  - ✅ "供应链关键部件的交货周期和替代方案有哪些约束？"（硬件域）
   - ❌ "研究加密方案"（这是 Research 的问题，不是 Planning 的）
 - **focus_req_ids**：重点关注哪些需求 ID
 - **期望深度标准**：明确说明需要什么级别的约束分析
@@ -87,7 +89,7 @@ bb = BlackboardManager('{session_id}')
 - 每条约束必须标注优先级（MUST/SHOULD/MAY）
 - MUST 约束必须有 verification_method（怎么验证是否遵守）
 - P0 需求必须被至少 1 个 Expert 深入分析
-- 约束不能是泛泛的"要保证安全"，必须具体到"TLS 1.3 + AES-256-GCM for data in transit"
+- 约束不能是泛泛的"要保证安全"，必须具体到可验证级别（如"TLS 1.3 + AES-256-GCM for data in transit"或"核心专利有效期≥10年"或"遵守 APPI 第23条"）
 
 ---
 
@@ -128,7 +130,7 @@ bb = BlackboardManager('{session_id}')
 - 每条约束必须标注优先级（MUST/SHOULD/MAY）
 - MUST 约束必须有可执行的验证方法
 - P0 需求必须被至少 1 个 Expert 深入分析
-- 约束必须具体到技术级别（不是"保证安全"，而是"TLS 1.3 + AES-256-GCM"）
+- 约束必须具体到可验证级别（不是"保证安全"，而是具体标准/条款/参数）
 - 每条约束必须标注 **relevant_experts**（哪些 Research Expert 应该关注这条约束）
 
 ### 约束字段结构（unified_constraints 中每条约束的字段）

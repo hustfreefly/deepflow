@@ -147,6 +147,7 @@ class PipelineOrchestrator:
         self.execution_plan_path = execution_plan_path
         self.session_id = user_context.get("session_id", f"pipeline_{int(time.time())}")
         self.blackboard = None
+        self.domain_profile = user_context.get("domain_profile")
         self.progress = {
             "phases_completed": 0,
             "phases_total": 0,
@@ -695,7 +696,7 @@ class PipelineOrchestrator:
 
         from domains.solution_pro.control_contract import rewrite_after_planning
 
-        refresh = rewrite_after_planning(base_path)
+        refresh = rewrite_after_planning(base_path, domain_profile=getattr(self, 'domain_profile', None))
         print(
             "  ✅ control_contract.json refreshed "
             f"({', '.join(refresh.get('research_workers', []))})"

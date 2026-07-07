@@ -37,6 +37,7 @@ from core.prompt_registry import read_prompt, read_prompt_with_vars
 from core.config.path_config import PathConfig
 from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY, BlackboardManager
 from domains.solution_pro.spec_context import build_worker_context_section
+from domains.solution_pro.domain_analysis import domain_profile_to_prompt_context, DomainProfile
 
 # Module-level deepflow root for prompt templates
 _DEEPFLOW_ROOT = str(PathConfig.resolve().base_dir)
@@ -177,8 +178,8 @@ structured_req = bb.read_data("structured_requirements.json")  # 如果存在
 # P1-1: 默认约束(当 Planner 未生成约束时使用)
 DEFAULT_LAYER2_CONSTRAINTS = {
     "reviewer_technical": [
-        "[必要性] 检查技术选型是否贴合实际资源约束",
-        "[完整性] 验证关键架构设计点是否充分"
+        "[必要性] 检查选型是否贴合实际资源约束",
+        "[完整性] 验证关键设计点是否充分"
     ],
     "reviewer_business": [
         "[目标一致性] 评估方案是否直接服务于业务目标",
@@ -475,7 +476,7 @@ def validate_stage_output(output: dict, stage_name: str) -> Tuple[bool, str]:
     return True, ""
 
 
-def build_data_collection_task(session_id: str, topic: str, constraints: list, living_spec: dict = None) -> str:
+def build_data_collection_task(session_id: str, topic: str, constraints: list, living_spec: dict = None, domain_profile: 'DomainProfile' = None) -> str:
     """构建数据采集 Task(修复 P1-001: 增加种子 URL)
 
     Args:
@@ -483,8 +484,24 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list, l
         topic: 任务主题
         constraints: 用户约束列表
         living_spec: Living Spec(Spec Pro 产出,可选)
+        domain_profile: DomainProfile for AI Native domain adaptation (optional)
     """
     constraints_text = "\n".join([f"- {c}" for c in constraints]) if constraints else "- 无"
+
+    # 泛化: 推断 domain_id 并加载种子 URL
+    # 优先级: domain_profile.seed_urls > domain_loader > fallback
+    if domain_profile and domain_profile.seed_urls:
+        seed_urls_text = "\n".join([f"{i+1}. {url}" for i, url in enumerate(domain_profile.seed_urls)])
+    else:
+        domain_id = "software"
+        if living_spec and isinstance(living_spec, dict):
+            domain_id = living_spec.get("meta", {}).get("domain_type", "software")
+        from domains.solution_pro.config.domain_loader import load_domain_config
+        seed_urls = load_domain_config(domain_id).get("seed_urls", [])
+        if seed_urls:
+            seed_urls_text = "\n".join([f"{i+1}. {url}" for i, url in enumerate(seed_urls)])
+        else:
+            seed_urls_text = "1. 使用 web_search 搜索相关最佳实践"
 
     # Living Spec 注入:基于 confirmed 生成精准搜索词
     living_spec_context = ""
@@ -532,10 +549,7 @@ def build_data_collection_task(session_id: str, topic: str, constraints: list, l
 {constraints_text}
 
 ## 种子数据源(优先访问)
-1. 技术文档: https://developer.aliyun.com/article/  (搜索"高并发架构")
-2. 行业报告: https://www.gartner.com/en/newsroom  (搜索"e-commerce")
-3. 竞品分析: https://aws.amazon.com/cn/architecture/  (AWS 架构最佳实践)
-4. 最佳实践: https://martinfowler.com/articles/  (Martin Fowler 架构文章)
+{seed_urls_text}
 
 ## 执行步骤
 1. 使用 web_fetch 访问上述种子 URL 获取最新信息
@@ -726,7 +740,8 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
                          expert_id: str = "expert_1",
                          angle: str = "综合分析",
                          reason: str = "需要深入分析该领域",
-                         living_spec: dict = None) -> str:
+                         living_spec: dict = None,
+                         domain_profile: 'DomainProfile' = None) -> str:
     """构建 Researcher Task
 
     Args:
@@ -798,6 +813,11 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
             never = "\n".join([f"- {i}" for i in guardrails.get("never_do", [])]) or "- 无"
             living_spec_context += f"\n## 研究边界\n**必须研究**:\n{always}\n**禁止涉及**:\n{never}\n"
 
+    # 领域分析上下文注入
+    domain_context = ""
+    if domain_profile:
+        domain_context = "\n\n" + domain_profile_to_prompt_context(domain_profile)
+
     ctx = f"""
 ## 专家角色
 {expert}
@@ -813,7 +833,7 @@ def build_researcher_task(expert: str, session_id: str, topic: str, context: dic
 
 ## 上下文
 {context_json}
-{living_spec_context}
+{living_spec_context}{domain_context}
 ## 输出要求(子Agent直接写入模式)
 1. 使用 **write** 工具将结果写入:
    `bb.write_stage(f"research_{expert_id}", {...})`
@@ -895,11 +915,13 @@ def build_designer_task(session_id: str, topic: str, context: dict, living_spec:
 
 
 def build_auditor_task(session_id: str, topic: str, context: dict,
-                       living_spec: dict = None) -> str:
+                       living_spec: dict = None,
+                       domain_profile: 'DomainProfile' = None) -> str:
     """构建 Auditor Task
 
     Args:
         living_spec: Living Spec(Spec Pro 产出,可选)
+        domain_profile: DomainProfile(AI Native 领域自适应,可选)
     """
     # 读取基础Prompt并注入Layer 2约束(使用默认)
     base_prompt = read_prompt("solution/auditor_harness")
@@ -979,6 +1001,11 @@ def build_auditor_task(session_id: str, topic: str, context: dict,
         spec_ctx = build_worker_context_section(living_spec, "auditor")
         if spec_ctx:
             final_prompt += "\n\n" + spec_ctx
+
+    # 领域分析上下文注入
+    if domain_profile:
+        domain_context = "\n\n" + domain_profile_to_prompt_context(domain_profile)
+        final_prompt += domain_context
 
     return final_prompt
 
@@ -1166,7 +1193,7 @@ def build_deliver_task(session_id: str, topic: str, context: dict, living_spec: 
 # 目标:整合所有研究成果,产出最终交付文档
 
 ## 角色定义
-你是 DeepFlow 解决方案设计系统的交付专家。你的任务是将所有研究成果、架构设计、审计修复整合成一份专业、完整的解决方案交付文档。
+你是 DeepFlow 解决方案设计系统的交付专家。你的任务是将所有研究成果、方案设计、审计修复整合成一份专业、完整的解决方案交付文档。
 
 ## 核心职责
 - 整合前期所有阶段输出(planning, research, design, audit, fix)
@@ -1180,8 +1207,8 @@ def build_deliver_task(session_id: str, topic: str, context: dict, living_spec: 
 2. 项目背景与目标
 3. 需求分析总结
 4. 解决方案概述
-5. 详细架构设计
-6. 技术选型与理由
+5. 详细方案设计
+6. 关键选型与理由
 7. 实施路线图
 8. 风险评估与缓解
 9. 附录(参考资料、术语表)
@@ -1440,7 +1467,8 @@ def build_harness_task(session_id: str, topic: str, worker_role: str,
     return prompt
 
 
-def build_harness_final_task(session_id: str, topic: str, living_spec: dict = None) -> str:
+def build_harness_final_task(session_id: str, topic: str, living_spec: dict = None,
+                             domain_profile: 'DomainProfile' = None) -> str:
     """构建 Harness Final Task(Stage 9,独立门禁)
 
     Args:
@@ -1479,11 +1507,11 @@ def build_harness_final_task(session_id: str, topic: str, living_spec: dict = No
 1. 容错机制: 是否有故障处理和恢复策略
 2. 数据流: 数据流向是否清晰,无断点
 3. 测试策略: 是否有单元测试、集成测试、压力测试计划
-4. 监控运维: 是否有监控、告警、日志、运维方案
+4. 运维保障: 是否有监控、告警、运维方案
 5. 成本估算: 是否有详细的 CAPEX 和 OPEX 估算
-6. 文档完整性: 设计文档、API文档、运维文档是否齐全""")
+6. 文档完整性: 设计文档、接口文档、运维文档是否齐全""")
     prompt = prompt.replace("{{ necessity_items }}", """
-1. 避免过度设计: 技术选型是否与业务规模匹配
+1. 避免过度设计: 关键选型是否与业务规模匹配
 2. 避免过度审计: 审计深度是否与风险等级匹配
 3. 贴合实际场景: 是否考虑实际约束(预算、周期、团队)
 4. 现实可行: 技术是否可实现,团队是否有能力
@@ -1492,7 +1520,7 @@ def build_harness_final_task(session_id: str, topic: str, living_spec: dict = No
 1. 原始目标: 最终方案是否直接服务于用户目标
 2. confirmed 需求: 是否覆盖 Spec Pro confirmed 层的关键能力
 3. 阶段一致性: 研究、整合、审计、修复结论是否前后一致
-4. 决策理由: 关键技术/业务决策是否有清晰依据""")
+4. 决策理由: 关键选型/业务决策是否有清晰依据""")
     prompt = prompt.replace("{{ global_impact_items }}", """
 1. 成本影响: 是否说明 CAPEX/OPEX、资源投入和维护成本
 2. 风险影响: 是否识别关键技术、业务、合规和交付风险
@@ -1576,6 +1604,11 @@ def build_harness_final_task(session_id: str, topic: str, living_spec: dict = No
 
     final_prompt = prompt + living_spec_context
 
+    # 领域分析上下文注入
+    if domain_profile:
+        domain_context = "\n\n" + domain_profile_to_prompt_context(domain_profile)
+        final_prompt += domain_context
+
     # S4: 注入 Spec Pro 上下文(user_directives, solution_pro_hints 等)
     if living_spec:
         spec_ctx = build_worker_context_section(living_spec, "harness_final")
@@ -1632,7 +1665,7 @@ def _build_harness_task_legacy(session_id: str, topic: str, current_solution: di
 6. 文档完整性: 设计/API/运维文档是否齐全"""
 
     necessity_items = """
-1. 避免过度设计: 技术选型是否与业务规模匹配
+1. 避免过度设计: 关键选型是否与业务规模匹配
 2. 避免过度审计: 审计深度是否与风险等级匹配
 3. 贴合实际场景: 是否考虑实际约束(预算/周期/团队)
 4. 现实可行: 技术是否可实现,团队是否有能力
@@ -1642,7 +1675,7 @@ def _build_harness_task_legacy(session_id: str, topic: str, current_solution: di
 1. 原始目标: 方案是否直接服务于用户目标
 2. 需求覆盖: 是否覆盖关键能力与质量属性
 3. 阶段一致: 各阶段结论是否前后一致
-4. 决策依据: 关键决策是否有明确理由"""
+4. 决策依据: 关键选型/业务决策是否有明确理由"""
 
     global_impact_items = """
 1. 成本影响: 是否说明建设、维护和资源投入
@@ -1689,7 +1722,8 @@ bb = BlackboardManager(session_id="{session_id}")
 
 def build_consolidator_task(session_id: str, topic: str,
                             research_outputs: list,
-                            living_spec: dict = None) -> str:
+                            living_spec: dict = None,
+                            domain_profile: 'DomainProfile' = None) -> str:
     """构建 Consolidator Task
 
     Args:
@@ -1785,6 +1819,11 @@ bb = BlackboardManager(session_id="{session_id}")
         spec_ctx = build_worker_context_section(living_spec, "consolidator")
         if spec_ctx:
             final_prompt += "\n\n" + spec_ctx
+
+    # 领域分析上下文注入
+    if domain_profile:
+        domain_context = "\n\n" + domain_profile_to_prompt_context(domain_profile)
+        final_prompt += domain_context
 
     return final_prompt
 
@@ -1920,7 +1959,7 @@ def build_summarizer_task(session_id: str, topic: str,
 
 ### 核心亮点
 - 经过多维度评审和审计,质量达到高标准
-- 技术选型与业务需求精准匹配
+- 关键选型与业务需求精准匹配
 - 风险控制完善,实施路径清晰
 """
 
@@ -1928,7 +1967,7 @@ def build_summarizer_task(session_id: str, topic: str,
         "优先实施高价值低风险的模块",
         "建立完善的监控和告警体系",
         "分阶段上线,控制风险暴露",
-        "定期进行架构评审和技术债务清理"
+        "定期进行方案评审和优化迭代"
     ]
 
     all_outputs_json = json.dumps(all_outputs, ensure_ascii=False, indent=2)
@@ -2078,7 +2117,7 @@ def _extract_anchors_block(frozen_spec: dict = None, living_spec: dict = None) -
     return "## 上游约束（Semantic Anchors — 不可违反）\n\n" + "\n".join(lines) + "\n"
 
 
-def build_meta_planner_task(frozen_spec: dict, structured_requirements: dict, session_dir: str, living_spec: dict = None) -> dict:
+def build_meta_planner_task(frozen_spec: dict, structured_requirements: dict, session_dir: str, living_spec: dict = None, domain_profile: 'DomainProfile' = None) -> dict:
     """构建 Meta-Planner Task"""
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "meta_planner.md"
@@ -2100,6 +2139,10 @@ def build_meta_planner_task(frozen_spec: dict, structured_requirements: dict, se
 ## 任务
 分析任务领域和复杂度，生成 expert_manifest.json。
 输出必须符合 ExpertManifestSchema。"""
+    # 领域分析上下文注入
+    if domain_profile:
+        domain_context = "\n\n" + domain_profile_to_prompt_context(domain_profile)
+        prompt += domain_context
     return {
         "task_key": "meta_planner",
         "prompt": prompt,
@@ -2217,7 +2260,7 @@ Stage: {stage_name}
         "timeout": 300,
     }
 
-def build_reviewer_meta_task(expert_manifest: dict, frozen_spec: dict, session_dir: str, living_spec: dict = None) -> dict:
+def build_reviewer_meta_task(expert_manifest: dict, frozen_spec: dict, session_dir: str, living_spec: dict = None, domain_profile: 'DomainProfile' = None) -> dict:
     """构建 Reviewer_Meta Task"""
     from pathlib import Path
     prompt_file = Path(__file__).parent / "prompts" / "reviewer_meta.md"
@@ -2241,6 +2284,10 @@ def build_reviewer_meta_task(expert_manifest: dict, frozen_spec: dict, session_d
 评审 Meta-Planner 的专家组合是否覆盖任务的关键风险领域。
 **额外检查：专家组合是否覆盖了所有 Semantic Anchors 涉及的领域？**
 输出 verdict（PASS/FAIL）+ reasoning。"""
+    # 领域分析上下文注入
+    if domain_profile:
+        domain_context = "\n\n" + domain_profile_to_prompt_context(domain_profile)
+        prompt += domain_context
     return {
         "task_key": "reviewer_meta",
         "prompt": prompt,

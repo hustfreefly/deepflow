@@ -29,7 +29,7 @@
   "executability": {
     "verdict": "PASS",
     "score": 0.95,
-    "reasoning": "VC-001: method='curl -I https://api.example.com/health | grep Strict-Transport-Security'，具体可执行。VC-015: method='psql -c \"SELECT jsonb_path_query(...)\"'，包含具体 SQL。"
+    "reasoning": "VC-001: method='使用领域验证工具检查安全合规性'，具体可执行。VC-015: method='使用领域数据分析工具验证'，包含具体验证方法。"
   }
 }
 ```
@@ -52,8 +52,8 @@ reasoning 的关键：引用具体 ID、具体数值、具体内容。每个 ver
 - **标准**:
   - 随机抽查 5 个约束，检查是否有语义重复
   - 重复示例：
-    - "使用 HTTPS" 和 "所有 API 必须使用 TLS 1.2+"（应该合并）
-    - "使用 PostgreSQL" 和 "数据库使用 PostgreSQL 15+"（应该合并）
+    - "核心安全要求" 和 "通信加密要求"（应该合并）
+    - "核心组件方案" 和 "数据存储方案"（应该合并）
 - **评分**: PASS / WARNING / FAIL
 
 #### 1.3 冲突解决质量
@@ -105,7 +105,7 @@ reasoning 的关键：引用具体 ID、具体数值、具体内容。每个 ver
 
 #### 3.2 验证方法可执行性
 - **检查**: 每个验证项的 `verification_method` 是否可执行？
-- **标准**: 必须是具体的命令或测试（如 curl 命令、SQL 查询、lint 工具命令），reasoning 中引用具体 VC-ID 和 method 内容
+- **标准**: 必须是具体的命令或测试（如 curl 验证 API、仿真软件验证设计、数据分析验证市场假设），reasoning 中引用具体 VC-ID 和 method 内容
 - **评分**: PASS / WARNING / FAIL
 
 #### 3.3 预期结果明确性
@@ -170,7 +170,7 @@ reasoning 的关键：引用具体 ID、具体数值、具体内容。每个 ver
       "priority": {
         "verdict": "PASS",
         "score": 0.85,
-        "reasoning": "MUST 约束占 40%，合理，但有 2 个 SHOULD 约束可以降级为 MAY"
+        "reasoning": "MUST 约束占 40%，合理，但有 2 个 SHOULD 约束可以降级为 MAY（如文档格式要求）"
       },
       "id_continuity": {
         "verdict": "PASS",
@@ -245,12 +245,12 @@ reasoning 的关键：引用具体 ID、具体数值、具体内容。每个 ver
     {
       "severity": "MINOR",
       "description": "3 个验证项的 verification_method 不够具体",
-      "suggestion": "建议将'检查安全性'改为'运行 OWASP ZAP 扫描，无高危漏洞'"
+      "suggestion": "建议将'检查安全性'改为'运行领域安全验证工具，无高危风险'（软件域: OWASP ZAP；投资域: 数据源审计；硬件域: FMEA）"
     },
     {
       "severity": "MINOR",
       "description": "2 个预期结果不够具体",
-      "suggestion": "建议将'正常工作'改为'响应状态码 200，包含 HSTS 头'"
+      "suggestion": "建议将'正常工作'改为领域具体的可验证指标（软件域: 状态码 200 + HSTS 头；投资域: 估值偏差 < 15%；硬件域: 热阻 < 目标值）"
     }
   ]
 }

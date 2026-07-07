@@ -1,0 +1,121 @@
+domain_id: "software"
+domain_label: "软件开发"
+description: "后端API、前端UI、移动端、数据迁移、DevOps、ML、IaC、安全、性能、测试、无障碍"
+
+meta_planner:
+  suggested_categories:
+    - backend_api
+    - frontend_ui
+    - mobile
+    - data_migration
+    - devops
+    - ml
+    - iac
+    - security
+    - performance
+    - testing_qa
+    - accessibility
+  gate_b_checks:
+    - name: "security_audit"
+      pass_criteria: "无高危漏洞，OWASP Top 10 已缓解"
+    - name: "performance_benchmarks"
+      pass_criteria: "API 响应时间 < 200ms，吞吐量 > 1000 req/s"
+    - name: "api_documentation"
+      pass_criteria: "所有公开 API 有 OpenAPI 规范文档"
+
+expert_templates:
+  backend_api:
+    - name: "security_expert"
+      lens: "security vulnerabilities and OWASP compliance"
+    - name: "performance_expert"
+      lens: "latency, throughput, and resource optimization"
+    - name: "scalability_expert"
+      lens: "horizontal scaling and state management"
+  frontend_ui:
+    - name: "ux_design"
+      lens: "user experience and interaction design"
+    - name: "mobile_platform"
+      lens: "iOS/Android platform constraints"
+    - name: "accessibility"
+      lens: "WCAG compliance and inclusive design"
+  ml:
+    - name: "model_architecture"
+      lens: "model selection and training strategy"
+    - name: "inference_serving"
+      lens: "low-latency model serving and scaling"
+    - name: "feature_engineering"
+      lens: "feature pipeline and data quality"
+  iac:
+    - name: "terraform"
+      lens: "infrastructure as code best practices"
+    - name: "k8s"
+      lens: "Kubernetes orchestration and scaling"
+    - name: "networking"
+      lens: "network security and load balancing"
+  data_migration:
+    - name: "data_integrity"
+      lens: "data consistency and rollback strategies"
+    - name: "schema_evolution"
+      lens: "backward compatibility and migration paths"
+  devops:
+    - name: "ci_cd"
+      lens: "deployment pipeline and rollback strategies"
+    - name: "observability"
+      lens: "monitoring, alerting, and incident response"
+  security:
+    - name: "threat_modeling"
+      lens: "attack surface analysis and mitigation"
+    - name: "compliance"
+      lens: "regulatory requirements and audit trails"
+  testing_qa:
+    - name: "test_strategy"
+      lens: "test pyramid and coverage strategy"
+    - name: "quality_gates"
+      lens: "quality metrics and acceptance criteria"
+  accessibility:
+    - name: "wcag_compliance"
+      lens: "WCAG 2.1 AA compliance and screen reader support"
+    - name: "inclusive_design"
+      lens: "design for diverse user needs"
+
+seed_urls:
+  - "https://developer.aliyun.com"
+  - "https://aws.amazon.com/architecture"
+  - "https://martinfowler.com"
+
+quality_dimensions:
+  - latency
+  - throughput
+  - availability
+  - security
+  - scalability
+
+output_structure:
+  - "方案概述"
+  - "架构设计"
+  - "技术选型（含对比）"
+  - "数据设计"
+  - "安全设计"
+  - "性能设计"
+  - "实施计划"
+  - "风险缓解"
+
+review_dimensions:
+  - "架构设计合理性"
+  - "技术选型适当性"
+  - "性能指标达标"
+  - "扩展性设计"
+  - "技术债务控制"
+
+harness_checks:
+  - "容错机制"
+  - "数据流完整性"
+  - "测试策略"
+  - "监控运维"
+
+design_output:
+  sections:
+    - "架构设计"
+    - "组件设计"
+    - "接口定义"
+    - "数据模型"

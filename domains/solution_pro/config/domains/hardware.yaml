@@ -1,0 +1,79 @@
+domain_id: "hardware"
+domain_label: "硬件产品设计"
+description: "散热设计、结构工程、电子设计、材料选择、制造工艺、供应链管理"
+
+meta_planner:
+  suggested_categories:
+    - thermal_design
+    - mechanical_engineering
+    - electronic_design
+    - material_selection
+    - manufacturing_process
+    - supply_chain
+    - quality_control
+    - cost_optimization
+  gate_b_checks:
+    - name: "thermal_simulation"
+      pass_criteria: "热仿真结果满足 TDP 和温度限制"
+    - name: "dfm_review"
+      pass_criteria: "设计可制造性评审通过"
+    - name: "cost_target"
+      pass_criteria: "BOM 成本在目标范围内"
+
+expert_templates:
+  thermal_design:
+    - name: "thermal_engineer"
+      lens: "热管理方案、散热仿真、TIM 材料选择"
+    - name: "cfd_specialist"
+      lens: "计算流体力学仿真、气流优化"
+  mechanical_engineering:
+    - name: "mechanical_designer"
+      lens: "结构设计、力学分析、振动测试"
+    - name: "materials_engineer"
+      lens: "材料选型、物性参数、工艺兼容性"
+  manufacturing:
+    - name: "dfm_engineer"
+      lens: "可制造性设计、工艺约束、良率优化"
+    - name: "supply_chain_expert"
+      lens: "供应商评估、成本优化、交期管理"
+
+seed_urls:
+  - "https://www.engineeringtoolbox.com"
+  - "https://www.matweb.com"
+  - "https://www.digikey.com"
+
+quality_dimensions:
+  - thermal_efficiency
+  - structural_integrity
+  - manufacturing_yield
+  - cost_per_unit
+  - reliability_mtbf
+
+output_structure:
+  - "设计概述"
+  - "热管理方案"
+  - "结构与材料设计"
+  - "电子设计"
+  - "制造工艺方案"
+  - "供应链方案"
+  - "成本分析"
+  - "测试验证计划"
+
+review_dimensions:
+  - "热设计合理性"
+  - "材料选择适当性"
+  - "制造工艺可行性"
+  - "成本目标达成"
+  - "可靠性保障"
+
+harness_checks:
+  - "热仿真验证"
+  - "材料物性验证"
+  - "工艺约束合规"
+
+design_output:
+  sections:
+    - "方案设计"
+    - "组件选型"
+    - "接口定义"
+    - "材料规格"

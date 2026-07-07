@@ -536,70 +536,47 @@ stages/convergence_{self.module_name}.json
     
     def _evaluate_gate_a(self, compressed: dict, gate_a_config: dict) -> dict:
         """
-        Gate A 评估（代码计算）— Phase 0b P0-3
+        Gate A 评估（确定性部分）。
 
-        使用 harness_scorer.calculate_harness_score_dynamic() 进行动态权重/阈值评分。
-        从 gate_a_config 读取 weights 和 thresholds，从 compressed 数据计算四维度分数。
+        AI Native 原则：代码只计算原始指标 + 结构性检查。
+        语义评分由 Layer 2 LLM Judge 完成。
 
         Args:
             compressed: 收敛点压缩数据
-            gate_a_config: Gate A 配置（含 weights 和 thresholds）
+            gate_a_config: Gate A 配置（保留用于向后兼容）
 
         Returns:
-            Gate A 评估结果 dict
+            Gate A 评估结果 dict（含 raw_metrics，无语义分数）
         """
-        # 从 gate_config 读取动态权重和阈值
-        weights = gate_a_config.get("weights", {
-            "completeness": 0.30,
-            "necessity": 0.20,
-            "alignment": 0.30,
-            "global_impact": 0.20,
-        })
-        thresholds = gate_a_config.get("thresholds", {
-            "PASS": 0.85,
-            "WARNING": 0.70,
-            "CRITICAL_WARNING": 0.60,
-            "BLOCK_RECOMMENDATION": 0.0,
-        })
-
-        # 从 compressed 数据计算四维度分数
+        # 从 compressed 数据计算原始指标
         scores = self._compute_gate_a_scores(compressed)
 
-        # 调用 harness_scorer 进行动态评分
-        try:
-            from .harness_scorer import calculate_harness_score_dynamic
+        # 结构性判定：有约束 + 有验证清单 = structural_pass
+        structural_pass = scores.get("structural_pass", False)
+        raw_metrics = scores.get("raw_metrics", {})
 
-            harness_score = calculate_harness_score_dynamic(
-                weights=weights,
-                thresholds=thresholds,
-                scores=scores,
-                reasonings=None,
-            )
-
-            return {
-                "score": harness_score.overall_score,
-                "verdict": "PASS" if harness_score.decision == "PASS" else "FAIL",
-                "scores": scores,
-                "decision": harness_score.decision,
-                "improvements": harness_score.improvements,
-            }
-        except ImportError:
-            # Fallback: 本地计算（当 harness_scorer 不可用时）
-            logger.warning("harness_scorer not available, using local scoring fallback")
-            return self._evaluate_gate_a_local(weights, thresholds, scores)
+        return {
+            "score": 0.0,  # 无语义分数
+            "verdict": "PASS" if structural_pass else "FAIL",
+            "raw_metrics": raw_metrics,
+            "structural_pass": structural_pass,
+            "decision": "STRUCTURAL_PASS" if structural_pass else "STRUCTURAL_FAIL",
+            "semantic_scoring": "SKIPPED — requires LLM Judge (Layer 2)",
+            "improvements": [],
+        }
 
     def _compute_gate_a_scores(self, compressed: dict) -> dict:
         """
-        从 compressed 数据计算 Gate A 四维度分数
+        计算 Gate A 原始指标（确定性部分）。
 
-        评分逻辑（代码可计算的部分）：
-        - completeness: 约束覆盖率 + 验证清单完整性
-        - necessity: 约束优先级分布（MUST 占比越高越必要）
-        - alignment: 需求覆盖度（covered_req_ids）
-        - global_impact: 信息守恒状态 + 跨专家考虑
+        AI Native 原则：代码只输出原始指标，不做语义评分。
+        语义评分由 Layer 2 LLM Judge 完成。
 
         Returns:
-            四维度分数 dict {completeness, necessity, alignment, global_impact}
+            {
+                "raw_metrics": {原始指标 dict},
+                "structural_pass": bool,
+            }
         """
         # 提取关键数据
         constraints = compressed.get("unified_constraints", [])
@@ -616,66 +593,34 @@ stages/convergence_{self.module_name}.json
         constraint_count = len(constraints) if isinstance(constraints, list) else 0
         checklist_count = len(checklist) if isinstance(checklist, list) else 0
 
-        # 1. Completeness: 约束数量 + 验证清单覆盖
-        # 基准：5 个约束 + 5 个验证项 = 满分
-        constraint_score = min(1.0, constraint_count / 5.0) if constraint_count > 0 else 0.0
-        checklist_score = min(1.0, checklist_count / 5.0) if checklist_count > 0 else 0.0
-        completeness = constraint_score * 0.6 + checklist_score * 0.4
-        # 如果有约束和验证清单，给一个基础分
-        if constraint_count > 0 and checklist_count > 0:
-            completeness = max(completeness, 0.75)
-        completeness = round(min(1.0, completeness), 2)
-
-        # 2. Necessity: 约束优先级分布
-        # MUST 占比越高，必要性越高
+        # MUST 计数
+        must_count = 0
         if constraint_count > 0 and isinstance(constraints, list):
-            must_count = sum(1 for c in constraints if isinstance(c, dict) and c.get("priority") == "MUST")
-            should_count = sum(1 for c in constraints if isinstance(c, dict) and c.get("priority") == "SHOULD")
-            may_count = sum(1 for c in constraints if isinstance(c, dict) and c.get("priority") == "MAY")
+            must_count = sum(
+                1 for c in constraints
+                if isinstance(c, dict) and c.get("priority") == "MUST"
+            )
 
-            must_ratio = must_count / constraint_count if constraint_count > 0 else 0
-            # MUST 占比 0-100% 映射到 necessity 0.6-1.0
-            necessity = 0.6 + must_ratio * 0.4
-            # SHOULD 和 MAY 的存在说明有适度设计
-            if should_count > 0 or may_count > 0:
-                necessity = max(necessity, 0.7)
-        else:
-            necessity = 0.5
-        necessity = round(min(1.0, necessity), 2)
-
-        # 3. Alignment: 需求覆盖度
-        # 有 covered_req_ids 说明对齐度高
-        if covered_reqs:
-            alignment = min(1.0, 0.75 + len(covered_reqs) * 0.05)
-        else:
-            alignment = 0.6
-        alignment = round(alignment, 2)
-
-        # 4. Global Impact: 信息守恒 + 元数据完整性
-        # 信息守恒 PASS + 有 meta 数据 = 高分
-        conservation_status = conservation.get("status", "UNKNOWN")
-        has_meta = "meta" in compressed or "original_references" in compressed
-
-        global_impact = 0.65  # 基础分
-        if conservation_status == "PASS":
-            global_impact += 0.15
-        if has_meta:
-            global_impact += 0.1
-        # 检查是否有跨专家考虑（source_experts 列表长度 > 1）
+        # 跨专家约束计数
+        cross_expert_count = 0
         if constraint_count > 0 and isinstance(constraints, list):
-            cross_expert = sum(
+            cross_expert_count = sum(
                 1 for c in constraints
                 if isinstance(c, dict) and len(c.get("source_experts", [])) > 1
             )
-            if cross_expert > 0:
-                global_impact += 0.1
-        global_impact = round(min(1.0, global_impact), 2)
 
         return {
-            "completeness": completeness,
-            "necessity": necessity,
-            "alignment": alignment,
-            "global_impact": global_impact,
+            "raw_metrics": {
+                "constraint_count": constraint_count,
+                "must_count": must_count,
+                "checklist_count": checklist_count,
+                "covered_req_count": len(covered_reqs or []),
+                "total_req_count": len(compressed.get("all_req_ids", []) or []),
+                "conservation_status": conservation.get("status", "UNKNOWN"),
+                "has_meta": "meta" in compressed or "original_references" in compressed,
+                "cross_expert_count": cross_expert_count,
+            },
+            "structural_pass": constraint_count > 0 and checklist_count > 0,
         }
 
     def _evaluate_gate_a_local(
@@ -685,43 +630,22 @@ stages/convergence_{self.module_name}.json
         scores: dict,
     ) -> dict:
         """
-        Gate A 本地评分 fallback（当 harness_scorer 不可用时）
+        Gate A 本地评估 fallback（当 harness_scorer 不可用时）。
 
-        使用与 harness_scorer 相同的逻辑：加权总分 + 阈值判定
+        AI Native 原则：代码不做语义评分。只基于 raw_metrics 做结构性检查，
+        语义评分留给 Layer 2 LLM Judge。
         """
-        # 归一化权重
-        w_sum = sum(weights.values())
-        norm_weights = {k: v / w_sum for k, v in weights.items()} if w_sum > 0 else weights
+        raw = scores.get("raw_metrics", {})
+        structural_pass = scores.get("structural_pass", False)
 
-        # 计算加权总分
-        overall = sum(scores[d] * norm_weights.get(d, 0.25) for d in scores)
-        overall = round(overall, 2)
-
-        # 阈值判定
-        t_pass = thresholds.get("PASS", 0.85)
-        t_warn = thresholds.get("WARNING", 0.70)
-        t_crit = thresholds.get("CRITICAL_WARNING", thresholds.get("CRITICAL", 0.60))
-
-        if overall >= t_pass:
-            decision = "PASS"
-        elif overall >= t_warn:
-            decision = "WARNING"
-        elif overall >= t_crit:
-            decision = "CRITICAL_WARNING"
-        else:
-            decision = "BLOCK_RECOMMENDATION"
-
-        # 特殊规则：alignment < critical → 至少 CRITICAL_WARNING
-        alignment_crit = thresholds.get("ALIGNMENT_CRITICAL", 0.60)
-        if scores.get("alignment", 1.0) < alignment_crit:
-            if decision in ("PASS", "WARNING"):
-                decision = "CRITICAL_WARNING"
-
+        # 结构性检查：有约束 + 有验证清单 = structural_pass
+        # 不做语义评分，只报告原始指标 + 结构性判定
         return {
-            "score": overall,
-            "verdict": "PASS" if decision == "PASS" else "FAIL",
-            "scores": scores,
-            "decision": decision,
+            "score": 0.0,  # 无语义分数
+            "verdict": "PASS" if structural_pass else "FAIL",
+            "raw_metrics": raw,
+            "decision": "STRUCTURAL_PASS" if structural_pass else "STRUCTURAL_FAIL",
+            "semantic_scoring": "SKIPPED — requires LLM Judge (Layer 2)",
             "improvements": [],
         }
     
@@ -760,12 +684,13 @@ stages/convergence_{self.module_name}.json
             result = self._evaluate_single_gate_b_check(check, compressed)
             check_results.append(result)
 
-        # Aggregate
-        total = len(check_results)
-        passed = sum(1 for r in check_results if r["result"] == "PASS")
+        # Aggregate — SKIPPED items excluded from total (no semantic judgment made)
+        evaluated = [r for r in check_results if r["result"] != "SKIPPED"]
+        total = len(evaluated)
+        passed = sum(1 for r in evaluated if r["result"] == "PASS")
         pass_rate = passed / total if total > 0 else 1.0
 
-        failed_items = [r for r in check_results if r["result"] == "FAIL"]
+        failed_items = [r for r in evaluated if r["result"] == "FAIL"]
 
         # CRITICAL 项必须全部通过
         critical_failed = [
@@ -872,37 +797,20 @@ stages/convergence_{self.module_name}.json
 
     def _evaluate_check_local(self, check: dict, compressed: dict) -> dict:
         """
-        本地启发式评估（fallback，用于测试或 spawn_fn 不可用时）
+        本地评估 fallback（当 spawn_fn 不可用时）。
 
-        策略：在 compressed 数据中搜索 check 的关键词，存在即视为 PASS。
+        AI Native 原则：代码不做语义判断。无 LLM Judge 时输出 SKIPPED，
+        不伪造 PASS/FAIL。结构性检查（字段存在性等）仍可执行。
         """
-        name_lower = check["name"].lower()
-        desc_lower = check.get("description", "").lower()
-        criteria_lower = check.get("pass_criteria", "").lower()
-
-        # Build a search corpus from compressed data
-        corpus = json.dumps(compressed, ensure_ascii=False).lower()
-
-        # Keyword match: check name words (>= 4 chars) in corpus
-        keywords = [w for w in name_lower.replace("_", " ").split() if len(w) >= 4]
-        if keywords:
-            matched = sum(1 for kw in keywords if kw in corpus)
-            hit_rate = matched / len(keywords)
-        else:
-            # Fallback to description keywords
-            desc_words = [w for w in desc_lower.split() if len(w) >= 5]
-            if desc_words:
-                matched = sum(1 for w in desc_words if w in corpus)
-                hit_rate = matched / len(desc_words)
-            else:
-                hit_rate = 1.0  # no keywords to check, assume pass
-
-        result = "PASS" if hit_rate >= 0.5 else "FAIL"
+        check_name = check["name"]
+        # 结构性检查：验证 compressed 中存在相关字段（确定性检查）
+        structural_ok = check_name in json.dumps(compressed, ensure_ascii=False)
         return {
-            "name": check["name"],
+            "name": check_name,
             "severity": check.get("severity", "MINOR"),
-            "result": result,
-            "reason": f"local_keyword_match={hit_rate:.2f}",
+            "result": "SKIPPED",
+            "reason": "No LLM judge available — semantic evaluation requires LLM",
+            "structural_check": structural_ok,
         }
     
     def _compute_final_verdict(

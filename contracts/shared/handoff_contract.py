@@ -46,7 +46,7 @@ class HandoffPackage(BaseModel):
     living_spec: Dict[str, Any]
     quality_report: Dict[str, Any] = Field(default_factory=dict)
     density_gate_result: DensityGateResult
-    semantic_anchors: List[Any] = Field(default_factory=list)
+    semantic_anchors: List[Dict[str, Any]] = Field(default_factory=list)
     block_reason: Optional[List[str]] = None
     trace_id: Optional[str] = None  # 为 Fix 2 预留
 
@@ -56,6 +56,22 @@ class HandoffPackage(BaseModel):
         """契约铁律：living_spec 不可为空 dict"""
         if not v:
             raise ValueError("living_spec 不能为空")
+        return v
+
+    @field_validator("semantic_anchors")
+    @classmethod
+    def validate_semantic_anchor_dicts(cls, v: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """契约铁律：每个 semantic anchor dict 必须有 name/category/constraint/source_quote 字段"""
+        required_keys = {"name", "category", "constraint", "source_quote"}
+        for i, anchor in enumerate(v):
+            if not isinstance(anchor, dict):
+                raise ValueError(f"semantic_anchors[{i}] 必须是 dict，实际类型: {type(anchor).__name__}")
+            missing = required_keys - set(anchor.keys())
+            if missing:
+                raise ValueError(
+                    f"semantic_anchors[{i}] 缺少必填字段: {missing}。"
+                    f"name='{anchor.get('name', '?')}'"
+                )
         return v
 
     @field_validator("density_gate_result", mode="before")

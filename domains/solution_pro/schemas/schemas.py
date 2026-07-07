@@ -31,54 +31,34 @@ class V2BaseSchema(BaseModel):
 # Domain Categories & Expert Template Registry
 # ============================================================================
 
-DOMAIN_CATEGORIES = Literal[
+# 领域分类建议列表（开放枚举，不再强制）
+SUGGESTED_DOMAIN_CATEGORIES = [
+    # 软件域
     "backend_api", "frontend_ui", "mobile", "data_migration",
     "devops", "ml", "iac", "security", "performance",
     "testing_qa", "accessibility",
+    # 投资域
+    "due_diligence", "patent_analysis", "market_analysis",
+    "financial_projection", "risk_assessment",
+    # 硬件域
+    "thermal_design", "mechanical_engineering", "electronic_design",
+    "material_selection", "manufacturing_process",
+    # 商业域
+    "market_entry", "competitive_strategy", "compliance_legal",
+    "financial_forecast", "partnership",
 ]
+# 兼容现有引用：DOMAIN_CATEGORIES 变为 str 类型别名
+DOMAIN_CATEGORIES = str
 
-EXPERT_TEMPLATE_REGISTRY: dict[str, list[dict[str, str]]] = {
-    "backend_api": [
-        {"name": "security_expert", "lens": "security vulnerabilities and OWASP compliance"},
-        {"name": "performance_expert", "lens": "latency, throughput, and resource optimization"},
-        {"name": "scalability_expert", "lens": "horizontal scaling and state management"},
-    ],
-    "frontend_ui": [
-        {"name": "ux_design", "lens": "user experience and interaction design"},
-        {"name": "mobile_platform", "lens": "iOS/Android platform constraints"},
-        {"name": "accessibility", "lens": "WCAG compliance and inclusive design"},
-    ],
-    "ml": [
-        {"name": "model_architecture", "lens": "model selection and training strategy"},
-        {"name": "inference_serving", "lens": "low-latency model serving and scaling"},
-        {"name": "feature_engineering", "lens": "feature pipeline and data quality"},
-    ],
-    "iac": [
-        {"name": "terraform", "lens": "infrastructure as code best practices"},
-        {"name": "k8s", "lens": "Kubernetes orchestration and scaling"},
-        {"name": "networking", "lens": "network security and load balancing"},
-    ],
-    "data_migration": [
-        {"name": "data_integrity", "lens": "data consistency and rollback strategies"},
-        {"name": "schema_evolution", "lens": "backward compatibility and migration paths"},
-    ],
-    "devops": [
-        {"name": "ci_cd", "lens": "deployment pipeline and rollback strategies"},
-        {"name": "observability", "lens": "monitoring, alerting, and incident response"},
-    ],
-    "security": [
-        {"name": "threat_modeling", "lens": "attack surface analysis and mitigation"},
-        {"name": "compliance", "lens": "regulatory requirements and audit trails"},
-    ],
-    "testing_qa": [
-        {"name": "test_strategy", "lens": "test pyramid and coverage strategy"},
-        {"name": "quality_gates", "lens": "quality metrics and acceptance criteria"},
-    ],
-    "accessibility": [
-        {"name": "wcag_compliance", "lens": "WCAG 2.1 AA compliance and screen reader support"},
-        {"name": "inclusive_design", "lens": "design for diverse user needs"},
-    ],
-}
+from domains.solution_pro.config.domain_loader import get_expert_templates
+
+# DEPRECATED: 使用 get_registry_for_domain(domain_id) 替代
+# 保留向后兼容，默认加载 software 域
+EXPERT_TEMPLATE_REGISTRY: dict[str, list[dict[str, str]]] = get_expert_templates("software")
+
+def get_registry_for_domain(domain_id: str) -> dict[str, list[dict[str, str]]]:
+    """获取指定领域的专家模板"""
+    return get_expert_templates(domain_id)
 
 
 # ============================================================================
@@ -313,44 +293,41 @@ class UnifiedConstraintsSchema(V2BaseSchema):
 
     @model_validator(mode='after')
     def _cage_f6_llm_control_scope(self) -> 'UnifiedConstraintsSchema':
-        """[F6 契约笼子] 含"LLM控制"的约束必须区分业务控制流和运维控制流"""
-        scope_keywords = ['业务控制流', '运维控制流', '业务逻辑', '运维逻辑',
-                          '框架确定性', '行为非确定性', 'Python.*确定性']
-        trigger_keywords = ['全LLM控制', '全 LLM 控制', 'LLM控制', 'LLM 控制']
-        import re
+        """验证 LLM 控制流约束的结构完整性（确定性检查）。
+        语义验证（约束是否真的涉及 LLM 控制）由 LLM Judge 在约束生成时把关。
+        """
+        issues = []
         for c in self.unified_constraints:
-            desc = c.description
-            if any(tk in desc for tk in trigger_keywords):
-                has_scope = any(
-                    re.search(sk, desc) for sk in scope_keywords
-                )
-                if not has_scope:
-                    raise ValueError(
-                        f"[Cage F6] 约束 {c.constraint_id} 提到「LLM控制」但未区分"
-                        f"「业务控制流(LLM驱动)」和「运维控制流(Python确定性执行)」的边界。"
-                        f"当前描述: {desc[:100]}"
-                    )
+            cft = c.get("control_flow_type") if isinstance(c, dict) else getattr(c, "control_flow_type", None)
+            if cft and cft not in ("deterministic", "llm_judgment", "hybrid"):
+                cid = c.get("constraint_id", "?") if isinstance(c, dict) else getattr(c, "constraint_id", "?")
+                issues.append(f"constraint {cid}: invalid control_flow_type '{cft}'")
+        if issues:
+            raise ValueError("[Cage F6] " + "; ".join(issues))
         return self
 
     @model_validator(mode='after')
     def _cage_f7_threshold_consistency(self) -> 'UnifiedConstraintsSchema':
-        """[F7 契约笼子] 偏离检测阈值必须全局一致（不允许 70% 和 80% 并存）"""
-        import re
-        threshold_pattern = re.compile(r'(?:偏离|deviation)[^\d]{0,20}(\d+)%|(\d+)%[^\d]{0,20}(?:偏离|deviation|纠正|correct)', re.IGNORECASE)
-        found_thresholds: dict[str, int] = {}  # constraint_id → threshold %
+        """验证约束中结构化阈值的一致性（确定性检查）。
+        自然语言中的阈值由 LLM Judge 在约束生成时验证。
+        """
+        issues = []
+        thresholds = {}
         for c in self.unified_constraints:
-            desc = c.description
-            matches = threshold_pattern.findall(desc)
-            for m in matches:
-                val = int(m[0] or m[1])
-                if 50 <= val <= 99:  # reasonable threshold range
-                    found_thresholds[c.constraint_id] = val
-        if len(set(found_thresholds.values())) > 1:
-            details = ', '.join(f'{cid}={v}%' for cid, v in found_thresholds.items())
+            tv = c.get("threshold_value") if isinstance(c, dict) else getattr(c, "threshold_value", None)
+            if tv is not None:
+                cid = c.get("constraint_id", "?") if isinstance(c, dict) else getattr(c, "constraint_id", "?")
+                if not isinstance(tv, (int, float)) or tv < 0 or tv > 100:
+                    issues.append(f"constraint {cid}: threshold_value {tv} out of range [0, 100]")
+                thresholds[cid] = tv
+        if len(set(thresholds.values())) > 1:
+            details = ', '.join(f'{cid}={v}' for cid, v in thresholds.items())
             raise ValueError(
                 f"[Cage F7] 偏离检测阈值不一致: {details}。"
                 f"所有偏离检测约束必须使用统一阈值。"
             )
+        if issues:
+            raise ValueError("[Cage F7] " + "; ".join(issues))
         return self
 
 
@@ -384,12 +361,12 @@ class ResearchExpertSchema(V2BaseSchema):
     
     包含：
     - research_findings: 研究发现
-    - technology_recommendations: 技术推荐
+    - technology_recommendations: 方案推荐
     - open_questions: 未解决问题
     """
     expert_name: str = Field(description="专家名称")
     research_findings: list[dict] = Field(description="研究发现")
-    technology_recommendations: list[dict] = Field(default_factory=list, description="技术推荐")
+    technology_recommendations: list[dict] = Field(default_factory=list, description="方案推荐（选型/工具/方法建议）")
     open_questions: list[str] = Field(default_factory=list, description="未解决问题")
     covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
 
@@ -467,15 +444,15 @@ class ArchitectureSchema(V2BaseSchema):
     Architecture Design 输出 schema
     
     包含：
-    - architecture_decisions: 架构决策
-    - component_diagram: 组件图
+    - architecture_decisions: 方案决策
+    - component_diagram: 结构图
     - data_flows: 数据流
-    - technology_stack: 技术栈
+    - technology_stack: 关键选型
     """
-    architecture_decisions: list[dict] = Field(description="架构决策")
-    component_diagram: dict = Field(description="组件图")
+    architecture_decisions: list[dict] = Field(description="方案决策")
+    component_diagram: dict = Field(description="结构图")
     data_flows: list[dict] = Field(default_factory=list, description="数据流")
-    technology_stack: list[dict] = Field(default_factory=list, description="技术栈")
+    technology_stack: list[dict] = Field(default_factory=list, description="关键选型")
     deployment_view: dict = Field(default_factory=dict, description="部署视图")
     p0_req_traceability: dict = Field(default_factory=dict, description="P0 REQ 追溯矩阵")
     covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
@@ -486,15 +463,15 @@ class DetailedDesignSchema(V2BaseSchema):
     Detailed Design 输出 schema
     
     包含：
-    - modules: 模块定义
-    - apis: API 定义
-    - database_schema: 数据库 schema
-    - sequence_diagrams: 时序图
+    - modules: 模块设计
+    - apis: 接口设计
+    - database_schema: 数据模型
+    - sequence_diagrams: 交互流程
     """
-    modules: list[dict] = Field(description="模块定义")
-    apis: list[dict] = Field(default_factory=list, description="API 定义")
-    database_schema: dict = Field(default_factory=dict, description="数据库 schema")
-    sequence_diagrams: list[dict] = Field(default_factory=list, description="时序图")
+    modules: list[dict] = Field(description="模块设计")
+    apis: list[dict] = Field(default_factory=list, description="接口设计")
+    database_schema: dict = Field(default_factory=dict, description="数据模型")
+    sequence_diagrams: list[dict] = Field(default_factory=list, description="交互流程")
     p0_req_traceability: dict = Field(default_factory=dict, description="P0 REQ 追溯矩阵")
     covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
 
@@ -643,7 +620,7 @@ class ResearchConvergenceSchema(V2BaseSchema):
     - key_findings: 关键发现
     - design_decisions: 设计决策
     - open_questions: 未解决问题
-    - architecture: 架构设计引用
+    - architecture: 方案设计引用
     - detailed_design: 详细设计引用
     - information_conservation: 信息守恒检查
     """
@@ -652,7 +629,7 @@ class ResearchConvergenceSchema(V2BaseSchema):
     key_findings: list[dict] = Field(description="关键发现")
     design_decisions: list[dict] = Field(description="设计决策")
     open_questions: list[dict] = Field(default_factory=list, description="未解决问题")
-    architecture: dict = Field(description="架构设计引用")
+    architecture: dict = Field(description="方案设计引用")
     detailed_design: dict = Field(description="详细设计引用")
     information_conservation: dict = Field(description="信息守恒检查")
     original_references: dict[str, OriginalReference] = Field(default_factory=dict, description="原始引用")
@@ -994,7 +971,9 @@ class ResearchDigest(BaseModel):
 
 VerdictType = Literal["STRONG", "ADEQUATE", "WEAK", "FAIL"]
 
-VERDICT_SCORE_MAP = {"STRONG": 0.95, "ADEQUATE": 0.80, "WEAK": 0.55, "FAIL": 0.25}
+VERDICT_SCORE_MAP = {
+    "STRONG": 0.95, "ADEQUATE": 0.80, "WEAK": 0.55, "FAIL": 0.25
+}  # Fallback only — LLM should provide numeric scores directly
 
 
 class Evidence(BaseModel):

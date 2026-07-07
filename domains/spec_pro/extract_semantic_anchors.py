@@ -33,17 +33,16 @@ Semantic Anchor 是在多阶段管线传递中**不应被泛化/抽象化**的�
 
 ## 提取维度
 
-1. **platform_api** — 具体的平台 API / 工具名
-   例如：sessions_spawn, BlackboardManager, Skill Workshop, Feishu通知
-   
-2. **architecture_principle** — 不可妥协的架构原则
-   例如：全LLM控制, Python只做执行器, 三层Loop架构
-   
-3. **external_system** — 必须集成的外部系统
-   例如：OpenClaw, Hermes, Claude
-   
-4. **technical_constraint** — 硬性的技术约束
-   例如：8+小时无人干预, 最大6并发, 死循环熔断
+根据项目性质选择合适的类别。常见类别包括：
+- **platform_api** — 具体的平台 API / 工具名（如 sessions_spawn, BlackboardManager）
+- **architecture_principle** — 不可妥协的架构原则（如 全LLM控制, 三层Loop架构）
+- **external_system** — 必须集成的外部系统（如 OpenClaw, Hermes, Claude）
+- **technical_constraint** — 硬性的技术约束（如 8+小时无人干预, 最大6并发）
+- **market_segment** / **patent_portfolio** / **regulatory_framework**（投资域）
+- **physical_constraint** / **material_spec**（硬件域）
+- **business_rule** / **compliance_requirement**（商业域）
+
+也可根据项目需要自定义类别。
 
 ## 判断标准
 

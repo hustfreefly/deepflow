@@ -74,7 +74,7 @@ bb = BlackboardManager('{session_id}')
 
 ### 强项
 - [section X] 详细，覆盖了...
-- [技术选型] 有对比评估...
+- [关键选型] 有对比评估...
 
 ### 弱项
 - [section Y] 过于简略，缺少...
@@ -126,8 +126,8 @@ bb = BlackboardManager('{session_id}')
 
 ### 方案文档建议结构
 1. 方案概述
-2. 架构设计
-3. 技术选型（含对比）
+2. 方案设计
+3. 关键选型（含对比）
 4. 实施计划
 5. 风险缓解
 6. 约束覆盖追溯
@@ -211,3 +211,80 @@ else:
 1. **独立视角** — 你审视基础方案的实际弱点，据此规划 Analyzer 面板。不要预设 "三板斧"（架构/性能/安全），不要套用上一次的面板。每个 Analyzer 必须对应 base_solution 中**你实际发现的具体弱点**。
 2. **只审视不修改** — 你是裁判 + 导演，不碰 base_solution 一个字。如果你发现 base_solution 有问题，在 summary_plan 中标注为 "修复方向"，让下游 Fix Agent 去修。
 3. **不评价自己的规划** — 你规划 Analyzer 面板，但不评价 "我的规划是否合理"。规划质量由父 Agent 的验证脚本检查。
+
+---
+
+## 多域示例参考
+
+### 软件域 Analyzer 面板示例
+```markdown
+## Analyzer: 架构审查专家
+- focus: 微服务拆分合理性、数据库选型、缓存架构
+- questions:
+  1. 服务拆分粒度是否合适？有没有过度拆分或拆分不足？
+  2. 数据库选型理由是否充分？是否考虑了扩展性？
+  3. 缓存策略是否合理？缓存穿透/雪崩风险是否缓解？
+- target_sections: [Section 2 方案设计, Section 3 关键选型]
+
+## Analyzer: 安全审查专家
+- focus: 领域关键风险缓解（软件域: OWASP Top 10/认证授权/数据加密; 投资域: 数据源覆盖/假设验证; 硬件域: TDP验证/安全裕量）
+- questions:
+  1. 领域关键风险是否逐一识别并缓解（软件域: OWASP Top 10; 投资域: 数据源可信度; 硬件域: 安全裕度）？
+  2. 认证方案是否安全？密钥管理是否妥当？
+  3. 敏感数据是否加密存储和传输？
+- target_sections: [Section 6 风险控制]
+```
+
+### 投资域 Analyzer 面板示例
+```markdown
+## Analyzer: 财务验证专家
+- focus: 估值模型合理性、数据源覆盖、假设验证
+- questions:
+  1. 估值模型选择是否合理（DCF vs APV vs 可比公司）？
+  2. 关键财务数据是否有 3+ 独立数据源交叉验证？
+  3. 核心假设（收入增长率、折现率）是否经敏感性分析验证？
+- target_sections: [Section 3 估值分析, Section 4 财务预测]
+
+## Analyzer: 风险评估专家
+- focus: 风险维度覆盖、缓解措施可行性、应急预案
+- questions:
+  1. 技术/市场/监管三维度风险是否全面覆盖？
+  2. 风险缓解措施是否具体可执行？
+  3. 是否有应急预案（Plan B）？
+- target_sections: [Section 7 风险分析, Section 8 风险缓解]
+
+## Analyzer: 合规审查专家
+- focus: 数据来源合规、信息披露、监管要求
+- questions:
+  1. 数据来源是否合规（隐私保护、版权）？
+  2. 信息披露是否充分（风险提示、利益冲突）？
+  3. 是否符合行业监管要求？
+- target_sections: [Section 9 合规性]
+```
+
+### 硬件域 Analyzer 面板示例
+```markdown
+## Analyzer: 热设计验证专家
+- focus: 散热方案、TIM 材料、CFD 仿真、安全裕量
+- questions:
+  1. 散热方案是否满足 TDP 要求？安全裕量是否足够？
+  2. TIM 材料选型是否合理？热阻参数是否实测确认？
+  3. CFD 仿真是否覆盖最坏工况？
+- target_sections: [Section 2 热设计, Section 3 散热方案]
+
+## Analyzer: 可靠性验证专家
+- focus: MTBF、降额设计、加速寿命试验
+- questions:
+  1. MTBF 计算是否基于标准模型（Arrhenius/Coffin-Manson）？
+  2. 关键器件降额设计是否合规（电压/温度/电流）？
+  3. 加速寿命试验方案是否合理？
+- target_sections: [Section 5 可靠性设计]
+
+## Analyzer: 制造可行性专家
+- focus: DFM 评审、工艺能力、供应链策略
+- questions:
+  1. DFM 评审是否通过？关键工艺是否可行？
+  2. 工艺能力指数 Cpk 是否 > 1.33？
+  3. 供应链是否采用双源策略？BOM 成本是否在目标内？
+- target_sections: [Section 4 制造设计, Section 6 供应链]
+```

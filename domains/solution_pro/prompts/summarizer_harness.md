@@ -154,8 +154,8 @@ updated: "2026-05-01"
 - 实施周期
 
 ## 详细方案
-### 架构设计
-### 技术选型
+### 方案设计
+### 关键选型
 ### 数据流
 ### 接口设计
 
@@ -195,3 +195,76 @@ updated: "2026-05-01"
 - **一致性**: 数据前后一致，无矛盾
 - **可读性**: Markdown文档格式清晰，易于阅读
 - **价值导向**: 突出核心价值，而非堆砌细节
+
+---
+
+## 多域示例参考
+
+### 软件域输出示例
+```json
+{
+  "final_solution": {
+    "solution_executive_summary": {
+      "project_name": "电商平台微服务架构升级",
+      "problem_statement": "现有单体架构无法支撑 10 倍流量增长",
+      "solution_approach": "拆分为 12 个微服务，引入 Kubernetes 容器编排",
+      "key_benefits": ["系统吞吐量提升 5 倍", "部署频率从月度提升至每日", "故障隔离能力显著增强"],
+      "investment": {"capex": "150 万", "opex_annual": "30 万/年"},
+      "roi": "预计 12 个月回本",
+      "timeline": "6 个月实施周期"
+    },
+    "quality_assurance": {
+      "reviewer_scores": {"technical": 0.88, "business": 0.85, "risk": 0.82},
+      "harness_scores": {"completeness": 0.90, "necessity": 0.85, "alignment": 0.88, "global_impact": 0.85, "total": 0.87},
+      "requirement_coverage": {"total": 15, "covered": 15, "partial": 0, "missing": 0, "p0_missing": []}
+    }
+  }
+}
+```
+
+### 投资域输出示例
+```json
+{
+  "final_solution": {
+    "solution_executive_summary": {
+      "project_name": "目标公司股权收购项目",
+      "problem_statement": "评估目标公司投资价值及收购可行性",
+      "solution_approach": "采用 DCF + 可比公司法估值，结合尽职调查评估风险",
+      "key_benefits": ["预计投资回报率 25%", "战略协同效应显著", "市场份额提升至 30%"],
+      "investment": {"capex": "5000 万", "opex_annual": "500 万/年"},
+      "roi": "预计 4 年回本（含整合期）",
+      "timeline": "3 个月尽职调查 + 6 个月整合"
+    },
+    "quality_assurance": {
+      "reviewer_scores": {"financial": 0.92, "market": 0.88, "risk": 0.85},
+      "harness_scores": {"completeness": 0.90, "necessity": 0.88, "alignment": 0.92, "global_impact": 0.85, "total": 0.89},
+      "requirement_coverage": {"total": 12, "covered": 12, "partial": 0, "missing": 0, "p0_missing": []},
+      "data_source_coverage": {"financial_data": "3 源验证", "market_data": "2 源验证", "risk_assessment": "全面覆盖"}
+    }
+  }
+}
+```
+
+### 硬件域输出示例
+```json
+{
+  "final_solution": {
+    "solution_executive_summary": {
+      "project_name": "高性能服务器散热系统升级",
+      "problem_statement": "现有散热方案无法满足 TDP 350W 处理器的散热需求",
+      "solution_approach": "采用热管 + 均温板复合散热方案，优化风道设计",
+      "key_benefits": ["Tj 降低 15°C", "系统可靠性提升 30%", "噪音降低 5dB"],
+      "investment": {"capex": "80 万/台", "opex_annual": "5 万/年"},
+      "roi": "预计 18 个月回本（含能耗节省）",
+      "timeline": "4 个月设计验证 + 2 个月量产导入"
+    },
+    "quality_assurance": {
+      "reviewer_scores": {"thermal": 0.95, "reliability": 0.90, "manufacturing": 0.88},
+      "harness_scores": {"completeness": 0.92, "necessity": 0.90, "alignment": 0.95, "global_impact": 0.88, "total": 0.91},
+      "requirement_coverage": {"total": 10, "covered": 10, "partial": 0, "missing": 0, "p0_missing": []},
+      "thermal_validation": {"tj_max": "92°C < 105°C", "safety_margin": "13°C ✅", "cfd_verified": true},
+      "reliability_validation": {"mtbf": "52000h > 30000h", "derating_compliant": true}
+    }
+  }
+}
+```

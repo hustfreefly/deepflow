@@ -588,19 +588,18 @@ class TestV2Integration:
         gate_a_config = MOCK_EXPERT_MANIFEST["gate_a"]
         result = layer._evaluate_gate_a(compressed, gate_a_config)
 
-        # Result structure
+        # Result structure — AI Native: raw_metrics + structural_pass, no semantic scores
         assert "score" in result
         assert "verdict" in result
-        assert "scores" in result
-        assert set(result["scores"].keys()) == {"completeness", "necessity", "alignment", "global_impact"}
+        assert "raw_metrics" in result
+        assert "structural_pass" in result
+        assert isinstance(result["raw_metrics"], dict)
+        assert "constraint_count" in result["raw_metrics"]
+        assert isinstance(result["structural_pass"], bool)
 
-        # Score should be reasonable (0-1)
-        assert 0.0 <= result["score"] <= 1.0
-        for dim_score in result["scores"].values():
-            assert 0.0 <= dim_score <= 1.0
-
-        # With 4 constraints + 4 checklist items + 2 covered reqs → should score well
-        assert result["score"] >= 0.70, f"Expected score >= 0.70, got {result['score']}"
+        # With 4 constraints + 4 checklist items → structural_pass should be True
+        assert result["structural_pass"] is True
+        assert result["verdict"] == "PASS"
 
     def test_gate_a_dynamic_weights_applied(self, mock_blackboard):
         """验证 Gate A 正确使用不同权重配置"""
@@ -617,27 +616,20 @@ class TestV2Integration:
             "information_conservation": {"status": "PASS"},
         }
 
-        # Test with different weight configurations
-        config_high_alignment = {
-            "weights": {"completeness": 0.10, "necessity": 0.10, "alignment": 0.70, "global_impact": 0.10},
+        # AI Native: weights no longer used for semantic scoring.
+        # Verify structural assessment works regardless of weight config.
+        config = {
+            "weights": {"completeness": 0.30, "necessity": 0.20, "alignment": 0.30, "global_impact": 0.20},
             "thresholds": {"PASS": 0.85, "WARNING": 0.70, "CRITICAL_WARNING": 0.60, "BLOCK_RECOMMENDATION": 0.0},
         }
 
-        config_high_completeness = {
-            "weights": {"completeness": 0.70, "necessity": 0.10, "alignment": 0.10, "global_impact": 0.10},
-            "thresholds": {"PASS": 0.85, "WARNING": 0.70, "CRITICAL_WARNING": 0.60, "BLOCK_RECOMMENDATION": 0.0},
-        }
+        result = layer._evaluate_gate_a(compressed, config)
 
-        result_alignment = layer._evaluate_gate_a(compressed, config_high_alignment)
-        result_completeness = layer._evaluate_gate_a(compressed, config_high_completeness)
-
-        # Both should produce valid scores
-        assert 0.0 <= result_alignment["score"] <= 1.0
-        assert 0.0 <= result_completeness["score"] <= 1.0
-
-        # The scores should differ with different weights
-        # (unless by coincidence they're equal, which is unlikely with very different weights)
-        # We just verify the mechanism works, not exact values
+        # Structural pass: has constraints + checklist
+        assert result["structural_pass"] is True
+        assert result["verdict"] == "PASS"
+        assert "raw_metrics" in result
+        assert result["raw_metrics"]["constraint_count"] > 0
 
     def test_gate_b_dynamic_evaluation(self, mock_blackboard):
         """验证 Gate B 使用动态检查项评估
@@ -751,15 +743,17 @@ class TestV2Integration:
             "original_references": {},
         }
         scores = layer._compute_gate_a_scores(compressed)
-        assert set(scores.keys()) == {"completeness", "necessity", "alignment", "global_impact"}
-        for v in scores.values():
-            assert 0.0 <= v <= 1.0
+        assert set(scores.keys()) == {"raw_metrics", "structural_pass"}
+        assert isinstance(scores["raw_metrics"], dict)
+        assert "constraint_count" in scores["raw_metrics"]
+        assert isinstance(scores["structural_pass"], bool)
 
         # Step 3: Gate A evaluation
         gate_a = layer._evaluate_gate_a(compressed, MOCK_EXPERT_MANIFEST["gate_a"])
         assert "score" in gate_a
         assert "verdict" in gate_a
-        assert 0.0 <= gate_a["score"] <= 1.0
+        assert "raw_metrics" in gate_a
+        assert "structural_pass" in gate_a
 
         # Step 4: Gate B evaluation
         gate_b = layer._evaluate_gate_b(

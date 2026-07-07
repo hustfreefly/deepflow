@@ -40,7 +40,7 @@ from domains.spec_pro.models import (
     RoundAction,
     Scenario,
 )
-from domains.spec_pro.contracts.gate import gate_living_spec_density, gate_quality_report
+from domains.spec_pro.contracts.gate import gate_living_spec_density, gate_quality_report, gate_harness_decision
 from domains.spec_pro.handoff import build_handoff_package, save_handoff_package
 from core.trace import start_trace, span  # 全链路追踪：跨域 trace_id
 
@@ -91,6 +91,9 @@ class SpecProCoordinator:
         self.current_round: int = 0
         self.state: DialogState = DialogState.START
         self._config = MODE_CONFIG[mode]
+        # 域上下文缓存：parse 阶段推断后保存，供后续轮次评分/提问使用
+        self._domain_type: Optional[str] = None
+        self._domain_context: str = ""
 
         # 全链路追踪：在 Coordinator 初始化时启动 trace
         self.trace_id: Optional[str] = start_trace()
@@ -225,6 +228,9 @@ class SpecProCoordinator:
             }
 
         self.current_round += 1
+
+        # Fix 2: 从上一轮 parse 输出中提取 inferred_domain（LLM 语义推断结果）
+        self._extract_domain_from_parse(self.current_round - 1)
 
         # Safety Valve: max_rounds check
         max_rounds = self._config["max_rounds"]
@@ -478,7 +484,59 @@ class SpecProCoordinator:
         except Exception as e:
             return {"passed": False, "issues": [f"LivingSpec 解析失败: {e}"], "score": 0.0, "warnings": []}
 
-        return gate_living_spec_density(spec_model)
+        density_result = gate_living_spec_density(spec_model)
+
+        # Compute complexity score and inject into density gate result
+        try:
+            from domains.spec_pro.contracts.gate import compute_complexity_score
+            complexity_result = compute_complexity_score(living_spec_data)
+            density_result["complexity_score"] = complexity_result.get("complexity_score", 0)
+            density_result["complexity_factors"] = complexity_result.get("complexity_factors", [])
+            density_result["suggested_engine"] = complexity_result.get("suggested_engine", "direct")
+            density_result["suggested_mode"] = complexity_result.get("suggested_mode", "simple")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"compute_complexity_score failed: {e}")
+
+        return density_result
+
+    def run_harness_decision(self) -> Optional[dict]:
+        """
+        执行 Harness 三层门控决策（Layer 1 density + Layer 2 LLM scores → Layer 3 decision）。
+
+        结果写入 spec/harness_report.json。
+
+        Returns:
+            harness decision dict，如果必要数据不存在则返回 None
+        """
+        if self._bb is None:
+            return None
+
+        # Layer 1: density gate
+        density_result = self.check_density_gate()
+
+        # Layer 2: quality report dimension scores
+        quality_report_data = self._bb.read_json("spec/quality_report.json", default={})
+        layer2_scores = quality_report_data.get("quality", quality_report_data)
+
+        # Layer 3: merge decision
+        decision = gate_harness_decision(density_result, layer2_scores)
+
+        # 规范化 quality dimensions（数组 → dict）
+        try:
+            from domains.spec_pro.merge_spec import _normalize_quality_dimensions
+            dims = layer2_scores.get("dimension_scores", {})
+            normalized = _normalize_quality_dimensions(dims)
+            if normalized != dims:
+                layer2_scores["dimension_scores"] = normalized
+                decision["layer2_scores"] = normalized
+        except Exception:
+            pass
+
+        # 写入 harness report
+        self._bb.write("spec/harness_report.json", decision)
+        self._write_execution_log("harness_decision", decision)
+        return decision
 
     def build_handoff_on_done(self) -> Optional[Path]:
         """
@@ -501,6 +559,11 @@ class SpecProCoordinator:
         _, qr_errors = gate_quality_report(quality_report_data)
         if qr_errors:
             raise ValueError(f"QualityReport 契约验证失败: {qr_errors}")
+
+        # Harness 三层门控（如果尚未执行）
+        harness_report = self._bb.read_json("spec/harness_report.json")
+        if harness_report is None:
+            harness_report = self.run_harness_decision()
 
         package = build_handoff_package(
             living_spec=living_spec_data,
@@ -586,7 +649,11 @@ class SpecProCoordinator:
         threshold = self._compute_dynamic_threshold()
         session_dir = self._bb.session_dir if self._bb else ""
 
-        return f"""# Spec Pro v3 确认阶段 — 主 Agent 执行指南
+        # --- domain_context 注入（确认阶段也需要域感知） ---
+        domain_context = self._get_domain_context()
+        domain_prefix = f"{domain_context}\n\n" if domain_context else ""
+
+        return f"""{domain_prefix}# Spec Pro v3 确认阶段 — 主 Agent 执行指南
 
 你是 Spec Pro 主 Agent。用户在确认阶段做出了决定。
 
@@ -608,7 +675,7 @@ class SpecProCoordinator:
 3. 使用 read_json 读取 spec/harness_report.json（如有）
 4. **提取 Semantic Anchors（契约笼子强制步骤）**：
    - 从 living_spec.confirmed 的 narrative/description/requirements 中，提取所有**不可抽象化的具体技术引用**
-   - 提取维度：platform_api（具体 API/工具名）、architecture_principle（不可妥协的架构原则）、external_system（必须集成的外部系统）、technical_constraint（硬性技术约束）
+   - 提取维度：根据项目性质选择合适的类别。常见类别包括：platform_api / architecture_principle / external_system / technical_constraint（软件域）; market_segment / patent_portfolio / regulatory_framework（投资域）; physical_constraint / material_spec（硬件域）; business_rule / compliance_requirement（商业域）。也可根据项目需要自定义类别。
    - 判断标准：如果被泛化/抽象化，会导致下游实施者不知道该用什么具体技术 → 这就是 anchor
    - 反例："设计优雅"、"代码质量高" 不是 anchor（太抽象）
    - 将提取结果写入 living_spec.semantic_anchors，格式：
@@ -638,9 +705,9 @@ class SpecProCoordinator:
      - 结束本轮
 
 6. **构建 Handoff Package + 写 round_result.json**：
-   执行以下命令构建 handoff package：
+   执行以下命令构建 handoff package（`--extract-anchors` 强制 Pydantic 验证 semantic anchors 格式）：
    ```
-   python3 .deepflow/domains/spec_pro/build_handoff_cli.py "{session_dir}"
+   python3 .deepflow/domains/spec_pro/build_handoff_cli.py "{session_dir}" --extract-anchors
    ```
    然后使用 write 工具写入 spec/round_result.json：
 ```json
@@ -673,6 +740,67 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
    - 写 round_result.json (action="questions")
 """
 
+    def _get_domain_context(self) -> str:
+        """获取域上下文。优先从缓存读取，fallback 到 living_spec。
+
+        域类型由 parse worker（LLM）在解析需求时推断，写入 living_spec.meta.domain_type。
+        coordinator 不再做关键词匹配推断域类型（已删除 infer_domain_from_input）。
+
+        Returns:
+            域上下文文本（markdown 格式），如果无法确定则返回空字符串
+        """
+        # 优先使用缓存
+        if hasattr(self, '_domain_context') and self._domain_context:
+            return self._domain_context
+
+        # fallback: 从 living_spec 读取
+        domain_type = None
+        if hasattr(self, '_bb') and self._bb is not None:
+            try:
+                living_spec_data = self._bb.read_json("spec/living_spec.json", default={})
+                if isinstance(living_spec_data, dict):
+                    domain_type = living_spec_data.get("meta", {}).get("domain_type")
+            except Exception:
+                pass
+
+        if domain_type:
+            try:
+                from domains.spec_pro.domain_context import build_domain_context
+                ctx = build_domain_context(domain_type)
+                self._domain_context = ctx  # 缓存
+                self._domain_type = domain_type
+                return ctx
+            except Exception:
+                pass
+        return ""
+
+    def _extract_domain_from_parse(self, round_num: int) -> None:
+        """从 parse worker 输出中提取 inferred_domain，保存到实例变量。
+
+        parse worker（LLM）在解析需求时同时推断域类型。
+        coordinator 读取推断结果，缓存到 _domain_type/_domain_context，
+        供后续轮次的 _build_round_task 和 _build_confirmation_task 使用。
+
+        Args:
+            round_num: 已完成的轮次号（其 parse 输出将被读取）
+        """
+        if self._bb is None:
+            return
+        try:
+            parse_data = self._bb.read_json(f"stages/round_{round_num:02d}_parse.json", default={})
+            if not isinstance(parse_data, dict):
+                return
+            inferred = parse_data.get("inferred_domain", "")
+            if inferred and inferred != "unknown":
+                # 只在尚未确定域类型时更新，避免覆盖
+                if not self._domain_type:
+                    self._domain_type = inferred
+                    from domains.spec_pro.domain_context import build_domain_context
+                    self._domain_context = build_domain_context(inferred)
+        except Exception:
+            # 提取失败不阻断主流程
+            pass
+
     def _build_round_task(self, round_num: int, phase: str) -> str:
         """
         生成主 Agent 直接执行的流程指令。
@@ -689,7 +817,11 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
 
         session_dir = self._bb.session_dir if self._bb else ""
 
-        task = f"""# Spec Pro v3 扁平架构 — 主 Agent 执行指南
+        # --- domain_context 注入（域感知，由 LLM 在 parse 阶段推断） ---
+        domain_context = self._get_domain_context()
+        domain_prefix = f"{domain_context}\n\n" if domain_context else ""
+
+        task = f"""{domain_prefix}# Spec Pro v3 扁平架构 — 主 Agent 执行指南
 
 你是 Spec Pro 主 Agent。本次使用 v3 扁平架构：你直接做评分和提问。
 
@@ -821,12 +953,24 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
         return task
 
     def _build_parse_worker_prompt(self, round_num: int) -> str:
-        """构建 ParseWorker 的 task prompt。"""
+        """构建 ParseWorker 的 task prompt。
+
+        第一轮不预注入 domain_context（此时还不知道域类型，LLM 自己会判断）。
+        后续轮次从 living_spec.meta.domain_type 读取（由 _get_domain_context 提供）。
+        """
         from core.prompt_registry import read_prompt
         parse_prompt = read_prompt("spec_pro/parse")
         session_dir = self._bb.session_dir if self._bb else ""
+
+        # --- domain_context 注入（第一轮不注入，后续轮次从 living_spec 读取） ---
+        domain_context = ""
+        if round_num > 1:
+            domain_context = self._get_domain_context()
+
+        domain_prefix = f"{domain_context}\n\n" if domain_context else ""
+
         if round_num == 1:
-            return f"""{parse_prompt}
+            return f"""{domain_prefix}{parse_prompt}
 
 ## 当前任务上下文
 - Session: {self.session_id}
@@ -839,7 +983,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
 """
         else:
             prev = round_num - 1
-            return f"""{parse_prompt}
+            return f"""{domain_prefix}{parse_prompt}
 
 ## 当前任务上下文
 - Session: {self.session_id}

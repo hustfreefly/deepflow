@@ -145,11 +145,7 @@ class LivingSpec:
     narrative: str = ""                       # 完整用户需求叙述
     requirement_index: List[Dict[str, Any]] = field(default_factory=list)  # REQ-ID 追溯索引
     semantic_anchors: List[Dict[str, Any]] = field(default_factory=list)   # 不可变语义锚点
-    # 契约笼子（2026-07-05）：与 contracts/living_spec.py Pydantic 模型对齐
-    core_summary: str = ""          # ≤5KB 核心摘要，下游优先读取
-    narrative: str = ""             # 完整用户需求叙述
-    requirement_index: List[Dict[str, Any]] = field(default_factory=list)  # REQ-ID 索引
-    semantic_anchors: List[Dict[str, Any]] = field(default_factory=list)   # 不可变语义锚点
+
 
 
 @dataclass

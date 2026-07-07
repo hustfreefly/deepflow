@@ -1,0 +1,78 @@
+domain_id: "business"
+domain_label: "商业策略"
+description: "市场进入、竞争策略、合规方案、财务预测、合作伙伴选择"
+
+meta_planner:
+  suggested_categories:
+    - market_entry
+    - competitive_strategy
+    - compliance_legal
+    - financial_forecast
+    - partnership
+    - localization
+    - pricing_strategy
+    - channel_strategy
+  gate_b_checks:
+    - name: "compliance_audit"
+      pass_criteria: "目标市场法规合规方案已覆盖"
+    - name: "financial_viability"
+      pass_criteria: "财务预测显示可行回报路径"
+
+expert_templates:
+  market_entry:
+    - name: "market_analyst"
+      lens: "市场规模、进入壁垒、本地化需求"
+    - name: "competitive_analyst"
+      lens: "竞品定位、差异化策略、价格对标"
+  compliance_legal:
+    - name: "legal_compliance_expert"
+      lens: "法规合规、数据保护、行业许可"
+    - name: "regulatory_advisor"
+      lens: "监管政策、合规流程、审计准备"
+  financial:
+    - name: "financial_planner"
+      lens: "收入模型、成本结构、盈亏平衡分析"
+    - name: "investment_advisor"
+      lens: "融资策略、投资回报、估值模型"
+
+seed_urls:
+  - "https://www.mckinsey.com/insights"
+  - "https://hbr.org"
+  - "https://www.statista.com"
+
+quality_dimensions:
+  - market_size
+  - competitive_advantage
+  - compliance_score
+  - revenue_potential
+  - customer_satisfaction
+
+output_structure:
+  - "战略概述"
+  - "市场分析"
+  - "竞争格局"
+  - "合规方案"
+  - "本地化策略"
+  - "渠道与合作伙伴"
+  - "财务预测"
+  - "风险评估"
+  - "实施路线图"
+
+review_dimensions:
+  - "市场假设合理性"
+  - "竞争策略可行性"
+  - "合规方案完整性"
+  - "财务预测可靠性"
+  - "执行计划可操作性"
+
+harness_checks:
+  - "数据来源验证"
+  - "假设敏感性分析"
+  - "合规条款覆盖"
+
+design_output:
+  sections:
+    - "策略框架"
+    - "市场定位"
+    - "合规方案"
+    - "财务模型"

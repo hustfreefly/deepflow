@@ -60,25 +60,25 @@
   "unified_constraints": [
     {
       "constraint_id": "UC-001",
-      "description": "所有 API 必须使用 HTTPS",
+      "description": "核心数据存储方案必须满足安全合规要求",
       "priority": "MUST",
       "source_experts": ["security_expert"],
       "conflicts_resolved": []
     },
     {
       "constraint_id": "UC-002",
-      "description": "API 响应时间 < 200ms",
+      "description": "关键性能指标满足目标要求",
       "priority": "MUST",
       "source_experts": ["performance_expert"],
       "conflicts_resolved": []
     },
     {
       "constraint_id": "UC-003",
-      "description": "数据库使用 PostgreSQL",
+      "description": "核心组件方案已确定",
       "priority": "MUST",
       "source_experts": ["data_architect", "performance_expert"],
       "conflicts_resolved": [
-        "data_architect 要求 PostgreSQL 15+，performance_expert 要求 14+，取更高版本 15+"
+        "data_architect 和 performance_expert 对核心组件方案有不同建议，取更严格版本"
       ]
     }
   ],
@@ -86,7 +86,7 @@
     {
       "constraint_id": "RC-001",
       "description": "使用 GraphQL",
-      "reason": "与现有 REST API 不兼容，且增加学习成本",
+      "reason": "与现有接口协议不兼容，且增加学习成本",
       "source_expert": "frontend_expert"
     }
   ],
@@ -101,7 +101,7 @@
     {
       "id": "P0-001",
       "category": "platform",
-      "description": "所有 Worker 必须通过 sessions_spawn 创建",
+      "description": "所有 Worker 必须通过规定方式创建（软件域示例: sessions_spawn）",
       "source_experts": ["meta_planner", "expert_a"],
       "conflicts_resolved": []
     }
@@ -120,20 +120,20 @@
     {
       "check_id": "VC-001",
       "constraint_id": "UC-001",
-      "verification_method": "运行 `curl -I https://api.example.com/health`，检查响应头包含 `Strict-Transport-Security`",
-      "expected_result": "响应状态码 200，包含 HSTS 头"
+      "verification_method": "使用领域适当的验证工具检查安全合规性（软件域: curl -I 检查 HTTPS/HSTS；投资域: 数据源交叉验证；硬件域: 合规检测报告）",
+      "expected_result": "通过领域关键安全指标验证"
     },
     {
       "check_id": "VC-002",
       "constraint_id": "UC-002",
-      "verification_method": "运行性能基准测试 `wrk -t12 -c400 -d30s https://api.example.com/users`，检查 99th percentile 响应时间",
-      "expected_result": "99th percentile < 200ms"
+      "verification_method": "使用领域基准测试工具验证关键性能指标（软件域: wrk/vegeta 压测；投资域: 估值模型回测；硬件域: 热仿真/实测）",
+      "expected_result": "关键性能指标满足目标要求"
     },
     {
       "check_id": "VC-003",
       "constraint_id": "UC-003",
-      "verification_method": "运行 `psql --version` 和 `SELECT version();`",
-      "expected_result": "PostgreSQL 15.0 或更高版本"
+      "verification_method": "使用领域验证工具确认核心组件方案（软件域: 版本检查；投资域: 资质审核；硬件域: 规格书对比）",
+      "expected_result": "核心组件方案符合设计要求"
     }
   ],
   "total_checks": 30
@@ -181,9 +181,9 @@
 1. **语义去重**
    - 相同含义的约束合并，保留最低 ID
    - 示例：
-     - Expert A: "使用 HTTPS" (C-001)
-     - Expert B: "所有 API 必须使用 TLS 1.2+" (C-005)
-     - 合并为: "所有 API 必须使用 HTTPS（TLS 1.2+）" (UC-001)
+     - Expert A: "核心安全要求" (C-001)
+     - Expert B: "通信加密要求" (C-005)
+     - 合并为: "核心安全与加密要求" (UC-001)
 
 2. **冲突解决**
    - 如果 Expert 间有矛盾，必须在 `conflicts_resolved` 中记录
@@ -192,26 +192,26 @@
      - 取更通用的约束
      - 取更安全的约束
    - 示例：
-     - Expert A: "响应时间 < 100ms"
-     - Expert B: "响应时间 < 500ms"
-     - 解决: "响应时间 < 200ms（折中，平衡性能和质量）"
+     - Expert A: "关键指标目标值 A"
+     - Expert B: "关键指标目标值 B"
+     - 解决: "取折中目标值（平衡性能和质量）"
 
 3. **P0 REQ 覆盖**
    - 所有 P0 REQ 必须在 `unified_constraints` 中有对应约束
    - 如果某个 P0 REQ 未覆盖，必须在 `rejected_constraints` 中说明原因
    - 示例：
-     - P0 REQ: "支持 10000 并发用户"
-     - 对应约束: UC-002 "吞吐量 > 1000 req/s"
+     - P0 REQ: "关键性能目标"
+     - 对应约束: UC-002 "关键性能指标满足目标要求"
      - 追溯: `covered_req_ids: ["REQ-P0-002"]`
 
 4. **验证清单可执行性**
    - 每个验证项必须是可执行的命令或测试
    - 禁止模糊描述：
      - ❌ "检查安全性"
-     - ✅ "运行 OWASP ZAP 扫描，无高危漏洞"
+     - ✅ "运行领域适当的安全验证工具，无高危风险"（软件域: OWASP ZAP；投资域: 数据源审计；硬件域: FMEA 分析）
    - 禁止主观判断：
-     - ❌ "代码质量好"
-     - ✅ "通过 ESLint 检查，无 error 级别警告"
+     - ❌ "质量好"
+     - ✅ "通过领域标准验证工具检查，无 error 级别问题"
 
 5. **合并比例**
    - `merge_ratio` = `total_output_constraints` / `total_input_constraints`
@@ -234,24 +234,24 @@
 - `merge_ratio`: 0.67
 
 **合并示例**:
-- security_expert C-001 "HTTPS" + performance_expert C-005 "TLS 1.2+" → UC-001 "HTTPS (TLS 1.2+)"
-- data_architect C-003 "PostgreSQL 15+" + performance_expert C-008 "PostgreSQL 14+" → UC-003 "PostgreSQL 15+"
+- security_expert C-001 "核心安全要求" + performance_expert C-005 "加密要求" → UC-001 "核心安全与加密要求"
+- data_architect C-003 "核心组件方案 A" + performance_expert C-008 "核心组件方案 B" → UC-003 "核心组件方案（取更严格版本）"
 
 ### 场景 2: 冲突解决
 
 **输入**:
-- Expert A: "使用 Redis 缓存" (C-010)
-- Expert B: "使用 Memcached 缓存" (C-012)
+- Expert A: "使用方案 A" (C-010)
+- Expert B: "使用方案 B" (C-012)
 
 **输出**:
 ```json
 {
   "constraint_id": "UC-010",
-  "description": "使用 Redis 缓存（支持持久化和数据结构）",
+  "description": "选定方案（综合评估后确定）",
   "priority": "SHOULD",
   "source_experts": ["performance_expert", "data_architect"],
   "conflicts_resolved": [
-    "performance_expert 推荐 Memcached（更快），data_architect 推荐 Redis（支持持久化），选择 Redis 因为支持更多数据结构和持久化"
+    "performance_expert 推荐方案 A（性能更优），data_architect 推荐方案 B（功能更全），选择方案 B 因为功能覆盖更完整"
   ]
 }
 ```

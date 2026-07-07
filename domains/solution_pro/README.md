@@ -1,11 +1,13 @@
-# Solution Pro 2.0.0 — 系统级解决方案设计引擎
+# Solution Pro 2.1.0 — 领域自适应方案设计引擎
 
-> 通过三层模块化架构自动化生成高质量技术解决方案
+> 通过领域分析前置 + 三层模块化架构，自适应生成跨领域高质量方案
 
 ## 当前版本
 
-- **版本**: 2.0.0 (三层架构)
-- **架构**: MasterOrchestrator → Planning（三层）+ Research（多专家并行）+ Summary（5+1 Phase 收敛）
+- **版本**: 2.1.0 (领域自适应 + 三层架构)
+- **架构**: Domain Analysis → MasterOrchestrator → Planning（三层）+ Research（多专家并行）+ Summary（5+1 Phase 收敛）
+- **领域自适应**: domain_analysis.py (DomainProfile 10字段) + 4 YAML few-shot 参考 + 16+ Prompt 泛化
+- **支持领域**: 软件开发（默认）/ 投资分析 / 硬件设计 / 商业策略 / 任意新领域（LLM 自适应）
 - **模型**: 默认使用 Qwen 3.7 Plus
 
 ## 快速开始
@@ -131,6 +133,25 @@ Phase 5b: JSON Extractor → final_solution
 ## 版本历史
 
 - **2.0.0** (2026-06-29): 三层架构（Planning + Research + Summary）+ 断点续跑 + 超时降级
+- **2.1.0** (2026-07-08): AI Native 反模式修复
 - **2.0.0** (2026-06-03): 2.0.0 最终版本（固定多阶段管线）
 
 详细变更见 [CHANGELOG.md](../../CHANGELOG.md)
+
+## V2.1.1 (2026-07-08) — AI Native 反模式修复
+
+### 修复概要
+9 个反模式修复（3 P0 + 6 P1），清除代码中"用代码做语义判断"的反模式。
+
+### 架构变更
+- **DAL 完善**: domain_loader 从 4 域硬编码精简为仅 software fallback，其他域走 YAML
+- **Schema 去语义化**: Cage F6/F7 从关键词触发器/正则提取改为结构化字段检查
+- **评估去硬编码**: harness_scorer 改进建议从 if-else 固定字符串改为弱维度信号 + LLM 生成
+- **信息守恒参数化**: conservation 权重/阈值从硬编码改为 DEFAULT_WEIGHTS + 构造函数参数化
+
+### 文件变更
+- schemas/schemas.py: Cage F6/F7 + VERDICT_SCORE_MAP
+- harness_scorer.py: _generate_improvements 重构
+- information_conservation.py: 权重/阈值参数化
+- config/domain_loader.py: BUILTIN_DOMAIN_CONFIGS 精简
+- convergence_layer.py: Gate A/B 重构（P0 修复）

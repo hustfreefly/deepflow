@@ -87,35 +87,37 @@ spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/f
   "expert_name": "security_expert",
   "constraints": [
     {"constraint_id": "C-001", "description": "HTTPS", "priority": "MUST", "rationale": "..."},
-    {"constraint_id": "C-002", "description": "bcrypt", "priority": "MUST", "rationale": "..."},
+    {"constraint_id": "C-002", "description": "软件域: bcrypt / 投资域: 专利有效期 ≥ 10年 / 商业域: 合规条款审查", "priority": "MUST", "rationale": "..."},
     {"constraint_id": "C-003", "description": "审计日志", "priority": "SHOULD", "rationale": "..."}
   ],
   "risks": [
     {"risk_id": "R-001", "description": "SQL 注入", "mitigation": "..."}
   ],
   "acceptance_criteria": [
-    {"criterion_id": "AC-001", "description": "OWASP ZAP", "verification_method": "..."}
+    {"criterion_id": "AC-001", "description": "软件域: OWASP ZAP / 投资域: 数据源交叉验证 / 硬件域: TDP 满载测试", "verification_method": "..."}
   ],
   "covered_req_ids": ["REQ-P0-001"]
 }
 ```
 
-### 示例 2: Performance Expert
+### 示例 2: 投资分析专家（Patent Analyst）
 
 ```json
 {
-  "expert_name": "performance_expert",
+  "expert_name": "patent_analyst",
+  "domain": "patent_analysis",
   "constraints": [
-    {"constraint_id": "C-001", "description": "API 响应时间 < 200ms", "priority": "MUST", "rationale": "..."},
-    {"constraint_id": "C-002", "description": "支持水平扩展", "priority": "MUST", "rationale": "..."},
-    {"constraint_id": "C-003", "description": "使用缓存", "priority": "SHOULD", "rationale": "..."}
+    {"constraint_id": "C-001", "description": "核心专利有效期 ≥ 10年", "priority": "MUST", "rationale": "..."},
+    {"constraint_id": "C-002", "description": "发明专利占比 > 60%", "priority": "MUST", "rationale": "..."},
+    {"constraint_id": "C-003", "description": "FTO 分析无高风险侵权", "priority": "SHOULD", "rationale": "..."}
   ],
   "risks": [
-    {"risk_id": "R-001", "description": "数据库瓶颈", "mitigation": "..."}
+    {"risk_id": "R-001", "description": "核心专利即将到期", "mitigation": "评估续展可能性和替代方案"}
   ],
   "acceptance_criteria": [
-    {"criterion_id": "AC-001", "description": "性能基准测试", "verification_method": "..."}
+    {"criterion_id": "AC-001", "description": "专利组合健康度评估", "verification_method": "检索专利数据库验证专利状态"}
   ],
+  "focus_areas": ["专利组合分析", "技术壁垒评估", "竞争对手专利布局"],
   "covered_req_ids": ["REQ-P0-002"]
 }
 ```

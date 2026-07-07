@@ -168,3 +168,133 @@ def gate_living_spec_density(spec: LivingSpec) -> dict:
         "score": round(score, 2),
         "warnings": warnings,
     }
+
+
+def compute_complexity_score(living_spec: dict) -> dict:
+    """
+    确定性计算 LivingSpec 的复杂度分数。
+    从 LLM 移至代码，因为这是纯计数+加分操作。
+    """
+    confirmed = (living_spec or {}).get("confirmed", {})
+    score = 0
+    factors: list[str] = []
+
+    # users 角色数
+    users = confirmed.get("users", [])
+    if len(users) >= 3:
+        score += 15
+        factors.append(f"{len(users)} 个用户角色 (+15)")
+
+    # capabilities 总数
+    caps = confirmed.get("capabilities", {})
+    total_caps = (
+        len(caps.get("always_do", []))
+        + len(caps.get("should_do", []))
+        + len(caps.get("never_do", []))
+    )
+    if total_caps >= 5:
+        score += 15
+        factors.append(f"{total_caps} 项能力要求 (+15)")
+
+    # quality_attributes 数量
+    qa = confirmed.get("quality_attributes", [])
+    if len(qa) >= 3:
+        score += 10
+        factors.append(f"{len(qa)} 项质量属性 (+10)")
+
+    # constraints 数量
+    constraints = confirmed.get("constraints", {})
+    total_constraints = sum(
+        len(v) if isinstance(v, list) else 1 for v in constraints.values()
+    )
+    if total_constraints >= 3:
+        score += 10
+        factors.append(f"{total_constraints} 项约束 (+10)")
+
+    # inferred 数量
+    inferred = (living_spec or {}).get("inferred", [])
+    if len(inferred) >= 5:
+        score += 10
+        factors.append(f"{len(inferred)} 项推断需求 (+10)")
+
+    # semantic_anchors 数量
+    anchors = (living_spec or {}).get("semantic_anchors", [])
+    if len(anchors) >= 3:
+        score += 10
+        factors.append(f"{len(anchors)} 个语义锚点 (+10)")
+
+    # 路由建议
+    final_score = min(score, 100)
+    if final_score >= 60:
+        engine = "solution_pro"
+        mode = "full"
+    elif final_score >= 30:
+        engine = "solution_pro"
+        mode = "standard"
+    else:
+        engine = "direct"
+        mode = "simple"
+
+    return {
+        "complexity_score": final_score,
+        "complexity_factors": factors,
+        "suggested_engine": engine,
+        "suggested_mode": mode,
+    }
+
+
+def gate_harness_decision(layer1_result: dict, layer2_scores: dict) -> dict:
+    """
+    Layer 3: 合并 Layer 1（代码结构检查）和 Layer 2（LLM 语义判断）的结果。
+
+    Args:
+        layer1_result: gate_living_spec_density() 的输出
+        layer2_scores: LLM 输出的评分，优先从 meta_quality 读取，fallback 到 dimension_scores
+
+    Returns:
+        最终决策：PASS / WARN / SOFT_BLOCK / HARD_BLOCK
+    """
+    l1_passed = layer1_result.get("passed", False)
+
+    # 优先从 meta_quality 读取（assess.md 新输出），fallback 到 dimension_scores
+    meta = layer2_scores.get("meta_quality", {})
+    if meta:
+        l2_scores = {dim: meta[dim].get("score", 50) for dim in meta}
+        meta_source = "meta_quality"
+    else:
+        l2_scores = layer2_scores.get("dimension_scores", {})
+        meta_source = "dimension_scores"
+
+    # Layer 2 加权平均
+    weights = {
+        "clarity": 0.25,
+        "completeness": 0.25,
+        "executability": 0.20,
+        "consistency": 0.15,
+        "downstream_fitness": 0.15,
+    }
+
+    weighted_sum = sum(
+        l2_scores.get(dim, 50) * weight
+        for dim, weight in weights.items()
+    )
+
+    # Layer 1 不通过 → 至少 WARN
+    if not l1_passed:
+        decision = "WARN" if weighted_sum >= 60 else "SOFT_BLOCK"
+    elif weighted_sum >= 75:
+        decision = "PASS"
+    elif weighted_sum >= 60:
+        decision = "WARN"
+    elif weighted_sum >= 45:
+        decision = "SOFT_BLOCK"
+    else:
+        decision = "HARD_BLOCK"
+
+    return {
+        "decision": decision,
+        "layer1_passed": l1_passed,
+        "layer2_weighted_score": round(weighted_sum, 1),
+        "layer2_scores": l2_scores,
+        "meta_quality_source": meta_source,
+    }

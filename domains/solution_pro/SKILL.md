@@ -1,13 +1,15 @@
 ---
 name: solution-pro
-description: "DeepFlow Solution Pro — 解决方案设计引擎。触发：设计解决方案、架构设计、技术方案。"
-version: "2.0.0"
+description: "DeepFlow Solution Pro — 领域自适应方案设计引擎。触发：设计解决方案、架构设计、技术方案。"
+version: "V2.1.1"
 ---
 
 # Solution Pro — Agent 执行指南
 
-> **版本**: 2.0.0 | **最后更新**: 2026-07-05（契约笼子修复）  
-> **架构**: Orchestrator → Planning（三层）+ Research（多专家并行）+ Summary（5+1 Phase 收敛）  
+> **版本**: V2.1.1 | **最后更新**: 2026-07-08  
+> **架构**: 领域分析前置 + Orchestrator → Planning（三层）+ Research（多专家并行）+ Summary（5+1 Phase 收敛）  
+> **2.1.0 新增**: Domain Adaptation Layer — domain_analysis.py (DomainProfile 10字段) + 16+ Prompt 泛化 + Schema 开放枚举  
+> **V2.1.1 新增**: 反模式修复 9 个（3 P0 + 6 P1）+ 术语统一 + 测试 127 passed  
 > **2.0.0 架构**: 固定多阶段管线方案（已归档，仅用于已有 session 续跑）  
 > **2.0.0 改进**: 基于 E2E 2.0.0 质量评估，新增研究利用追踪 + Finding Ledger + 6 个确定性检查
 
@@ -32,6 +34,12 @@ version: "2.0.0"
 
 ```
 MasterOrchestrator（极简调度器，不做语义判断）
+  │
+  ├── 🧠 Domain Analysis（领域自适应前置步骤）
+  │   ├── domain_analysis.py → DomainProfile (10字段 Pydantic schema)
+  │   ├── LLM 推断领域类型 + 专家角色 + 质量维度 + 验证方法
+  │   ├── 4 个 YAML 配置降级为 few-shot 参考（software/investment/hardware/business）
+  │   └── domain_profile 注入全链路：Planning/Research/Summary → task_builder → Prompt
   │
   ├── Module 1: PlanningOrchestrator（三层架构）
   │   ├── Layer 0: Meta-Planner → 分析任务 → 选择专家 → 配置 Gate
@@ -513,3 +521,14 @@ except:
 | Fix 3 | 独立 Verification Module | 新增 | 📋 |
 
 *2.0.0 | 2026-07-01 | 2.0.0 三层架构 + 2.0.0 改进（研究追踪 + Finding Ledger + 确定性检查）*
+
+### V2.1.1 变更（2026-07-08）
+- **DAL 架构**: Domain Adaptation Layer — domain_analysis 前置步骤 + DomainProfile Pydantic schema + 全链路透传
+- **反模式修复**: 9 个修复（3 P0 + 6 P1），清除代码中的语义判断反模式
+  - Gate A/B: 关键词命中率 → raw_metrics + LLM Judge
+  - 研究利用率: 子串匹配 → [REF-xxx] 引用标记
+  - Schema: DOMAIN_CATEGORIES Literal → str 开放枚举
+  - 约束验证: Cage F6/F7 关键词/正则 → 结构化字段
+- **Prompt 泛化**: 16+ prompt 清除软件域硬编码，加入投资/硬件/商业多域示例
+- **术语统一**: "技术选型"→"关键选型"、"架构设计"→"方案设计"
+- **测试**: 127 passed, 10 skipped

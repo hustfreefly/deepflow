@@ -41,7 +41,9 @@
 ---
 
 1. **分析任务领域和复杂度**
-   - 领域分类：backend_api / frontend_ui / data_migration / ml_system / infrastructure / ...
+   - 领域标识（domain）：根据项目性质选择。
+     软件类参考: backend_api, frontend_ui, ml, devops, ...
+     其他领域可自定义，如: investment_analysis, hardware_design, business_strategy
    - 复杂度：low / medium / high / critical
 
 2. **决定需要哪些专家**（1-5 个）
@@ -78,7 +80,7 @@
 {
   "schema_version": "1.0.0",
   "task_profile": {
-    "domain": "backend_api",
+    "domain_id": "根据领域分析推断",
     "complexity": "high",
     "risk_areas": ["security", "scalability", "data_consistency"]
   },
@@ -86,7 +88,7 @@
     {
       "expert_name": "security_expert",
       "domain": "Security",
-      "focus_areas": ["OWASP Top 10", "authentication", "authorization", "data_encryption"],
+      "focus_areas": ["软件域: OWASP Top 10/认证授权/数据加密", "投资域: 数据源可信度/假设验证/风险维度", "硬件域: TDP验证/DFM评审/可靠性"],
       "evaluation_lens": "从安全漏洞和攻击面角度审视每个设计决策"
     },
     {
@@ -114,11 +116,11 @@
   "gate_b": {
     "dynamic_checks": [
       {
-        "name": "security_audit",
-        "description": "安全审计检查",
-        "pass_criteria": "无高危漏洞，所有 OWASP Top 10 风险已缓解",
+        "name": "domain_risk_audit",
+        "description": "领域关键风险审计",
+        "pass_criteria": "领域关键风险已识别并有缓解措施（软件域参考: OWASP Top 10；投资域参考: 数据源可信度；硬件域参考: 安全裕度）",
         "severity": "CRITICAL",
-        "reasoning": "安全是 P0 需求 REQ-P0-001"
+        "reasoning": "关键风险覆盖是 P0 需求 REQ-P0-001"
       },
       {
         "name": "p0_req_coverage",
@@ -128,32 +130,32 @@
         "reasoning": "P0 需求必须 100% 覆盖"
       },
       {
-        "name": "performance_benchmarks",
-        "description": "性能基准检查",
-        "pass_criteria": "关键 API 响应时间 < 200ms，吞吐量 > 1000 req/s",
+        "name": "key_performance_targets",
+        "description": "关键性能指标检查",
+        "pass_criteria": "领域关键性能指标已定义且可验证（软件域参考: API 响应时间 < 200ms；投资域参考: 估值偏差 < 15%；硬件域参考: 热阻 < 目标值）",
         "severity": "CRITICAL",
         "reasoning": "性能是 P0 需求 REQ-P0-002"
       },
       {
-        "name": "data_consistency",
-        "description": "数据一致性检查",
-        "pass_criteria": "关键数据操作有事务保证，无数据丢失风险",
+        "name": "data_integrity",
+        "description": "数据/信息完整性检查",
+        "pass_criteria": "关键数据/信息操作有完整性保证，无丢失或错误风险",
         "severity": "CRITICAL",
         "reasoning": "数据一致性是 P0 需求 REQ-P0-003"
       },
       {
-        "name": "api_documentation",
-        "description": "API 文档完整性",
-        "pass_criteria": "所有公开 API 有 OpenAPI 规范文档",
+        "name": "documentation_completeness",
+        "description": "交付文档完整性",
+        "pass_criteria": "所有关键交付物有规范文档（软件域参考: OpenAPI 规范；投资域参考: 尽调报告模板；硬件域参考: 设计规格书）",
         "severity": "MINOR",
         "reasoning": "文档完整性提升可维护性"
       },
       {
-        "name": "testing_strategy",
-        "description": "测试策略检查",
-        "pass_criteria": "有单元测试、集成测试、E2E 测试计划",
+        "name": "verification_strategy",
+        "description": "验证策略检查",
+        "pass_criteria": "有完整的验证计划（软件域参考: 单元/集成/E2E 测试；投资域参考: 数据交叉验证；硬件域参考: 仿真/实测对比）",
         "severity": "MINOR",
-        "reasoning": "测试策略保证质量"
+        "reasoning": "验证策略保证质量"
       }
     ]
   },
@@ -163,7 +165,7 @@
       "category": "platform",
       "description": "具体约束描述（一句话）",
       "reasoning": "为什么这是 P0（不可违反）",
-      "downstream_impact": "这个约束对下游 Worker 的设计意味着什么"
+      "downstream_impact": "这个约束对下游 Worker 的设计意味着什么（软件域示例: 必须使用 sessions_spawn 创建 Worker）"
     }
   ],
   "verdict_policy": {
@@ -190,12 +192,14 @@
 - Gate A: 均衡权重 (0.25, 0.25, 0.25, 0.25)
 - Gate B: 3 个检查项（1 CRITICAL + 2 MINOR）
 
-### 场景 2: 支付系统（critical complexity）
-- 专家: 5 个（security, performance, data_architect, compliance, reliability）
-- Gate A: 强调 alignment (0.20, 0.10, 0.45, 0.25)
-- Gate B: 8 个检查项（5 CRITICAL + 3 MINOR）
+### 场景 2: 投资分析（medium complexity）
+- 需求: "为散热材料公司设计 VC 尽调方案"
+- 推断领域: investment_analysis
+- 专家配置: patent_analyst(专利), financial_analyst(财务), market_researcher(市场)
+- Gate B: data_source_audit(数据源验证), risk_coverage(风险覆盖)
 
-### 场景 3: ML 推荐系统（high complexity）
-- 专家: 4 个（ml_engineer, data_engineer, performance, security）
-- Gate A: 强调 global_impact (0.25, 0.15, 0.25, 0.35)
-- Gate B: 6 个检查项（3 CRITICAL + 3 MINOR）
+### 场景 3: 硬件设计（high complexity）
+- 需求: "为 GPU 服务器设计散热模组方案"
+- 推断领域: hardware_thermal_design
+- 专家配置: thermal_engineer(热管理), materials_engineer(材料), dfm_engineer(可制造性)
+- Gate B: thermal_simulation(热仿真), cost_target(成本目标)

@@ -194,13 +194,12 @@ class WorkerGate:
             if not verdict.get("passed", False):
                 issues.extend(verdict.get("issues", ["MUST 约束检查失败"]))
         
-        # 4. web_search 范围
-        if worker_spec.get("needs_web_search") and worker_spec.get("web_search_scope"):
-            scope_kw = worker_spec["web_search_scope"].lower().split()
-            for log in worker_output.get("web_search_logs", []):
-                q = log.get("query", "").lower()
-                if not any(kw in q for kw in scope_kw):
-                    issues.append(f"web_search '{q}' 超出范围")
+        # 4. web_search 结构性检查
+        # 确定性：需要搜索时是否有搜索日志
+        if worker_spec.get("needs_web_search") and not worker_output.get("web_search_logs"):
+            issues.append("需要 web_search 但无搜索日志")
+        # 语义检查（搜索是否在范围内）交给 Layer 2 MUST Judge
+        # 不在代码层做关键词匹配 — 关键词匹配是反模式（用尺子量温度）
         
         return GateResult(passed=len(issues) == 0, issues=issues)
     
@@ -210,6 +209,8 @@ class WorkerGate:
         """构建 MUST 约束 Judge prompt（Step 1）"""
         mc = worker_spec.get("must_constraints", [])
         wps = worker_output.get("work_packages", [])
+        web_search_scope = worker_spec.get("web_search_scope", "")
+        search_logs = worker_output.get("web_search_logs", [])
         return f"""你是一个约束验证专家。判断 Worker 交付物是否保留了所有 MUST 约束。
 
 ## MUST 约束
@@ -220,9 +221,22 @@ class WorkerGate:
 工作包: {json.dumps([wp.get('title','') for wp in wps], ensure_ascii=False)}
 验收标准数: {sum(len(wp.get('acceptance_criteria',[])) for wp in wps)}
 
+## 附加语义检查
+
+### 1. Worker 不应在 description 中写代码
+检查每个工作包的 description 字段。如果 description 中包含实际代码逻辑
+（函数定义、类定义、算法实现等，而非仅仅是技术术语或文件名），标记为问题。
+注意：技术术语（如 "使用 Redis 缓存"）不算代码，实际代码片段（如 def foo(): ...）才算。
+
+### 2. web_search 范围检查
+{f'要求的搜索范围: {web_search_scope}' if web_search_scope else '无搜索范围要求'}
+{f'搜索日志:\n' + json.dumps([l.get('query','') for l in search_logs], ensure_ascii=False) if search_logs else '无搜索日志'}
+{f'判断每次搜索是否在 "{web_search_scope}" 范围内。语义判断即可，不要求关键词精确匹配。' if web_search_scope else ''}
+
 ## 判断标准
 - 每个 MUST 约束必须有语义对应（不要求字面匹配）
 - 违反或遗漏必须指出
+- 上述附加检查项也需要判断
 
 ## 输出 JSON
 {{"passed": true/false, "issues": ["..."]}}

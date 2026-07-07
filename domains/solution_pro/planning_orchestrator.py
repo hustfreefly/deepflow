@@ -70,6 +70,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
         session_id: str,
         spawn_fn: Optional[Callable] = None,
         base_dir: Optional[str] = None,
+        domain_profile=None,
     ):
         """
         Initialize Planning Orchestrator
@@ -78,8 +79,10 @@ class PlanningOrchestrator(ModuleOrchestrator):
             session_id: Session ID
             base_dir: Blackboard 基础目录
             spawn_fn: Spawn function (provided by main Agent)
+            domain_profile: DomainProfile from MasterOrchestrator (AI Native domain adaptation)
         """
         super().__init__("planning", session_id, spawn_fn, base_dir=base_dir)
+        self._domain_profile = domain_profile
         
         # Load prompts
         self.meta_planner_prompt = self._load_prompt("meta_planner.md")
@@ -167,6 +170,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
         spawn_fn: Callable = None,
         llm_judge_fn: Callable = None,
         living_spec: dict = None,
+        domain_profile=None,
     ) -> dict:
         """
         Run Planning module (main entry point)
@@ -194,6 +198,8 @@ class PlanningOrchestrator(ModuleOrchestrator):
             self.spawn_fn = spawn_fn
         if llm_judge_fn is not None:
             self.llm_judge_fn = llm_judge_fn
+        if domain_profile is not None:
+            self._domain_profile = domain_profile
         if frozen_spec is not None:
             self.blackboard.write("frozen_spec.json", frozen_spec)
         if structured_requirements is not None:
@@ -314,13 +320,13 @@ class PlanningOrchestrator(ModuleOrchestrator):
                 living_spec_prompt = format_living_spec_for_prompt(living_spec)
                 # 将 living_spec_prompt 注入到 frozen_spec 中供 task_builder 使用
                 frozen_spec_with_living = {**frozen_spec, "living_spec_prompt": living_spec_prompt}
-                task = build_meta_planner_task(frozen_spec_with_living, structured_requirements, session_dir)
+                task = build_meta_planner_task(frozen_spec_with_living, structured_requirements, session_dir, domain_profile=self._domain_profile)
             except Exception as e:
                 logger.warning
-                task = build_meta_planner_task(frozen_spec, structured_requirements, session_dir)
+                task = build_meta_planner_task(frozen_spec, structured_requirements, session_dir, domain_profile=self._domain_profile)
         else:
             # Fallback: 旧逻辑
-            task = build_meta_planner_task(frozen_spec, structured_requirements, session_dir)
+            task = build_meta_planner_task(frozen_spec, structured_requirements, session_dir, domain_profile=self._domain_profile)
         
         # Execute task via spawn_fn
         # Use relative output_path for spawn_fn compatibility (blackboard handles session_dir)
@@ -380,7 +386,7 @@ class PlanningOrchestrator(ModuleOrchestrator):
         session_dir = str(getattr(self.blackboard, 'session_dir', self.session_id))
         
         # Build task using task_builder (generates prompt + system_prompt)
-        task = build_reviewer_meta_task(expert_manifest, frozen_spec, session_dir)
+        task = build_reviewer_meta_task(expert_manifest, frozen_spec, session_dir, domain_profile=self._domain_profile)
         
         # Execute task via spawn_fn
         # Use relative output_path for spawn_fn compatibility (blackboard handles session_dir)

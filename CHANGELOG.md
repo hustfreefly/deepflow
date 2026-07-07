@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## V2.1.1 (2026-07-08) — 全项目 AI Native 反模式修复
+
+### 修复概要
+15 个反模式修复（5 P0 + 10 P1），覆盖 Spec Pro / Solution Pro / Ship Pro 三个域。
+
+### P0 修复（5 个）
+| 域 | 问题 | 修复 |
+|----|------|------|
+| Solution Pro | Gate B 关键词命中率判定 | → SKIPPED（不伪造语义判断） |
+| Solution Pro | 前 20 字符子串匹配研究利用率 | → [REF-xxx] 引用标记（确定性） |
+| Solution Pro | 硬编码四维度语义分 | → raw_metrics + Layer 2 LLM |
+| Ship Pro | 正则做代码检测 | → ``` 标记粗筛 + LLM Judge |
+| Ship Pro | web_search 关键词匹配 | → 结构性检查 + MUST Judge |
+
+### P1 修复（10 个）
+| 域 | 问题 | 修复 |
+|----|------|------|
+| Solution Pro | Cage F6 关键词触发器 | → 结构化 control_flow_type 枚举 |
+| Solution Pro | Cage F7 正则提取阈值 | → 结构化 threshold_value 字段 |
+| Solution Pro | VERDICT_SCORE_MAP 硬编码映射 | → Fallback + 优先读 LLM 数值分 |
+| Solution Pro | harness 硬编码改进建议 | → 弱维度信号 + LLM 生成建议 |
+| Solution Pro | conservation 权重/阈值硬编码 | → DEFAULT_WEIGHTS + 参数化 |
+| Solution Pro | domain_loader 4 域硬编码 | → 仅 software fallback + YAML |
+| Ship Pro | WP 完成率 0.8 硬编码 | → WP_COMPLETION_THRESHOLD 常量 |
+| Ship Pro | 状态机硬编码 | → register_transition() 运行时扩展 |
+| Spec Pro | Jaccard bigram 语义去重 | → 精确匹配，语义去重交 LLM |
+| Spec Pro | 子串匹配做修改定位 | → 精确匹配 |
+
+### 测试
+- Solution Pro: 127 passed
+- Spec Pro: 52 passed  
+- 总计: 179 passed, 10 skipped, 0 failures
+
+### AI Native 修复模式
+所有修复遵循同一模式：**代码做确定性粗筛（结构/标记/格式），语义判断交给 LLM Judge**。
+
+### 文件变更
+- 64 文件修改（+2,342 行 / -986 行）
+- Spec Pro: 17 文件
+- Solution Pro: 36 文件  
+- Ship Pro: 3 文件
+- Skills: 2 文件（FixFlow V1.3, AgentDryRun V3.4）
+
+## [2.1.0] - 2026-07-07
+
+### Added
+- **Domain Adaptation Layer (DAL)** — Solution Pro 领域自适应泛化改造
+  - `domain_analysis.py`: DomainProfile Pydantic schema (10字段) + LLM prompt + parser
+  - `domain_loader.py`: 4 YAML 配置降级为 few-shot 参考 (software/investment/hardware/business)
+  - MasterOrchestrator: `set_domain_profile()` + `_infer_domain_id()` 三级 fallback 链
+  - domain_profile 注入全链路: Planning/Research/Summary → task_builder → Prompt
+- **Schema 开放枚举** — DOMAIN_CATEGORIES Literal→str + SemanticAnchor.category 开放 + SUGGESTED_DOMAIN_CATEGORIES 26类 4域
+- **16+ Prompt 泛化** — 软件域硬编码术语清理 + 多域并列示例 (投资/硬件/商业)
+
+### Changed
+- **术语统一** — "技术选型"→"关键选型"、"架构设计"→"方案设计"、"技术推荐"→"方案推荐"
+- **命名统一** — `domain_type` → `domain_id` (与 DomainProfile 对齐)
+- **EXPERT_TEMPLATE_REGISTRY** — 硬编码→配置驱动 (get_expert_templates + DEPRECATED 标注)
+
+### Removed
+- **死代码清理** — domain_loader.py 中 5 个零调用方 getter 函数 (get_seed_urls/get_quality_dimensions/get_review_dimensions/get_harness_checks/get_design_output)
+
+### Fixed
+- **Pipeline 断裂** — ResearchOrchestrator 未传递 domain_profile 给 Worker (4 个注入点接通)
+- **domain_type fallback** — master_orchestrator.py + frozen_spec.py 三级 fallback 链
+
+### Verified
+- **3 模型交叉 DryRun** — Qwen 7.0 → Kimi 7.8 → DeepSeek 8.2 (0 P0 / 0 P1 / 127 tests passed)
+- **4 轮 FixFlow 修复** — Pipeline 接通 + 类型统一 + 术语清理 + 死代码清理
+
 ## [2.0.0] - 2026-07-06
 
 ### Added

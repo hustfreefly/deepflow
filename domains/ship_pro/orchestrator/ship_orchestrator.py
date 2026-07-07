@@ -265,9 +265,12 @@ class ShipOrchestrator:
 
         actual_count = len(wps)
 
+        # WP 完成率阈值（可配置）：实际数量低于预期的此比例时判定为异常
+        WP_COMPLETION_THRESHOLD = 0.8
+
         if actual_count == 0:
             issues.append(f"work_packages 数组为空(预期 {expected_count} 个 WP)")
-        elif actual_count < expected_count * 0.8:
+        elif actual_count < expected_count * WP_COMPLETION_THRESHOLD:
             issues.append(f"work_packages 数量不足:{actual_count}/{expected_count}(丢失 {expected_count - actual_count} 个)")
 
         # 检查统计摘要反模式
@@ -898,20 +901,16 @@ Planner → **【你（Worker）】** → Consolidator → 用户
                         wp_issues.append(f"{wp_id}: deliverables 为空")
 
                 # Layer 1c: "不写代码" 约束检测（D2）
-                import re
-                _CODE_PATTERNS = [
-                    r'```(python|javascript|typescript|go|rust|java)\s*\n',  # fenced code blocks
-                    r'^\s*def\s+\w+\s*\(',   # Python function
-                    r'^\s*class\s+\w+[\(:]',  # Python class
-                    r'^\s*function\s+\w+\s*\(',  # JS function
-                    r'^\s*import\s+\w+',     # import statement
-                ]
+                # 确定性粗筛：仅检测 fenced code block 标记
+                # 语义判断（这段文字是否是代码）交给 Layer 2 MUST Judge
+                def _has_code_indicators(text: str) -> bool:
+                    """确定性粗筛：仅检测明显的代码块标记。"""
+                    return '```' in text
+
                 for wp in wps:
                     desc = wp.get("description", "")
-                    for pattern in _CODE_PATTERNS:
-                        if re.search(pattern, desc, re.MULTILINE):
-                            wp_issues.append(f"{wp.get('id', '?')}: description 包含代码（匹配: {pattern}）")
-                            break
+                    if _has_code_indicators(desc):
+                        wp_issues.append(f"{wp.get('id', '?')}: description 包含代码块标记（```），Worker 不应在 description 中写代码")
 
                 if wp_issues:
                     results["all_passed"] = False
@@ -1165,7 +1164,9 @@ Planner → **【你（Worker）】** → Consolidator → 用户
                 pass
 
         output_wp_count = len(wps)
-        if input_wp_count > 0 and output_wp_count < input_wp_count * 0.7:
+        # Consolidator WP 保留率阈值（可配置）：输出/输入低于此比例时触发契约笼子
+        CONSOLIDATOR_WP_RETENTION_THRESHOLD = 0.7
+        if input_wp_count > 0 and output_wp_count < input_wp_count * CONSOLIDATOR_WP_RETENTION_THRESHOLD:
             raise ValueError(
                 f"契约笼子: Consolidator 丢弃过多 WP — "
                 f"输入 {input_wp_count} 个 Worker WP，输出仅 {output_wp_count} 个 "

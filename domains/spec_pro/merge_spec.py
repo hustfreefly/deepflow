@@ -43,49 +43,16 @@ def _atomic_write_json(path: str, data: dict) -> None:
         raise
 
 
-def _char_bigrams(s: str) -> set:
-    """生成字符串的字符 bigram 集合。"""
-    if len(s) < 2:
-        return {s}
-    return {s[i:i+2] for i in range(len(s) - 1)}
-
-
-def _jaccard_similarity(a: str, b: str) -> float:
-    """计算两个字符串的 Jaccard 字符 bigram 相似度。"""
-    set_a = _char_bigrams(a)
-    set_b = _char_bigrams(b)
-    if not set_a and not set_b:
-        return 1.0
-    intersection = set_a & set_b
-    union = set_a | set_b
-    return len(intersection) / len(union) if union else 0.0
-
-
-def _is_duplicate_by_similarity(item, target: list, threshold: float = 0.45) -> bool:
-    """v2.2: 检查 item 是否与 target 中某项相似度超过阈值。
-    
-    中文文本的 Jaccard bigram 相似度通常较低，阈值设为 0.45。
-    - 相同文本: 1.0
-    - 相似但扩展的文本: 0.4-0.7
-    - 不同语义的文本: < 0.3
-    """
-    if isinstance(item, str):
-        for existing in target:
-            if isinstance(existing, str):
-                if _jaccard_similarity(item, existing) >= threshold:
-                    return True
-    return False
+def _is_duplicate_exact(item: str, target: list) -> bool:
+    """确定性精确去重。语义去重（意思相近但文字不同）由 LLM 在 parse 阶段处理。"""
+    return item in target
 
 
 def append_unique(target: list, source: list, key: str = None) -> None:
     """Append items from source to target, avoiding duplicates.
-    
-    v2.2: 无 key 时对字符串做 Jaccard 字符 bigram 相似度去重（阈值 0.45）。
-    零外部依赖，确定性算法。
-    中文场景说明：
-    - "聚合中国各种便宜的token" vs "聚合中国各种便宜的token（DeepSeek）" → ~0.46 → 去重
-    - "低成本运营（兼职）" vs "低成本运营（一人公司）" → ~0.21 → 不去重（语义不同）
-    - 相同文本 → 1.0 → 去重
+
+    使用精确匹配去重（确定性）。语义去重由 LLM 在 parse 阶段完成，
+    不再使用 Jaccard bigram 做模糊匹配（容易误判中文语义相似项）。
     """
     if key:
         existing = {item.get(key) for item in target if isinstance(item, dict)}
@@ -101,7 +68,7 @@ def append_unique(target: list, source: list, key: str = None) -> None:
     else:
         for item in source:
             if isinstance(item, str):
-                if not _is_duplicate_by_similarity(item, target):
+                if not _is_duplicate_exact(item, target):
                     target.append(item)
             else:
                 if item not in target:
@@ -200,6 +167,21 @@ def merge_confirmed(spec: dict, updates: dict) -> None:
     for sub in ["risks", "assumptions", "dependencies"]:
         append_unique(risks.setdefault(sub, []), new_risks.get(sub, []))
 
+    # terms: merge by name (new overrides old)
+    new_terms = updates.get("terms", [])
+    if isinstance(new_terms, list) and new_terms:
+        existing_terms = confirmed.setdefault("terms", [])
+        terms_map = {}
+        for term in existing_terms:
+            name = term.get("name", "") if isinstance(term, dict) else ""
+            if name:
+                terms_map[name] = term
+        for term in new_terms:
+            name = term.get("name", "") if isinstance(term, dict) else ""
+            if name:
+                terms_map[name] = term  # 新的覆盖旧的
+        confirmed["terms"] = list(terms_map.values())
+
 
 def merge_inferred(spec: dict, response: dict) -> None:
     """Merge inference responses and new inferences into spec['inferred']."""
@@ -281,6 +263,39 @@ def merge_guardrails(spec: dict, response: dict) -> None:
     for key in ["always_do", "ask_first", "never_do"]:
         new_items = new_from_meta.get(key, [])
         append_unique(guardrails.setdefault(key, []), new_items)
+
+
+def merge_semantic_anchors(existing: list, new_anchors: list) -> list:
+    """合并 semantic anchors，按 name 去重，新值覆盖旧值。
+
+    - 按 name 字段去重（同名 anchor 保留最新的）
+    - 过滤掉 constraint 太短（< 5 字符）的无效 anchor
+    """
+    if not new_anchors:
+        return existing or []
+    if not existing:
+        # 仅对新 anchors 做有效性过滤
+        return [
+            a for a in new_anchors
+            if isinstance(a, dict)
+            and a.get("name")
+            and len(a.get("constraint", "")) >= 5
+        ]
+
+    # 按 name 去重，新值覆盖旧值
+    anchors_map = {}
+    for anchor in existing:
+        if isinstance(anchor, dict):
+            name = anchor.get("name", "")
+            if name:
+                anchors_map[name] = anchor
+    for anchor in new_anchors:
+        if isinstance(anchor, dict):
+            name = anchor.get("name", "")
+            if name and len(anchor.get("constraint", "")) >= 5:
+                anchors_map[name] = anchor
+
+    return list(anchors_map.values())
 
 
 def check_contradictions(spec: dict) -> list:
@@ -458,6 +473,12 @@ def merge_spec_v6(base_path: str, stage_name: str) -> dict:
     merge_user_directives(spec, response)
     merge_conversation_digest(spec, response)
 
+    # Step 7: Merge semantic_anchors (coordinator LLM 直接产出的 anchors)
+    if "semantic_anchors" in response:
+        existing_anchors = spec.get("semantic_anchors", [])
+        new_anchors = response["semantic_anchors"]
+        spec["semantic_anchors"] = merge_semantic_anchors(existing_anchors, new_anchors)
+
     # Update meta
     meta = spec.setdefault("meta", {})
     meta["updated_at"] = datetime.now().isoformat()
@@ -538,6 +559,12 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
 
     # Step 6: Merge conversation_digest merge_conversation_digest(spec, response)
 
+    # Step 7: Merge semantic_anchors (coordinator LLM 直接产出的 anchors)
+    if "semantic_anchors" in response:
+        existing_anchors = spec.get("semantic_anchors", [])
+        new_anchors = response["semantic_anchors"]
+        spec["semantic_anchors"] = merge_semantic_anchors(existing_anchors, new_anchors)
+
     # Update meta
     meta = spec.setdefault("meta", {})
     meta["updated_at"] = datetime.now().isoformat()
@@ -596,6 +623,32 @@ def apply_revisions(confirmation_path: str, living_spec_path: str) -> dict:
     _atomic_write_json(living_spec_path, spec)
 
     return {"status": "revised", "revisions_applied": len(revisions)}
+
+
+def _normalize_quality_dimensions(dimensions) -> dict:
+    """将 assess.md 输出的数组格式转换为 DimensionScores dict 格式。
+
+    assess.md 输出 dimensions: [{name, score, reasoning}, ...]（数组），
+    但 RoundResult.quality.dimension_scores 用 dict 格式。
+
+    Args:
+        dimensions: list[dict] 或 dict
+    Returns:
+        dict 格式 {dim_name: {score, reasoning}}
+    """
+    if isinstance(dimensions, dict):
+        return dimensions  # 已经是 dict，无需转换
+    if not isinstance(dimensions, list):
+        return {}
+    result = {}
+    for dim in dimensions:
+        if isinstance(dim, dict):
+            name = dim.get("name", dim.get("dimension", "unknown"))
+            result[name] = {
+                "score": dim.get("score", 50),
+                "reasoning": dim.get("reasoning", ""),
+            }
+    return result
 
 
 def main():

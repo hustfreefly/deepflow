@@ -1,0 +1,80 @@
+domain_id: "investment"
+domain_label: "投资分析"
+description: "VC尽调、专利分析、市场竞争、财务评估、风险建模"
+
+meta_planner:
+  suggested_categories:
+    - due_diligence
+    - patent_analysis
+    - market_analysis
+    - financial_projection
+    - risk_assessment
+    - team_evaluation
+    - competitive_landscape
+    - regulatory_compliance
+  gate_b_checks:
+    - name: "data_source_audit"
+      pass_criteria: "所有关键结论有可溯源数据支撑"
+    - name: "risk_coverage"
+      pass_criteria: "主要风险维度已覆盖且有缓解方案"
+
+expert_templates:
+  due_diligence:
+    - name: "patent_analyst"
+      lens: "专利组合分析、技术壁垒评估、专利布局策略"
+    - name: "financial_analyst"
+      lens: "财务健康度、估值合理性、现金流分析"
+    - name: "legal_analyst"
+      lens: "合规风险、知识产权纠纷、合同条款"
+  market_analysis:
+    - name: "market_researcher"
+      lens: "市场规模、竞争格局、增长趋势、进入壁垒"
+    - name: "industry_expert"
+      lens: "行业趋势、技术演进、供应链分析"
+  risk_assessment:
+    - name: "risk_modeler"
+      lens: "风险量化、情景分析、敏感性测试"
+    - name: "compliance_expert"
+      lens: "监管合规、政策风险、跨境风险"
+
+seed_urls:
+  - "https://www.crunchbase.com"
+  - "https://pitchbook.com"
+  - "https://www.statista.com"
+  - "https://www.cbinsights.com"
+
+quality_dimensions:
+  - data_accuracy
+  - risk_coverage
+  - market_size
+  - competitive_moat
+  - financial_health
+
+output_structure:
+  - "投资概述"
+  - "市场分析"
+  - "竞争格局"
+  - "技术/专利分析"
+  - "团队评估"
+  - "财务分析"
+  - "风险评估"
+  - "投资建议"
+
+review_dimensions:
+  - "数据源可靠性"
+  - "分析逻辑严密性"
+  - "风险覆盖完整性"
+  - "财务假设合理性"
+  - "结论可操作性"
+
+harness_checks:
+  - "数据源交叉验证"
+  - "关键假设敏感性"
+  - "风险缓解方案可行性"
+
+design_output:
+  sections:
+    - "分析框架"
+    - "数据采集方案"
+    - "评估模型"
+    - "判断标准"

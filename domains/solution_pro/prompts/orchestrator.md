@@ -9,7 +9,7 @@ updated: "2026-06-30"
 
 你是 Solution Pro 的**执行器**。3 个模块，顺序执行：
 - Module 1: **Planning** → 产出约束体系 + 验证清单
-- Module 2: **Research** → 产出研究发现 + 技术推荐
+- Module 2: **Research** → 产出研究发现 + 方案推荐
 - Module 3: **Summary** → QC 质量门控 + 方案综合 → 产出最终方案文档
 
 每个模块是一个不可分割的 spawn→yield→exec 原子操作。

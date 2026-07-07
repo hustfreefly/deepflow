@@ -73,17 +73,17 @@ def _auto_generate_hints(confirmed: Dict[str, Any]) -> List[str]:
     """当 solution_pro_hints 为 null 时，从 confirmed 自动推导研究重点提示。"""
     hints = []
     
-    # 从 architecture 推导技术焦点
+    # 从 architecture 推导方案焦点
     arch = confirmed.get("architecture", {})
     if isinstance(arch, dict):
         pattern = arch.get("pattern", "")
         if pattern:
-            hints.append(f"架构模式: {pattern} — 方案应围绕此模式设计")
+            hints.append(f"方案模式: {pattern} — 方案应围绕此模式设计")
         layers = arch.get("layers", [])
         if layers and isinstance(layers, list):
             layer_names = [l.get("name", "") for l in layers if isinstance(l, dict)]
             if layer_names:
-                hints.append(f"架构层次: {', '.join(layer_names[:4])} — 方案应覆盖所有层次")
+                hints.append(f"方案层次: {', '.join(layer_names[:4])} — 方案应覆盖所有层次")
     
     # 从 innovation_mechanisms 推导创新点
     innovations = confirmed.get("innovation_mechanisms", [])
@@ -105,6 +105,36 @@ def _auto_generate_hints(confirmed: Dict[str, Any]) -> List[str]:
         hints.append(f"核心洞察: {insight}")
     
     return hints
+
+
+def _get_anchor_priority(category: str, domain_id: str = "software") -> str:
+    """获取 SemanticAnchor category 的优先级层级
+    
+    泛化性设计：
+    - 优先从领域配置加载（domain_loader）
+    - 回退到默认分层（软件域兼容）
+    - 未知 category 默认 SHOULD（而非最低优先级 CONTEXT）
+    """
+    # 尝试从领域配置加载
+    try:
+        from domains.solution_pro.config.domain_loader import load_domain_config
+        cfg = load_domain_config(domain_id)
+        anchor_priorities = cfg.get("anchor_priorities", {})
+        if category in anchor_priorities:
+            return anchor_priorities[category]
+    except Exception:
+        pass  # 配置加载失败，回退到默认
+    
+    # 默认分层（软件域兼容，向后兼容）
+    default_priorities = {
+        "platform_api": "MUST",
+        "architecture_principle": "MUST",
+        "external_system": "SHOULD",
+        "technical_constraint": "CONTEXT",
+    }
+    
+    # 未知 category 默认 SHOULD（而非 CONTEXT）
+    return default_priorities.get(category, "SHOULD")
 
 
 def build_frozen_spec(topic: str, constraints: List[str] | None = None,
@@ -363,7 +393,7 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
         
         focus_areas = []
         if isinstance(arch, dict) and arch.get("pattern"):
-            focus_areas.append({"area": arch["pattern"], "weight": 0.3, "reason": "核心架构模式"})
+            focus_areas.append({"area": arch["pattern"], "weight": 0.3, "reason": "核心方案模式"})
         if isinstance(innovations, list):
             for inn in innovations[:3]:
                 if isinstance(inn, dict):
@@ -403,18 +433,23 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
 
     # 注意力优化：从 semantic_anchors 提取 priority_layers
     # 让 LLM 一眼看到哪些约束是 MUST、哪些是 SHOULD
+    # 泛化性：支持开放枚举，未知 category 默认 SHOULD（而非最低优先级 CONTEXT）
+    # P1-9: fallback 链 domain_type → domain_id → "software"（向后兼容）
+    _meta = (living_spec or {}).get("meta", {}) if isinstance(living_spec, dict) else {}
+    domain_type = _meta.get("domain_type") or _meta.get("domain_id") or "software"
     priority_layers = {"MUST_FOLLOW": [], "SHOULD_FOLLOW": [], "CONTEXT": []}
     for anchor in semantic_anchors:
         if not isinstance(anchor, dict):
             continue
         name = anchor.get("name", "")
         cat = anchor.get("category", "")
-        if cat in ["platform_api", "architecture_principle"]:
+        priority = _get_anchor_priority(cat, domain_type)
+        if priority == "MUST":
             priority_layers["MUST_FOLLOW"].append(name)
-        elif cat == "technical_constraint":
-            priority_layers["SHOULD_FOLLOW"].append(name)
-        else:
+        elif priority == "CONTEXT":
             priority_layers["CONTEXT"].append(name)
+        else:  # SHOULD or unknown
+            priority_layers["SHOULD_FOLLOW"].append(name)
 
     # 注意力优化：重排字段顺序
     # semantic_anchors + requirements 移到开头（高注意力区）
@@ -440,6 +475,7 @@ def build_frozen_spec(topic: str, constraints: List[str] | None = None,
                 "detected_conflicts": conflicts,
             },
         },
+        "domain_type": domain_type,  # 领域类型透传（泛化性）
         "version": "2.0",
         "generated_at": datetime.now().isoformat(),
         "source": "living_spec.confirmed+topic+constraints",

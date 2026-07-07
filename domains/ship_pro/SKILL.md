@@ -237,4 +237,26 @@ domains/ship_pro/
 
 ---
 
-*最后更新: 2026-07-04 2.0.0*
+*最后更新: 2026-07-08 2.0.0*
+
+---
+
+## V2.0.0 (2026-07-08) — AI Native 反模式修复
+
+### P0 修复（2 个）
+| 问题 | 修复 |
+|------|------|
+| `_CODE_PATTERNS` 正则做代码检测 | → `_has_code_indicators()` 只检测 ``` + Layer 2 LLM Judge |
+| `web_search_scope` 关键词匹配 | → 结构性检查（日志存在性）+ MUST Judge 语义判断 |
+
+### P1 修复（2 个）
+| 问题 | 修复 |
+|------|------|
+| WP 完成率 0.8/0.7 硬编码阈值 | → `WP_COMPLETION_THRESHOLD` + `CONSOLIDATOR_WP_RETENTION_THRESHOLD` 常量 |
+| `VALID_TRANSITIONS` 硬编码状态机 | → `register_transition()` 运行时扩展机制 |
+
+### 修复模式
+代码做确定性粗筛（结构检查/常量阈值），语义判断交给 LLM Judge。
+
+### 测试
+- ship_pro: 19 passed

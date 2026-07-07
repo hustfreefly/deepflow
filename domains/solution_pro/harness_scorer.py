@@ -222,33 +222,28 @@ def calculate_harness_score_dynamic(
 
 
 def _generate_improvements(c: float, n: float, a: float, g: float) -> list:
-    """根据评分生成改进建议"""
-    improvements = []
-    
-    if c < 0.70:
-        improvements.append("完善方案覆盖范围，确保关键设计点无遗漏")
-    elif c < 0.85:
-        improvements.append("可考虑补充更多细节以增强完整性")
-    
-    if n < 0.70:
-        improvements.append("简化方案，去除过度设计，贴合实际需求")
-    elif n < 0.85:
-        improvements.append("检查是否有可以精简的部分")
-    
-    if a < 0.70:
-        improvements.append("重新审视方案与原始目标的一致性，避免偏离")
-    elif a < 0.85:
-        improvements.append("确保所有设计决策都服务于原始目标")
+    """识别弱维度，交给 LLM Judge 生成针对性改进建议。
+    代码不生成固定字符串建议（那是语义内容）。
+    """
+    scores = {
+        "completeness": c,
+        "necessity": n,
+        "alignment": a,
+        "global_impact": g,
+    }
+    weak_dimensions = []
+    for dim, score in scores.items():
+        if isinstance(score, (int, float)) and score < 0.70:
+            weak_dimensions.append({"dimension": dim, "score": score})
 
-    if g < 0.70:
-        improvements.append("补充成本、风险、集成、运维和长期演进等全局影响分析")
-    elif g < 0.85:
-        improvements.append("检查跨阶段依赖和长期影响是否描述充分")
-    
-    if not improvements:
-        improvements.append("当前方案质量良好，无明显改进需求")
-    
-    return improvements
+    if not weak_dimensions:
+        return []
+
+    return [{
+        "type": "llm_improvement_needed",
+        "weak_dimensions": weak_dimensions,
+        "instruction": "Generate specific improvement suggestions based on the weak dimensions above",
+    }]
 
 
 def level_to_score(level: LevelType) -> float:
@@ -374,8 +369,13 @@ def harness_to_scores(harness_check: dict) -> dict:
     scores = {}
     for dim in ["completeness", "necessity", "alignment", "global_impact"]:
         dim_data = layer1.get(dim, {})
-        verdict = dim_data.get("verdict", "WEAK")
-        scores[dim] = VERDICT_SCORE_MAP.get(verdict, 0.50)
+        # Prefer LLM-provided numeric score; fallback to VERDICT_SCORE_MAP
+        llm_score = dim_data.get("score")
+        if isinstance(llm_score, (int, float)) and 0.0 <= llm_score <= 1.0:
+            scores[dim] = llm_score
+        else:
+            verdict = dim_data.get("verdict", "WEAK")
+            scores[dim] = VERDICT_SCORE_MAP.get(verdict, 0.50)
     
     # overall_score = weighted average
     overall = (

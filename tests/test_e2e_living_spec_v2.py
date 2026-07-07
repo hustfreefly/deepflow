@@ -232,8 +232,8 @@ REFERENCE_DIMENSIONS = {
 # Phase 1 & 2: merge_conversation_digest accumulation
 # ---------------------------------------------------------------------------
 
-def test_phase1_round1_merge(r: TestResult):
-    """Phase 1+2: Round 1 merge_conversation_digest."""
+def _phase1_round1_merge_stub(r: TestResult):
+    """Phase 1+2: Round 1 merge_conversation_digest. (stub — see phase1_round1 for actual test)"""
     runner = r  # We'll use a module-level runner; but since we need access, use a different approach
     # Actually we need the runner. Let's restructure.
     pass

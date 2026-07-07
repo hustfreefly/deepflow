@@ -1,12 +1,12 @@
 ---
 name: spec-pro
 description: "DeepFlow Spec Pro — 需求梳理引擎。触发：梳理需求、需求分析、Living Spec。"
-version: "2.0.0"
+version: "V2.2.0"
 ---
 
 # Spec Pro - Agent 执行指南
 
-> **版本**: 2.0.0 | **最后更新**: 2026-06-22  
+> **版本**: V2.2.0 | **最后更新**: 2026-07-08  
 > **架构**: 多轮对话 → LivingSpec 构建 → Harness 2.0.0 评估 → Solution Pro 上下文注入  
 > **核心理念**: 通过结构化对话提取需求，生成可执行的 LivingSpec
 
@@ -333,3 +333,13 @@ exec("PYTHONPATH=. python3 domains/spec_pro/eval/harness.py spec_spec_abc123")
 - [Harness 2.0.0 评估逻辑](eval/harness.py)
 - [Prompt 模板](prompts/)
 - [Solution Pro SKILL.md](../solution/SKILL.md)
+
+### V2.2.0 变更（2026-07-08）
+- **域推断重构**: 删除 `infer_domain_from_input()` 规则引擎 → parse.md LLM 自推断 domain_type
+- **三层门控**: gate_harness_decision Layer 1(代码) + Layer 2(LLM) + Layer 3(合并)
+- **反模式修复**: 2 个 P1 修复
+  - Jaccard bigram 语义去重 → 精确匹配（语义去重交 LLM）
+  - 子串匹配做修改定位 → 精确匹配
+- **Prompt 泛化**: parse/guide/harness/structure 4 个核心 prompt 清除硬编码，加入多域示例
+- **契约层增强**: compute_complexity_score + gate_harness_decision + merge_semantic_anchors
+- **测试**: 52 passed

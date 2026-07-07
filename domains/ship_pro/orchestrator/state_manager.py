@@ -61,6 +61,35 @@ class StateManager:
         "failed": ["running"],
     }
 
+    # 运行时扩展的状态转换（如 pause/resume 等自定义状态）
+    _extra_transitions: dict = {}
+
+    @classmethod
+    def register_transition(cls, from_state: str, to_states: list):
+        """注册新的状态转换（运行时扩展）。
+
+        用于在不修改 VALID_TRANSITIONS 硬编码的情况下添加自定义状态转换，
+        例如 pause/resume、cancelled 等扩展状态。
+
+        Args:
+            from_state: 起始状态
+            to_states: 允许的目标状态列表
+        """
+        cls._extra_transitions[from_state] = to_states
+
+    def is_valid_transition(self, current: str, target: str) -> bool:
+        """检查状态转换是否合法（含运行时扩展）。
+
+        Args:
+            current: 当前状态
+            target: 目标状态
+
+        Returns:
+            bool: 转换是否合法
+        """
+        allowed = self.VALID_TRANSITIONS.get(current, []) + self._extra_transitions.get(current, [])
+        return target in allowed
+
     def __init__(self, blackboard_path: Path):
         self.blackboard_path = Path(blackboard_path)
         self.state_file = self.blackboard_path / "pipeline_state.json"

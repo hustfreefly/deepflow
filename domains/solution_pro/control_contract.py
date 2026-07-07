@@ -237,11 +237,15 @@ def build_control_contract(base_path: str) -> Dict[str, Any]:
     }
 
 
-def rewrite_after_planning(base_path: str) -> Dict[str, Any]:
+def rewrite_after_planning(base_path: str, domain_profile=None) -> Dict[str, Any]:
     """Refresh fixed post-planning tasks from Planner output.
 
     Historical name kept for compatibility. This does not rewrite the 10-stage
     plan shape; it only refreshes tasks and annotates the plan.
+
+    Args:
+        base_path: Blackboard base path
+        domain_profile: Optional DomainProfile for AI Native domain adaptation
     """
     bm = _get_bm(base_path)
     base = Path(base_path)
@@ -267,6 +271,7 @@ def rewrite_after_planning(base_path: str) -> Dict[str, Any]:
             expert_id=worker["id"],
             angle=worker["angle"],
             reason=worker["reason"],
+            domain_profile=domain_profile,
         )
         research_tasks[worker["id"]] = inject_req_traceability(
             task + "\n" + LAYER2_READ_INSTRUCTION.format(
@@ -281,7 +286,7 @@ def rewrite_after_planning(base_path: str) -> Dict[str, Any]:
     for stage, builder, role in [
         ("audit", build_auditor_task, "auditor"),
     ]:
-        base_task = builder(session_id, topic, {"type": solution_type, "mode": mode, "constraints": constraints})
+        base_task = builder(session_id, topic, {"type": solution_type, "mode": mode, "constraints": constraints}, domain_profile=domain_profile)
         tasks[stage] = inject_req_traceability(
             base_task + "\n" + LAYER2_READ_INSTRUCTION.format(session_id=session_id, planning_path=planning_path, worker_role=role),
             session_id,

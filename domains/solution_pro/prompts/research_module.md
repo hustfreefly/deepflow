@@ -126,7 +126,7 @@ print(f'Total requirements: {len(reqs)}')
   2. [具体问题 2]
   3. [具体问题 3]
 - **focus_req_ids**:REQ-001, REQ-005, REQ-012
-- **期望深度**:需要具体技术名称+版本+量化数据
+- **期望深度**:需要具体可验证的引用(名称/型号/条款/数据 + 来源)
 
 ### Expert 2: [角色名]
 - ...
@@ -137,7 +137,7 @@ print(f'Total requirements: {len(reqs)}')
 ## 3. 研究质量标准
 - 每个 finding 必须有 evidence(来源/数据/案例)
 - P0 需求必须被至少 1 个 Expert 深入分析
-- 技术推荐必须有对比评估(不是只说"用 X",要说"X vs Y vs Z,选 X 因为...")
+- 方案推荐必须有对比评估(不是只说"用 X",要说"X vs Y vs Z,选 X 因为...")
 
 ## 4. 对抗配置
 - 补充研究: 是/否
@@ -194,7 +194,7 @@ else: print('RESEARCH_PLAN_MISSING')
 ### Finding 2: [标题]
 ...
 
-## 技术推荐
+## 方案推荐
 (如果有)
 对比评估:X vs Y vs Z
 选择建议 + 理由
@@ -243,7 +243,7 @@ for f in files:
 - 每个 finding 必须有 evidence
 - 文末附 covered_req_ids 列表
 - 建议包含:confidence 评估、sources URL、open questions(但不强制)
-- 深度要求:每个 finding 不少于 200 字,必须包含具体技术名称+版本+量化数据
+- 深度要求:每个 finding 不少于 200 字,必须包含具体可验证的引用(名称/型号/条款/数据 + 来源)
 
 ---
 
@@ -408,3 +408,72 @@ bb.write_stage('research_completed', {
 4. **Research Planner 动态决定专家** - 不预设固定列表
 5. **最多 1 轮补充研究** - 避免无限循环
 6. **yield 唤醒后只做 exec 验证** - 不生成文字
+
+---
+
+## 多域示例参考
+
+### 软件域 Expert 面板示例
+```markdown
+### Expert 1: 架构专家
+- **research_questions**:
+  1. 微服务拆分粒度如何确定？
+  2. 核心组件选型（软件域: PostgreSQL vs MySQL; 投资域: 专利 A vs 专利 B; 硬件域: 热管 A vs 热管 B）？
+  3. 缓存架构：Redis Cluster 还是 Memcached？
+- **focus_req_ids**: REQ-001, REQ-003, REQ-007
+
+### Expert 2: 安全专家
+- **research_questions**:
+  1. 领域关键风险如何缓解（软件域: OWASP Top 10; 投资域: 数据源覆盖; 硬件域: TDP 验证）？
+  2. 认证方案：JWT vs OAuth2 vs SAML？
+  3. 数据加密方案：AES-256 还是 ChaCha20？
+- **focus_req_ids**: REQ-002, REQ-005
+```
+
+### 投资域 Expert 面板示例
+```markdown
+### Expert 1: 财务分析专家
+- **research_questions**:
+  1. 目标公司估值模型选择（DCF vs APV vs 可比公司）？
+  2. 关键财务假设（收入增长率、毛利率）的合理性？
+  3. 敏感性分析：关键变量变动对估值的影响？
+- **focus_req_ids**: REQ-001, REQ-004
+
+### Expert 2: 市场分析专家
+- **research_questions**:
+  1. 目标市场规模和增长率（TAM/SAM/SOM）？
+  2. 竞争格局：主要玩家、市场份额、护城河？
+  3. 增长驱动因素和潜在风险？
+- **focus_req_ids**: REQ-002, REQ-003
+
+### Expert 3: 风险评估专家
+- **research_questions**:
+  1. 监管合规风险（数据保护、行业准入）？
+  2. 技术替代风险（新技术出现的可能性）？
+  3. 市场波动风险（经济周期、利率变化）？
+- **focus_req_ids**: REQ-005, REQ-006
+```
+
+### 硬件域 Expert 面板示例
+```markdown
+### Expert 1: 热设计专家
+- **research_questions**:
+  1. 散热方案选择：热管 vs 均温板 vs 液冷？
+  2. TIM 材料选型：导热硅脂 vs 相变材料 vs 液态金属？
+  3. CFD 仿真验证：最坏工况下 Tj 是否满足规格？
+- **focus_req_ids**: REQ-001, REQ-003
+
+### Expert 2: 可靠性专家
+- **research_questions**:
+  1. MTBF 计算方法和目标值？
+  2. 降额设计策略（电压、温度、电流）？
+  3. 加速寿命试验方案（HALT/HASS）？
+- **focus_req_ids**: REQ-002, REQ-005
+
+### Expert 3: 制造工艺专家
+- **research_questions**:
+  1. DFM 评审：关键工艺的可行性？
+  2. 工艺能力指数（Cpk）目标？
+  3. 供应链策略：单源 vs 双源 vs 多源？
+- **focus_req_ids**: REQ-004, REQ-006
+```

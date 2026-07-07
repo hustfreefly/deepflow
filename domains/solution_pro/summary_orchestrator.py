@@ -55,8 +55,10 @@ class SummaryOrchestrator(ModuleOrchestrator):
         session_id: str,
         spawn_fn: Optional[Callable] = None,
         base_dir: Optional[str] = None,
+        domain_profile=None,
     ):
         super().__init__("summary", session_id, spawn_fn, base_dir=base_dir)
+        self._domain_profile = domain_profile
         
         # Load prompts
         self._prompts = {}
@@ -98,6 +100,7 @@ class SummaryOrchestrator(ModuleOrchestrator):
         research_output: Optional[dict] = None,
         spawn_fn: Optional[Callable] = None,
         living_spec: Optional[dict] = None,
+        domain_profile=None,
     ) -> dict:
         """
         Summary 模块主入口
@@ -114,6 +117,8 @@ class SummaryOrchestrator(ModuleOrchestrator):
         """
         if spawn_fn is not None:
             self.spawn_fn = spawn_fn
+        if domain_profile is not None:
+            self._domain_profile = domain_profile
         
         # Store inputs
         self.frozen_spec = frozen_spec or {}
@@ -574,7 +579,7 @@ class SummaryOrchestrator(ModuleOrchestrator):
             instructions=(
                 "## 你的职责\n"
                 "把 refined_solution 总结成完整的方案文档，包含：\n"
-                "- 方案概述\n- 架构设计\n- 技术选型（含对比）\n"
+                "- 方案概述\n- 核心设计\n- 关键选型（含对比）\n"
                 "- 实施计划\n- 风险缓解\n- 约束覆盖追溯\n\n"
                 "## 关键约束\n"
                 "- 文档是大头，给足细节\n"
@@ -685,6 +690,14 @@ cd ~/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "..."
 将结果写入 Blackboard stage: `{output_stage}`
 使用 blackboard.write("{output_stage}", result)
 """
+        # 领域分析上下文注入
+        domain_profile = getattr(self, '_domain_profile', None)
+        if domain_profile:
+            try:
+                from domains.solution_pro.domain_analysis import domain_profile_to_prompt_context
+                task += "\n\n" + domain_profile_to_prompt_context(domain_profile)
+            except Exception:
+                pass
         return task
 
     def _read_expert_reports(self) -> str:

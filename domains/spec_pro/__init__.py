@@ -16,5 +16,12 @@ import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((
 
 from domains.spec_pro.coordinator import SpecProCoordinator
 from domains.spec_pro.models import LivingSpec, QualityLevel, Scenario
+from domains.spec_pro.domain_context import build_domain_context
 
-__all__ = ["SpecProCoordinator", "LivingSpec", "QualityLevel", "Scenario"]
+__all__ = [
+    "SpecProCoordinator",
+    "LivingSpec",
+    "QualityLevel",
+    "Scenario",
+    "build_domain_context",
+]
