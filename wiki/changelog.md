@@ -1,6 +1,30 @@
 # DeepFlow Changelog
 
-> 最后更新: 2026-06-23
+> 最后更新: 2026-07-08
+
+---
+
+## [V2.1.1] — 2026-07-08 — AI Native 反模式修复 + Wiki 更新
+
+### 新增
+- DAL (Domain Adaptation Layer) 架构 — 域推断从规则引擎改为 LLM 自推断
+- 三层门控架构 (gate_harness_decision)
+- Spec Pro 域上下文注入 (domain_context.py)
+- Solution Pro DomainProfile 全链路透传
+- 4 域 YAML 配置 (software/investment/hardware/business)
+
+### 修复
+- **P0 (5个)**: Gate B 关键词命中率、研究利用率子串匹配、硬编码语义分、正则代码检测、web_search 关键词匹配
+- **P1 (10个)**: Cage F6/F7、VERDICT_MAP、harness 建议、conservation 参数化、domain_loader 精简、WP 阈值、状态机、Jaccard 去重、子串定位
+
+### 变更
+- 64 文件修改 (+5,165 / -989)
+- 16+ Prompt 泛化（投资/硬件/商业多域示例）
+- 测试: 179 passed, 10 skipped
+- Wiki 全面更新
+
+### AI Native 修复模式
+代码做确定性粗筛（结构/标记/格式）→ LLM 做语义判断 → 代码合并决策
 
 ---
 
