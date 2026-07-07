@@ -118,3 +118,29 @@ frontend/frontend/
 
 # CodeGraph 完整目录
 .codegraph/
+
+# Cleanup 2026-07-08 additions
+_tmp_*.py
+tmp_*.py
+*_params.json
+*_task.txt
+.doc_index.json
+.ruff_cache/
+src/
+super_loop/
+ARCHITECTURE_REVIEW/
+dryrun_reports/
+audits/
+
+# 临时脚本和参数文件（2026-07-08 清理追加）
+_tmp_*.py
+tmp_*.py
+*_params.json
+*_task.txt
+.doc_index.json
+.ruff_cache/
+src/
+super_loop/
+ARCHITECTURE_REVIEW/
+dryrun_reports/
+audits/
