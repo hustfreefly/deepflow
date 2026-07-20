@@ -1,7 +1,7 @@
 agents:
-- prompt: prompts/orchestrator.md
-  role: orchestrator
-  timeout: 600
+- prompt: prompts/assess_guide.md
+  role: assessor_questioner
+  timeout: 300
 - prompt: prompts/parse.md
   role: parser
   timeout: 180

@@ -245,185 +245,6 @@ def _generate_improvements(c: float, n: float, a: float, g: float) -> list:
         "instruction": "Generate specific improvement suggestions based on the weak dimensions above",
     }]
 
-
-def level_to_score(level: LevelType) -> float:
-    """等级转分数（用于简化输入）"""
-    mapping = {
-        "high": 0.90,
-        "medium": 0.75,
-        "low": 0.60
-    }
-    return mapping.get(level, 0.75)
-
-
-def score_to_dict(score: HarnessScore) -> dict:
-    """将HarnessScore转为JSON可序列化的字典"""
-    return {
-        "completeness": {
-            "score": score.completeness.score,
-            "level": score.completeness.level,
-            "reasoning": score.completeness.reasoning
-        },
-        "necessity": {
-            "score": score.necessity.score,
-            "level": score.necessity.level,
-            "reasoning": score.necessity.reasoning
-        },
-        "alignment": {
-            "score": score.alignment.score,
-            "level": score.alignment.level,
-            "reasoning": score.alignment.reasoning
-        },
-        "global_impact": {
-            "score": score.global_impact.score,
-            "level": score.global_impact.level,
-            "reasoning": score.global_impact.reasoning
-        },
-        "overall_score": score.overall_score,
-        "decision": score.decision,
-        "improvements": score.improvements
-    }
-
-
-def _validate_harness_output_legacy(output: dict) -> tuple[bool, str]:
-    """
-    验证Worker输出的Harness格式是否正确
-    
-    优先使用 HarnessCheck Pydantic schema（含契约笼子）
-    如果 验证失败，尝试 格式（向后兼容）
-    
-    Returns:
-        (是否有效, 错误信息)
-    """
-    if "harness_check" not in output:
-        return False, "缺少harness_check字段"
-    
-    hc = output["harness_check"]
-    
-    # 格式检测: 有 layer1_system_guardrails
-    if "layer1_system_guardrails" in hc:
-        try:
-            from .schemas.schemas import HarnessCheckV2
-            HarnessCheckV2(**hc)
-            return True, ""
-        except ImportError:
-            pass
-        except Exception as e:
-            raise ValueError(f"[HarnessCheckV2] 验证失败 — 契约笼子触发: {e}")
-    
-    # 格式（向后兼容）
-    required_fields = ["completeness", "necessity", "alignment", "global_impact", "overall_score", "decision"]
-    
-    for field in required_fields:
-        if field not in hc:
-            return False, f"harness_check缺少{field}字段"
-    
-    # 验证decision值
-    valid_decisions = ["PASS", "WARNING", "CRITICAL_WARNING", "BLOCK_RECOMMENDATION"]
-    if hc["decision"] not in valid_decisions:
-        return False, f"decision值无效: {hc['decision']}"
-    
-    # 验证分数范围
-    for dim in ["completeness", "necessity", "alignment", "global_impact"]:
-        score = hc[dim]["score"] if isinstance(hc[dim], dict) else hc[dim]
-        if not (0.0 <= score <= 1.0):
-            return False, f"{dim}分数超出范围: {score}"
-    
-    return True, ""
-
-
-def validate_harness_output(harness_check: dict) -> tuple[bool, str]:
-    """
-    专用验证函数
-    
-    Args:
-        harness_check: harness_check 字段的内容（不是整个 stage output）
-    
-    Returns:
-        (是否有效, 错误信息)
-    """
-    try:
-        from .schemas.schemas import HarnessCheckV2
-        HarnessCheckV2(**harness_check)
-        return True, ""
-    except ImportError:
-        return False, "HarnessCheck schema 未安装"
-    except Exception as e:
-        raise ValueError(f"[HarnessCheckV2] 验证失败 — 契约笼子触发: {e}")
-
-
-def harness_to_scores(harness_check: dict) -> dict:
-    """
-    verdict → 数值映射（供 Gate A Layer 2 使用）
-    
-    Args:
-        harness_check: HarnessCheck格式的 dict
-    
-    Returns:
-        {"completeness": 0.95, "necessity": 0.80, "alignment": 0.95, "global_impact": 0.95,
-         "overall_score": 0.91, "decision": "PASS"}
-    """
-    from .schemas.schemas import VERDICT_SCORE_MAP
-    
-    layer1 = harness_check.get("layer1_system_guardrails", {})
-    scores = {}
-    for dim in ["completeness", "necessity", "alignment", "global_impact"]:
-        dim_data = layer1.get(dim, {})
-        # Prefer LLM-provided numeric score; fallback to VERDICT_SCORE_MAP
-        llm_score = dim_data.get("score")
-        if isinstance(llm_score, (int, float)) and 0.0 <= llm_score <= 1.0:
-            scores[dim] = llm_score
-        else:
-            verdict = dim_data.get("verdict", "WEAK")
-            scores[dim] = VERDICT_SCORE_MAP.get(verdict, 0.50)
-    
-    # overall_score = weighted average
-    overall = (
-        scores["completeness"] * 0.30 +
-        scores["necessity"] * 0.20 +
-        scores["alignment"] * 0.30 +
-        scores["global_impact"] * 0.20
-    )
-    
-    # decision from overall_verdict
-    overall_verdict = harness_check.get("overall_verdict", "CONDITIONAL")
-    verdict_to_decision = {
-        "STRONG_PASS": "PASS",
-        "PASS": "PASS",
-        "CONDITIONAL": "WARNING",
-        "WARNING": "CRITICAL_WARNING",
-        "FAIL": "BLOCK_RECOMMENDATION",
-    }
-    decision = verdict_to_decision.get(overall_verdict, "WARNING")
-    
-    return {
-        "completeness": scores["completeness"],
-        "necessity": scores["necessity"],
-        "alignment": scores["alignment"],
-        "global_impact": scores["global_impact"],
-        "overall_score": round(overall, 2),
-        "decision": decision,
-    }
-
-
-# 便捷函数：从等级快速计算
-def calculate_from_levels(
-    completeness_level: LevelType,
-    necessity_level: LevelType,
-    alignment_level: LevelType,
-    global_impact_level: LevelType,
-    **reasonings
-) -> HarnessScore:
-    """从等级（high/medium/low）快速计算总分"""
-    return calculate_harness_score(
-        completeness=level_to_score(completeness_level),
-        necessity=level_to_score(necessity_level),
-        alignment=level_to_score(alignment_level),
-        global_impact=level_to_score(global_impact_level),
-        **reasonings
-    )
-
-
 def calculate_harness_score_dynamic(
     weights: Dict[str, float],
     thresholds: Dict[str, float],
@@ -695,23 +516,42 @@ def evaluate_gate_b_critical(
             "failed_critical": [],        # 失败的 CRITICAL 检查 ID
         }
     """
-    # 构建 check_id -> verdict 映射
-    verdict_map = {r["check_id"]: r["verdict"] for r in gate_b_results}
+    # B2-FIX: 兼容两套字段名
+    # prompt 输出: name/result/reasoning
+    # 代码期望: check_id/verdict
+    verdict_map = {}
+    for r in gate_b_results:
+        # 兼容 check_id 和 name
+        cid = r.get("check_id") or r.get("name") or ""
+        # 兼容 verdict 和 result
+        v = r.get("verdict") or r.get("result") or ""
+        if cid:
+            verdict_map[cid] = v
 
-    # 检查 CRITICAL 项
+    # 检查 CRITICAL 项（兼容 id/check_id 字段名）
+    # P1-7-FIX: 兼容 severity 和 criticality 两套字段名
+    def _is_critical(check: dict) -> bool:
+        return (
+            check.get("severity") == "CRITICAL" or
+            check.get("criticality") == "CRITICAL"
+        )
+
     failed_critical = []
     for check in critical_checks:
-        if check.get("criticality") == "CRITICAL":
-            check_id = check["id"]
+        if _is_critical(check):
+            check_id = check.get("id") or check.get("check_id") or ""
             if verdict_map.get(check_id) != "PASS":
                 failed_critical.append(check_id)
 
-    # 计算通过率
+    # 计算通过率（兼容 verdict 和 result）
     total_checks = len(gate_b_results)
-    passed_checks = sum(1 for r in gate_b_results if r["verdict"] == "PASS")
+    passed_checks = sum(
+        1 for r in gate_b_results
+        if (r.get("verdict") or r.get("result") or "") == "PASS"
+    )
     overall_pass_rate = passed_checks / total_checks if total_checks > 0 else 0.0
 
-    critical_total = len([c for c in critical_checks if c.get("criticality") == "CRITICAL"])
+    critical_total = len([c for c in critical_checks if _is_critical(c)])
     critical_passed = critical_total - len(failed_critical)
     critical_pass_rate = critical_passed / critical_total if critical_total > 0 else 1.0
 

@@ -7,7 +7,7 @@ Spec Pro Coordinator
 
 职责:
 - 初始化 session 和 Blackboard 目录
-- 构建 Orchestrator Worker 的 task prompt
+- 构建主 Agent 的 task prompt（v3 扁平架构，无 Worker）
 - 读写 Blackboard 文件(用户输入,Worker 输出)
 - 跟踪对话轮次
 - 检查 Safety Valve max_rounds
@@ -21,11 +21,14 @@ Spec Pro Coordinator
 
 import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 import json
+import logging
 import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 from core.config.path_config import PathConfig
 from domains.spec_pro.blackboard import BlackboardManager
@@ -43,6 +46,167 @@ from domains.spec_pro.models import (
 from domains.spec_pro.contracts.gate import gate_living_spec_density, gate_quality_report, gate_harness_decision
 from domains.spec_pro.handoff import build_handoff_package, save_handoff_package
 from core.trace import start_trace, span  # 全链路追踪：跨域 trace_id
+from domains.spec_pro.spec_living_md import render_living_spec_md, parse_living_spec_md
+from core.md_track_extractor import extract_track_json, validate_md_structure
+from core.blackboard.context_injector import build_bootstrap_task
+
+# 契约笼子：sessions_spawn task 参数安全阈值（6KB，实际限制 ~8KB）
+BOOTSTRAP_SIZE_THRESHOLD = 6000  # bytes
+
+
+# =============================================================================
+# ADR-009 Phase 3: Semantic REQ-ID Generation (moved from frozen_spec.py)
+# =============================================================================
+
+_CATEGORY_PREFIX: Dict[str, str] = {
+    "objective": "OBJ", "capability": "CAP", "prohibition": "NO",
+    "quality_attribute": "QA", "constraint": "CON", "success_metric": "MET",
+    "scenario": "SCN", "pain_point": "PAIN", "integration": "INT",
+    "user": "USR", "risk": "RSK", "assumption": "ASM", "hint": "HNT",
+    "guardrail": "GRD", "guardrail_prohibition": "GRP",
+}
+
+
+def generate_requirement_index_semantic(living_spec: Dict[str, Any]) -> list:
+    """
+    从 living_spec.confirmed 生成语义化 REQ-ID 索引。
+
+    契约笼子 (ADR-009 Phase 3):
+    - living_spec 必须是 dict，否则 raise TypeError
+    - confirmed 不存在 → 返回空列表（不报错）
+    - REQ-ID 格式: REQ-{CATEGORY_PREFIX}-{NNN}（如 REQ-OBJ-001）
+    - 每个 category 独立计数
+    - 确定性逻辑，无 LLM 依赖
+
+    Returns:
+        list of {id, category, description, priority, source}
+    """
+    if not isinstance(living_spec, dict):
+        raise TypeError(f"living_spec must be dict, got {type(living_spec).__name__}")
+
+    confirmed = living_spec.get("confirmed", {})
+    if not isinstance(confirmed, dict) or not confirmed:
+        return []
+
+    requirements: list = []
+
+    def _add(category: str, description: Any, priority: str = "P1",
+             source: str = "fallback") -> None:
+        text = str(description or "").strip()
+        if not text:
+            return
+        prefix = _CATEGORY_PREFIX.get(category, category.upper()[:3])
+        existing = sum(1 for r in requirements if r.get("id", "").startswith(f"REQ-{prefix}-"))
+        req_id = f"REQ-{prefix}-{existing + 1:03d}"
+        requirements.append({
+            "id": req_id,
+            "category": category,
+            "description": text,
+            "priority": priority or "P1",
+            "source": source,
+        })
+
+    # 1. Objective
+    obj = confirmed.get("objective", "")
+    if obj:
+        _add("objective", obj, "P0", "confirmed.objective")
+
+    # 2. Capabilities
+    caps = confirmed.get("capabilities", {})
+    if isinstance(caps, dict):
+        for item in caps.get("always_do", []) or []:
+            _add("capability", item, "P0", "confirmed.capabilities.always_do")
+        for item in caps.get("should_do", []) or []:
+            _add("capability", item, "P1", "confirmed.capabilities.should_do")
+        for item in caps.get("never_do", []) or []:
+            _add("prohibition", item, "P0", "confirmed.capabilities.never_do")
+
+    # 3. Quality attributes
+    for qa in confirmed.get("quality_attributes", []) or []:
+        if isinstance(qa, dict):
+            desc = qa.get("spec") or qa.get("description") or qa.get("category")
+            priority = qa.get("priority", "P1")
+        else:
+            desc = qa
+            priority = "P1"
+        _add("quality_attribute", desc, priority, "confirmed.quality_attributes")
+
+    # 4. Constraints (兼容 dict 和 list)
+    constraints_raw = confirmed.get("constraints", {})
+    if isinstance(constraints_raw, list):
+        for item in constraints_raw:
+            _add("constraint", item, "P1", "confirmed.constraints")
+    elif isinstance(constraints_raw, dict):
+        for key, val in constraints_raw.items():
+            if not val:
+                continue
+            if isinstance(val, list):
+                for item in val:
+                    _add("constraint", f"{key}: {item}", "P1", f"confirmed.constraints.{key}")
+            else:
+                _add("constraint", f"{key}: {val}", "P0", f"confirmed.constraints.{key}")
+
+    # 5. Pain points
+    for item in confirmed.get("pain_points", []) or []:
+        _add("pain_point", item, "P1", "confirmed.pain_points")
+
+    # 6. Success metrics
+    for item in confirmed.get("success_metrics", []) or []:
+        if isinstance(item, dict):
+            desc = f"{item.get('metric', '')}: {item.get('target', '')}".strip(": ")
+            priority = item.get("priority", "P1")
+        else:
+            desc = str(item)
+            priority = "P1"
+        _add("success_metric", desc, priority, "confirmed.success_metrics")
+
+    # 7. Key scenarios
+    for item in confirmed.get("key_scenarios", []) or []:
+        _add("scenario", item, "P1", "confirmed.key_scenarios")
+
+    # 8. Integration
+    integration = confirmed.get("integration", {})
+    if isinstance(integration, dict):
+        for item in integration.get("requirements", []) or []:
+            _add("integration", item, "P1", "confirmed.integration.requirements")
+    elif isinstance(integration, list):
+        for item in integration:
+            _add("integration", item, "P1", "confirmed.integration")
+
+    # 9. Users
+    for item in confirmed.get("users", []) or []:
+        if isinstance(item, dict):
+            role = item.get("role", "")
+            key_needs = item.get("key_needs", [])
+            needs_str = "、".join(key_needs[:3]) if isinstance(key_needs, list) else str(key_needs)
+            desc = f"{role}（需求: {needs_str}）" if role and key_needs else (role or str(item))
+        else:
+            desc = str(item)
+        _add("user", desc, "P1", "confirmed.users")
+
+    # 10. Risks
+    risks = confirmed.get("risks", confirmed.get("risks_and_assumptions", {}))
+    if isinstance(risks, dict):
+        for item in risks.get("risks", []) or []:
+            desc = item.get("description", str(item)) if isinstance(item, dict) else str(item)
+            _add("risk", desc, "P1", "confirmed.risks")
+        for item in risks.get("assumptions", []) or []:
+            desc = item.get("description", str(item)) if isinstance(item, dict) else str(item)
+            _add("assumption", desc, "P1", "confirmed.assumptions")
+    elif isinstance(risks, list):
+        for item in risks:
+            _add("risk", item, "P1", "confirmed.risks")
+
+    # 11. Guardrails (from top-level living_spec)
+    guardrails = living_spec.get("guardrails", {})
+    if isinstance(guardrails, dict):
+        for item in guardrails.get("always_do", []) or []:
+            _add("guardrail", item, "P0", "guardrails.always_do")
+        for item in guardrails.get("never_do", []) or []:
+            _add("guardrail_prohibition", item, "P0", "guardrails.never_do")
+
+    return requirements
+
 
 # DeepFlow base directory
 _BASE_DIR = PathConfig.resolve().base_dir
@@ -135,7 +299,7 @@ class SpecProCoordinator:
             user_input: 用户初始输入文本
 
         Returns:
-            dict with keys: session_id, base_path, orchestrator_task
+            dict with keys: session_id, base_path, coordinator_task
 
         Raises:
             ValueError: 输入过短(<5字符)或过长(>5000字符)
@@ -159,8 +323,10 @@ class SpecProCoordinator:
         # 全链路追踪：记录 session 初始化 span
         span("session_init", domain="spec_pro", scenario=self.scenario, session_id=self.session_id)
 
-        # Initialize BlackboardManager self._bb = BlackboardManager(self.session_id)
+        # Initialize BlackboardManager
+        self._bb = BlackboardManager(self.session_id)
         self._bb.init_session()
+        assert self._bb is not None, "BlackboardManager initialization failed"
 
         # Write user input
         self._bb.write("input.md", user_input)
@@ -188,11 +354,17 @@ class SpecProCoordinator:
         watcher_config_rel = "domains/spec_pro/config/watcher_config.json"
         watcher_config_abs = os.path.join(deepflow_root, watcher_config_rel)
 
+        # 契约笼子：Auto-Bootstrap（解决 sessions_spawn task 截断）
+        coordinator_task = self._apply_bootstrap_if_needed(task, "coordinator_task")
+        parse_worker_prompt = self._apply_bootstrap_if_needed(
+            self._build_parse_worker_prompt(1), "parse_worker_r1"
+        )
+
         return {
             "session_id": self.session_id,
             "base_path": str(self._bb.session_dir),
-            "orchestrator_task": task,
-            "v3_parse_worker_prompt": self._build_parse_worker_prompt(1),
+            "coordinator_task": coordinator_task,
+            "v3_parse_worker_prompt": parse_worker_prompt,
             # --- Watcher fields (new, backward-compatible) ---
             "run_start_at": run_start_at,
             "watcher_config": watcher_config_rel,
@@ -210,7 +382,7 @@ class SpecProCoordinator:
             user_response: 用户本轮回答
 
         Returns:
-            dict with keys: orchestrator_task, round_num
+            dict with keys: coordinator_task, round_num
             If max_rounds exceeded: {action: 'safety_stop', reason: 'max_rounds'}
 
         Raises:
@@ -263,10 +435,14 @@ class SpecProCoordinator:
             "response_length": len(user_response),
         })
 
+        # 契约笼子：Auto-Bootstrap（解决 sessions_spawn task 截断）
+        coordinator_task = self._apply_bootstrap_if_needed(task, f"coordinator_r{self.current_round}")
+        parse_worker_prompt = self._apply_bootstrap_if_needed(v3_parse, f"parse_worker_r{self.current_round}")
+
         return {
-            "orchestrator_task": task,
+            "coordinator_task": coordinator_task,
             "round_num": self.current_round,
-            "v3_parse_worker_prompt": v3_parse,
+            "v3_parse_worker_prompt": parse_worker_prompt,
         }
 
     def read_round_output(self) -> Dict[str, Any]:
@@ -360,16 +536,16 @@ class SpecProCoordinator:
 你的任务是对 living_spec.confirmed 中的需求进行语义标注，为下游 Solution Pro 提供结构化元数据。
 
 ## 输入
-使用 BlackboardManager 读取: spec/living_spec.json
+使用 BlackboardManager 读取: spec/living_spec.md
 
 ## 执行步骤
-1. 使用 read_stage 或 read_json 读取 living_spec.json 的 confirmed 层
+1. 使用 read 读取 living_spec.md 的 confirmed 层
 2. 调用 annotate_requirements(confirmed) 进行 LLM 标注
 3. 如果标注成功，将结果写入 living_spec.confirmed.requirement_annotations
 4. 如果标注失败（JSON解析错误、Schema验证失败、覆盖率<80%），不写入 requirement_annotations，保持 living_spec 不变
 
 ## 输出
-更新 spec/living_spec.json，在 confirmed 层新增 requirement_annotations 字段（如果标注成功）
+更新 spec/living_spec.md，在 confirmed 层新增 requirement_annotations 字段（如果标注成功）
 
 ## 标注格式
 使用 JSON 格式输出，符合以下 Schema：
@@ -420,7 +596,7 @@ class SpecProCoordinator:
         living_spec.setdefault("confirmed", {})["requirement_annotations"] = annotations
 
         # 保存回文件
-        self._bb.write("spec/living_spec.json", living_spec)
+        self._write_living_spec(living_spec)
 
         self._write_execution_log("annotation_applied", {
             "annotation_count": len(annotations)
@@ -475,9 +651,9 @@ class SpecProCoordinator:
         if self._bb is None:
             return {"passed": False, "issues": ["Blackboard 未初始化"], "score": 0.0, "warnings": []}
 
-        living_spec_data = self._bb.read_json("spec/living_spec.json")
+        living_spec_data = self._read_living_spec()
         if living_spec_data is None:
-            return {"passed": False, "issues": ["living_spec.json 不存在"], "score": 0.0, "warnings": []}
+            return {"passed": False, "issues": ["living_spec.md/json 不存在"], "score": 0.0, "warnings": []}
 
         try:
             spec_model = LivingSpec(**living_spec_data)
@@ -552,7 +728,7 @@ class SpecProCoordinator:
         if not density_result.get("passed", False):
             return None
 
-        living_spec_data = self._bb.read_json("spec/living_spec.json", default={})
+        living_spec_data = self._read_living_spec() or {}
         quality_report_data = self._bb.read_json("spec/quality_report.json", default={})
 
         # 契约笼子：验证 quality_report 格式
@@ -564,6 +740,17 @@ class SpecProCoordinator:
         harness_report = self._bb.read_json("spec/harness_report.json")
         if harness_report is None:
             harness_report = self.run_harness_decision()
+
+        # B3-FIX: handoff_allowed = density_gate AND harness_decision
+        # If Harness returns SOFT_BLOCK or HARD_BLOCK, block handoff
+        if harness_report:
+            harness_decision = harness_report.get("decision", harness_report.get("verdict", ""))
+            if harness_decision in ("SOFT_BLOCK", "HARD_BLOCK"):
+                import logging as _logging
+                _logging.getLogger(__name__).warning(
+                    f"B3: handoff blocked by harness decision: {harness_decision}"
+                )
+                return None
 
         package = build_handoff_package(
             living_spec=living_spec_data,
@@ -670,7 +857,7 @@ class SpecProCoordinator:
 
 ### 如果 action = "confirm"：
 
-1. 使用 read_json 读取 spec/living_spec.json
+1. 使用 read 读取 spec/living_spec.md
 2. 使用 read_json 读取 spec/quality_report.json（如有）
 3. 使用 read_json 读取 spec/harness_report.json（如有）
 4. **提取 Semantic Anchors（契约笼子强制步骤）**：
@@ -691,7 +878,7 @@ class SpecProCoordinator:
    ]
    ```
    - 如果没有不可抽象化的引用，写入空数组 []
-   - 使用 write 更新 spec/living_spec.json（加入 semantic_anchors 字段）
+   - 使用 write 更新 spec/living_spec.md（加入 semantic_anchors 字段）
 
 5. **🔴 Density Gate 检查（契约笼子，不可跳过）**：
    执行以下命令检查 Living Spec 密度：
@@ -726,9 +913,9 @@ class SpecProCoordinator:
 
 ### 如果 action = "revise"：
 
-1. 合并修正内容到 living_spec.json：
+1. 合并修正内容到 living_spec.md：
 ```
-python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmation.json spec/living_spec.json
+python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmation.json spec/living_spec.md
 ```
 2. 对更新后的 living_spec 进行 7 维度评分
 3. 如果 overall_score >= {threshold}：
@@ -757,7 +944,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
         domain_type = None
         if hasattr(self, '_bb') and self._bb is not None:
             try:
-                living_spec_data = self._bb.read_json("spec/living_spec.json", default={})
+                living_spec_data = self._read_living_spec() or {}
                 if isinstance(living_spec_data, dict):
                     domain_type = living_spec_data.get("meta", {}).get("domain_type")
             except Exception:
@@ -801,12 +988,55 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
             # 提取失败不阻断主流程
             pass
 
+    def _apply_bootstrap_if_needed(self, task: str, name: str) -> str:
+        """
+        契约笼子：Auto-Bootstrap for sessions_spawn 截断保护。
+        
+        task > 6KB → 自动写入 blackboard + 替换为 bootstrap 引用。
+        task ≤ 6KB → 原样返回。
+        
+        Args:
+            task: 完整 task 字符串
+            name: 标识名（用于 blackboard 文件名）
+        
+        Returns:
+            原始 task 或 bootstrap 引用 task
+        """
+        task_bytes = len(task.encode('utf-8'))
+        if task_bytes <= BOOTSTRAP_SIZE_THRESHOLD:
+            return task
+        
+        prompt_filename = f"_bootstrap_{name}.md"
+        self._bb.write(prompt_filename, task, subdir="stages")
+        
+        # 写入验证（契约笼子：不静默降级）
+        verify = self._bb.read_stage_raw(prompt_filename)
+        if not verify:
+            raise RuntimeError(
+                f"Spec Pro bootstrap write-back failed for {prompt_filename} ({task_bytes}B)"
+            )
+        
+        deepflow_root = Path(__file__).resolve().parent.parent.parent
+        bootstrap_task = build_bootstrap_task(
+            deepflow_root=deepflow_root,
+            blackboard_id=self.session_id,
+            prompt_filename=prompt_filename,
+            preamble=f"cd {deepflow_root} && PYTHONPATH=.",
+        )
+        logger.info(
+            f"Spec Pro bootstrap [{name}]: {task_bytes}B → {len(bootstrap_task.encode('utf-8'))}B"
+        )
+        return bootstrap_task
+
     def _build_round_task(self, round_num: int, phase: str) -> str:
         """
         生成主 Agent 直接执行的流程指令。
 
         主 Agent 直接评分+提问，不 spawn Worker。
+        使用 assess_guide.md 作为评估框架（幽灵注册修复）。
         """
+        from core.prompt_registry import read_prompt
+        assess_guide = read_prompt("spec_pro/assess_guide")
         threshold = self._compute_dynamic_threshold()
         base_threshold = self._config["threshold"]
         max_rounds = self._config["max_rounds"]
@@ -854,6 +1084,11 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
 - 用户说"你们来决定" → 委托设计 → 不扣分
 
 ---
+## 评估框架（来自 spec_pro/assess_guide）
+
+{assess_guide}
+
+---
 ## 当前任务上下文
 
 - Session: {self.session_id}
@@ -869,7 +1104,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
         if phase == "init":
             task += """\n## 你的任务
 
-1. 使用 read_json 读取 living_spec.json（已由 ParseWorker 创建）
+1. 使用 read 读取 living_spec.md（已由 ParseWorker 创建）
 2. 对 living_spec 进行 7 维度评分（0-100）：
    - objective (20%): 目标清晰度、痛点、成功指标
    - users (15%): 用户角色、场景
@@ -898,7 +1133,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
     "top_improvements": [],
     "top_missing": [缺失项]
   },
-  "inferred_items": [living_spec.json inferred 层 pending 项]
+  "inferred_items": [living_spec.md inferred 层 pending 项]
 }
 ```
 """
@@ -906,7 +1141,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
             prev = round_num - 1
             task += f"""\n## 你的任务
 
-1. 使用 read_json 读取 living_spec.json（已由 merge_spec.py 合并更新）
+1. 使用 read 读取 living_spec.md（已由 merge_spec.py 合并更新）
 2. 对 living_spec 进行 7 维度评分（0-100）
 3. 生成 3-5 个引导问题，聚焦最低分维度
    - 已问过且已回答的问题不再重复
@@ -936,7 +1171,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
     "top_improvements": [提升最大的2-3维度],
     "top_missing": [缺失项]
   }},
-  "inferred_items": [living_spec.json inferred 层 pending 项]
+  "inferred_items": [living_spec.md inferred 层 pending 项]
 }}
 ```
 
@@ -979,7 +1214,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
 ## 文件路径
 - 使用 BlackboardManager 读取: input.md
 - 使用 write_stage 写入: round_{round_num:02d}_parse
-- 使用 write 写入: spec/living_spec.json
+- 使用 write 写入: spec/living_spec.md
 """
         else:
             prev = round_num - 1
@@ -990,11 +1225,73 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
 - Blackboard: {session_dir}
 
 ## 文件路径
-- 使用 read_json 读取: spec/living_spec.json
+- 使用 read 读取: spec/living_spec.md
 - 使用 read 读取: spec/user_response_round_{round_num}.md
 - 使用 read_stage 读取: round_{prev:02d}_questions
 - 使用 write_stage 写入: round_{round_num:02d}_response
 """
+
+
+    def _read_living_spec(self) -> dict | None:
+        """
+        读取 living_spec（MD 优先，JSON fallback）。
+        
+        Returns:
+            dict or None（文件不存在时）
+        """
+        if self._bb is None:
+            return None
+        
+        # Try MD first
+        md_content = self._bb.read("spec/living_spec.md")
+        if md_content:
+            try:
+                return parse_living_spec_md(md_content)
+            except Exception as e:
+                logger.warning(f"MD parse failed, falling back to JSON: {e}")
+        
+        # Fallback to JSON
+        return self._bb.read_json("spec/living_spec.json")
+    
+    def _write_living_spec(self, data: dict) -> None:
+        """
+        写入 living_spec.md + spec_track.json。
+        
+        契约笼子:
+        - data 必须是 dict
+        - 写入 MD + track.json 两个文件
+        - track.json 用于 Gate 检查
+        """
+        if self._bb is None:
+            raise RuntimeError("Blackboard 未初始化")
+        if not isinstance(data, dict):
+            raise TypeError(f"data must be dict, got {type(data).__name__}")
+        
+        # ADR-009 Phase 3: 自动生成语义化 requirement_index
+        # 契约笼子: 仅在 requirement_index 为空或不存在时生成
+        if not data.get("requirement_index"):
+            try:
+                data["requirement_index"] = generate_requirement_index_semantic(data)
+            except Exception as e:
+                logger.warning(f"requirement_index generation failed: {e}")
+                data["requirement_index"] = []
+        
+        # Render dict → MD
+        md_content = render_living_spec_md(data)
+        
+        # Write MD
+        self._bb.write("spec/living_spec.md", md_content)
+        
+        # Generate and write track.json
+        try:
+            passed, warnings = validate_md_structure(md_content, "spec_pro")
+            if passed:
+                track = extract_track_json(md_content, "spec_pro")
+                self._bb.write("spec/spec_track.json", json.dumps(track, ensure_ascii=False, indent=2))
+            else:
+                logger.warning(f"MD validation warnings: {warnings}")
+        except Exception as e:
+            logger.warning(f"track.json generation failed: {e}")
 
     def _write_execution_log(self, event: str, data: Dict[str, Any]) -> None:
         """Append event to execution_log.json. Non-critical: failures are silent."""

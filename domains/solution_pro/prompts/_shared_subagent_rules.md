@@ -31,10 +31,52 @@ preview = str(data)[:2000] if not isinstance(data, str) else data[:2000]
 print(preview)
 ```
 
+### BlackboardManager API 快速参考
+
+```
+bb = BlackboardManager('{session_id}')
+
+# Stage 读写（JSON dict）
+bb.write_stage('name', {'key': 'val'})    # 写 dict → stages/name.json
+bb.read_stage('name', default=None)        # 读 dict ← stages/name.json
+bb.append_stage('name', {'key': 'val'})    # 增量合并
+bb.stage_exists('name')                    # → bool
+bb.list_stages()                           # → list[str]
+bb.read_stage_raw('name')                  # 读原始文本（.md/.txt/.json）
+
+# 文件读写（文本/任意内容）
+bb.write('file.md', text, subdir='stages/sub')   # 写文本
+bb.read('file.md', subdir='stages/sub')          # 读文本
+bb.read_json('file.json', default=None)           # 读 JSON
+
+# 属性
+bb.session_dir   # → Path
+bb.session_id    # → str
+```
+
+⚠️ 常见错误（禁止）：
+- ❌ `bb._load()` → 不存在！用 `bb.read_stage()` 或 `bb.read()`
+- ❌ `bb.write_stage('name', markdown_string)` → write_stage 接收 dict，不接收 str！写文本用 `bb.write()`
+- ❌ `bb.read_stage('name')` 读文本 → read_stage 返回 dict！读文本用 `bb.read()` 或 `bb.read_stage_raw()`
+
 ### Python 代码规范
 - **注释和 docstring 必须用英文** — 中文全角字符（，/（/）/—）会导致 SyntaxError
 - **使用绝对路径**: `{deepflow_root}/...`
 - **禁止相对路径**: `data/`, `prompts/`, `stages/`（subagent cwd 可能不是 .deepflow/）
+
+## 文件操作安全规则
+
+### edit 工具使用约束
+1. **edit 前必须 read**: 在调用 edit 工具之前，**必须**先 read 目标文件的当前内容
+2. 原因: 文件可能已被其他 Agent 修改，你记忆中的内容可能已过时
+3. ❌ 禁止: 凭记忆中的文件内容构造 oldText
+4. ✅ 正确: read 当前内容 → 确认 oldText 精确匹配 → 再 edit
+
+### 中文路径处理
+1. shell 命令中的中文路径**必须**用引号包裹
+2. ❌ 禁止: `cat blackboard/国产半导体封装材料VC投资框架/data.json`
+3. ✅ 正确: `cat "blackboard/国产半导体封装材料VC投资框架/data.json"`
+4. 更优: 在 Python 内用 `Path()` 操作路径，避免 shell 编码问题
 
 ### 禁止操作（subagent 环境限制）
 - ❌ `cron(action="add", sessionTarget="main")` → 用 `sessionTarget="isolated"`

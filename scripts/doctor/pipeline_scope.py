@@ -29,6 +29,7 @@ _PIPELINE_STATE_PATTERNS = [
     "*/ship_output/pipeline_state.json",      # Ship Pro
     "*/pipeline_state.json",                   # Solution Pro (in stages/)
     "*/stages/pipeline_state.json",            # Solution Pro alt
+    "*/master_state.json",                     # Solution Pro 2.0 (MasterOrchestrator)
 ]
 
 # 上海时区 offset
@@ -70,6 +71,9 @@ def discover_pipeline_runs(
                 continue
 
             run_id = state.get("run_id", "")
+            if not run_id:
+                # master_state.json 使用 session_id 而非 run_id
+                run_id = state.get("session_id", "")
             if not run_id or run_id in seen_run_ids:
                 continue
             seen_run_ids.add(run_id)
@@ -77,6 +81,25 @@ def discover_pipeline_runs(
             # 解析时间
             started_at = _parse_iso(state.get("started_at", ""))
             completed_at = _parse_iso(state.get("completed_at", ""))
+
+            # master_state.json 没有 started_at，尝试从 .completed.json 或文件 mtime 获取
+            if not started_at and "master_state" in str(state_file):
+                # 尝试读取 companion .completed.json
+                completed_file = state_file.parent / "stages" / ".completed.json"
+                if completed_file.exists():
+                    try:
+                        with open(completed_file) as cf:
+                            completed_state = json.load(cf)
+                        completed_at = _parse_iso(completed_state.get("completed_at", ""))
+                    except (json.JSONDecodeError, OSError):
+                        pass
+                # 用文件 mtime 作为 started_at 的 fallback
+                if not started_at:
+                    import os
+                    mtime = state_file.stat().st_mtime
+                    started_at = datetime.fromtimestamp(mtime, tz=_SHANGHAI_TZ) - timedelta(minutes=30)
+                    if not completed_at:
+                        completed_at = datetime.fromtimestamp(mtime, tz=_SHANGHAI_TZ)
 
             if not started_at:
                 continue
@@ -246,6 +269,24 @@ def _infer_domain(state_path: Path, state: dict) -> str:
         return "spec_pro"
     if "research" in path_str:
         return "research_pro"
+    if "deliver" in path_str:
+        return "deliver_pro"
+
+    # master_state.json → Solution Pro（MasterOrchestrator 使用此格式）
+    if state_path.name == "master_state.json":
+        modules = state.get("completed_modules", [])
+        # 检查已完成模块或 stages/ 目录下的文件来判断域
+        if any(m in modules for m in ["planning", "research", "summary"]):
+            return "solution_pro"
+        # Fallback: 检查 stages/ 子目录下的文件名
+        stages_dir = state_path.parent / "stages"
+        if stages_dir.exists():
+            stage_files = [f.name for f in stages_dir.iterdir()]
+            if any("planning" in f or "research" in f or "summary" in f for f in stage_files):
+                return "solution_pro"
+    # deliver_pro 检查
+    if state_path.name == "delivery_state.json":
+        return "deliver_pro"
 
     # 从 agents 推断
     agents = state.get("agents", {})

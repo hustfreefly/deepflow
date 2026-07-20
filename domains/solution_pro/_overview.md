@@ -45,7 +45,6 @@ MasterOrchestrator（极简调度器）
 | `__init__.py` | 公共 API `run_solution_pro()`（2.0.0 入口） |
 | `planner.py` | 2.0.0 规划器辅助 |
 | `completion_handler.py` | 2.0.0 完成检查 + Schema 运行时验证 |
-| `frozen_spec.py` | 2.0.0 REQ-ID 冻结规格生成 |
 | `control_contract.py` | 2.0.0 Planning 后确定性刷新 control_contract.json |
 | `security_validator.py` | 输入清理 + 路径遍历检测 |
 | `harness_validator.py` | 2.0.0 Harness 验证 |
@@ -58,9 +57,7 @@ MasterOrchestrator（极简调度器）
 | `pipeline_watcher.py` | Cron 巡检脚本（2.0.0/2.0.0 共用） |
 | `normalize.py` | 数据规范化 |
 | `llm_recorder.py` | LLM 调用记录 |
-| `spec_context.py` | Spec 上下文管理 |
 | `lightweight_spec_agent.py` | 轻量 Spec Agent（无 Spec Pro 时的 fallback） |
-| `ai_native_auditor.py` | AI Native 审计 |
 | `golden_case_runner.py` | Golden Case 运行器 |
 | `fix_loop_state_machine.py` | Fix Loop 状态机 |
 

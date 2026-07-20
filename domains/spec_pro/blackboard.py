@@ -22,7 +22,7 @@ from core.blackboard.blackboard_manager import BlackboardManager as CoreBlackboa
 # ============================================================================
 STAGE_PATH_REGISTRY = {
     # Spec 核心文件
-    "living_spec":             "spec/living_spec.json",
+    "living_spec":             "spec/living_spec.md",
     "conversation_log":        "spec/conversation_log.json",
     "harness_report":          "spec/harness_report.json",
     "quality_trajectory":      "spec/quality_trajectory.json",

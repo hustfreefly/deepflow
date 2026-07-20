@@ -26,7 +26,7 @@ def test_single_file_output(bb_path: Path) -> List[str]:
     
     final_result = bb_path / "final_result.json"
     summarizer_json = bb_path / "stages" / "summarizer.json"
-    final_solution_md = bb_path / "final_solution.md"
+    final_solution_md = bb_path / "stages" / "final_solution.md"
     
     # final_result.json 必须存在
     if not final_result.exists():

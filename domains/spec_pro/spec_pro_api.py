@@ -63,6 +63,9 @@ def reconstruct_coord(state: dict) -> SpecProCoordinator:
 
     修复: __init__ 会正确初始化 _config（通过 mode），
     然后恢复被序列化的状态字段。
+
+    Fix 3: 增强健壮性 — base_path 缺失时 fallback 到默认 base_dir，
+    始终确保 _bb 可用，避免 next_round 因 NoneType 崩溃。
     """
     from domains.spec_pro.models import DialogState
     from pathlib import Path as _Path
@@ -77,7 +80,15 @@ def reconstruct_coord(state: dict) -> SpecProCoordinator:
     if persisted_base:
         base_dir = _Path(persisted_base).parent  # session_dir's parent is blackboard_dir
         coord._bb = BlackboardManager(coord.session_id, base_dir=str(base_dir))
-    coord.current_round = state["current_round"]
+    else:
+        # Fix 3: base_path 缺失时 fallback — 用默认 PathConfig 创建 BlackboardManager
+        # 而非留 None 导致后续 build_next_round_task 崩溃
+        import logging
+        logging.getLogger(__name__).warning(
+            f"base_path not in state for session {coord.session_id}, using default base_dir"
+        )
+        coord._bb = BlackboardManager(coord.session_id)
+    coord.current_round = state.get("current_round", 0)
     # 恢复 DialogState 枚举（JSON 中存的是字符串）
     state_val = state.get("state", "start")
     try:
@@ -101,7 +112,7 @@ def cmd_init(args):
         "success": True,
         "session_id": result["session_id"],
         "base_path": result["base_path"],
-        "orchestrator_task": result["orchestrator_task"],
+        "coordinator_task": result["coordinator_task"],
         "v3_parse_worker_prompt": result.get("v3_parse_worker_prompt"),
         "v3_main_eval_prompt": result.get("v3_main_eval_prompt"),
         "message": f"Session initialized: {result['session_id']}",
@@ -110,10 +121,36 @@ def cmd_init(args):
 
 def cmd_next_round(args):
     """构建下一轮任务"""
-    state = load_coord_state(args.session_id)
-    coord = reconstruct_coord(state)
-    
-    result = coord.build_next_round_task(args.user_response)
+    # Fix 3: 增加错误处理，避免 state 损坏时直接崩溃
+    try:
+        state = load_coord_state(args.session_id)
+    except (ValueError, OSError) as e:
+        return {
+            "success": False,
+            "error": f"Failed to load session state: {e}",
+            "hint": "Session may not exist or state file is corrupted. Try re-initializing.",
+        }
+
+    try:
+        coord = reconstruct_coord(state)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to reconstruct coordinator: {e}",
+            "state_keys": list(state.keys()) if isinstance(state, dict) else "invalid",
+        }
+
+    try:
+        result = coord.build_next_round_task(args.user_response)
+    except RuntimeError as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "hint": "BlackboardManager may not be initialized. Check session directory exists.",
+            "current_round": coord.current_round,
+            "session_id": coord.session_id,
+        }
+
     save_coord_state(coord)
     
     if "safety_stop" in str(result.get("action", "")):
@@ -127,7 +164,7 @@ def cmd_next_round(args):
     return {
         "success": True,
         "round_num": result["round_num"],
-        "orchestrator_task": result["orchestrator_task"],
+        "coordinator_task": result["coordinator_task"],
         "v3_parse_worker_prompt": result.get("v3_parse_worker_prompt"),
         "v3_main_eval_prompt": result.get("v3_main_eval_prompt"),
     }
@@ -147,6 +184,42 @@ def cmd_read_output(args):
     }
 
 
+def generate_spec_track(session_dir: Path) -> dict | None:
+    """
+    ADR-009: 从 living_spec.md 生成 spec_track.json。
+
+    非阻断：任何步骤失败 → log warning，返回 None。
+    """
+    md_path = session_dir / "spec" / "living_spec.md"
+    json_path = session_dir / "spec" / "living_spec.json"
+
+    # Try MD first (native MD output)
+    if md_path.exists():
+        try:
+            from core.track_generator import generate_track_from_md
+            return generate_track_from_md(
+                md_path=md_path,
+                domain="spec_pro",
+                output_dir=session_dir / "spec",
+            )
+        except ImportError:
+            pass
+
+    # Fallback to JSON
+    if json_path.exists():
+        try:
+            from core.track_generator import generate_track_from_json
+            return generate_track_from_json(
+                json_path=json_path,
+                domain="spec_pro",
+                output_dir=session_dir / "spec",
+            )
+        except ImportError:
+            return None
+
+    return None
+
+
 def cmd_status(args):
     """获取状态"""
     state = load_coord_state(args.session_id)
@@ -161,6 +234,10 @@ def cmd_status(args):
         completed_path = Path(coord._bb.session_dir) / ".completed"
         if not completed_path.exists():
             import json as _json
+
+            # ADR-009: 生成 track.json（在 .completed 之前，非阻断）
+            generate_spec_track(Path(coord._bb.session_dir))
+
             marker = {
                 "status": "completed",
                 "completed_at": datetime.now().isoformat(),
@@ -192,7 +269,7 @@ def cmd_confirm(args):
     
     return {
         "success": True,
-        "orchestrator_task": task,
+        "coordinator_task": task,
     }
 
 

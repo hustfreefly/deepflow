@@ -144,3 +144,18 @@ super_loop/
 ARCHITECTURE_REVIEW/
 dryrun_reports/
 audits/
+
+# GitHub push cleanup (2026-07-20)
+_archive/
+frontend/
+
+# Domain-level archives
+domains/*/_archive/
+contracts/shared/_archived/
+cage/archive/
+
+# All archive directories
+**/_archive/
+**/_archived/
+**/archive/
+**/prompts_archive/

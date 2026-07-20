@@ -8,7 +8,7 @@ Date: 2026-06-01
 
 """
 This file is part of pipeline (10-stage architecture).
-uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator.
+V3.1 纯 Agent Orchestrator 架构（Python orchestrator 层已删除）。
 Do not import this file for new workflows.
 """
 
@@ -59,17 +59,6 @@ class SolutionConfig:
     def stages(self) -> List[dict]:
         return [dict(stage) for stage in CURRENT_PIPELINE_STAGES]
     
-    def get_input_data(self) -> dict:
-        """生成Input JSON数据（用于Blackboard）"""
-        return {
-            "session_id": self.session_id,
-            "topic": self.topic,
-            "constraints": self.constraints,
-            "stakeholders": self.stakeholders,
-            "solution_type": self.solution_type
-        }
-
-
 def load_solution_yaml_config() -> Dict[str, Any]:
     """
     加载 config/solution.yaml 配置
@@ -84,49 +73,3 @@ def load_solution_yaml_config() -> Dict[str, Any]:
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
-
-def get_pipeline_stages_from_config() -> List[str]:
-    """
-    从 config/solution.yaml 读取 pipeline stages 名称列表
-    
-    Returns:
-        list[str]: stage 名称列表，如 ['data_collection', 'planning', 'research', ...]
-    """
-    config = load_solution_yaml_config()
-    pipeline = config.get("pipeline", {})
-    stages = pipeline.get("stages", [])
-    return [s["name"] for s in stages if "name" in s]
-
-
-def get_enabled_stages() -> List[str]:
-    """Return the active fixed 10-stage Solution Pro pipeline."""
-    stages = get_pipeline_stages_from_config()
-    return stages or [stage["name"] for stage in CURRENT_PIPELINE_STAGES]
-
-
-def get_total_timeout_from_config() -> int:
-    """
-    从 config/solution.yaml 计算所有 stage 的 timeout 总和（秒）
-    
-    Returns:
-        int: 总 timeout（秒）
-    """
-    config = load_solution_yaml_config()
-    pipeline = config.get("pipeline", {})
-    stages = pipeline.get("stages", [])
-    
-    total = 0
-    for stage in stages:
-        stage_type = stage.get("type", "")
-        workers = stage.get("workers", [])
-        
-        if stage_type == "parallel_workers":
-            # 并行取最大 timeout
-            if workers:
-                total += max(w.get("timeout", 0) for w in workers)
-        else:
-            # 串行累加所有 worker timeout
-            for w in workers:
-                total += w.get("timeout", 0)
-    
-    return total

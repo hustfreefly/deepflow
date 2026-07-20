@@ -2,11 +2,12 @@
 """
 DeepFlow Doctor — Pattern Detector
 
-从结构化事件流中自动检测 4 类带病运行模式：
+从结构化事件流中自动检测 5 类带病运行模式：
   🔴 T1: 工具调用错误但自动恢复 (最严重 — 浪费 token + 时间)
   🟡 T2: 门控失效 (质量门禁该拦没拦)
   🟡 T3: 静默降级 (输出缩水/步骤跳过但没报错)
   🟡 T4: 范围失控 (Agent 做了超出任务范围的事)
+  🟡 T5: LLM 困惑 (Agent 误解 Prompt 指令，做出与预期相反的行为)
 """
 
 import re
@@ -31,6 +32,7 @@ def detect_issues(events: list[dict], session_label: str = "") -> list[dict]:
     issues.extend(_detect_gate_failures(events))
     issues.extend(_detect_silent_degradation(events))
     issues.extend(_detect_scope_creep(events, session_label))
+    issues.extend(_detect_llm_confusion(events))
     return issues
 
 
@@ -52,6 +54,7 @@ def detect_pipeline_issues(events: list[dict], run_info: dict | None = None) -> 
     issues.extend(_detect_pipeline_tool_errors(events))
     issues.extend(_detect_gate_health(events, run_info))
     issues.extend(_detect_silent_degradation(events))  # 复用，事件已过滤
+    issues.extend(_detect_llm_confusion(events))
     return issues
 
 
@@ -541,5 +544,191 @@ def _detect_scope_creep(events: list[dict], session_label: str = "") -> list[dic
             "wasted_seconds": len(unexpected_writes) * 3,
             "ts": events[-1].get("ts", 0) if events else 0,
         })
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
+# T5: LLM 困惑 (Prompt 理解偏差)
+# ---------------------------------------------------------------------------
+
+def _detect_llm_confusion(events: list[dict]) -> list[dict]:
+    """
+    检测 LLM 因 Prompt 理解偏差而做出错误决策的模式。
+
+    信号:
+      T5a: 能力自限 — LLM 说"我不能"但实际可以 (e.g. "I cannot spawn" when it can)
+      T5b: 语义反转 — LLM 做了与指令相反的事 (e.g. "摘要" when task says "拼接")
+      T5c: 角色误解 — LLM 误解自己的角色/深度 (e.g. "depth-1 cannot spawn")
+      T5d: 提前退出 — LLM 说"完成"但实际还有未完成任务
+      T5e: 重复尝试同一操作 — LLM 困惑后反复尝试同一方法
+    """
+    issues = []
+
+    for i, ev in enumerate(events):
+        if ev["type"] != "text":
+            continue
+
+        content = ev.get("content", "")
+        content_lower = content.lower()
+
+        # ----- T5a: 能力自限 -----
+        # LLM 声称不能做某事，但实际上有权限
+        capability_denial = [
+            "i cannot", "i can't", "not allowed to", "don't have permission",
+            "unable to spawn", "cannot spawn", "cannot call", "not able to",
+            "i am not able", "i'm not allowed", "我没有权限", "我不能",
+            "不允许我", "无法调用",
+        ]
+        if any(denial in content_lower for denial in capability_denial):
+            # 排除误报: 如果前一个 tool_result 是错误，LLM 可能在正确描述失败
+            prev_result = None
+            for j in range(i - 1, max(0, i - 3), -1):
+                if events[j]["type"] == "tool_result" and not events[j].get("success"):
+                    prev_result = events[j]
+                    break
+            # 排除误报: 排除 OpenClaw 内部上下文和引用用户原话
+            is_internal = content.strip().startswith("<<<BEGIN_OPENCLAW")
+            is_quoting_user = (
+                content_lower.strip().startswith("the user said")
+                or content_lower.strip().startswith("user said")
+                or "用户说" in content_lower[:30]
+            )
+            if prev_result is None and not is_internal and not is_quoting_user:
+                issues.append({
+                    "category": "T5",
+                    "severity": "yellow",
+                    "sub_type": "T5a",
+                    "description": "LLM 困惑: 能力自限 — 声称不能做某事但实际可能有权限",
+                    "evidence": content[:300],
+                    "wasted_tokens": 5000,
+                    "wasted_seconds": 30,
+                    "ts": ev.get("ts", 0),
+                })
+
+        # ----- T5b: 语义反转 -----
+        # 任务说"拼接/组装"但 LLM 做了"摘要/合并/压缩"
+        # 关键优化: 只在同一段文本中，"拼接"类词和"摘要"类词出现在相近位置时才触发
+        # 排除: 文档内容、OpenClaw 内部上下文、长文本（>500字符的可能是文档输出）
+        if len(content) < 500 and not content.startswith("<<<BEGIN_OPENCLAW"):
+            task_hints = ["must assemble", "must concatenate", "必须拼接", "必须组装", "全部保留"]
+            reversal_hints = ["summarize it", "create a summary", "摘要如下", "压缩为", "精简为"]
+
+            has_task_hint = any(h in content_lower for h in task_hints)
+            has_reversal = any(h in content_lower for h in reversal_hints)
+
+            if has_task_hint and has_reversal:
+                issues.append({
+                    "category": "T5",
+                    "severity": "yellow",
+                    "sub_type": "T5b",
+                    "description": "LLM 困惑: 语义反转 — 可能将\"拼接\"误解为\"摘要\"",
+                    "evidence": content[:300],
+                    "wasted_tokens": 20000,
+                    "wasted_seconds": 60,
+                    "ts": ev.get("ts", 0),
+                })
+
+        # ----- T5c: 角色误解 -----
+        # LLM 误解自己的角色或 depth
+        role_confusion = [
+            "as a depth-1", "as a depth-2", "i am only a", "my role is only",
+            "i am just a", "not my responsibility", "超出我的职责",
+            "as the main agent, i", "as a sub-agent, i cannot",
+        ]
+        if any(rc in content_lower for rc in role_confusion):
+            issues.append({
+                "category": "T5",
+                "severity": "yellow",
+                "sub_type": "T5c",
+                "description": "LLM 困惑: 角色误解 — 可能误解了自己的角色或 depth",
+                "evidence": content[:300],
+                "wasted_tokens": 3000,
+                "wasted_seconds": 20,
+                "ts": ev.get("ts", 0),
+            })
+
+        # ----- T5d: 提前退出 -----
+        # LLM 说"完成"但后续事件显示还有未完成的工作
+        premature_exit = [
+            "all tasks completed", "all workers completed", "pipeline complete",
+            "all phases done", "全部完成", "所有任务已完成",
+            "no remaining", "no pending", "没有剩余",
+        ]
+        # 排除 OpenClaw 内部上下文（不是 LLM 自己说的话）
+        is_internal = content.strip().startswith("<<<BEGIN_OPENCLAW")
+        if not is_internal and any(pe in content_lower for pe in premature_exit):
+            # 检查后续是否有更多 tool_call（说明 LLM 过早宣布完成）
+            subsequent_tool_calls = sum(
+                1 for e in events[i+1:i+10]
+                if e["type"] == "tool_call"
+            )
+            if subsequent_tool_calls > 2:
+                issues.append({
+                    "category": "T5",
+                    "severity": "yellow",
+                    "sub_type": "T5d",
+                    "description": "LLM 困惑: 提前退出 — 声称完成但后续仍有操作",
+                    "evidence": content[:300],
+                    "wasted_tokens": 5000,
+                    "wasted_seconds": 30,
+                    "ts": ev.get("ts", 0),
+                })
+
+    # ----- T5e: 重复尝试同一操作 -----
+    # LLM 困惑后反复尝试同一方法（不是换路径重试）
+    # V3 优化: 只标记真正困惑的重复
+    # 排除: 所有常见的正常操作循环
+    EXCLUDE_TOOLS = {
+        "read", "sessions_yield", "sessions_list", "sessions_send",
+        "subagents", "cron", "message", "session_status",
+        "sessions_history", "sessions_spawn", "process",
+        "memory_search", "memory_get", "lcm_grep", "lcm_describe",
+    }
+    EXCLUDE_INPUT_PATTERNS = [
+        "pytest", "python3 -m pytest", "git ", "grep ", "find ",
+        "wc -l", "cat ", "head ", "tail ", "ls ", "echo ",
+        "python3 -c", "diff ", "stat ",
+    ]
+
+    prev_tool_call = None
+    repeat_count = 0
+    for ev in events:
+        if ev["type"] != "tool_call":
+            continue
+
+        tool = ev.get("tool", "")
+        input_preview = ev.get("input_preview", "")[:100]
+
+        # 跳过常见的正常操作
+        if tool in EXCLUDE_TOOLS:
+            prev_tool_call = None
+            repeat_count = 0
+            continue
+        if any(p in input_preview.lower() for p in EXCLUDE_INPUT_PATTERNS):
+            prev_tool_call = None
+            repeat_count = 0
+            continue
+
+        if prev_tool_call and tool == prev_tool_call.get("tool") and \
+           input_preview == prev_tool_call.get("input_preview", "")[:100]:
+            repeat_count += 1
+            # 只有连续 4+ 次完全相同操作才报告（提高阈值）
+            if repeat_count >= 3:
+                issues.append({
+                    "category": "T5",
+                    "severity": "yellow",
+                    "sub_type": "T5e",
+                    "description": f"LLM 困惑: 重复尝试 — 同一 {tool} 操作无变化重复 {repeat_count + 1} 次",
+                    "evidence": f"tool: {tool}, input: {input_preview}",
+                    "wasted_tokens": repeat_count * 3000,
+                    "wasted_seconds": repeat_count * 15,
+                    "ts": ev.get("ts", 0),
+                })
+                repeat_count = 0  # 重置，避免重复报告
+        else:
+            repeat_count = 0
+
+        prev_tool_call = ev
 
     return issues

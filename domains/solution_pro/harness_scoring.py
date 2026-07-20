@@ -6,7 +6,7 @@ from typing import Dict, List
 
 """
 This file is part of pipeline (10-stage architecture).
-uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator.
+V3.1 纯 Agent Orchestrator 架构（Python orchestrator 层已删除）。
 Do not import this file for new workflows.
 """
 
@@ -45,29 +45,10 @@ DECISION_THRESHOLDS = {
 VALID_DECISIONS = ["PASS", "WARNING", "CRITICAL_WARNING", "BLOCK_RECOMMENDATION"]
 
 
-def dimension_names() -> List[str]:
-    return list(SCORING_DIMENSIONS.keys())
-
+# [TD3 2026-07-13] Deleted dead function: dimension_names (zero callers)
 
 def weights() -> Dict[str, float]:
     return {name: cfg["weight"] for name, cfg in SCORING_DIMENSIONS.items()}
 
 
-def scoring_markdown() -> str:
-    lines = [
-        "## 统一 Harness 评分标准",
-        "",
-        "所有 Solution Pro 阶段使用同一套 4 维评分，分数范围为 0.0-1.0：",
-        "",
-    ]
-    for name, cfg in SCORING_DIMENSIONS.items():
-        lines.append(f"- `{name}` {cfg['label']} ({int(cfg['weight'] * 100)}%): {cfg['description']}")
-    lines.extend([
-        "",
-        "总分公式：",
-        "",
-        "`overall_score = completeness*0.30 + necessity*0.20 + alignment*0.30 + global_impact*0.20`",
-        "",
-        "决策阈值：PASS >= 0.85；WARNING >= 0.70；CRITICAL_WARNING >= 0.60；否则 BLOCK_RECOMMENDATION。",
-    ])
-    return "\n".join(lines)
+# [TD3 2026-07-13] Deleted dead function: scoring_markdown (zero callers)

@@ -27,7 +27,7 @@ updated: "2026-06-01"
   "research_objective": "研究目标 (1-2 句)",
   "key_entities": ["关键实体列表"],
   "time_range": "时间范围 (如: 最近1年)",
-  "dimensions": ["基本面分析", "技术面分析", "市场情绪"],
+  "research_dimensions": ["基本面分析", "技术面分析", "市场情绪"],
   "keyword_groups": [
     {
       "dimension": "基本面分析",

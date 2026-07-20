@@ -63,7 +63,7 @@
 | **Prompt 文件** | `prompts/v2_orchestrator.md` |
 
 **输入（可读）**：
-- `data/frozen_spec.json` — 原始需求
+- `living_spec`（MD source of truth，JSON fallback）— 原始需求
 - Blackboard 各 stage（验证用）
 
 **权限**：
@@ -73,7 +73,7 @@
 - ✅ 写 `.stage_progress` 和 `master_state.json`
 - ✅ 写 `.failed` 文件终止 pipeline
 - ❌ 不能自己生成模块输出
-- ❌ 不能修改 frozen_spec
+- ❌ 不能修改 living_spec
 
 **输出**：
 - `master_state.json` — pipeline 状态
@@ -120,7 +120,7 @@ Step 3: spawn Summary → yield → 验证 final_solution + solution_document
 | **职责** | 管理 Research Phase 0-5 | 管理 Planning Phase 0-5 |
 
 **输入（可读）**：
-- `data/frozen_spec.json`
+- `living_spec`（MD source of truth，JSON fallback）
 - **Research**: `planning_convergence`（Planning 产出）
 - **Planning**: 无上游模块依赖（Planning 是第一个模块）
 
@@ -170,13 +170,13 @@ Phase 5: 写 convergence stage
 | **职责** | 搜索上游输入涉及的技术领域的最新进展 |
 
 **输入（可读）**：
-- `data/frozen_spec.json` — 提取需要搜索的技术领域
+- `living_spec`（MD source of truth，JSON fallback）— 提取需要搜索的技术领域
 
 **权限**：
 - ✅ `web_search` 搜索最新技术信息
 - ✅ 写 Blackboard stage
 - ❌ 不能 spawn 子 Agent
-- ❌ 不能修改 frozen_spec
+- ❌ 不能修改 living_spec
 
 **输出**：
 - **stage 名称**: `knowledge_freshness`
@@ -194,7 +194,7 @@ Phase 5: 写 convergence stage
 | **职责** | 规划研究专家面板 | 规划分析专家面板 |
 
 **输入（可读）**：
-- `data/frozen_spec.json`
+- `living_spec`（MD source of truth，JSON fallback）
 - `knowledge_freshness`（Phase 0 产出）
 - **Research**: `planning_convergence`（Planning 产出）
 - **Planning**: 无上游模块依赖
@@ -226,7 +226,7 @@ Phase 5: 写 convergence stage
 | **职责** | 深度研究 findings | 深度分析约束 |
 
 **输入（可读）**：
-- `data/frozen_spec.json`
+- `living_spec`（MD source of truth，JSON fallback）
 - `knowledge_freshness`
 - `research_plan` / `planning_plan`（找到自己的 research_questions）
 - **Research**: `planning_convergence`（约束对齐）
@@ -264,7 +264,7 @@ Phase 5: 写 convergence stage
 **输入（可读）**：
 - `research_experts/` 或 `planning_experts/` — 所有 Expert 报告
 - `research_plan` / `planning_plan` — 质量标准
-- `data/frozen_spec.json`
+- `living_spec`（MD source of truth，JSON fallback）
 - **Research**: `planning_convergence`
 
 **权限**：
@@ -329,7 +329,7 @@ Phase 5: 写 convergence stage
 - `gap_analysis` — 缺失清单
 - `devil_advocate` — 挑战清单
 - 所有 Expert 原始报告
-- `data/frozen_spec.json`
+- `living_spec`（MD source of truth，JSON fallback）
 
 **权限**：
 - ✅ `web_search`
@@ -433,7 +433,7 @@ Phase 5: 写 convergence stage
 - `research_experts/`（各专家原始报告）
 - `gap_analysis`（Gap Analyst 报告）
 - `devil_advocate`（Devil's Advocate 报告）
-- `data/frozen_spec.json`
+- `living_spec`（MD source of truth，JSON fallback）
 
 **权限**：
 - ✅ `web_search`（搜索方案模板/行业案例）
@@ -531,7 +531,7 @@ Phase 5: 写 convergence stage
 
 | 维度 | 检查方法 | 判定标准 |
 |------|---------|----------|
-| 需求覆盖率 | 🔴 **Python** 从 frozen_spec 提取所有 P0 REQ-ID + 在 base_solution 中搜索出现位置 → **LLM** 判断每个匹配是否语义对应 | 100% = PASS，< 100% = FAIL |
+| 需求覆盖率 | 🔴 **Python** 从 living_spec.requirement_index 提取所有 P0 REQ-ID（语义化格式 REQ-OBJ-001）+ 在 base_solution 中搜索出现位置 → **LLM** 判断每个匹配是否语义对应 | 100% = PASS，< 100% = FAIL |
 | 约束一致性 | 🔴 **Python** 遍历 unified_constraints 中所有 constraint_id + 在方案中搜索 → **LLM** 判断是否语义覆盖 | 缺失率 > 10% = FAIL |
 | 来源追溯 | **LLM** 抽查 5+ 个关键决策，检查是否有 source_experts 追溯 | 无追溯 = WARNING |
 | 逻辑一致性 | **LLM** 检查是否存在语义矛盾（同时要求 A 和 非A） | 存在矛盾 = FAIL |
@@ -607,7 +607,7 @@ Phase 5: 写 convergence stage
 **输入（可读）**：
 - `refined_solution`（修复后的方案）
 - `planning_convergence`（含 verification_checklist）
-- `data/frozen_spec`（原始需求，用于 Harness 层）
+- `living_spec`（MD source of truth，JSON fallback，用于 Harness 层）
 
 **权限**：
 - ✅ 读/写 Blackboard
@@ -640,10 +640,10 @@ Phase 5: 写 convergence stage
 
 | 检查项 | 方法 | 判定 |
 |--------|------|------|
-| P0 REQ 覆盖率 | frozen_spec 中 P0 REQ 是否在方案中有对应实现 | < 100% = FAIL |
+| P0 REQ 覆盖率 | living_spec.requirement_index 中 P0 REQ 是否在方案中有对应实现 | < 100% = FAIL |
 | 架构一致性 | 方案是否与 unified_constraints 体系一致 | 存在矛盾 = FAIL |
-| Guardrails 遵守 | 是否违反 frozen_spec 中的 never_do | 违反 = FAIL |
-| 信息守恒 | 🔴 **Python** 从 frozen_spec 提取所有 P0 REQ-ID，检查每个 ID 是否在 refined_solution 中出现（语义覆盖而非字符串匹配） | P0 未全覆盖 = FAIL |
+| Guardrails 遵守 | 是否违反 living_spec.confirmed.capabilities.never_do | 违反 = FAIL |
+| 信息守恒 | 🔴 **Python** 从 living_spec.requirement_index 提取所有 P0 REQ-ID，检查每个 ID 是否在 refined_solution 中出现（语义覆盖而非字符串匹配） | P0 未全覆盖 = FAIL |
 
 ---
 
@@ -881,3 +881,13 @@ else:
     print('[STAGE]_MISSING')
 "
 ```
+
+---
+
+## ADR-009 变更说明（2026-07-12）
+
+本文档中的 `frozen_spec.json` 引用已根据 ADR-009 Phase 3 更新：
+- **数据源**: `frozen_spec.json` → `living_spec`（MD source of truth）
+- **REQ-ID**: 从 `frozen_spec` 提取 → 从 `living_spec.requirement_index` 读取
+- **REQ-ID 格式**: 语义化（REQ-OBJ-001），由 spec_pro/coordinator.py 原生生成
+- **frozen_spec.py**: 已废弃（DEPRECATED），仅保留 fallback

@@ -209,6 +209,55 @@ class PipelineDesigner:
     
     在 Python 内部调用 LLM，分析 Solution Pro 输出，设计 Worker 拆分方案。
     """
+
+    @staticmethod
+    def verify_decision_coverage(planner_output: Dict[str, Any],
+                                  solution_pro_input: Dict[str, Any]) -> None:
+        """
+        L0 契约笼子: 验证所有 key_decisions 被至少一个 Worker 引用。
+        
+        防止 "决策完全未分配" 的二元失败。
+        raise ValueError 而非事后报告。
+        """
+        all_decisions = solution_pro_input.get("key_decisions", [])
+        if not all_decisions:
+            return  # 无决策则无需检查
+        
+        # 归一化: 提取每个决策的标识符（前 40 字符作为匹配 key）
+        decision_keys = []
+        for d in all_decisions:
+            if isinstance(d, str):
+                decision_keys.append(d[:40])
+            elif isinstance(d, dict):
+                desc = d.get("description", d.get("decision", str(d)))
+                decision_keys.append(desc[:40])
+            else:
+                decision_keys.append(str(d)[:40])
+        
+        # 收集所有 Worker 引用的决策文本
+        all_referenced = []
+        for w in planner_output.get("workers", []):
+            all_referenced.extend(w.get("relevant_decisions", []))
+        
+        # 检查: 每个决策 key 必须出现在至少一个 Worker 的 relevant_decisions 中
+        uncovered = []
+        for i, key in enumerate(decision_keys):
+            found = any(key in ref for ref in all_referenced)
+            if not found:
+                # 也检查反向: ref 是否在 key 中（Planner 可能截断）
+                found = any(ref in all_decisions[i] if isinstance(all_decisions[i], str)
+                           else ref in str(all_decisions[i])
+                           for ref in all_referenced)
+            if not found:
+                uncovered.append(f"D{i+1}: {key}...")
+        
+        if uncovered:
+            raise ValueError(
+                f"契约笼子 L0: {len(uncovered)}/{len(all_decisions)} 个关键决策未被任何 Worker 引用:\n"
+                + "\n".join(f"  - {u}" for u in uncovered)
+                + "\n\n修复: Planner 必须将每个 key_decision 分配给至少一个 Worker 的 relevant_decisions。"
+            )
+
     
     # 高质量 WP 示例（嵌入每个 Worker 的 context.json）
     HIGH_QUALITY_WP_EXAMPLE = {
@@ -231,7 +280,7 @@ class PipelineDesigner:
         self.stages_dir = self.blackboard_path / "stages"
         self.stages_dir.mkdir(parents=True, exist_ok=True)
     
-    def design_pipeline(self, solution_pro_input: Dict[str, Any], auto: bool = True) -> Dict[str, Any]:
+    def design_pipeline(self, solution_pro_input: Dict[str, Any], auto: bool = True, plan_output_dir: str = None) -> Dict[str, Any]:
         """
         主入口：分析 Solution Pro → 设计拆分 → 返回 PipelinePlan 或 prompt
         
@@ -255,12 +304,26 @@ class PipelineDesigner:
         if auto:
             auto_result = self._auto_design(validated_input)
             if auto_result:
-                return {
+                result = {
                     "plan": auto_result.model_dump(),
                     "mode": "auto",
                     "expected_schema": PipelinePlan.model_json_schema(),
                     "input_summary": input_summary,
+                    "plan_written": False,
                 }
+                # 契约笼子: auto 模式自动写 plan 到指定目录（消除 LLM 双调用）
+                if plan_output_dir:
+                    plan_dir = Path(plan_output_dir)
+                    plan_dir.mkdir(parents=True, exist_ok=True)
+                    plan_path = plan_dir / "pipeline_plan.json"
+                    plan_path.write_text(
+                        json.dumps(auto_result.model_dump(), ensure_ascii=False, indent=2),
+                        encoding="utf-8"
+                    )
+                    result["plan_written"] = True
+                    result["plan_path"] = str(plan_path)
+                    logger.info(f"Auto-design: plan written to {plan_path}")
+                return result
             logger.warning("Auto-design failed, falling back to prompt mode")
         
         # 3. Fallback：返回 prompt（Orchestrator 自行分析）
@@ -639,16 +702,24 @@ execution_order: [["Researcher"],["OutlineWriter"],["ChapterWriter"]]
         return downstream
     
     def _get_worker_schema_compact(self) -> Dict[str, Any]:
-        """精简版 Worker 输出 Schema"""
+        """精简版 Worker 输出 Schema（P2-2-FIX: object 而非 array）"""
         return {
-            "type": "array",
-            "items": {
-                "wp_id": "string (格式: {prefix}-NNN)",
-                "title": "string",
-                "description": "string (≥100 字，包含技术实现细节)",
-                "acceptance_criteria": ["string (≥2 条，每条可测试)"],
-                "deliverables": ["string (≥1 项)"],
-                "effort_hours": "number",
-                "dependencies": ["string (其他 WP ID)"]
-            }
+            "type": "object",
+            "properties": {
+                "worker_role": "string (当前 Worker 角色名)",
+                "wp_id_prefix": "string (WP ID 前缀，如 CORE-、LOOP-)",
+                "work_packages": {
+                    "type": "array",
+                    "items": {
+                        "wp_id": "string (格式: {prefix}-NNN)",
+                        "title": "string",
+                        "description": "string (≥100 字，包含技术实现细节)",
+                        "acceptance_criteria": ["string (≥2 条，每条可测试)"],
+                        "deliverables": ["string (≥1 项)"],
+                        "effort_hours": "number",
+                        "dependencies": ["string (其他 WP ID)"]
+                    }
+                }
+            },
+            "required": ["worker_role", "wp_id_prefix", "work_packages"]
         }

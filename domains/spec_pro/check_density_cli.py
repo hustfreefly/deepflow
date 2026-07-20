@@ -24,6 +24,27 @@ if _r and str(_r) not in sys.path:
 
 from domains.spec_pro.contracts.living_spec import LivingSpec
 from domains.spec_pro.contracts.gate import gate_living_spec_density
+from domains.spec_pro.spec_living_md import parse_living_spec_md
+
+
+def _read_living_spec(session_dir: Path) -> dict:
+    """读取 living_spec：MD 优先，JSON fallback。"""
+    # 1. Try MD first
+    md_path = session_dir / "spec" / "living_spec.md"
+    if md_path.exists():
+        try:
+            md_content = md_path.read_text(encoding="utf-8")
+            return parse_living_spec_md(md_content)
+        except Exception as e:
+            print(f"WARNING: MD parse failed, falling back to JSON: {e}", file=sys.stderr)
+
+    # 2. Fallback to JSON
+    json_path = session_dir / "spec" / "living_spec.json"
+    if not json_path.exists():
+        raise FileNotFoundError(f"Neither {md_path} nor {json_path} exists")
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def main():
@@ -32,17 +53,14 @@ def main():
         sys.exit(2)
 
     session_dir = Path(sys.argv[1])
-    living_spec_path = session_dir / "spec" / "living_spec.json"
-
-    if not living_spec_path.exists():
-        print(f"ERROR: {living_spec_path} 不存在", file=sys.stderr)
-        sys.exit(2)
 
     try:
-        with open(living_spec_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        data = _read_living_spec(session_dir)
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
     except (json.JSONDecodeError, OSError) as e:
-        print(f"ERROR: 读取 living_spec.json 失败: {e}", file=sys.stderr)
+        print(f"ERROR: 读取 living_spec 失败: {e}", file=sys.stderr)
         sys.exit(2)
 
     try:

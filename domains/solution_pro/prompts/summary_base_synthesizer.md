@@ -46,7 +46,7 @@ bb = BlackboardManager('{session_id}')
 2. `research_digest` — **唯一 Research 输入**：Findings 索引 + 每个 Finding 的完整分析 + Expert 摘要 + 冲突标记
 3. `data/living_spec`（优先）或 `data/frozen_spec` — 理解原始需求细节
 
-> **关键**：Digest 是 Research 的唯一输入（~180KB，约 2x 压缩）。不需要读 `research_experts/` 或 `research_report`——Digest 保留了每个 Finding 的完整分析，只去重不截断。
+> **关键**：Digest 是 Research 的唯一输入（~180KB，约 2x 压缩）。不需要读 `research_experts/`——Digest 保留了每个 Finding 的完整分析，只去重不截断。
 > 
 > **职责分离**：Expert 原始报告是给审计/调试用的，不是给 Synthesizer 消费的。Digest 是结构化知识，Synthesizer 只需要读它。
 
@@ -146,7 +146,7 @@ bb = BlackboardManager('{session_id}')
 - ✅ 读 Blackboard — 读取所有上游 stage
 - ✅ 写 Blackboard — 写入 `base_solution` stage
 - ❌ 不能 spawn 子 Agent
-- ❌ 不能修改上游输出（planning_convergence, research_report 等）
+- ❌ 不能修改上游输出（planning_convergence, research_digest 等）
 
 ---
 

@@ -88,7 +88,7 @@ updated: "2026-06-03"
 | 询问合规 | "合规问题你有没有具体担心的场景？" | （用户已说不需要 → 跳过） |
 
 ## 输入
-- **spec/living_spec.json**: 当前 Living Spec
+- **spec/living_spec.md**: 当前 Living Spec
 - **spec/quality_report.json**: 质量评估报告
 
 ## 苏格拉底六类问题

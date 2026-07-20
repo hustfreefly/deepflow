@@ -1,124 +1,213 @@
 ---
 name: deepflow
-description: "DeepFlow — 多 Agent 协作自动化管线。触发：/spec-pro、/solution-pro、/ship-pro、/research-pro、方案设计。"
-version: "2.0.0"
+description: "DeepFlow V3.0.0 — 多 Agent 管线框架。四域管线（Spec→Solution→Ship→Deliver）+ 独立研究引擎 Research Pro。"
+version: "3.0.0"
 ---
 
-# DeepFlow — 多 Agent 协作自动化管线
+# DeepFlow Skill
 
-> DeepFlow 2.0.0 (Spec Pro 2.0.0 + Solution Pro 2.0.0 + Ship Pro 2.0.0 + Research Pro)
+> 多 Agent 管线框架，运行在 OpenClaw 之上。
 
-**定位**: 支持 Spec Pro（需求梳理）、Solution Pro（方案设计）、Ship Pro（交付编译）、Research Pro（深度研究）的多 Agent 协作自动化管线。
+---
 
-**完整架构说明**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | **上手指南**: [docs/guides/QUICKSTART.md](docs/guides/QUICKSTART.md)
+## 五域使用指南
 
-## 触发方式
+### 1. Spec Pro — 需求梳理引擎
 
-| 命令 | 示例 | 领域 | 详细指南 |
-|:---|:---|:---|:---|
-| `/spec-pro` | `/spec-pro 我要做一个 AI 算力调度平台` | spec_pro | [domains/spec_pro/SKILL.md](domains/spec_pro/SKILL.md) |
-| `/solution-pro` | `/solution-pro 设计一个智能物流仓储系统升级方案` | solution_pro | [domains/solution_pro/SKILL.md](domains/solution_pro/SKILL.md) |
-| `/ship-pro` | `/ship-pro` (自动消费 Solution Pro 输出) | ship_pro | [domains/ship_pro/SKILL.md](domains/ship_pro/SKILL.md) |
-| `/research-pro` | `/research-pro 分析 AI 芯片市场趋势` | research_pro | [domains/research_pro/SKILL.md](domains/research_pro/SKILL.md) |
-
-## 执行流程（Solution Pro）
-
-### 方式一：主 Agent 触发（推荐）
-
-```
-# Solution Pro 方案设计
-/spec-pro 我要做一个 AI 算力调度平台
-# → Spec Pro 输出 Living Spec → 自动触发 Solution Pro
-
-# Ship Pro 交付编译（自动触发）
-# Solution Pro 完成后，completion_handler.py 自动编译 Ship Package
-# 手动触发：
-cd ~/.openclaw/workspace/.deepflow
-python3 domains/ship_pro/scripts/run_pipeline.py prepare <input_path> <output_dir>
-```
-
-### 方式二：主 Agent 直接 spawn
+**版本**: V2.2.0
+**触发**: 用户说"梳理需求"、"需求分析"、"Living Spec"
 
 ```python
-# Solution Pro
-sessions_spawn(
-    runtime="subagent",
-    mode="run",
-    label="solution_design",
-    task="""
-你是 DeepFlow Solution Pro Orchestrator Agent。
+from domains.spec_pro import SpecProCoordinator
 
-任务: 设计一个智能物流仓储系统升级方案
-类型: architecture
-约束: 预算500万，周期6个月
-
-执行固定 10 阶段完整管线。
-所有输出写入 blackboard/ 目录。
-""",
-    timeout_seconds=1800
+coordinator = SpecProCoordinator(
+    user_input="用户需求描述",
+    scenario="genesis",  # genesis | supplement | refine | pivot
 )
-
-sessions_yield()
+# coordinator 运行在主 Agent 侧，通过 sessions_spawn 与子 Agent 对话
+result = coordinator.run()
+# 输出: Living Spec → blackboard/{project}/spec_pro/living_spec.md
 ```
 
-## 支持的领域
+**关键参数**:
+- `user_input`: 用户原始需求文本
+- `scenario`: 场景（genesis=新建 / supplement=补充 / refine=精炼 / pivot=转向）
+- `project_name`: 项目名（决定 blackboard 路径）
 
-| 领域 | 管线类型 | 特点 | 模式 |
-|:---|:---|:---|:---|
-| `spec_pro` | 苏格拉底对话 | 需求梳理，输出 Living Spec + 三层版本号 | 对话式 |
-| `solution_pro` | 固定 10 阶段闭环 | Harness 2.0.0 + REQ-ID 追踪 + 状态持久化 | 固定管线 |
-| `ship_pro` | 5 Agent 管线 | Pydantic 契约笼子 + 质量门禁 + 单一执行引擎 | 固定管线 |
-| `research_pro` | 分层搜索+引用验证 | 多源搜索 → 分层研究 → 引用验证 | 单模式 |
+**Prompts**: 8 个（parse, assess, structure, orchestrator, harness, guide, assess_guide, parse_response）
 
-## Solution Pro 固定 10 阶段管线
+---
 
-| 阶段 | Agent 角色 | 并行 | 说明 |
-|------|-----------|------|------|
-| 1. Data Collection | data_collection | ❌ | 基础数据采集 |
-| 2. Planning | planning | ❌ | 制定研究计划 |
-| 3. Reviewers | technical/business/risk | ✅ | 三维度方案评审 |
-| 4. Research | expert_1/2/3 | ✅ | 并行专家研究 |
-| 5. Consolidator | consolidator | ❌ | 整合研究成果 |
-| 6. Audit | audit | ❌ | 质量审计 |
-| 7. Fix | fix | ❌ | 修复缺陷 |
-| 8. Fixer Expert | fixer_expert | ❌ | 专家级修复 |
-| 9. Harness Final | harness_final | ❌ | 最终质量门禁（HARNESS 2.0.0 + REQ-ID 追踪） |
-| 10. Summarizer | summarizer | ❌ | 生成最终报告 |
+### 2. Solution Pro — 方案设计引擎
 
-**契约保护**：Cage Validator 在关键阶段前校验契约合规性
+**版本**: V3.1.0
+**触发**: 用户说"设计解决方案"、"架构设计"、"技术方案"
 
-## 核心组件
+```python
+from domains.solution_pro import run_solution_pro
 
-| 组件 | 文件 | 职责 |
-|:---|:---|:---|
-| **MasterOrchestrator** | `core/master_orchestrator.py` | 主编排器，统一入口 |
-| **ModuleOrchestrator** | `domains/solution_pro/module_orchestrator_base.py` | 域编排器基类 |
-| **Entry Harness** | `core/quality/entry_harness.py` | 启动验证（DEPRECATED） |
-| **Contract Cage** | `core/cage/` | 契约笼子验证框架 |
-| **Pydantic Contracts** | `domains/*/contracts/` | Pydantic 模型 = 唯一真相源 |
-| **Prompt Registry** | `core/prompt_registry.py` | Prompt 集中式注册表 |
-| **PathConfig** | `core/config/path_config.py` | 跨平台路径管理 |
-| **Blackboard** | `core/blackboard/` | 统一 Blackboard 状态持久化 |
+result = run_solution_pro(
+    user_input="设计一个高并发消息系统",
+    project_name="my_project",
+    trace_id=None,  # 可选，跨域追踪
+)
+# result 包含 spawn_params，主 Agent 用 sessions_spawn 启动编排器
+```
 
-## 输出
+**架构**:
+- **DAL（Domain Analysis Layer）**: 自动推断用户意图域（software/investment/general），生成 DomainProfile
+- **三模块编排**:
+  - `Planning Orchestrator`: 方案规划，多专家并行
+  - `Research Orchestrator`: 深度研究，信息收集
+  - `Summary Orchestrator`: 总结收敛，输出方案文档
+- **三层门控**: L1 代码粗筛 → L2 LLM 语义 → L3 合并决策
+- **收敛层**: 多专家输出收敛为单一方案
 
-所有输出写入 Blackboard：`blackboard/{session_id}/`
+**Prompts**: 40+ 个（planning_expert_base, research_expert_base, summary_analyzer_base, harness_agent, orchestrator, convergence_planner, ...）
 
-| 文件 | 说明 |
-|:---|:---|
-| `tasks.json` | 所有 Worker Tasks |
-| `execution_plan.json` | 执行计划 |
-| `config/data/v0/*.json` | 采集的基础数据 |
-| `stages/*.json` | 各 Worker 输出 |
-| `final_report.md` | 最终报告 |
+---
 
-## 依赖
+### 3. Ship Pro — 交付包生成引擎
 
-- Python 3.10+
-- OpenClaw Agent Run 环境
+**版本**: V2.0.0
+**触发**: 用户说"生成工作包"、"拆分任务"、"交付编译"
 
-## 版本
+```python
+from domains.ship_pro import run_ship_pro
 
-- **Version**: 2.0.0
-- **Status**: 四域架构完成；Pydantic 契约笼子 + 统一 Blackboard + 路径模板化
-- **Date**: 2026-07-06
+result = run_ship_pro(
+    project_name="my_project",
+    trace_id=None,  # 可选，跨域追踪
+)
+# result 包含 spawn_params，主 Agent 用 sessions_spawn 启动编排器
+```
+
+**架构（V2.0.0 单入口 Dispatcher）**:
+```
+Main Agent (depth-0)
+  → exec: result = run_ship_pro(project_name=...)
+  → sessions_spawn(**result["spawn_params"])
+  → 等待完成事件 → 拿到 ShipPackage
+
+Orchestrator (depth-1, 全权调度)
+  → 读取统一 blackboard 中的 Solution Pro 输出
+  → exec: design_pipeline() → Designer prompt
+  → spawn: Designer LLM → PipelinePlan
+  → exec: prepare_runner_spawn() → Worker prompts
+  → spawn: Workers (并行/分层)
+  → exec: L1 validation
+  → spawn: Consolidator
+  → exec: ShipPackage validation
+  → 输出最终报告
+```
+
+**关键组件**:
+- `PipelineDesigner`: LLM 自动设计执行管线
+- `Ship Orchestrator`: 全权调度 Workers + Consolidator
+- `Conservation Judge`: 信息守恒检查
+- `Ship Package`: 最终交付物（任务拆分 + 上下文 + 依赖图）
+
+**Prompts**: consolidator
+
+---
+
+### 4. Deliver Pro — 执行引擎
+
+**版本**: V1.0.0
+**触发**: 用户说"执行交付"、"生成最终报告"、"交付成果"
+
+```python
+from domains.deliver_pro import run_deliver_pro
+
+result = run_deliver_pro(
+    project_name="my_project",
+    trace_id=None,
+)
+```
+
+**5 Phase 流水线**:
+| Phase | 职责 | 方式 |
+|:-----:|:-----|:----:|
+| P1 Analyze | WP → execution_plan | LLM Agent |
+| P2 Generate | Workers 并行生成内容 | LLM Agent × N |
+| P3 Integrate | Code-First Assembly（确定性拼接） | Python（零 LLM） |
+| P4 Validate | 质量评估（6维度+保留率门禁） | LLM Judge |
+| P5 Package | 交付清单+元数据 | LLM Agent |
+
+**核心设计**: Code-First Assembly — 用确定性拼接替代 LLM 组装，解决 84% 内容丢失问题。
+**关键文件**: `smart_assembler.py`（组装引擎）, `orchestrator.py`（流水线调度）, `contracts/`（18 个 Pydantic 模型）
+
+---
+
+### 5. Research Pro — 多专家并行研究
+
+**版本**: V1.0
+**触发**: 用户说"深度研究"、"调研"、"分析"
+
+```python
+from domains.research_pro import run_research_pro
+
+result = run_research_pro(
+    query="分析贵州茅台的投资价值",
+    mode="standard",  # quick | standard
+)
+# result 包含 spawn_params
+```
+
+**关键组件**:
+- `DDGS Client`: DuckDuckGo 搜索
+- `Safe Fetcher`: 安全网页抓取
+- `Tier Classifier`: 来源分级（T1/T2/T3）
+- `Citation Verifier`: 引用验证
+- `Source Registry`: 来源注册表
+
+---
+
+## 域间协作
+
+```
+Spec Pro → living_spec.md → Solution Pro → solution_design.md → Ship Pro → ship_package.md → Deliver Pro → deliver_final.md
+```
+
+所有域通过统一 Blackboard 共享状态：
+```
+.deepflow/blackboard/{project_name}/
+├── spec_pro/living_spec.md       ← Spec Pro 输出
+├── solution_pro/solution_design.md ← Solution Pro 输出
+├── ship_pro/ship_package.md      ← Ship Pro 输出
+├── deliver_pro/deliver_final.md  ← Deliver Pro 最终交付
+└── ...
+```
+
+---
+
+## AI Native 设计
+
+### 三层门控
+
+所有关键决策点：
+- **L1**: 代码粗筛（字段存在、类型匹配、无环依赖）
+- **L2**: LLM 语义评估（独立视角，语义合理性）
+- **L3**: 合并决策（L1 + L2 → PASS / CONDITIONAL / FAIL）
+
+### DAL（Domain Analysis Layer）
+
+```
+domain_analysis → DomainProfile → 全链路透传
+```
+
+Solution Pro 入口自动推断域，生成 DomainProfile，沿 Planning → Research → Summary 全链路传递。
+
+---
+
+## 测试
+
+```bash
+cd /Users/allen/.openclaw/workspace
+python3 -m pytest .deepflow/domains/ -v
+# 467 tests: Spec 60 + Solution 143 + Ship 36 + Deliver 213 + Research 15
+```
+
+---
+
+*DeepFlow V3.0.0 — 让 Agent 管线像流水线一样可靠。*

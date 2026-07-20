@@ -46,7 +46,7 @@ if DEEPFLOW_HOME not in sys.path:
     sys.path.insert(0, DEEPFLOW_HOME)
 
 import core.bootstrap
-from domains.solution_pro import run_solution_pro
+from domains.solution_pro import run_solution_pro_agent
 
 def main():
     parser = argparse.ArgumentParser(description='启动 Solution Pro 管线')
@@ -68,34 +68,17 @@ def main():
         print(f"❌ JSON 解析错误: {e}", file=sys.stderr)
         sys.exit(1)
     
-    # 契约笼子（2026-07-05）：自动发现 Living Spec（AI Native 数据流桥接）
-    # 优先级：1) 显式 --living-spec-path 2) 自动扫描最近的 Spec Pro 输出
+    # 契约笼子（P1-20 FIX）：使用标准 handoff gate 而非直接扫描文件
+    # 优先级：1) 显式 --living-spec-path 2) run_solution_pro 内部 _try_load_handoff_package()
     living_spec = None
     living_spec_full_path = None
-    
+
     if args.living_spec_path:
+        # 显式指定路径：直接读取（用户明确意图，跳过 handoff gate）
         living_spec_full_path = os.path.join(DEEPFLOW_HOME, args.living_spec_path)
         if not os.path.exists(living_spec_full_path):
             print(f"❌ Living Spec 文件不存在: {living_spec_full_path}", file=sys.stderr)
             sys.exit(1)
-    else:
-        # 自动发现：扫描 .deepflow/blackboard/ 找最近的 spec_* 目录中的 living_spec.json
-        blackboard_dir = os.path.join(DEEPFLOW_HOME, "blackboard")
-        if os.path.exists(blackboard_dir):
-            spec_dirs = sorted(
-                [d for d in os.listdir(blackboard_dir) if d.startswith("spec_")],
-                key=lambda d: os.path.getmtime(os.path.join(blackboard_dir, d)),
-                reverse=True,
-            )
-            for spec_dir in spec_dirs[:5]:  # 只检查最近 5 个
-                candidate = os.path.join(blackboard_dir, spec_dir, "spec", "living_spec.json")
-                completed_marker = os.path.join(blackboard_dir, spec_dir, ".completed")
-                if os.path.exists(candidate) and os.path.exists(completed_marker):
-                    living_spec_full_path = candidate
-                    print(f"✅ 自动发现 Living Spec: {spec_dir}/spec/living_spec.json", file=sys.stderr)
-                    break
-    
-    if living_spec_full_path:
         try:
             with open(living_spec_full_path, 'r', encoding='utf-8') as f:
                 living_spec = json.load(f)
@@ -103,11 +86,18 @@ def main():
             print(f"❌ 读取 Living Spec 失败: {e}", file=sys.stderr)
             sys.exit(1)
     else:
-        print("⚠️ 未找到 Living Spec，将使用 topic 生成最小 frozen_spec", file=sys.stderr)
+        # P1-20: 不直接扫描文件，让 run_solution_pro() 内部通过
+        # _try_load_handoff_package() 走完整 handoff gate 验证
+        # （Pydantic 验证 + handoff_allowed + density gate）
+        print(
+            "ℹ️  未指定 --living-spec-path，将由 handoff gate 自动加载 Spec Pro 输出",
+            file=sys.stderr,
+        )
     
-    # 契约笼子（2026-07-05）：调用 三模块架构
+    # 契约笼子（2026-07-05）：调用三模块架构
+    # B1-FIX: 显式使用 run_solution_pro_agent()（无 spawn_fn 场景）
     try:
-        result = run_solution_pro(
+        result = run_solution_pro_agent(
             user_input=args.topic,   # 第一参数是 user_input
             topic=args.topic,        # topic 作为 kwarg 传递
             solution_type=args.solution_type,
@@ -116,11 +106,21 @@ def main():
             living_spec=living_spec,
         )
 
+        # B2-FIX: 检查 degraded 字段，警告降级状态
+        if result.get("degraded"):
+            fallback_reason = result.get("fallback_reason", "unknown")
+            print(
+                f"⚠️  Solution Pro 已降级到 Agent 路径: {fallback_reason}",
+                file=sys.stderr,
+            )
+
         # startup_notification（三模块架构，无需读 execution_plan.json）
+        exec_path = result.get("execution_path", "legacy_agent")
         result['startup_notification'] = (
             f"✅ 已启动 DeepFlow Solution Pro 管线\n"
             f"📋 主题: {args.topic}\n"
             f"🏛️ 架构: Planning（三层）→ Research（多专家并行）→ Summary（5+1 Phase 收敛）\n"
+            f"⚙️ 执行路径: {exec_path}\n"
             f"⏱️ 预计: 20-40 分钟\n"
             f"💬 期间你可以继续问我其他问题，完成后我会通知你"
         )

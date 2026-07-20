@@ -77,6 +77,10 @@ def create_mock_solution_pro_input():
         "must_constraints": [
             "所有组件使用 JSON 序列化",
             "原子写入保证崩溃安全"
+        ],
+        "semantic_anchors": [
+            {"name": "json_serialization", "category": "constraint", "constraint": "所有组件使用 JSON 序列化", "source_quote": "架构决策 D-1"},
+            {"name": "atomic_write", "category": "constraint", "constraint": "原子写入保证崩溃安全", "source_quote": "架构决策 D-2"}
         ]
     }
 
@@ -208,7 +212,6 @@ def layer1_structure():
     gates_with_judge = [
         ("WorkerGate", WorkerGate),
         ("InformationConservationGate", InformationConservationGate),
-        ,
     ]
     for name, gate_cls in gates_with_judge:
         has_method = hasattr(gate_cls, "build_judge_prompt")
@@ -239,7 +242,7 @@ def layer1_structure():
 
     # 1.6 V8_DECISIONS.md 存在
     v8_doc = base / "docs" / "V8_DECISIONS.md"
-    check)
+    check('l1', 'V8_DECISIONS.md 存在', v8_doc.exists())
 
     return len([i for i in issues if i.startswith("[L1]")]) == 0
 
@@ -418,7 +421,7 @@ def layer3_chain():
     
     ship_package = {
         "ship_package_version": "v8",
-        "solution": "Test Solution",
+        "solution_name": "Test Solution",
         "work_packages": all_wps,
         "dependency_graph": {"nodes": [wp["id"] for wp in all_wps], "edges": []},
         "statistics": {

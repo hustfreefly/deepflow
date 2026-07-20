@@ -4,7 +4,7 @@ Ship Pro - ShipPackage Contract
 定义 ShipPackage 的数据结构。
 """
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from .worker_deliverable import WorkPackage
 
 
@@ -52,6 +52,24 @@ class ShipPackage(BaseModel):
         description="Semantic Anchor 覆盖统计（契约笼子：自动计算）。"
                     "格式: {anchor_name: [wp_id, ...], ...}，"
                     "以及 _uncovered: [anchor_name, ...] 列出未被任何 WP 引用的 anchor。"
+    )
+
+    # N1-FIX: Solution Pro 关键信息透传字段（向后兼容：Optional + default）
+    key_decisions: Optional[List[str]] = Field(
+        default_factory=list,
+        description="Solution Pro 产出的关键决策列表（N1-FIX：保留最终 artifact 关键信息）"
+    )
+    architecture: Optional[str] = Field(
+        default=None,
+        description="Solution Pro 产出的架构描述（N1-FIX：保留最终 artifact 关键信息）"
+    )
+    risk_summary: Optional[str] = Field(
+        default=None,
+        description="Solution Pro 产出的风险摘要（N1-FIX：保留最终 artifact 关键信息）"
+    )
+    implementation_phases: Optional[List[str]] = Field(
+        default_factory=list,
+        description="Solution Pro 产出的实施阶段列表（N1-FIX：保留最终 artifact 关键信息）"
     )
 
     class Config:

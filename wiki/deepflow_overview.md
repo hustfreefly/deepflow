@@ -1,180 +1,233 @@
 # DeepFlow Overview
 
-> 最后更新: 2026-07-08
+> **Version**: V3.0.0 | **Last updated**: 2026-07-20
 
 ---
 
 ## What is DeepFlow?
 
-DeepFlow 是一个多 Agent 管线框架，运行在 OpenClaw 平台上。核心职责是将用户需求转化为可执行的方案。
+DeepFlow is a **multi-agent pipeline framework** running on the OpenClaw platform. Its core mission is transforming user requirements into executable engineering plans.
 
-### 管线架构 (2.0.0)
+**Core principle**: Code handles deterministic filtering; LLM handles semantic judgment.
+
+---
+
+## Five-Domain Architecture
 
 ```
-用户需求
+User Request (natural language)
     │
     ▼
-┌─────────────────────────────────────────────────────────┐
-│ Spec Pro（需求收集与结构化）                            │
-│  苏格拉底式对话 → Living Spec                          │
-│  5维度 Output Guard 质量门禁                           │
-│  DAL: LLM 域自推断 + 域上下文注入                      │
-│  三层门控: L1(代码) + L2(LLM) + L3(合并)               │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│ Spec Pro V2.2.0 (Requirements Collection & Structuring)        │
+│  Socratic multi-round dialog → LivingSpec                      │
+│  DAL: LLM domain self-inference + domain context injection     │
+│  Three-layer gate: L1(code) + L2(LLM) + L3(merge)             │
+└─────────────────────────────────────────────────────────────────┘
+    │ living_spec.json + handoff_package
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Solution Pro V2.1.1 (Solution Design & Review)                 │
+│  Three-module pipeline: Planning → Research → Summary          │
+│  DAL: DomainProfile end-to-end propagation + 4 YAML configs    │
+│  AI Native: code pre-filter + LLM semantic judgment            │
+└─────────────────────────────────────────────────────────────────┘
+    │ final_result.json (auto-handoff)
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Ship Pro V2.0.0 (Delivery Package Generation)                  │
+│  PipelineDesigner → Orchestrator → Workers → Consolidator      │
+│  Domain-adaptive + AI Native generalization                    │
+│  Pydantic contract cage + Orchestrator full delegation          │
+└─────────────────────────────────────────────────────────────────┘
+    │ ship_package.md (Work Packages + dependency graph)
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Deliver Pro V1.0.0 (Execution & Delivery)                       │
+│  5 Phase: Analyze → Generate → Integrate → Validate → Package  │
+│  Code-First Assembly: deterministic concat, zero LLM, ≥95%     │
+│  18 Pydantic contracts + 6 prompts                             │
+└─────────────────────────────────────────────────────────────────┘
     │
     ▼
-┌─────────────────────────────────────────────────────────┐
-│ Solution Pro（方案设计与评审）                          │
-│  10阶段管线：Planning → Reviewers → Research →         │
-│  Consolidator → Audit → Fix → Fixer Expert →           │
-│  Harness Final → Summarizer                            │
-│  4维度 Harness 评分 + Multi-Reviewer 机制              │
-│  DAL: DomainProfile 全链路透传 + 16+ prompt 泛化       │
-│  AI Native: 代码粗筛 + LLM 语义判断                    │
-└─────────────────────────────────────────────────────────┘
-    │ final_result.json 自动交接
-    ▼
-┌─────────────────────────────────────────────────────────┐
-│ Ship Pro 2.0.0（执行交付）                               │
-│  5-Agent 管线：Architect → Decomposer → Specifier →    │
-│  Reviewer ↔ 反馈闭环 → Packager                       │
-│  Pydantic 契约笼子 + run_pipeline.py 单一执行引擎      │
-│  pipeline_state.json 唯一状态文件                      │
-└─────────────────────────────────────────────────────────┘
+  Final Deliverable (deliver_final.md)
+
+Standalone Domain:
+┌─────────────────────────────────────────────────────────────────┐
+│ Research Pro V2.0.0 (Deep Research)                            │
+│  Independent — no dependency on main pipeline                  │
+│  DuckDuckGo search + multi-source analysis + citation verify   │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-### 辅助域
-
-| 域 | 职责 | 与主链路关系 |
-|:---|:---|:---|
-| **Research Pro** | 深度研究与分析 | 独立域，不依赖主链路 |
 
 ---
 
-## 核心组件
+## Domain Statistics
 
-### Blackboard（数据交换层）
-
-文件系统目录，每个运行产生一个目录，包含输入、阶段输出、状态文件、交付文件。
-
-**当前结构（2.0.0）**：
-```
-blackboard/
-└── {session_id}/
-    ├── data/
-    ├── stages/
-    ├── final_result.json
-    └── .completed, .cron_*, etc.
-```
-
-**计划结构（2.0.0，设计完成待实施）**：
-```
-blackboard/
-├── projects/{slug}/runs/{timestamp}/
-│   ├── spec/
-│   ├── solution/
-│   └── ship/
-├── research/
-└── archive/
-```
-
-### Pipeline Orchestrator（管线编排器）
-
-LLM sub-agent，通过 `sessions_spawn` 启动。按固定阶段顺序执行管线。
-
-### PathConfig（路径配置管理）
-
-路径解析器，支持 2.0.0（`get_blackboard_path`）和 2.0.0（`get_blackboard_path_v2`）两种模式。
-
-### Pipeline Watcher（管线监控）
-
-Python 脚本 + 薄 LLM wrapper。监控管线运行状态，推送进度通知。
+| Domain | Version | Tests | Prompts | Modules |
+|:---|:---|:---|:---|:---|
+| Spec Pro | V2.2.0 | 52 | 8 | 18 |
+| Solution Pro | V2.1.1 | 137 | 39 | 26 |
+| Ship Pro | V2.0.0 | 19 | 1 | 3 |
+| Research Pro | V2.0.0 | 136 | 8 | 10 |
+| Core + Integration | — | 187 | — | — |
+| **Total** | — | **531** | **56** | **57** |
 
 ---
 
-## 质量评估体系
+## DAL (Domain Adaptation Layer)
 
-### 全链路质量评估（QUALITY_GUIDE.md）
+DAL enables DeepFlow to handle requirements from any domain without hardcoded rules.
 
-**双维度模型**：
+### Design Principles
 
-1. **模块内质量（Intra-Module）**
-   - Spec Pro: 5维度 Output Guard
-   - Solution Pro: 4维度 Harness Scorer
-   - Ship Pro: Quality Gate 2.0.0
-
-2. **跨模块对齐（Cross-Module）**
-   - 2A: 用户意图 → Solution Pro
-   - 2B: Solution Pro → Ship Pro
-   - 2C: 端到端追溯链
-
-### 各域质量门禁
-
-| 域 | 评估框架 | 决策阈值 |
-|:---|:---|:---|
-| Spec Pro | 5维度（清晰度/完整度/可执行度/一致度/适配度） | PASS ≥75 |
-| Solution Pro | 4维度（完整性/必要性/目标一致性/全局影响） | PASS ≥0.85 |
-| Ship Pro | 2项检查（AC质量 + 依赖合理性） | PASS = 0 issues |
-
----
-
-## AI Native 原则
-
-1. **确定性优先**：能用代码做的不用 LLM
-2. **理解优于穷举**：用语义描述让 LLM 理解意图
-3. **渐进交付**：分阶段实现
-4. **不引入外部基础设施**：SQLite 存储
-5. **Worker 零改动**：绝对红线
-6. **代码的角色**：从"写代码"转变为"指导 AI、设计规范、验证结果"
-
----
-
-## 技术栈
-
-| 组件 | 技术 |
+| Principle | Description |
 |:---|:---|
-| 运行平台 | OpenClaw |
-| 语言 | Python 3.9+ |
-| 存储 | 文件系统（Blackboard）+ SQLite（Pipeline Watcher） |
-| LLM 调用 | OpenClaw sessions_spawn / sessions_send |
-| 通知 | 飞书 / Cron announce |
+| LLM domain self-inference | No if/else for domain detection — LLM infers from input text |
+| 4 YAML references | software/investment/hardware/business serve as few-shot examples |
+| Zero-config onboarding | New domains require no code changes |
+| End-to-end propagation | DomainProfile flows from Spec Pro through Ship Pro |
 
----
-
-## 文件结构
+### Data Flow
 
 ```
-.deepflow/
-├── core/
-│   ├── config/path_config.py          — 路径配置管理
-│   └── orchestrator/
-│       └── pipeline_orchestrator.py   — 管线编排器
-├── domains/
-│   ├── solution/                      — Solution Pro 域
-│   ├── spec_pro/                      — Spec Pro 域
-│   ├── ship_pro/                      — Ship Pro 域
-│   └── research_pro/                  — Research Pro 域
-├── scripts/
-│   ├── start_solution_pro.py          — Solution Pro 启动脚本
-│   ├── pipeline_watcher.py            — Pipeline Watcher 2.0.0
-│   └── pipeline_progress_notify.py    — 进度通知
-├── contracts/
-│   └── shared/                        — 共享设计文档
-├── docs/
-│   ├── design/                        — 设计文档
-│   └── research/                      — 研究文档
-├── tests/                             — 测试文件
-├── wiki/                              — 文档（本目录）
-├── QUALITY_GUIDE.md                   — 全链路质量评估方法论
-└── SKILL.md                           — DeepFlow 技能入口
+Spec Pro                     Solution Pro                   Ship Pro
+────────                     ────────────                   ────────
+parse.md infers domain_id → domain_analysis.py         → context.json
+       generates DomainProfile   generates DomainProfile      trims worker context
+       injects domain context    propagates to all modules
 ```
 
 ---
 
-## 版本历史
+## Three-Layer Gate Architecture
 
-- **2026-06-23**：Phase 0-3 架构加固完成 — Pydantic 契约笼子 + 单一执行引擎 + 状态单一化；版本升至 2.0.0
-- **2026-06-21**：Ship Pro 2.0.0 + Summarizer 单文件输出 + Pipeline Watcher 2.0.0 + Blackboard 2.0.0 设计
-- **2026-06-11**：GitHub 基线版本（Spec Pro + Solution Pro + Research Pro 13项修复）
+Quality assurance follows a three-layer gate pattern:
 
-详见 [changelog.md](changelog.md)
+```
+LLM Output
+    │
+    ▼
+┌──────────────────────────────────┐
+│ L1: Deterministic Checks (Code)  │  ← Fast, zero-cost
+│  - Pydantic Schema validation    │
+│  - Field existence               │
+│  - Type checking                 │
+│  - Format constraints            │
+└──────────────────────────────────┘
+    │ Pass
+    ▼
+┌──────────────────────────────────┐
+│ L2: Semantic Check (LLM)        │  ← Understands meaning
+│  - Semantic reasonableness       │
+│  - Architectural soundness       │
+│  - Principle alignment           │
+│  - Quality assessment            │
+└──────────────────────────────────┘
+    │ Score
+    ▼
+┌──────────────────────────────────┐
+│ L3: Merge Decision (Code)        │  ← Final verdict
+│  - Combine L1 + L2 results       │
+│  - PASS / CONDITIONAL / FAIL    │
+│  - Advance to next round/stage?  │
+└──────────────────────────────────┘
+```
+
+---
+
+## Key Components
+
+### Blackboard (Data Exchange Layer)
+
+File-system directory. Each run produces a directory containing inputs, stage outputs, state files, and deliverables. All I/O goes through `BlackboardManager` API — no direct path concatenation.
+
+### Core Infrastructure
+
+| Module | Path | Responsibility |
+|:---|:---|:---|
+| BlackboardManager | `core/blackboard/` | File I/O abstraction |
+| PathConfig | `core/config/path_config.py` | Path resolution |
+| PromptRegistry | `core/prompt_registry.py` | Prompt loading & rendering |
+| Cage | `core/cage/` | Contract cage (checkpoint + validator) |
+| Trace | `core/trace.py` | Cross-domain tracing |
+
+### AI Native Design
+
+| # | Principle | Practice |
+|:---|:---|:---|
+| 1 | Code does deterministic pre-filtering | Pydantic validation, format checks |
+| 2 | LLM does semantic judgment | Domain inference, quality assessment |
+| 3 | No if/else for classification | Domain detection via LLM, not keywords |
+| 4 | No regex for semantic matching | Semantic anchors, not regex |
+| 5 | Prompts are collaboration contracts | Role + Context + Constraints + Examples + Output |
+
+---
+
+## Data Flow
+
+```
+User Input (natural language)
+    │
+    ▼
+┌─ Spec Pro ──────────────────────────────────────────────┐
+│  coordinator.py → Worker (parse.md + domain context)    │
+│  merge_spec.py → living_spec.json                       │
+│  contracts/gate.py → harness_report.json                │
+│  handoff.py → handoff_package                           │
+└──────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─ Solution Pro ──────────────────────────────────────────┐
+│  MasterOrchestrator                                      │
+│    ├─→ PlanningOrchestrator → expert results             │
+│    ├─→ ResearchOrchestrator → research results           │
+│    └─→ SummaryOrchestrator (5+1 Phase) → final_result   │
+└──────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─ Ship Pro ──────────────────────────────────────────────┐
+│  PipelineDesigner → PipelinePlan                         │
+│  Orchestrator → Workers (parallel) → WP outputs          │
+│  Consolidator → ship_package.json                        │
+└──────────────────────────────────────────────────────────┘
+    │
+    ▼
+  Delivery Package
+```
+
+---
+
+## Running Tests
+
+```bash
+cd /Users/allen/.openclaw/workspace
+
+# All tests (excluding archived)
+python3 -m pytest .deepflow/ --ignore=.deepflow/_archive --ignore=.deepflow/tests/_archived -q
+
+# Per-domain
+python3 -m pytest .deepflow/domains/spec_pro/tests/ -q      # 52 tests
+python3 -m pytest .deepflow/domains/solution_pro/tests/ -q   # 137 tests
+python3 -m pytest .deepflow/domains/ship_pro/tests/ -q       # 19 tests
+python3 -m pytest .deepflow/domains/research_pro/tests/ -q   # 136 tests
+python3 -m pytest .deepflow/tests/ --ignore=.deepflow/tests/_archived -q  # 187 tests
+```
+
+---
+
+## Documentation
+
+Full documentation is in the `wiki/` directory:
+
+| Document | Content |
+|:---|:---|
+| [README.md](README.md) | Documentation index + system status |
+| [1-系统总览.md](1-系统总览.md) | Architecture + DAL + three-layer gate (Chinese) |
+| [2-域详解.md](2-域详解.md) | Per-domain workflows + components (Chinese) |
+| [3-Blackboard结构.md](3-Blackboard结构.md) | File organization + formats |
+| [4-Prompt注册表.md](4-Prompt注册表.md) | 56 prompt templates |
+| [5-测试覆盖地图.md](5-测试覆盖地图.md) | 531 test cases |
+| [6-恢复手册.md](6-恢复手册.md) | Disaster recovery |
+| [7-CodeGraph.md](7-CodeGraph.md) | Function call graphs |
+| [changelog.md](changelog.md) | Version history |

@@ -13,7 +13,7 @@ Living Spec 数据归一化 + 渲染
 
 """
 This file is part of pipeline (10-stage architecture).
-uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator.
+V3.1 纯 Agent Orchestrator 架构（Python orchestrator 层已删除）。
 Do not import this file for new workflows.
 """
 
@@ -150,15 +150,4 @@ def format_user(u: Any) -> str:
     return str(u)
 
 
-def format_metrics_list(metrics: list, prefix: str = "- ") -> str:
-    """将 success_metrics 列表渲染为多行文本。空列表返回空字符串。"""
-    if not metrics:
-        return ""
-    return "\n".join(f"{prefix}{format_metric(m)}" for m in metrics)
-
-
-def format_users_list(users: list, prefix: str = "- ") -> str:
-    """将 users 列表渲染为多行文本。空列表返回空字符串。"""
-    if not users:
-        return ""
-    return "\n".join(f"{prefix}{format_user(u)}" for u in users)
+# [TD3 2026-07-13] Deleted dead functions: format_metrics_list, format_users_list (zero callers)

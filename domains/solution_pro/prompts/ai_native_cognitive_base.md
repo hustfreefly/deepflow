@@ -28,7 +28,7 @@
 **注入方式**:
 ```python
 # 在 Worker task 构建时
-cognitive_base = read_file("prompts/ai_native_cognitive_base.md")
+cognitive_base = read_file("domains/solution_pro/prompts/ai_native_cognitive_base.md")
 worker_prompt = f"{cognitive_base}\n\n{worker_specific_prompt}"
 ```
 

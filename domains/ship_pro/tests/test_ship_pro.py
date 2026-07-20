@@ -55,7 +55,7 @@ def sample_solution_pro_output():
     return {
         "solution_name": "AI Native Loop Framework",
         "architecture_overview": "分形三层 Loop 架构",
-        "key_design_decisions": [
+        "key_decisions": [
             {
                 "id": "D-001",
                 "description": "采用 Python 骨架 + LLM 决策混合架构",
@@ -109,7 +109,7 @@ def sample_planner_output():
                 "needs_web_search": True,
                 "web_search_scope": "工作包拆解最佳实践",
                 "must_constraints": ["必须实现信息守恒"],
-                "solution_pro_refs": ["key_design_decisions"],
+                "solution_pro_refs": ["key_decisions"],
                 "covered_req_ids": ["REQ-002"],
                 "wp_id_prefix": "WP",
                 "estimated_wps": 6,
@@ -136,7 +136,7 @@ def sample_worker_output():
                     "依赖关系正确解析"
                 ],
                 "dependencies": [],
-                "estimated_effort": "5 人天",
+                "effort_hours": 40,
                 "deliverables": ["dag_engine.py", "test_dag_engine.py"],
                 "anchored_to": [],
             }
@@ -163,15 +163,14 @@ def sample_ship_package():
                     "依赖关系正确解析"
                 ],
                 "dependencies": [],
-                "estimated_effort": "5 人天",
+                "effort_hours": 40,
                 "deliverables": ["dag_engine.py", "test_dag_engine.py"],
                 "anchored_to": [],
             }
         ],
         "dependency_graph": {
             "edges": [],
-            "execution_order": [["WP-001"]],
-            "parallel_groups": [["WP-001"]]
+            "execution_layers": [["WP-001"]]
         },
         "metadata": {},
         "optional_suggestions": [],
@@ -354,7 +353,12 @@ class TestOrchestrator:
         
         assert spawn_params["runtime"] == "subagent"
         assert spawn_params["mode"] == "run"
-        assert "PlannerOutput" in spawn_params["task"]
+        # Bootstrap pattern: task is a reference, content is in the bootstrap file
+        import re
+        bootstrap_match = re.search(r'`read` 工具读取: `([^`]+)`', spawn_params["task"])
+        assert bootstrap_match, "Expected bootstrap reference in task"
+        bootstrap_content = Path(bootstrap_match.group(1)).read_text(encoding='utf-8')
+        assert "PlannerOutput" in bootstrap_content
     
     def test_verify_planner_output(self, temp_blackboard, sample_planner_output):
         """Planner 输出验证测试"""

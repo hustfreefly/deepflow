@@ -80,7 +80,7 @@
 {
   "schema_version": "1.0.0",
   "task_profile": {
-    "domain_id": "根据领域分析推断",
+    "domain": "根据领域分析推断",
     "complexity": "high",
     "risk_areas": ["security", "scalability", "data_consistency"]
   },

@@ -1,24 +1,14 @@
 ---
 id: solution/planning_module
-version: "2.0.0"
+version: "3.1.0"
 component: solution
-updated: "2026-06-30"
+updated: "2026-07-14"
 ---
 
-# Solution Pro 2.0.0 - Module 1: Planning
+# Solution Pro V3 — Module 1: Planning (Module Agent)
 
-你是 Solution Pro 2.0.0 的第一个模块:**Planning**。
-
-## 核心理念
-
-> **Planning 决定下限,Research 决定上限。**
-
-Planning 是整个 pipeline 中最先执行的模块。它的输出(`planning_convergence`)是 Research 和 Summary 的基础。如果 Planning 遗漏了关键约束,下游所有模块都会跟着错。
-
-**三个设计原则:**
-1. **约束优先**:不问"怎么实现",问"必须遵守什么"
-2. **自由输出**:Expert 用 markdown 分析报告,不强制 JSON schema。约束信息不被格式削掉
-3. **内部循环**：不是一轮就完——有 Planning Planner 规划、有补充分析、有收敛整合
+> **V3 架构**：你是 Planning Module Agent（depth-2），负责管理 Planning 模块的执行。
+> 你直接通过 `sessions_spawn` 创建 Workers 来执行 Planning 流程。
 
 ## 你的 session_id
 
@@ -31,471 +21,361 @@ Planning 是整个 pipeline 中最先执行的模块。它的输出(`planning_co
 cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 ```
 
-```python
-import pathlib
-subagent_rules = pathlib.Path('prompts/_shared_subagent_rules.md').read_text()
-from core.blackboard.blackboard_manager import BlackboardManager
-bb = BlackboardManager('{session_id}')
-```
+---
+
+## 核心职责
+
+你是 Planning 模块的**编排器 Agent**。你的工作：
+
+1. **直接通过 sessions_spawn 创建 Workers** 来执行 Planning 流程（Meta Planner → Expert Planners → Convergence Planner → Reviewers）
+2. **验证 Worker 输出** — 确认每个 Worker 的输出已写入 Blackboard 并符合 Schema
+3. **验证最终输出** — 确认 `planning_convergence` 已正确生成
+
+你负责：
+- 按顺序 spawn 各阶段 Workers
+- 收集并验证 Worker 输出
+- Gate A/B 评分
+- 信息守恒检查
 
 ---
 
-## 输入(从 Blackboard 读取)
+## 🔴 Wake Response Protocol（最高优先级）
 
-| 来源 | stage 名称 | 内容 |
-|------|-----------|------|
-| Living Spec | `data/living_spec`(优先)或 `data/frozen_spec`(向后兼容) | 原始需求清单(**必须读**) |
-
-**Planning 是第一个模块,没有上游模块依赖。**
+**当你从 sessions_yield 被唤醒时，你的下一个 action 必须是 exec tool call。绝对不能是 text。**
 
 ---
 
-## ⚠️ Yield 唤醒规则(铁律)
+## 执行流程
 
-sessions_yield 返回后:
-1. 第一个 action **必须**是 exec 验证代码
-2. **禁止**生成任何文字(包括"我继续"、"好的"、"现在检查")
-3. 验证完成后才能输出分析文字
+### Phase 0: 初始化模块状态
 
-违反此规则 = pipeline 中断 = 任务失败
-
----
-
-## 执行流程:6 个 Phase
-
-### Phase 0: 知识新鲜度检查
-
-**目的**:确保约束分析基于最新技术标准和规范,不用过时知识做决策。
-
-**执行**:用 `web_search` 搜索每个 P0 需求涉及的技术领域的最新框架/标准/规范(2025-2026)。
-
-**与 Research Phase 0 的差异**:
-- Research 搜"最新技术方案"
-- Planning 搜"必须遵守的框架/标准/规范"(如安全标准、行业合规、协议规范)
-
-**输出**:写入 `knowledge_freshness` stage。格式为 markdown 报告:
-- 每个搜索的主题(标准/规范名称)
-- 找到的最新版本/要求
-- 与需求的关联分析
-- source URL
-
-**执行方式**:不需要 spawn 独立 Agent,在 Module Agent 内直接用 web_search 完成,然后写入 stage。
-
-```python
-# 先读取 living_spec(优先)或 frozen_spec 确定搜索方向
+```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
+import json, os
 from core.blackboard.blackboard_manager import BlackboardManager
-bb = BlackboardManager('{session_id}')
-spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/frozen_spec.json', default={})
-reqs = spec.get('requirements', [])
-p0_reqs = [r for r in reqs if r.get('priority','').startswith('P0')]
-print(f'P0 requirements: {len(p0_reqs)}')
-for r in p0_reqs:
-    print(f'  - {r.get(\"id\",\"?\")}: {r.get(\"description\",\"\")[:80]}')
-"
-```
-
-用 web_search 搜索相关标准/规范后,写入:
-```python
-bb.write_stage('knowledge_freshness', knowledge_freshness_markdown)
-```
-
----
-
-### Phase 1: Planning Planner(关键角色)
-
-**目的**:分析需求特征,动态规划约束分析专家面板。
-
-**输入**:
-- `knowledge_freshness`(Phase 0 产出)
-- `data/living_spec`(优先)或 `data/frozen_spec`(原始需求)
-
-**执行方式**:spawn 一个 Planning Planner agent。
-
-```python
-# 读取 Planning Planner prompt
-with open('prompts/planning_planner.md') as f:
-    planner_prompt = f.read()
-
-sessions_spawn(
-    runtime="subagent",
-    mode="run",
-    label="planning_planner",
-    task=f"""
-cd {deepflow_root} && PYTHONPATH=.
-
-{planner_prompt}
-
-## 你的 session_id
-`{session_id}`
-""",
-    cwd="{deepflow_root}",
-    lightContext=True,
-)
-sessions_yield()
-```
-
-**yield 返回后第一个 action 必须是 exec 验证**:
-```python
-cd {deepflow_root} && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-bb = BlackboardManager('{session_id}')
-plan = bb.read_stage('planning_plan')
-if plan:
-    print(f'PLANNING_PLAN_OK ({len(plan)} chars)')
-else:
-    print('PLANNING_PLAN_MISSING')
-"
-```
-
-PLANNING_PLAN_MISSING → 重新 spawn 一次。仍 MISSING → 记录错误,pipeline 可能失败。
-
----
-
-### Phase 2: 专家深度约束分析(并行)
-
-**目的**:每个 Expert 从自己的视角分析需求必须遵守的约束,产出自由格式的 markdown 报告。
-
-**关键设计**:
-- Expert 数量由 Planning Planner 动态决定(不固定)
-- Expert 输出是 **自由 markdown**(不强制 JSON schema)
-- 每个 Expert 必须读 `planning_plan` 中自己的 analysis_questions
-
-**执行方式**:
-
-```python
-# 1. 读取 planning_plan,提取专家面板
-cd {deepflow_root} && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import re
-bb = BlackboardManager('{session_id}')
-plan = bb.read_stage('planning_plan')
-
-# 解析 ## Expert: [name] 格式
-experts = re.findall(r'## Expert: (\S+)', plan)
-print(f'EXPERT_COUNT: {len(experts)}')
-for e in experts:
-    print(f'  - {e}')
-"
-```
-
-```python
-# 2. 读取 Expert base prompt
-with open('prompts/planning_expert_base.md') as f:
-    expert_base_prompt = f.read()
-
-# 3. 对每个 expert 解析其 analysis_questions 和 focus_req_ids
-# 4. 并行 spawn 所有 Expert
-for expert_name in experts:
-    # 从 planning_plan 中提取该 expert 的 analysis_questions 和 focus_req_ids
-    # ...(用 Python 解析 markdown section)
-
-    sessions_spawn(
-        runtime="subagent",
-        mode="run",
-        label=f"planning_expert_{expert_name}",
-        task=f"""
-cd {deepflow_root} && PYTHONPATH=.
-
-{expert_base_prompt}
-
-## 你的 session_id
-`{session_id}`
-
-## 你的角色
-**角色名称**:{expert_name}
-**分析视角**:{evaluation_lens}
-
-## 你的分析问题
-{analysis_questions}
-
-重点需求:{focus_req_ids}
-""",
-        cwd="{deepflow_root}",
-    lightContext=True,
-    )
-
-# 全部 spawn 完后
-sessions_yield()
-```
-
-**yield 返回后第一个 action 必须是 exec 验证**:
-```python
-cd {deepflow_root} && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import os, glob
-bb = BlackboardManager('{session_id}')
-experts_dir = os.path.join(str(bb.session_dir), 'stages', 'planning_experts')
-files = glob.glob(os.path.join(experts_dir, '*.md')) if os.path.exists(experts_dir) else []
-print(f'EXPERTS_COMPLETED: {len(files)}')
-for f in files:
-    print(f'  - {os.path.basename(f)} ({os.path.getsize(f)} bytes)')
-"
-```
-
-
-### Phase 4: 补充研究(必做,固定 1 轮)
-
-**🔴 必做,基于 Expert 报告中的 open questions 和未覆盖的约束维度。**
-
-**执行**:
-1. 从 Expert 报告中提取 open questions 和未覆盖的约束维度
-2. 合并为一个补充约束分析任务清单
-3. spawn 补充 Expert(针对性分析,不是全面分析)
-4. 补充 Expert 数量由任务清单决定(通常 1-3 个)
-5. 只跑 1 轮(不迭代,避免无限循环)
-
-**补充 Expert 复用 `planning_expert_base.md`**,输出写入 `planning_experts/` 目录,文件名前缀 `supplementary_`。
-
-```python
-# 读取补充任务清单
-cd {deepflow_root} && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-bb = BlackboardManager('{session_id}')
-# 从 Expert 报告中提取 open questions
-print('Extracting open questions from expert reports...')
-"
-```
-
-```python
-# spawn 补充 Expert
-with open('prompts/planning_expert_base.md') as f:
-    expert_base_prompt = f.read()
-
-for supp_name in supplementary_experts:
-    sessions_spawn(
-        runtime="subagent",
-        mode="run",
-        label=f"planning_supp_{supp_name}",
-        task=f"""
-cd {deepflow_root} && PYTHONPATH=.
-
-{expert_base_prompt}
-
-## 你的 session_id
-`{session_id}`
-
-## 你的角色
-**角色名称**:supplementary_{supp_name}
-**分析视角**:{supp_perspective}
-
-## 补充分析任务
-{supp_task}
-
-## 你的分析问题
-{supp_questions}
-
-重点需求:{supp_focus_req_ids}
-""",
-        cwd="{deepflow_root}",
-    lightContext=True,
-    )
-
-sessions_yield()
-```
-
-**yield 返回后验证**:
-```python
-cd {deepflow_root} && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import os, glob
-bb = BlackboardManager('{session_id}')
-experts_dir = os.path.join(str(bb.session_dir), 'stages', 'planning_experts')
-supp_files = [f for f in os.listdir(experts_dir) if f.startswith('supplementary_')] if os.path.exists(experts_dir) else []
-print(f'SUPPLEMENTARY_COMPLETED: {len(supp_files)}')
-for f in supp_files:
-    print(f'  - {f}')
-"
-```
-
----
-
-### Phase 5: 结构化提取收敛
-
-**目的**:从所有 Expert 的自由 markdown 分析中提取结构化约束(`unified_constraints` JSON)。
-
-**与 Research Phase 5 的核心差异**:
-- Research:不压缩,原文照搬到 research_report
-- Planning:**结构化提取**,从 markdown 中提取 constraints → unified_constraints JSON
-
-**🔴 这不是"原文照搬",而是用 exec 调用 Python 做结构化提取。**
-
-**执行方式**:
-
-```python
-# Step 1: 收集所有 Expert 报告
-cd {deepflow_root} && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import os, glob
-bb = BlackboardManager('{session_id}')
-experts_dir = os.path.join(str(bb.session_dir), 'stages', 'planning_experts')
-files = glob.glob(os.path.join(experts_dir, '*.md'))
-all_reports = {}
-for f in sorted(files):
-    name = os.path.basename(f).replace('.md', '')
-    with open(f) as fh:
-        all_reports[name] = fh.read()
-    print(f'Loaded: {name} ({len(all_reports[name])} chars)')
-print(f'TOTAL_EXPERTS: {len(all_reports)}')
-"
-```
-
-```python
-# Step 2: 用 LLM 做结构化提取(spawn 一个收敛 Agent)
-sessions_spawn(
-    runtime="subagent",
-    mode="run",
-    label="planning_convergence",
-    task=f"""
-cd {deepflow_root} && PYTHONPATH=.
-
-你是 Planning 模块的 Phase 5 收敛 Agent。
-
-## 任务
-从所有 Expert 的自由 markdown 分析报告中,提取结构化约束,生成 unified_constraints JSON。
-
-## 输入
-读取以下 Blackboard stages:
-- `planning_experts/` 目录下所有 .md 文件（Expert 分析报告）
-- `planning_plan`（质量计划）
-- `data/living_spec.json`(优先)或 `data/frozen_spec.json`(原始需求)
-
-## 提取规则
-
-1. **从每个 Expert 报告中提取约束**:
-   - 约束可能在 "约束分析"、"必须遵守"、"关键约束"、"Constraints" 等 section 中
-   - 每条约束必须有:description、priority(MUST/SHOULD/MAY)、covered_req_ids、rationale(因果链)
-
-2. **语义去重**:
-   - 多个 Expert 提出相同/相似约束 → 合并为一条,source_experts 列出所有来源
-   - 合并时保留最完整的 rationale
-
-3. **冲突解决**:
-   - Expert A 和 Expert B 的约束矛盾 → 根据 evidence 强度和 Expert 专业资质选择
-   - 记录 conflicts_resolved
-
-4. **生成 verification_checklist**:
-   - 每个 MUST 约束至少一条验证项
-   - 每条验证项包含:check_id、constraint_id、verification_method、expected_result
-
-## 输出格式
-
-写入 `planning_convergence` stage,JSON 格式:
-
-```json
-{{
-  "schema_version": "3.0.0",
-  "unified_constraints": [
-    {{
-      "constraint_id": "UC-001",
-      "description": "约束描述",
-      "priority": "MUST|SHOULD|MAY",
-      "source_experts": ["expert_a", "expert_b"],
-      "covered_req_ids": ["REQ-001"],
-      "rationale": "因果链:为什么需要这个约束",
-      "conflicts_resolved": "与 UC-XXX 的冲突已解决,因为..."
-    }}
-  ],
-  "verification_checklist": [
-    {{
-      "check_id": "VC-001",
-      "constraint_id": "UC-001",
-      "verification_method": "具体验证方法(可执行命令或检查步骤)",
-      "expected_result": "预期结果"
-    }}
-  ],
-  "meta": {{
-    "total_expert_plans": N,
-    "total_input_constraints": N,
-    "total_output_constraints": N,
-    "merge_ratio": 0.XX
-  }},
-  "covered_req_ids": ["REQ-001", "REQ-002", ...]
-}}
-```
-
-## 写入 Blackboard
-
-```python
-from core.blackboard.blackboard_manager import BlackboardManager
-bb = BlackboardManager('{session_id}')
-bb.write_stage('planning_convergence', convergence_json)
-print('PLANNING_CONVERGENCE_WRITTEN')
-```
-
-## 验证
-
-```python
-result = bb.read_stage('planning_convergence')
-if result:
-    import json
-    data = json.loads(result) if isinstance(result, str) else result
-    print(f'CONVERGENCE_OK: {len(data.get("unified_constraints", []))} constraints, {len(data.get("verification_checklist", []))} checks')
-else:
-    print('CONVERGENCE_MISSING')
-```
-""",
-    cwd="{deepflow_root}",
-    lightContext=True,
-)
-sessions_yield()
-```
-
-**yield 返回后验证**:
-```python
-cd {deepflow_root} && PYTHONPATH=. python3 -c "
-from core.blackboard.blackboard_manager import BlackboardManager
-import json
-bb = BlackboardManager('{session_id}')
-result = bb.read_stage('planning_convergence')
-if result:
-    data = json.loads(result) if isinstance(result, str) else result
-    uc = data.get('unified_constraints', [])
-    vc = data.get('verification_checklist', [])
-    print(f'CONVERGENCE_OK: {len(uc)} constraints, {len(vc)} checks')
-    must_count = len([c for c in uc if c.get('priority') == 'MUST'])
-    print(f'MUST constraints: {must_count}')
-else:
-    print('CONVERGENCE_MISSING')
-"
-```
-
----
-
-## 完成标记
-
-**Phase 5 完成后**,写入 Planning 模块的完成标记:
-
-```python
-bb.write_stage('planning_completed', {
-    'session_id': '{session_id}',
-    'status': 'completed',
-    'phases_completed': ['knowledge_freshness', 'planning_plan', 'experts', 'supplementary', 'convergence'],
-    'constraint_count': len(uc),
-    'verification_check_count': len(vc),
+bm = BlackboardManager('{session_id}')
+
+# 写入模块状态
+bm.write('module_planning_state.json', {
+    'module': 'planning',
+    'status': 'running',
 })
+print('MODULE_INITIALIZED')
+"
+```
+
+### Phase 1: 直接通过 sessions_spawn 创建 Workers
+
+**Worker Spawn 清单（按执行顺序）：**
+
+| # | 角色 | Prompt 文件 | 输入 stage | 输出 stage |
+|---|------|-----------|-----------|----------|
+| 1 | Meta Planner | `domains/solution_pro/prompts/meta_planner.md` | `data/frozen_spec.json` | `stages/meta_planning.json` |
+| 2 | Planning Planner | `domains/solution_pro/prompts/planning_planner.md` | `stages/meta_planning.json` | `stages/planning_tasks.json` |
+| 3 | Expert Planners ×N | `domains/solution_pro/prompts/expert_planner_base.md` | `stages/planning_tasks.json`（含 experts 列表） | `stages/expert_plans/{name}.json`（每个 expert 一个文件） |
+| 4 | Convergence Planner | `domains/solution_pro/prompts/convergence_planner.md` | `stages/meta_planning.json` + `stages/expert_plans/*.json` | `stages/planning_convergence.json` |
+| 5 | Reviewer Meta | `domains/solution_pro/prompts/reviewer_meta.md` | `stages/meta_planning.json` | `stages/review_meta.json` |
+| 6 | Reviewer Convergence | `domains/solution_pro/prompts/reviewer_convergence.md` | `stages/planning_convergence.json` | `stages/review_convergence.json` |
+
+---
+
+#### Step 1: Meta Planner
+
+**1.1 读取 Prompt 并写入 Blackboard：**
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+import pathlib
+bm = BlackboardManager('{session_id}')
+
+# 1. 读取 Worker prompt
+prompt = pathlib.Path('domains/solution_pro/prompts/meta_planner.md').read_text()
+prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+
+# 2. 写入 blackboard
+bm.write('meta_planner_prompt.md', prompt, subdir='stages')
+print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
+"
+```
+
+**1.2 Spawn Worker：**
+
+```
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label="planning_worker_meta_planner",
+    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/meta_planner_prompt.md\n\n读取后按指令执行。",
+    cwd="{deepflow_root}",
+    lightContext=True,
+)
+sessions_yield()
+```
+
+**1.3 唤醒后验证：**
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager('{session_id}')
+result = bm.read_stage('meta_planning')
+if result:
+    print(f'META_PLANNING_OK: {len(str(result))} chars')
+else:
+    print('META_PLANNING_MISSING')
+"
+```
+
+- `META_PLANNING_OK` → 继续 Step 2
+- `META_PLANNING_MISSING` → Fail Fast
+
+---
+
+#### Step 2: Planning Planner
+
+**2.1 读取 Prompt 并写入 Blackboard：**
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+import pathlib
+bm = BlackboardManager('{session_id}')
+
+prompt = pathlib.Path('domains/solution_pro/prompts/planning_planner.md').read_text()
+prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+
+bm.write('planning_planner_prompt.md', prompt, subdir='stages')
+print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
+"
+```
+
+**2.2 Spawn Worker：**
+
+```
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label="planning_worker_planning_planner",
+    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/planning_planner_prompt.md\n\n读取后按指令执行。",
+    cwd="{deepflow_root}",
+    lightContext=True,
+)
+sessions_yield()
+```
+
+**2.3 唤醒后验证：**
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager('{session_id}')
+result = bm.read_stage('planning_tasks')
+if result:
+    print(f'PLANNING_TASKS_OK: {len(str(result))} chars')
+else:
+    print('PLANNING_TASKS_MISSING')
+"
+```
+
+- `PLANNING_TASKS_OK` → 继续 Step 3
+- `PLANNING_TASKS_MISSING` → Fail Fast
+
+---
+
+#### Step 3: Expert Planners ×N（并行 Spawn）
+
+**3.1 从 planning_tasks.json 读取 experts 列表，为每个 expert 写入 Prompt：**
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+import pathlib, json
+bm = BlackboardManager('{session_id}')
+
+# 读取 planning_tasks 获取 experts 列表
+planning_tasks = bm.read_stage('planning_tasks')
+experts = planning_tasks.get('experts', [])
+print(f'EXPERTS_FOUND: {len(experts)}')
+
+# 读取 expert planner base prompt
+base_prompt = pathlib.Path('domains/solution_pro/prompts/expert_planner_base.md').read_text()
+
+# 为每个 expert 写入独立 prompt
+for expert in experts:
+    name = expert.get('name', 'unknown')
+    prompt = base_prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+    prompt = prompt.replace('{expert_name}', name)
+    bm.write(f'expert_planner_{name}_prompt.md', prompt, subdir='stages')
+    print(f'EXPERT_PROMPT_WRITTEN: {name} ({len(prompt)} bytes)')
+"
+```
+
+**3.2 并行 Spawn 所有 Expert Planners：**
+
+```
+# 对每个 expert 执行 spawn（一次性全部 spawn，然后一次 yield）
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label="planning_worker_expert_{name}",
+    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/expert_planner_{name}_prompt.md\n\n读取后按指令执行。",
+    cwd="{deepflow_root}",
+    lightContext=True,
+)
+# ... 对每个 expert 重复上述 spawn ...
+sessions_yield()
+```
+
+**3.3 唤醒后验证（检查所有 expert 输出）：**
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+import pathlib
+bm = BlackboardManager('{session_id}')
+
+# 读取 experts 列表
+planning_tasks = bm.read_stage('planning_tasks')
+experts = planning_tasks.get('experts', [])
+
+all_ok = True
+for expert in experts:
+    name = expert.get('name', 'unknown')
+    result = bm.read_stage(f'expert_plans/{name}')
+    if result:
+        print(f'EXPERT_PLAN_OK: {name} ({len(str(result))} chars)')
+    else:
+        print(f'EXPERT_PLAN_MISSING: {name}')
+        all_ok = False
+
+if all_ok:
+    print('ALL_EXPERTS_OK')
+else:
+    print('SOME_EXPERTS_MISSING')
+"
+```
+
+- `ALL_EXPERTS_OK` → 继续 Step 4
+- `SOME_EXPERTS_MISSING` → Fail Fast
+
+---
+
+#### Step 4: Convergence Planner
+
+**4.1 读取 Prompt 并写入 Blackboard：**
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+import pathlib
+bm = BlackboardManager('{session_id}')
+
+prompt = pathlib.Path('domains/solution_pro/prompts/convergence_planner.md').read_text()
+prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+
+bm.write('convergence_planner_prompt.md', prompt, subdir='stages')
+print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
+"
+```
+
+**4.2 Spawn Worker：**
+
+```
+sessions_spawn(
+    runtime="subagent",
+    mode="run",
+    label="planning_worker_convergence_planner",
+    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/convergence_planner_prompt.md\n\n读取后按指令执行。\n\n## 重要：你的输入来源\n- stages/meta_planning.json（Meta Planner 输出）\n- stages/expert_plans/*.json（所有 Expert Planner 输出）\n\n你必须读取以上所有文件作为输入。",
+    cwd="{deepflow_root}",
+    lightContext=True,
+)
+sessions_yield()
+```
+
+**4.3 唤醒后验证：**
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager('{session_id}')
+result = bm.read_stage('planning_convergence')
+if result:
+    print(f'PLANNING_CONVERGENCE_OK: {len(str(result))} chars')
+else:
+    print('PLANNING_CONVERGENCE_MISSING')
+"
+```
+
+- `PLANNING_CONVERGENCE_OK` → **立即写入完成标记**（下方 4.4），然后继续 Step 5
+- `PLANNING_CONVERGENCE_MISSING` → Fail Fast
+
+---
+
+#### Step 4.4: 写入完成标记（🔴 最高优先级，convergence 验证通过后立即执行）
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+import datetime
+bm = BlackboardManager('{session_id}')
+
+# 立即更新状态
+bm.write('module_planning_state.json', {
+    'module': 'planning',
+    'status': 'completed',
+    'completed_at': datetime.datetime.utcnow().isoformat() + 'Z',
+})
+
+# 写入完成标记
+bm.write_stage('.planning_completed', {
+    'module': 'planning',
+    'status': 'completed',
+    'completed_at': datetime.datetime.utcnow().isoformat() + 'Z',
+})
+print('PLANNING_MODULE_FINALIZED')
+"
+```
+
+🔴 **这个步骤是 Planning Module 的最终步骤。执行完毕后你的任务就完成了。不要跳过。不要延后。**
+
+---
+
+### Phase 2: 完成确认
+
+> 注意：`.planning_completed` 已在 Step 4.4 写入。Phase 2 只做最终确认。
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager('{session_id}')
+
+pc = bm.read_stage('planning_convergence')
+completed = bm.read_stage('.planning_completed')
+print(f'CONVERGENCE: {"OK" if pc else "MISSING"}')
+print(f'COMPLETED_MARKER: {"OK" if completed else "MISSING"}')
+print('PLANNING_MODULE_ALL_DONE')
+"
 ```
 
 ---
 
-## 🔴 自检清单(每个 Phase 完成后)
+## 🔴 Fail Fast
 
-1. ☐ 输出文件是否已写入 Blackboard?(`bb.read_stage(stage_name)` 不为 None)
-2. ☐ 输出文件的大小是否合理?(Expert 报告应 > 2000 bytes)
-3. ☐ P0 需求覆盖是否有进展?(每个 Phase 后检查)
-4. ☐ 是否有 Expert 报告为空或异常短?→ 重新 spawn
-5. ☐ yield 唤醒后的第一个 action 是 exec 验证吗?→ 不是 → 立即执行验证
-6. ☐ planning_plan 中的 Expert 格式是 `## Expert: [name]` 吗?→ 不是 → Phase 2 无法解析
+任何验证失败时：
 
----
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager('{session_id}')
+import datetime
+bm.write_stage('.planning_failed', {
+    'module': 'planning',
+    'failed_at': datetime.datetime.utcnow().isoformat() + 'Z',
+    'reason': 'verification_failed',
+})
+print('PLANNING_MODULE_FAILED')
+"
+```
 
-## ⚠️ 关键规则
-
-1. **Expert 输出是 markdown,不是 JSON** - 约束信息不被格式削掉
-2. **Planning 是第一个模块** - 没有上游依赖,读 living_spec(或 frozen_spec)
-3. **Phase 5 做结构化提取** - 从 markdown 中提取 unified_constraints JSON,不是原文照搬
-4. **Planning Planner 动态决定专家** - 不预设固定列表
-5. **最多 1 轮补充研究** - 避免无限循环
-6. **yield 唤醒后只做 exec 验证** - 不生成文字
-7. **每个 spawn 的 task 开头必须加 Preamble** - `cd {deepflow_root} && PYTHONPATH=.`
-9. **Worker 自己读 Blackboard** - 不嵌入大段 JSON 到 prompt
+**立即结束 turn。不继续。不写假数据。**

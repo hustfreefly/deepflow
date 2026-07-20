@@ -1,0 +1,159 @@
+{
+  "verdict": "CONDITIONAL",
+  "review_metadata": {
+    "perspective": "实施可行性",
+    "reviewer": "全链路 MD 信息流重构评审专家（实施可行性视角）",
+    "date": "2026-07-11",
+    "base_path": ".deepflow/domains/"
+  },
+  "domain_analysis": [
+    {
+      "domain": "Spec Pro",
+      "files_to_change": 9,
+      "test_files": 1,
+      "prompts_to_change": 8,
+      "total_refs": 251,
+      "complexity": "高",
+      "reason": "信息源头，merge_spec.py(31K行)深度 JSON 耦合，blackboard.py 路径注册 living_spec.json，9 个 Python 文件直接引用 JSON 路径",
+      "key_files": [
+        "merge_spec.py (31K行, 核心 merge 逻辑, 全 JSON)",
+        "blackboard.py (路径注册 living_spec.json)",
+        "coordinator.py (读写 living_spec)",
+        "spec_pro_api.py (已有 ADR-009 track 生成, 改动小)",
+        "contracts/living_spec.py (Pydantic 模型, 需保留)",
+        "contracts/gate.py (gate_living_spec, 需适配 MD)",
+        "requirement_structuring.py",
+        "utils.py, build_handoff_cli.py, check_density_cli.py"
+      ],
+      "existing_md_infra": "ADR-009 generate_spec_track() 已存在（JSON→MD+track），但只做旁路生成，不做主路径",
+      "risk": "merge_spec.py 的 merge 逻辑从 JSON dict 操作改为 MD 文本操作是最大技术挑战"
+    },
+    {
+      "domain": "Solution Pro",
+      "files_to_change": 15,
+      "test_files": 12,
+      "prompts_to_change": 31,
+      "total_refs": 664,
+      "complexity": "高",
+      "reason": "最大改动面(664处引用)，frozen_spec.py(966行)已标记废弃但仍在用，summary_orchestrator 全链路 JSON checkpoint，跨域读 Spec Pro 的 living_spec.json",
+      "key_files": [
+        "frozen_spec.py (966行, 已标记废弃 Phase 1, 12类需求映射)",
+        "summary_orchestrator.py (5阶段 JSON checkpoint: base→plan→refined→document→final)",
+        "control_contract.py (读 frozen_spec.json + execution_plan.json)",
+        "planning_orchestrator.py (读 frozen_spec)",
+        "research_orchestrator.py",
+        "task_builder.py (prompt 构建依赖 JSON 结构)",
+        "master_orchestrator.py, convergence_layer.py, uc_verifier.py",
+        "harness_scorer.py (读 living_spec narrative)"
+      ],
+      "existing_md_infra": "ADR-009 generate_solution_track() 已存在（从 final_solution.md 提取），但 final_solution.md 尚未作为主产物生成",
+      "risk": "31 个 prompt 文件引用 JSON 格式，是最大 prompt 改动面；12类需求 category 映射在 MD 格式下需要结构化锚点"
+    },
+    {
+      "domain": "Ship Pro",
+      "files_to_change": 4,
+      "test_files": 2,
+      "prompts_to_change": 1,
+      "total_refs": 90,
+      "complexity": "低",
+      "reason": "仅 4 个文件引用 ship_package.json，1 个 prompt，已有 ADR-009 MD 生成基础设施，contracts/gates.py 是主要改动点",
+      "key_files": [
+        "__init__.py (已有 ADR-009 ship_package.md + ship_track.json 生成)",
+        "contracts/gates.py (gate 校验读 ship_package dict, 需适配 MD)",
+        "conservation_judge.py (读 ship_package 做守恒判断)",
+        "orchestrator/ship_orchestrator.py"
+      ],
+      "existing_md_infra": "ADR-009 已实现 ship_package.json → ship_package.md + ship_track.json，__init__.py 已有调用",
+      "risk": "conservation_judge 和 gates.py 需要从 MD 解析 ship_package 结构"
+    },
+    {
+      "domain": "Deliver Pro",
+      "files_to_change": 0,
+      "test_files": 0,
+      "prompts_to_change": 0,
+      "total_refs": 0,
+      "complexity": "无",
+      "reason": "已经是 MD 原生（Code-First Assembly + SmartAssembler），living_spec/frozen_spec 引用为 0，无需改动",
+      "key_files": [
+        "smart_assembler.py (已生成 DELIVERABLE.md)",
+        "orchestrator.py (已有 ADR-009 track 从 MD 提取)"
+      ],
+      "existing_md_infra": "完全 MD 原生，无需改动",
+      "risk": "无"
+    }
+  ],
+  "total_files": 28,
+  "total_test_files": 15,
+  "total_prompts": 40,
+  "infrastructure_modules": {
+    "core/track_generator.py": "已存在，支持 MD→track 和 JSON→MD+track 双路径",
+    "core/md_track_extractor.py": "已存在，validate_md_structure() + extract_track_json()，5 域配置",
+    "core/blackboard/blackboard_manager.py": "已有 read_stage_raw() 多格式支持(.md/.txt/.json)",
+    "补墙模块 md_merge_validator.py": "尚未实现，md_architecture_review_report 指出需要分层 diff + LLM 语义验证",
+    "补墙模块 track_validator.py": "尚未实现，需要从 MD 提取 track.json 并验证完整性"
+  },
+  "implementation_order": [
+    "Phase 1: Spec Pro (信息源头，先稳定 MD 输出格式)",
+    "Phase 2: Ship Pro (改动最小，已有 ADR-009 基础，验证 MD 端到端)",
+    "Phase 3: Solution Pro (最复杂，需要双读过渡期)",
+    "Phase 4: Deliver Pro (已是 MD，仅需验证全链路贯通)"
+  ],
+  "implementation_order_rationale": "Spec Pro 必须先改——它是 living_spec 的产出者，所有下游域依赖它的输出格式。Ship Pro 第二是因为改动面小(4文件)且 ADR-009 已就位，可快速验证 MD 端到端。Solution Pro 最复杂(15文件+31prompts)且依赖 Spec Pro 输出，需要等 Spec Pro 稳定后再改。Deliver Pro 已是 MD 原生，只做最终全链路验证。",
+  "transition_strategy": "分域逐步切换 + 双读过渡。\n\n具体方案：\n1. Spec Pro 先切 MD 输出，同时保留 JSON 旁路生成（ADR-009 现有逻辑反向：先写 MD，再自动生成 JSON 作为 fallback）\n2. Solution Pro 过渡期使用双读：优先读 living_spec.md，fallback 读 living_spec.json（blackboard_manager.read_stage_raw 已支持多格式后缀）\n3. Ship Pro 切换时，Solution Pro 仍可同时产出 JSON 和 MD 格式的 solution_document\n4. 每个域切换后运行 track_validator 对比 JSON track 和 MD track 的一致性\n5. 全部域切换完成后，移除 JSON 旁路生成和双读 fallback\n\n双读需求：Solution Pro 读 Spec Pro 输出时需要双读（约 2-3 周过渡期），Ship Pro 读 Solution Pro 输出时同理。blackboard_manager 已有 read_stage_raw 多格式支持，可直接复用。",
+  "estimated_effort": "10-14 人天",
+  "effort_breakdown": {
+    "phase_0_validator_design": "2d — md_merge_validator + track_validator 设计与实现",
+    "phase_1_spec_pro": "3-4d — merge_spec.py MD 重写(最大难点) + blackboard 路径注册 + 8 prompts 适配 + 测试",
+    "phase_2_ship_pro": "1-2d — gates.py/conservation_judge MD 适配 + 1 prompt + 测试",
+    "phase_3_solution_pro": "3-4d — frozen_spec 废弃 + summary_orchestrator MD checkpoint + 31 prompts 适配 + 双读 + 测试",
+    "phase_4_integration": "1-2d — 全链路回归测试 + JSON 移除 + 文档"
+  },
+  "issues": [
+    {
+      "severity": "P0",
+      "description": "merge_spec.py(31K行)从 JSON dict merge 改为 MD merge 是核心技术风险，当前 merge 逻辑深度依赖 JSON 字段路径(for wrapper_key in confirmed/spec/updates/result/living_spec)，MD 文本 merge 语义完全不同",
+      "fix": "Phase 1 先保留 merge_spec.py 作为 JSON-only 内部模块，新增 md_merge.py 做 MD 层面的 merge（LLM merge + md_merge_validator 验证），两者并行运行直到 MD merge 验证稳定，再废弃 JSON 路径"
+    },
+    {
+      "severity": "P0",
+      "description": "md_merge_validator 尚未实现，且已有评审指出简单文本 diff 在大 diff(>30%)时不可靠，需要 LLM 语义验证兜底",
+      "fix": "实现分层 diff：先按章节(confirmed/inferred/guardrails)分段比对，diff>20% 时触发 LLM-as-Judge 二次验证。参考 md_architecture_review_report.json 中的建议"
+    },
+    {
+      "severity": "P0",
+      "description": "Solution Pro 的 12 类需求 category 映射(capability/integration/quality_attribute 等)在 MD 扁平化后可能丢失结构化关联，frozen_spec.py 有 30+ 处 .get() 路径依赖 JSON 嵌套",
+      "fix": "在 MD 中使用 YAML frontmatter 或 HTML 注释锚点(<!-- REQ-001 category:capability -->)保留结构化元数据，Solution Pro 提取器优先读锚点，LLM 推断作为 fallback"
+    },
+    {
+      "severity": "P1",
+      "description": "31 个 Solution Pro prompt 文件引用 JSON 格式，批量修改容易遗漏，且 prompt 改动直接影响 LLM 输出质量",
+      "fix": "创建 prompt 模板迁移脚本：自动替换 JSON schema 示例为 MD 格式示例，人工 review 每个 prompt 的 output_format 部分。按子模块分批改：planning(5)→research(8)→summary(12)→其他(6)"
+    },
+    {
+      "severity": "P1",
+      "description": "track_validator.py 尚未实现，从 MD 提取 track.json 时 L3 Gate verdict 依赖表格列名匹配，多语言/格式变体可能失效",
+      "fix": "复用 core/md_track_extractor.py 的 validate_md_structure() + extract_track_json()（已实现 5 域配置），添加多语言列名映射和列位置 fallback"
+    },
+    {
+      "severity": "P1",
+      "description": "Solution Pro 的 summary_orchestrator 有 5 阶段 JSON checkpoint(base→plan→refined→document→final)，全部改为 MD checkpoint 会影响断点续跑能力",
+      "fix": "过渡期保留 JSON checkpoint 用于内部状态管理，仅将最终产物(solution_document)改为 MD 输出。后续迭代逐步将中间 checkpoint 也迁移为 MD"
+    },
+    {
+      "severity": "P2",
+      "description": "废弃 frozen_spec.py 后，REQ-ID 生成责任需明确转移，当前 frozen_spec.py 的 GROUP_MAP(12 category→5 group)和 _add_requirement() 逻辑需要迁移到新模块",
+      "fix": "将 REQ-ID 生成逻辑迁移到 contracts/living_spec.py 或新建 requirement_index.py，保持 REQ-{domain}-{seq:03d} 格式契约不变"
+    },
+    {
+      "severity": "P2",
+      "description": "Ship Pro contracts/gates.py 的 gate 校验函数直接操作 ship_package dict（.get('work_packages')等），改为 MD 解析后需要可靠的 MD→dict 转换层",
+      "fix": "复用 md_track_extractor 的 mistune AST 解析能力，新增 ship_package_md_parser.py 做 MD→Pydantic(ShipPackage) 转换，gate 函数接口不变"
+    }
+  ],
+  "cross_domain_dependencies": {
+    "spec_pro_to_solution_pro": "Solution Pro 通过 blackboard 读取 data/living_spec.json（summary_orchestrator.py:154），切换时需要双读支持",
+    "solution_pro_to_ship_pro": "Ship Pro gates.py 接收 solution_pro_output dict 做 gate 校验，需要约定 MD 格式下的接口契约",
+    "ship_pro_to_deliver_pro": "Deliver Pro 与 Ship Pro 耦合度低（仅引用 1 次），影响最小"
+  },
+  "overall": "CONDITIONAL GO — 方案方向正确且已有显著基础设施铺垫（ADR-009 track_generator/md_track_extractor 已就位、blackboard 已支持多格式读取、frozen_spec 已标记废弃、Deliver Pro 已是 MD 原生）。但存在 3 个 P0 阻塞项需要在实施前解决：(1) merge_spec.py 的 MD merge 策略需要原型验证（建议先 spike 1 天），(2) md_merge_validator 需要分层 diff + LLM 兜底设计，(3) Solution Pro 的 12 类需求映射需要结构化锚点方案。建议按 Spec Pro→Ship Pro→Solution Pro→Deliver Pro 顺序分域切换，每域完成后用 track 一致性验证作为阶段 gate。预估 10-14 人天，其中 merge_spec 重写(3-4d)和 Solution Pro prompts 批量迁移(3-4d)是两个最大工期风险。"
+}

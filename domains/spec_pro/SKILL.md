@@ -46,6 +46,40 @@ exec(
 
 ---
 
+### Step 0.5: 欢迎界面（用户展示层）🔴
+
+**在调用 `spec_pro_api.py init` 之前，必须先向用户展示以下欢迎界面：**
+
+---
+
+## 📋 Spec Pro — 需求梳理引擎
+
+> 通过苏格拉底式对话，帮你把模糊想法变成可执行的需求规格书（LivingSpec）
+> ⏱️ 预计 3-6 轮对话，5-10 分钟
+
+### 🚀 快速开始
+
+| # | 场景 | 示例 |
+|---|------|------|
+| 1 | 🆕 新项目 (genesis) | "做一个 AI 算力调度平台" |
+| 2 | 🔄 改进现有系统 (evolution) | "优化客服系统，提升响应速度" |
+| 3 | 🔀 迁移/重构 (migration) | "单体架构迁移到微服务" |
+
+### 📎 也可以提供背景材料
+- 调研报告、竞品分析、会议纪要
+- 我会基于材料提取需求，减少对话轮次
+
+**请告诉我你想做什么，或选择场景编号：**
+
+---
+
+**🔴 铁律**：
+- 展示欢迎界面后，**等待用户输入**
+- 用户回复后，根据输入内容确定 `--scenario` 参数，再调用 `spec_pro_api.py init`
+- 如果用户已经提供了具体需求（如"做一个XX系统"），**跳过欢迎界面**，直接进入 Step 1
+
+---
+
 ### Step 1: 初始化 Spec Pro 会话
 
 **触发条件**：Step 0 判定需要进入 Spec Pro
@@ -70,7 +104,7 @@ exec(
 ```
 
 **输出文件**：
-- `blackboard/{session_id}/spec/living_spec.json` — 初始 LivingSpec
+- `blackboard/{session_id}/spec/living_spec.md` — 初始 LivingSpec
 - `blackboard/{session_id}/spec/conversation_log.json` — 对话日志
 
 ---
@@ -155,7 +189,7 @@ else:  # FAIL
 ```python
 # 1. 读取最终 LivingSpec
 living_spec = read(
-    path="blackboard/{session_id}/spec/living_spec.json"
+    path="blackboard/{session_id}/spec/living_spec.md"
 )
 
 # 2. 获取 Spec Pro 状态（会自动写 .completed 标记文件）
@@ -173,7 +207,7 @@ exec(
     command="PYTHONPATH=. python3 scripts/start_solution_pro.py '{topic}'",
     workdir="{deepflow_root}"
 )
-# 其中 topic 从 living_spec.json 的 title 字段提取
+# 其中 topic 从 living_spec.md 的 YAML frontmatter 或 meta_info 节提取
 ```
 
 > **铁律**: 看到 "🔗 自动触发下游管线: solution_pro" 就必须执行，不要问用户是否继续。

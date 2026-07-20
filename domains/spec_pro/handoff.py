@@ -1,8 +1,11 @@
 """Spec Pro handoff package: 产出 spec_handoff_package.json 供 Solution Pro 消费。
 
-只有 density_gate_result.passed == True 时 handoff_allowed = True。
+ADR-009 P0（2026-07-12）：MD 直传架构
+  - save_handoff_package 自动渲染 living_spec.md + track.json
+  - handoff package 包含 living_spec_md_path（下游 LLM 直读 MD）
+  - 只有 density_gate_result.passed == True 时 handoff_allowed = True
 
-契约笼子（2026-07-06）：
+契约笼子：
   save_handoff_package 增加 HandoffPackage Pydantic 验证。
   验证失败 → raise ValueError，绝不静默降级。
 """
@@ -18,11 +21,14 @@ if _root:
     _sys.path.insert(0, _root_str)
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # 契约笼子：导入 Pydantic 强类型模型
 from contracts.shared.handoff_contract import HandoffPackage
+
+logger = logging.getLogger(__name__)
 
 
 def build_handoff_package(
@@ -62,14 +68,19 @@ def build_handoff_package(
 
 
 def save_handoff_package(package: dict, blackboard_dir: Path) -> Path:
-    """保存 handoff package 到 blackboard（契约笼子验证版）。
+    """保存 handoff package 到 blackboard（契约笼子验证版 + MD 直传）。
 
-    契约笼子（2026-07-06）：
+    ADR-009 P0（2026-07-12）：
+      写入 living_spec.md + spec_track.json，
+      将 living_spec_md_path 记录到 package 中。
+      下游 Solution Pro 从 package 中读 MD 路径，LLM 直接消费 MD。
+
+    契约笼子：
       写入前用 HandoffPackage Pydantic 模型验证 package 合法性。
       验证失败 → raise ValueError（不静默降级）。
 
     Args:
-        package: handoff package dict（保持向后兼容，仍接受 dict 输入）
+        package: handoff package dict
         blackboard_dir: blackboard session 目录
 
     Returns:
@@ -79,13 +90,45 @@ def save_handoff_package(package: dict, blackboard_dir: Path) -> Path:
         ValueError: 契约验证失败时抛出，包含具体违反项
     """
     # 契约笼子：Pydantic 验证，失败直接 raise
-    # 设计意图：在产出端（spec_pro）就拦截不合法 package，
-    #          而不是让消费端（solution_pro）发现错误。
     validated = HandoffPackage(**package)
 
-    output_path = blackboard_dir / "spec" / "spec_handoff_package.json"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    # 写入验证后的模型数据（确保序列化一致性）
+    spec_dir = blackboard_dir / "spec"
+    spec_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── ADR-009 P0: 渲染 MD + track.json ──
+    living_spec_md_path = None
+    try:
+        from domains.spec_pro.spec_living_md import render_living_spec_md
+        from core.md_track_extractor import extract_track_json, validate_md_structure
+
+        # 渲染 living_spec.md
+        md_content = render_living_spec_md(validated.living_spec)
+        md_path = spec_dir / "living_spec.md"
+        md_path.write_text(md_content, encoding="utf-8")
+        living_spec_md_path = str(md_path)
+
+        # 提取并写入 spec_track.json
+        passed, warnings = validate_md_structure(md_content, "spec_pro")
+        if passed:
+            track = extract_track_json(md_content, "spec_pro")
+            track_path = spec_dir / "spec_track.json"
+            track_path.write_text(
+                json.dumps(track, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        else:
+            logger.warning(f"MD validation warnings: {warnings}")
+    except Exception as e:
+        logger.warning(f"MD/track generation failed (non-blocking): {e}")
+
+    # 构建输出 package（包含 MD 路径）
+    output_data = validated.model_dump()
+    if living_spec_md_path:
+        output_data["living_spec_md_path"] = living_spec_md_path
+
+    # 写入 JSON（Pydantic 验证后的数据）
+    output_path = spec_dir / "spec_handoff_package.json"
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(validated.model_dump(), f, indent=2, ensure_ascii=False)
+        json.dump(output_data, f, indent=2, ensure_ascii=False)
+
     return output_path

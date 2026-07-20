@@ -118,7 +118,7 @@ ROUND_RESULT_SCHEMA = {
     "properties": {
         "action": {
             "type": "str",
-            "enum": ["questions", "summary", "proposal", "done", "safety_stop"]
+            "enum": ["questions", "summary", "proposal", "done", "safety_stop", "error"]
         },
         "questions": {"type": "list"},
         "proposal_text": {"type": "str"},

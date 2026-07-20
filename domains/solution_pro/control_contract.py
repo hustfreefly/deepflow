@@ -5,7 +5,7 @@ orchestrator, but planner output should be normalized by code before it changes
 the fixed 10-stage worker prompts.
 
 This file is part of pipeline (10-stage architecture).
-uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator.
+V3.1 纯 Agent Orchestrator 架构（Python orchestrator 已删除）.
 Do not import this file for new workflows.
 """
 
@@ -18,14 +18,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from domains.solution_pro.task_builder import (
-    build_researcher_task,
-    build_auditor_task,
-    build_fixer_task_with_audit,
-    build_fixer_expert_task,
-    inject_req_traceability,
-    LAYER2_READ_INSTRUCTION,
-)
+# [2026-07-13] Removed unused task_builder imports (rewrite_after_planning deprecated):
+#   build_researcher_task, build_auditor_task, build_fixer_task_with_audit,
+#   build_fixer_expert_task, inject_req_traceability, LAYER2_READ_INSTRUCTION
 from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY, BlackboardManager
 
 
@@ -149,10 +144,42 @@ def _normalize_acceptance_criteria(planning: Dict[str, Any]) -> List[Dict[str, s
 
 def _acceptance_from_frozen_spec(bm: BlackboardManager) -> List[Dict[str, str]]:
     """
-    从 frozen_spec.json 生成 acceptance_criteria。
+    从 living_spec 或 frozen_spec 生成 acceptance_criteria。
 
-    优先使用 requirement_groups 组织输出，如果没有则回退到扁平列表。
+    ADR-009 Phase 3: 优先读 living_spec（requirement_index），
+    fallback 到 frozen_spec.json（旧路径兼容）。
     """
+    # ADR-009 Phase 3: 优先从 living_spec 读取 requirement_index
+    # P1-6 FIX: 同时检查 spec/ 和 data/ 路径（data/ 是 __init__.py 写入路径）
+    living_spec = bm.read_json("spec/living_spec.json") or {}
+    if not living_spec:
+        living_spec = bm.read_json("data/living_spec.json") or {}
+    if not living_spec:
+        # 尝试 MD 格式
+        md_content = bm.read("spec/living_spec.md")
+        if md_content:
+            try:
+                from domains.spec_pro.spec_living_md import parse_living_spec_md
+                living_spec = parse_living_spec_md(md_content) or {}
+            except Exception:
+                living_spec = {}
+
+    if isinstance(living_spec, dict) and living_spec.get("requirement_index"):
+        req_index = living_spec["requirement_index"]
+        if isinstance(req_index, list) and req_index:
+            criteria = []
+            for item in req_index:
+                if isinstance(item, dict) and item.get("id") and item.get("description"):
+                    criteria.append({
+                        "id": str(item["id"]),
+                        "text": str(item["description"]),
+                        "priority": str(item.get("priority", "P1")),
+                        "category": str(item.get("category", "requirement")),
+                    })
+            if criteria:
+                return criteria
+
+    # Fallback: frozen_spec.json（旧路径兼容）
     frozen = bm.read_json("frozen_spec.json", subdir="data") or {}
     if not isinstance(frozen, dict):
         return []
@@ -238,87 +265,29 @@ def build_control_contract(base_path: str) -> Dict[str, Any]:
 
 
 def rewrite_after_planning(base_path: str, domain_profile=None) -> Dict[str, Any]:
-    """Refresh fixed post-planning tasks from Planner output.
+    """[DEPRECATED] V1 10-stage pipeline post-planning rewrite.
 
-    Historical name kept for compatibility. This does not rewrite the 10-stage
-    plan shape; it only refreshes tasks and annotates the plan.
+    .. deprecated:: 2026-07-13
+        V2 uses PlanningOrchestrator with Meta-Planner dynamic expert
+        configuration. This function is retained only for V1 archived
+        scripts (e.g. _archive/v1/scripts/golden_solution_pro_dry_run.py).
+        V2 code should NOT call this function.
 
-    Args:
-        base_path: Blackboard base path
-        domain_profile: Optional DomainProfile for AI Native domain adaptation
+    Returns:
+        A stub response indicating the function is deprecated.
     """
-    bm = _get_bm(base_path)
-    base = Path(base_path)
-
-    plan = bm.read_json("execution_plan.json") or {}
-    tasks = bm.read_json("tasks.json") or {}
-    contract = build_control_contract(base_path)
-
-    session_id = plan.get("session_id") or base.name
-    topic = plan.get("topic") or ""
-    solution_type = plan.get("solution_type") or "architecture"
-    mode = plan.get("mode") or "standard"
-    constraints = plan.get("constraints") or []
-
-    planning_path = str(bm.session_dir / STAGE_PATH_REGISTRY.get("planning", "planning"))
-    research_tasks = {}
-    for worker in contract["research_workers"]:
-        task = build_researcher_task(
-            worker["name"],
-            session_id,
-            topic,
-            {"type": solution_type, "mode": mode, "constraints": constraints},
-            expert_id=worker["id"],
-            angle=worker["angle"],
-            reason=worker["reason"],
-            domain_profile=domain_profile,
-        )
-        research_tasks[worker["id"]] = inject_req_traceability(
-            task + "\n" + LAYER2_READ_INSTRUCTION.format(
-                session_id=session_id,
-                planning_path=planning_path,
-                worker_role=worker.get("worker_role") or f"researcher_{worker['id']}",
-            ),
-            session_id,
-        )
-    tasks["research"] = research_tasks
-
-    for stage, builder, role in [
-        ("audit", build_auditor_task, "auditor"),
-    ]:
-        base_task = builder(session_id, topic, {"type": solution_type, "mode": mode, "constraints": constraints}, domain_profile=domain_profile)
-        tasks[stage] = inject_req_traceability(
-            base_task + "\n" + LAYER2_READ_INSTRUCTION.format(session_id=session_id, planning_path=planning_path, worker_role=role),
-            session_id,
-        )
-
-    audit_path = str(bm.session_dir / STAGE_PATH_REGISTRY.get("audit", "audit"))
-    tasks["fix"] = inject_req_traceability(
-        build_fixer_task_with_audit(session_id, topic, audit_path) + "\n" + LAYER2_READ_INSTRUCTION.format(session_id=session_id, planning_path=planning_path, worker_role="fixer"),
-        session_id,
+    import warnings
+    warnings.warn(
+        "rewrite_after_planning() is deprecated since 2026-07-13. "
+        "V2 uses PlanningOrchestrator with Meta-Planner dynamic expert "
+        "configuration. Use PlanningOrchestrator.run() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
-    tasks["fixer_expert"] = inject_req_traceability(
-        build_fixer_expert_task(session_id, topic, [], severity="critical") + "\n" + LAYER2_READ_INSTRUCTION.format(session_id=session_id, planning_path=planning_path, worker_role="fixer_expert"),
-        session_id,
-    )
-
-    # B plan keeps execution_plan fixed. We only annotate the plan with the
-    # control contract path; phases/workers remain the original 10-stage shape.
-    plan["version"] = "2.1"
-    plan["control_contract_path"] = "control_contract.json"
-
-    bm.write("control_contract.json", contract)
-    bm.write("tasks.json", tasks)
-    bm.write("execution_plan.json", plan)
-
     return {
-        "status": "refreshed",
-        "control_contract_path": str(bm.session_dir / "control_contract.json"),
-        "execution_plan_path": str(bm.session_dir / "execution_plan.json"),
-        "research_workers": [w["id"] for w in contract["research_workers"]],
-        "phases": len(plan.get("phases", [])),
-        "plan_shape": "fixed_10_stage",
-        "warnings": contract.get("warnings", []),
+        "status": "deprecated",
+        "message": "V1 10-stage pipeline no longer active. Use PlanningOrchestrator.run() for V2.",
+        "plan_shape": "deprecated_v1",
     }
 
 

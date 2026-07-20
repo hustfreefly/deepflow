@@ -49,7 +49,7 @@ Orchestrator (depth-1, 全权调度)
 
 ```
 .deepflow/blackboard/{project_name}/
-├── data/frozen_spec.json           ← Solution Pro 产出
+├── data/frozen_spec.md             ← Solution Pro 产出（MD source of truth）
 ├── stages/solution_document.json   ← Solution Pro 产出（markdown）
 ├── ship_pro/                       ← Ship Pro 写入
 │   ├── solution_pro_input.json     ← 合并后的输入
@@ -82,8 +82,8 @@ sessions_spawn(**result["spawn_params"])
 ### run_ship_pro() 做什么
 
 1. 定位统一 blackboard：`.deepflow/blackboard/{project_name}/`
-2. 自动发现 Solution Pro 输出（`data/frozen_spec.json`）
-3. 合并输入（frozen_spec + 可选 supplemental）
+2. 自动发现 Solution Pro 输出（`data/frozen_spec.md`，MD-first）
+3. 合并输入（frozen_spec.md + 可选 supplemental）
 4. 构建 Orchestrator prompt（含完整执行指令）
 5. 返回 `spawn_params`
 
@@ -128,14 +128,14 @@ result = design_pipeline("path/to/solution_pro_input.json", blackboard_base_dir=
 - `description`: ≥ 100 字
 - `acceptance_criteria`: ≥ 2 条
 - `deliverables`: ≥ 1 项
-- `estimated_effort`: "Nh" 格式
+- `effort_hours`: 整数（小时）。旧字段 `estimated_effort` (str "Nh") 会被自动转换
 - `covered_req_ids`: ["REQ-xxx"]
 - `dependencies`: ["WP-ID"]
 
 **L1 验证**（Python 确定性）：
 - Schema 合规（Pydantic）
 - 内容深度（description ≥ 100 字, AC ≥ 2, deliverables ≥ 1）
-- 字段映射兼容（wp_id→id, effort_hours→estimated_effort）
+- 字段映射兼容（wp_id→id, estimated_effort→effort_hours）
 
 ### Phase 3: Consolidator
 
@@ -233,7 +233,7 @@ domains/ship_pro/
 - `design_pipeline(solution_pro_output_path)` — 只执行 Phase 1
 - `prepare_runner_spawn(base_path, designer_output, solution_pro_input)` — 只准备 Worker params
 - `extract_json_from_completion(text)` — 从 LLM 输出提取 JSON
-- `build_ship_pro_input(frozen_spec_path, supplemental_path)` — 构建输入
+- `build_ship_pro_input(frozen_spec_path, supplemental_path)` — 构建输入（frozen_spec_path 指向 .md 文件）
 
 ---
 

@@ -1,18 +1,25 @@
 """
 Solution Pro Schema 定义
 
-Version: 2.0.0
+Version: 2.1.0 (V3.1 架构适配)
 Author: DeepFlow Solution Pro
-Date: 2026-06-28
+Date: 2026-07-14
 
 描述:
 - 集中定义所有 Stage 输出的 Pydantic schema
 - 使用 Pydantic V2 BaseModel
 - 所有 schema 包含 schema_version 字段
 - 提供 validate_stage_output() 统一验证函数
+
+V3.1 架构说明:
+- V3.0: Schema 由 Python orchestrator 在运行时调用 model_validate() 做强制验证
+- V3.1: Python orchestrator 已删除，Schema 作为格式文档参考
+  - 运行时验证由 post_validator.py (L0) 做基础结构检查
+  - 语义级 Schema 对齐由对抗 Agent (L2) 在维度 5 检查
+  - HarnessCheckV2 是唯一保留生产调用的 Schema (task_builder.py)
 """
 
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime
 
@@ -135,6 +142,7 @@ class ExpertManifestSchema(V2BaseSchema):
     - task_profile: 任务领域 + 复杂度
     - experts: 专家列表（N 个）
     - gate_config: Gate A 权重 + Gate B 检查项
+    - p0_constraints: P0 约束列表（传递给 Convergence）
     """
     task_profile: dict = Field(description="任务信息", json_schema_extra={
         "properties": {
@@ -147,6 +155,7 @@ class ExpertManifestSchema(V2BaseSchema):
     gate_a: GateAConfig = Field(description="Gate A 配置")
     gate_b: GateBConfig = Field(description="Gate B 配置")
     verdict_policy: VerdictPolicy = Field(default_factory=VerdictPolicy, description="判定策略")
+    p0_constraints: list[dict] = Field(default_factory=list, description="P0 约束列表（传递给 Convergence）")
 
 
 class Constraint(BaseModel):
@@ -155,6 +164,7 @@ class Constraint(BaseModel):
     description: str = Field(description="约束描述")
     priority: Literal["MUST", "SHOULD", "MAY"] = Field(description="优先级")
     rationale: str = Field(default="", description="约束理由")
+    covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 REQ ID 列表")
 
     @field_validator("constraint_id")
     def validate_constraint_id_format(cls, v: str) -> str:
@@ -190,6 +200,7 @@ class Risk(BaseModel):
     risk_id: str = Field(description="风险 ID（如 R-001）")
     description: str = Field(description="风险描述")
     mitigation: str = Field(description="缓解措施")
+    severity: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"] = Field(default="MEDIUM", description="严重程度")
 
 
 class AcceptanceCriterion(BaseModel):
@@ -216,6 +227,8 @@ class ExpertPlanSchema(V2BaseSchema):
     - extensions: 领域特定扩展数据（可选）
     """
     expert_name: str = Field(description="专家名称")
+    domain: str = Field(default="", description="专家所属领域")
+    focus_areas: list[str] = Field(default_factory=list, description="聚焦的具体方面")
     constraints: list[Constraint] = Field(min_length=1, description="约束集")
     risks: list[Risk] = Field(default_factory=list, description="风险项")
     acceptance_criteria: list[AcceptanceCriterion] = Field(min_length=1, description="验收标准")
@@ -290,45 +303,11 @@ class UnifiedConstraintsSchema(V2BaseSchema):
         }
     })
     covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
+    p0_constraints_merged: list[dict] = Field(default_factory=list, description="P0 约束合并结果（传递给 Research）")
 
-    @model_validator(mode='after')
-    def _cage_f6_llm_control_scope(self) -> 'UnifiedConstraintsSchema':
-        """验证 LLM 控制流约束的结构完整性（确定性检查）。
-        语义验证（约束是否真的涉及 LLM 控制）由 LLM Judge 在约束生成时把关。
-        """
-        issues = []
-        for c in self.unified_constraints:
-            cft = c.get("control_flow_type") if isinstance(c, dict) else getattr(c, "control_flow_type", None)
-            if cft and cft not in ("deterministic", "llm_judgment", "hybrid"):
-                cid = c.get("constraint_id", "?") if isinstance(c, dict) else getattr(c, "constraint_id", "?")
-                issues.append(f"constraint {cid}: invalid control_flow_type '{cft}'")
-        if issues:
-            raise ValueError("[Cage F6] " + "; ".join(issues))
-        return self
-
-    @model_validator(mode='after')
-    def _cage_f7_threshold_consistency(self) -> 'UnifiedConstraintsSchema':
-        """验证约束中结构化阈值的一致性（确定性检查）。
-        自然语言中的阈值由 LLM Judge 在约束生成时验证。
-        """
-        issues = []
-        thresholds = {}
-        for c in self.unified_constraints:
-            tv = c.get("threshold_value") if isinstance(c, dict) else getattr(c, "threshold_value", None)
-            if tv is not None:
-                cid = c.get("constraint_id", "?") if isinstance(c, dict) else getattr(c, "constraint_id", "?")
-                if not isinstance(tv, (int, float)) or tv < 0 or tv > 100:
-                    issues.append(f"constraint {cid}: threshold_value {tv} out of range [0, 100]")
-                thresholds[cid] = tv
-        if len(set(thresholds.values())) > 1:
-            details = ', '.join(f'{cid}={v}' for cid, v in thresholds.items())
-            raise ValueError(
-                f"[Cage F7] 偏离检测阈值不一致: {details}。"
-                f"所有偏离检测约束必须使用统一阈值。"
-            )
-        if issues:
-            raise ValueError("[Cage F7] " + "; ".join(issues))
-        return self
+    # R2-FIX: _cage_f6_llm_control_scope 和 _cage_f7_threshold_consistency 已删除
+    # 原因: UnifiedConstraint 模型未定义 control_flow_type / threshold_value 字段，
+    # 这两个验证器永远不会触发实际校验，属于设计残留。
 
 
 class VerificationItem(BaseModel):
@@ -439,114 +418,8 @@ class ResearchConsolidatorSchema(V2BaseSchema):
     covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
 
 
-class ArchitectureSchema(V2BaseSchema):
-    """
-    Architecture Design 输出 schema
-    
-    包含：
-    - architecture_decisions: 方案决策
-    - component_diagram: 结构图
-    - data_flows: 数据流
-    - technology_stack: 关键选型
-    """
-    architecture_decisions: list[dict] = Field(description="方案决策")
-    component_diagram: dict = Field(description="结构图")
-    data_flows: list[dict] = Field(default_factory=list, description="数据流")
-    technology_stack: list[dict] = Field(default_factory=list, description="关键选型")
-    deployment_view: dict = Field(default_factory=dict, description="部署视图")
-    p0_req_traceability: dict = Field(default_factory=dict, description="P0 REQ 追溯矩阵")
-    covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
-
-
-class DetailedDesignSchema(V2BaseSchema):
-    """
-    Detailed Design 输出 schema
-    
-    包含：
-    - modules: 模块设计
-    - apis: 接口设计
-    - database_schema: 数据模型
-    - sequence_diagrams: 交互流程
-    """
-    modules: list[dict] = Field(description="模块设计")
-    apis: list[dict] = Field(default_factory=list, description="接口设计")
-    database_schema: dict = Field(default_factory=dict, description="数据模型")
-    sequence_diagrams: list[dict] = Field(default_factory=list, description="交互流程")
-    p0_req_traceability: dict = Field(default_factory=dict, description="P0 REQ 追溯矩阵")
-    covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
-
-
-# ============================================================================
-# Module 3: Review & QC（Fix Loop）
-# ============================================================================
-
-class ConsolidationSchema(V2BaseSchema):
-    """
-    Consolidation 输出 schema
-    
-    包含：
-    - solution_summary: 方案摘要
-    - design_decisions: 设计决策
-    - implementation_plan: 实施计划
-    - risk_register: 风险登记册
-    - checklist_results: 验证清单结果
-    """
-    solution_summary: str = Field(max_length=500, description="方案摘要（≤500字）")
-    design_decisions: list[dict] = Field(description="设计决策")
-    implementation_plan: dict = Field(description="实施计划")
-    risk_register: list[dict] = Field(default_factory=list, description="风险登记册")
-    checklist_results: list[dict] = Field(description="验证清单结果")
-    p0_req_traceability_matrix: dict = Field(default_factory=dict, description="P0 REQ 追溯矩阵")
-    constraint_conservation: dict = Field(default_factory=dict, description="约束守恒检查")
-    covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
-
-
-class HarnessReportSchema(V2BaseSchema):
-    """
-    Harness Report 输出 schema
-    
-    包含：
-    - gate_a: Gate A 评分
-    - gate_b: Gate B 评分
-    - final_verdict: 最终判定
-    """
-    gate_a: dict = Field(description="Gate A 评分", json_schema_extra={
-        "properties": {
-            "score": {"type": "number"},
-            "verdict": {"type": "string", "enum": ["PASS", "WARNING", "CRITICAL_WARNING", "BLOCK_RECOMMENDATION"]},
-        }
-    })
-    gate_b: dict = Field(description="Gate B 评分", json_schema_extra={
-        "properties": {
-            "pass_rate": {"type": "number"},
-            "verdict": {"type": "string", "enum": ["PASS", "FAIL"]},
-            "failed_items": {"type": "array"},
-        }
-    })
-    final_verdict: dict = Field(description="最终判定", json_schema_extra={
-        "properties": {
-            "final_verdict": {"type": "string", "enum": ["PASS", "FAIL"]},
-        }
-    })
-
-
-class FixLoopStateSchema(V2BaseSchema):
-    """
-    Fix Loop 状态 schema
-    
-    包含：
-    - round: 当前轮次
-    - max_rounds: 最大轮次
-    - status: 状态
-    - fix_history: 修复历史
-    """
-    round: int = Field(ge=0, le=2, description="当前轮次（0-2）")
-    max_rounds: int = Field(default=2, description="最大轮次")
-    status: Literal["IDLE", "EVALUATING", "DIAGNOSING", "FIXING", "PASS", "ABORT"] = Field(description="状态")
-    last_score: Optional[float] = Field(default=None, description="上次评分")
-    fix_history: list[dict] = Field(default_factory=list, description="修复历史")
-    frozen_items: list[str] = Field(default_factory=list, description="冻结项（已 PASS）")
-    regression_detected: list[dict] = Field(default_factory=list, description="检测到的回归")
+# [TD4 2026-07-13] Deleted dead schemas: ArchitectureSchema, DetailedDesignSchema,
+# ConsolidationSchema, HarnessReportSchema, FixLoopStateSchema (zero callers)
 
 
 # ============================================================================
@@ -586,6 +459,7 @@ class PlanningConvergenceSchema(V2BaseSchema):
     unified_constraints: list[dict] = Field(description="统一约束集")
     verification_checklist: list[dict] = Field(description="验证清单")
     planning_summary: str = Field(max_length=500, description="Planning 摘要（≤500字）")
+    risk_areas: list[str] = Field(default_factory=list, description="风险领域列表（从 Planning 传递到 Research）")
     expert_divergence: list[dict] = Field(default_factory=list, description="专家分歧")
     original_references: dict[str, OriginalReference] = Field(default_factory=dict, description="原始引用")
     semantic_verification: SemanticVerification = Field(description="语义等价性验证")
@@ -604,11 +478,16 @@ class GateAScoresSchema(BaseModel):
 
 
 class GateBResultsSchema(BaseModel):
-    """Gate B 结果结构（收紧类型）"""
+    """Gate B 结果结构（P1-9 FIX: 支持独立 Gate B 逻辑）"""
     pass_rate: float = Field(ge=0.0, le=1.0, description="通过率")
-    verdict: Literal["PASS", "FAIL"] = Field(description="判定结果")
+    verdict: Literal["PASS", "FAIL", "NO_EVALUATION"] = Field(
+        description="判定结果 (NO_EVALUATION = no dynamic_checks configured)"
+    )
     checks: list[dict] = Field(default_factory=list, description="检查项结果")
-    failed_items: list[str] = Field(default_factory=list, description="失败项")
+    failed_items: list = Field(
+        default_factory=list,
+        description="失败项 (list[str] or list[dict] with check details)"
+    )
 
 
 class ResearchConvergenceSchema(V2BaseSchema):
@@ -641,17 +520,49 @@ class ResearchConvergenceSchema(V2BaseSchema):
 
 
 class ConstraintCoverage(BaseModel):
-    """约束覆盖率统计"""
-    total: int = Field(default=0, ge=0, description="总约束数")
-    covered: int = Field(default=0, ge=0, description="已覆盖约束数")
-    ratio: float = Field(default=0.0, ge=0.0, le=1.0, description="覆盖率 0-1")
-    uncovered: list[str] = Field(default_factory=list, description="未覆盖的约束 ID 列表")
+    """约束覆盖率统计
+    
+    扩展接受: 同时兼容原始字段 (total/covered/ratio/uncovered)
+    和 LLM 自然产出的字段 (total_must_constraints/coverage_ratio/uncovered_constraints/verdict)
+    """
+    # 原始字段
+    total: Optional[int] = Field(default=None, ge=0, description="总约束数")
+    covered: Optional[int] = Field(default=None, ge=0, description="已覆盖约束数")
+    ratio: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="覆盖率 0-1")
+    uncovered: Optional[list[str]] = Field(default=None, description="未覆盖的约束 ID 列表")
+    # LLM 自然产出字段
+    total_must_constraints: Optional[int] = Field(default=None, ge=0, description="MUST 优先级约束总数")
+    coverage_ratio: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="约束覆盖率")
+    uncovered_constraints: Optional[list[str]] = Field(default=None, description="未覆盖的约束列表")
+    verdict: Optional[str] = Field(default=None, description="覆盖率判定")
 
 
 class VerificationStatus(BaseModel):
-    """验证状态统计"""
-    passed: int = Field(default=0, ge=0, description="通过的验证项数")
-    failed: int = Field(default=0, ge=0, description="失败的验证项数")
+    """验证状态统计
+    
+    扩展接受: 同时兼容原始字段 (passed/failed)
+    和 LLM 自然产出的分层字段 (layer1_*/layer2_*/overall_verdict)
+    """
+    # 原始字段
+    passed: Optional[int] = Field(default=None, ge=0, description="通过的验证项数")
+    failed: Optional[int] = Field(default=None, ge=0, description="失败的验证项数")
+    # Layer 1 字段
+    layer1_passed: Optional[int] = Field(default=None, ge=0, description="Layer 1 通过数")
+    layer1_failed: Optional[int] = Field(default=None, ge=0, description="Layer 1 失败数")
+    layer1_total: Optional[int] = Field(default=None, ge=0, description="Layer 1 总数")
+    layer1_pass_rate: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Layer 1 通过率")
+    # Layer 2 字段
+    layer2_passed: Optional[int] = Field(default=None, ge=0, description="Layer 2 通过数")
+    layer2_failed: Optional[int] = Field(default=None, ge=0, description="Layer 2 失败数")
+    layer2_total: Optional[int] = Field(default=None, ge=0, description="Layer 2 总数")
+    layer2_pass_rate: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Layer 2 通过率")
+    # Layer 2 语义字段（LLM 自然产出）
+    layer2_p0_coverage_pct: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Layer 2 P0 覆盖率")
+    layer2_architecture_consistent: Optional[bool] = Field(default=None, description="Layer 2 架构一致性")
+    layer2_guardrails_violated: Optional[list[str]] = Field(default_factory=list, description="Layer 2 违反的护栏")
+    layer2_information_conservation: Optional[str] = Field(default=None, description="Layer 2 信息守恒判定")
+    # 总体判定
+    overall_verdict: Optional[str] = Field(default=None, description="总体验证判定")
 
 
 class FinalSolutionSchema(V2BaseSchema):
@@ -663,6 +574,9 @@ class FinalSolutionSchema(V2BaseSchema):
     下游消费方（如 Final Convergence）能可靠解析。
     """
     schema_version: str = Field(default="2.0.0", description="Schema 版本号")
+    session_id: Optional[str] = Field(
+        default=None, description="会话 ID"
+    )
     constraint_coverage: Optional[ConstraintCoverage] = Field(
         default=None, description="约束覆盖率统计"
     )
@@ -681,28 +595,55 @@ class FinalSolutionSchema(V2BaseSchema):
     document_ref: str = Field(
         default="solution_document", description="关联的方案文档引用"
     )
+    full_solution: Optional[Union[str, dict]] = Field(
+        default=None, description="完整方案内容（支持 str 或 dict 格式）"
+    )
+    document_stats: Optional[dict] = Field(
+        default=None, description="文档统计信息"
+    )
+    metadata: Optional[dict] = Field(
+        default=None, description="元数据"
+    )
     status: Optional[str] = Field(
         default=None, description="状态标识（如 EXTRACTION_FAILED）"
+    )
+    # --- Ship Pro Gate 期望字段 (V2 2026-07-13) ---
+    architecture: Optional[dict] = Field(
+        default_factory=dict,
+        description="Solution architecture: {components: [...], design_decisions: [...]}"
+    )
+    covered_req_ids: list[str] = Field(
+        default_factory=list, description="Covered requirement IDs"
+    )
+    semantic_anchors: list[dict] = Field(
+        default_factory=list, description="Semantic anchors from living_spec"
     )
 
     @model_validator(mode='after')
     def _cage_fs1_coverage_consistency(self) -> 'FinalSolutionSchema':
         """[Cage FS1] 约束覆盖率内部一致性：covered <= total"""
         cc = self.constraint_coverage
-        if cc and cc.covered > cc.total:
-            raise ValueError(
-                f"[Cage FS1] constraint_coverage.covered ({cc.covered}) > total ({cc.total})"
-            )
+        if cc and cc.covered is not None and cc.total is not None:
+            if cc.covered > cc.total:
+                raise ValueError(
+                    f"[Cage FS1] constraint_coverage.covered ({cc.covered}) > total ({cc.total})"
+                )
         return self
 
     @model_validator(mode='after')
     def _cage_fs2_failed_extraction_check(self) -> 'FinalSolutionSchema':
         """[Cage FS2] 提取失败时必须标注 status"""
+        # 检查 constraint_coverage 是否为空（None 或 空对象）
+        cc_empty = (
+            self.constraint_coverage is None
+            or (self.constraint_coverage.total in (None, 0)
+                and self.constraint_coverage.covered in (None, 0))
+        )
         if (
             not self.key_decisions
             and not self.implementation_phases
             and self.status is None
-            and self.constraint_coverage is None
+            and cc_empty
         ):
             raise ValueError(
                 "[Cage FS2] final_solution 所有关键字段为空且未标注 status，"
@@ -710,29 +651,27 @@ class FinalSolutionSchema(V2BaseSchema):
             )
         return self
 
+    @model_validator(mode='after')
+    def _cage_fs3_ship_pro_gate_fields(self) -> 'FinalSolutionSchema':
+        """[Cage FS3] Ship Pro Gate: 当方案有实质内容时，covered_req_ids 和 semantic_anchors 不能同时为空
 
-class FinalConvergenceSchema(V2BaseSchema):
-    """
-    收敛点 3: Final Convergence
-    
-    包含：
-    - final_solution: 最终方案引用
-    - traceability_matrix: 追溯矩阵
-    - quality_report: 质量报告
-    - remaining_risks: 剩余风险
-    """
-    module: Literal["summary"] = Field(default="summary")
-    final_solution: dict = Field(description="最终方案引用")
-    traceability_matrix: dict = Field(description="追溯矩阵")
-    quality_report: dict = Field(description="质量报告")
-    remaining_risks: list[dict] = Field(default_factory=list, description="剩余风险")
-    constraint_conservation: dict = Field(description="约束守恒检查")
-    original_references: dict[str, OriginalReference] = Field(default_factory=dict, description="原始引用")
-    semantic_verification: SemanticVerification = Field(description="语义等价性验证")
-    gate_a_scores: dict = Field(description="Gate A 评分")
-    gate_b_results: dict = Field(description="Gate B 结果")
-    gate_verdict: dict = Field(description="Gate 判定")
-    metadata: dict = Field(default_factory=dict, alias="_metadata", description="元数据")
+        Ship Pro 实际依赖这些字段。仅当方案有实质内容（key_decisions 或 implementation_phases）
+        时才触发此检查，避免对空方案或纯 status 标记误报。
+        """
+        if self.status == 'EXTRACTION_FAILED':
+            return self
+        # 仅当方案有实质内容时才检查 Ship Pro Gate 字段
+        has_content = bool(self.key_decisions) or bool(self.implementation_phases)
+        if has_content and not self.covered_req_ids and not self.semantic_anchors:
+            raise ValueError(
+                "[Cage FS3] Ship Pro Gate 期望 covered_req_ids 和 semantic_anchors 至少有一个非空。"
+                "如果提取失败，请设置 status='EXTRACTION_FAILED'。"
+            )
+        return self
+
+
+
+# [TD4 2026-07-13] Deleted dead schema: FinalConvergenceSchema (zero callers outside schemas module)
 
 
 # ============================================================================
@@ -747,66 +686,8 @@ class InformationContractOutput(BaseModel):
     replaces: Optional[str] = Field(default=None, description="替代的旧输出")
 
 
-class InformationContractSchema(V2BaseSchema):
-    """
-    信息守恒契约 schema
-    
-    包含：
-    - contracts: 契约列表
-    - deprecated_outputs: 已废弃输出
-    """
-    contracts: list[dict] = Field(description="契约列表")
-    deprecated_outputs: list[dict] = Field(default_factory=list, description="已废弃输出")
-
-
-# ============================================================================
-# 新增：Module Orchestrator State & Task Builder Output
-# ============================================================================
-
-class ModuleOrchestratorStateSchema(V2BaseSchema):
-    """Module Orchestrator state.json 验证 schema (P0-16)"""
-    module_name: str = Field(description="模块名称")
-    current_stage: Optional[str] = Field(default=None, description="当前执行阶段")
-    completed_stages: list[str] = Field(default_factory=list, description="已完成阶段列表")
-    failed_stages: list[str] = Field(default_factory=list, description="失败阶段列表")
-    retry_count: int = Field(default=0, ge=0, description="重试次数")
-    status: Literal["IDLE", "RUNNING", "COMPLETED", "FAILED", "CONVERGED"] = Field(default="IDLE", description="模块状态")
-    last_error: Optional[str] = Field(default=None, description="最后一次错误信息")
-    last_updated: str = Field(default_factory=lambda: datetime.now().isoformat(), description="最后更新时间（ISO timestamp）")
-
-
-class TaskBuilderOutputSchema(V2BaseSchema):
-    """Task Builder 输出 schema (P0-16)"""
-    task_key: str = Field(description="任务唯一标识")
-    prompt: str = Field(description="Worker prompt内容")
-    system_prompt: Optional[str] = Field(default=None, description="系统提示词")
-    context: dict = Field(default_factory=dict, description="任务上下文")
-    output_path: Optional[str] = Field(default=None, description="输出文件路径")  # P0-16: Optional per spec
-    timeout: int = Field(default=300, ge=1, description="超时时间（秒）")
-
-
-# ============================================================================
-# [R1-A-P1-7/B-P1-5] Degraded Final Convergence Schema
-# ============================================================================
-
-class DegradedFinalConvergenceSchema(V2BaseSchema):
-    """
-    [R1-A-P1-7/B-P1-5] 降级模式下的 Final Convergence Schema
-    当 Fix Loop ABORT 时使用
-    """
-    schema_version: str = "degraded_final_v1"
-    status: str = "DEGRADED"
-    
-    # 必填字段
-    degradation_flag: bool = Field(default=True, description="降级标志，始终为 True")
-    degradation_reason: str = Field(description="降级原因")
-    partial_results: list[dict] = Field(default_factory=list, description="部分结果")
-    quality_scores: dict = Field(default_factory=dict, description="质量评分（降级）")
-    fix_loop_summary: dict = Field(default_factory=dict, description="Fix Loop 摘要")
-    
-    # 可选字段（降级时可能缺失）
-    final_solution: Optional[dict] = Field(default=None, description="最终方案（降级时可能缺失）")
-    information_conservation: Optional[dict] = Field(default=None, description="信息守恒（降级时可能缺失）")
+# [TD4 2026-07-13] Deleted dead schemas: InformationContractSchema, ModuleOrchestratorStateSchema,
+# TaskBuilderOutputSchema, DegradedFinalConvergenceSchema (zero callers)
 
 
 # ============================================================================
@@ -817,37 +698,20 @@ class DegradedFinalConvergenceSchema(V2BaseSchema):
 STAGE_SCHEMA_MAP = {
     # Module 1: Planning
     "meta_planning": ExpertManifestSchema,
-    "expert_plans": ExpertPlanSchema,  # 目录，每个文件单独验证
+    "expert_plans": ExpertPlanSchema,
     "convergence_planning": UnifiedConstraintsSchema,
     "unified_constraints": UnifiedConstraintsSchema,
     "verification_checklist": VerificationChecklistSchema,
     
     # Module 2: Research
-    "research_experts": ResearchExpertSchema,  # 目录
+    "research_experts": ResearchExpertSchema,
     "research_consolidator": ResearchConsolidatorSchema,
-    "architecture": ArchitectureSchema,
-    "detailed_design": DetailedDesignSchema,
-    
-    # Module 3: Review & QC
-    "consolidation": ConsolidationSchema,
-    "harness_report": HarnessReportSchema,
-    "fix_loop_state": FixLoopStateSchema,
     
     # 收敛点
     "planning_convergence": PlanningConvergenceSchema,
     "research_convergence": ResearchConvergenceSchema,
     "final_solution": FinalSolutionSchema,
-    "final_convergence": FinalConvergenceSchema,
-    
-    # 信息契约
-    "information_contract": InformationContractSchema,
-    
-    # 新增 (P0-16)
-    "module_orchestrator_state": ModuleOrchestratorStateSchema,
-    "task_builder_output": TaskBuilderOutputSchema,
-    
-    # Summary convergence
-    "summary_convergence": DegradedFinalConvergenceSchema,
+    # [TD4 2026-07-13] Removed dead: FinalConvergenceSchema (zero callers)
 }
 
 
@@ -889,24 +753,12 @@ __all__ = [
     # Module 2
     "ResearchExpertSchema",
     "ResearchConsolidatorSchema",
-    "ArchitectureSchema",
-    "DetailedDesignSchema",
-    # Module 3
-    "ConsolidationSchema",
-    "HarnessReportSchema",
-    "FixLoopStateSchema",
     # 收敛点
     "PlanningConvergenceSchema",
     "ResearchConvergenceSchema",
-    "FinalConvergenceSchema",
     # Gate 评分结构（P0-16 收紧）
     "GateAScoresSchema",
     "GateBResultsSchema",
-    # 新增
-    "ModuleOrchestratorStateSchema",
-    "TaskBuilderOutputSchema",
-    # 信息契约
-    "InformationContractSchema",
     # Domain categories & templates
     "DOMAIN_CATEGORIES",
     "EXPERT_TEMPLATE_REGISTRY",
@@ -915,13 +767,15 @@ __all__ = [
     "ConstraintCoverage",
     "VerificationStatus",
     "HarnessCheckV2",
-    # Phase 2.2: 降级 Schema
-    "DegradedFinalConvergenceSchema",
     # 验证函数
     "validate_stage_output",
     "get_stage_schema",
     "STAGE_SCHEMA_MAP",
 ]
+# [TD4 2026-07-13] Removed dead schemas from __all__: ArchitectureSchema, DetailedDesignSchema,
+# ConsolidationSchema, HarnessReportSchema, FixLoopStateSchema, FinalConvergenceSchema,
+# ModuleOrchestratorStateSchema, TaskBuilderOutputSchema, InformationContractSchema,
+# DegradedFinalConvergenceSchema
 # [Phase 0a] P0-16: 收紧 ResearchConvergenceSchema gate 类型 + 新增 ModuleOrchestratorStateSchema/TaskBuilderOutputSchema
 
 
@@ -929,15 +783,22 @@ __all__ = [
 # Research Digest Schema # =============================================================================
 
 class DigestFinding(BaseModel):
-    """单个 Research Finding"""
-    finding_id: str = Field(description="Finding ID, e.g. F-001")
-    expert_id: str = Field(description="来源 Expert, e.g. expert_1_fractal_loop")
-    title: str = Field(description="Finding 标题")
-    confidence: float = Field(ge=0.0, le=1.0, description="置信度 0-1")
-    relevance: Literal["HIGH", "MEDIUM", "LOW"] = Field(description="与方案的相关性")
-    design_implication: str = Field(description="对方案设计的启示（1-2 句话）")
-    source_reference: str = Field(description="来源路径 + section, e.g. expert_1.md#F-001")
-    detail: str = Field(default="", description="完整分析文本")
+    """单个 Research Finding
+    
+    B3-FIX: 兼容 prompt 输出的 id/title 字段名 + schema 的 finding_id/source_reference。
+    prompt 输出: id, title, confidence, relevance, design_implication
+    schema 期望: finding_id, expert_id, source_reference, detail
+    """
+    model_config = {"populate_by_name": True}
+    
+    finding_id: str = Field(description="Finding ID, e.g. F-001", alias="id")
+    expert_id: str = Field(default="", description="来源 Expert")
+    title: str = Field(default="", description="Finding 标题")
+    confidence: float = Field(ge=0.0, le=1.0, default=0.5, description="置信度 0-1")
+    relevance: Literal["HIGH", "MEDIUM", "LOW"] = Field(default="MEDIUM", description="与方案的相关性")
+    design_implication: str = Field(default="", description="对方案设计的启示（1-2 句话）")
+    source_reference: str = Field(default="", description="来源路径 + section", alias="source")
+    detail: str = Field(default="", description="完整分析文本", alias="full_text")
 
 class ResearchDigest(BaseModel):
     """Research Digest — LLM 合成的研究发现摘要
@@ -947,9 +808,9 @@ class ResearchDigest(BaseModel):
     schema_version: str = Field(default="1.0.0")
     total_findings: int = Field(description="总 Finding 数量")
     high_relevance_count: int = Field(description="HIGH relevance Finding 数量")
-    expert_summaries: dict[str, str] = Field(
-        default_factory=dict,
-        description="每个 Expert 的核心结论摘要 (key=expert_name, value=summary)"
+    expert_summaries: list[dict] = Field(
+        default_factory=list,
+        description="每个 Expert 的核心结论摘要 [{expert: name, summary: ...}]"
     )
     findings_index: list[DigestFinding] = Field(
         default_factory=list,

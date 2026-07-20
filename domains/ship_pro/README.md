@@ -100,7 +100,7 @@ sessions_spawn(**result["spawn_params"])
 5. 输出规范 + 示例
 6. 反模式护栏
 
-**Worker 输出**: JSON 数组，每个 WP 包含 id, title, description(≥100字), acceptance_criteria(≥2条), deliverables(≥1项), estimated_effort, covered_req_ids, dependencies
+**Worker 输出**: JSON 数组，每个 WP 包含 id, title, description(≥100字), acceptance_criteria(≥2条), deliverables(≥1项), effort_hours, covered_req_ids, anchored_to, dependencies
 
 **L1 验证**: Schema 合规 + 内容深度 + 字段映射兼容
 

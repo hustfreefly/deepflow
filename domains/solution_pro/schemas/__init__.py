@@ -14,22 +14,26 @@ Date: 2026-06-28
 from .schemas import (
     # 基础
     V2BaseSchema,
-    # Module 1: Planning ExpertManifestSchema,
+    # Module 1: Planning
+    ExpertManifestSchema,
     ExpertPlanSchema,
     UnifiedConstraintsSchema,
     VerificationChecklistSchema,
     # Module 2: Research
     ResearchExpertSchema,
     ResearchConsolidatorSchema,
-    ArchitectureSchema,
-    DetailedDesignSchema,
-    # Module 3: Summary (absorbed ReviewQC functionality)
+    ResearchDigest,
+    DigestFinding,
     # 收敛点
     PlanningConvergenceSchema,
     ResearchConvergenceSchema,
-    FinalConvergenceSchema,
-    # 信息契约
-    InformationContractSchema,
+    # Summary 输出
+    FinalSolutionSchema,
+    ConstraintCoverage,
+    VerificationStatus,
+    # Harness
+    HarnessCheck,
+    HarnessCheckV2,
     # 验证函数
     validate_stage_output,
     get_stage_schema,
@@ -47,18 +51,18 @@ __all__ = [
     # Module 2
     "ResearchExpertSchema",
     "ResearchConsolidatorSchema",
-    "ArchitectureSchema",
-    "DetailedDesignSchema",
-    # Module 3
-    "ConsolidationSchema",
-    "HarnessReportSchema",
-    "FixLoopStateSchema",
+    "ResearchDigest",
+    "DigestFinding",
     # 收敛点
     "PlanningConvergenceSchema",
     "ResearchConvergenceSchema",
-    "FinalConvergenceSchema",
-    # 信息契约
-    "InformationContractSchema",
+    # Summary 输出
+    "FinalSolutionSchema",
+    "ConstraintCoverage",
+    "VerificationStatus",
+    # Harness
+    "HarnessCheck",
+    "HarnessCheckV2",
     # 验证函数
     "validate_stage_output",
     "get_stage_schema",

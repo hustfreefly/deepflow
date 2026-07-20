@@ -16,6 +16,8 @@ Phase 3: Consolidator → InfoConservationJudge + CompletenessJudge + HarnessJud
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import json
+from domains.ship_pro.ship_living_md import render_ship_package_md
+from core.blackboard.context_injector import auto_bootstrap
 import logging
 import re
 
@@ -139,24 +141,32 @@ class ShipOrchestrator:
         schema = PipelinePlan.model_json_schema()
         prompt = self._build_planner_prompt(solution_pro_output, schema)
 
+        _stages = self.blackboard_path / "stages"
+        _root = self.blackboard_path.parent.parent
         return {
             "runtime": "subagent",
             "mode": "run",
             "label": "ship_planner",
-            "task": prompt,
+            "task": auto_bootstrap(_root, _stages, prompt, "ship_planner"),
             "thinking": "high",
         }
 
     def verify_planner_output(self, planner_output: Dict[str, Any],
                                solution_pro_output: Dict[str, Any] = None) -> GateResult:
-        """验证 Planner 输出(PlannerGate 结构验证)。"""
+        """验证 Planner 输出(PlannerGate 结构验证 + L0 决策覆盖)。"""
         result = PlannerGate.check(planner_output)
         if not result.passed:
             logger.warning(f"PlannerGate failed: {result.issues}")
             return result
 
-        # CompletenessGate 不再在 Planner 级别做 REQ-ID 字符串匹配
-        # 改为后置 LLM Judge 语义验证(见 prepare_completeness_judge_task)
+        # L0 契约笼子: 决策覆盖检查
+        if solution_pro_output:
+            from ..pipeline_designer import PipelineDesigner
+            try:
+                PipelineDesigner.verify_decision_coverage(planner_output, solution_pro_output)
+            except ValueError as e:
+                logger.warning(f"L0 decision coverage failed: {e}")
+                return GateResult(passed=False, issues=[str(e)])
 
         self.state_manager.update_stage("planner", "completed")
         self.state_manager.write_stage("planner_output", planner_output)
@@ -183,11 +193,14 @@ class ShipOrchestrator:
         for layer_idx, layer_workers in enumerate(execution_layers):
             for worker_spec in layer_workers:
                 prompt = self._build_worker_prompt(worker_spec, solution_pro_output, schema)
+                _stages = self.blackboard_path / "stages"
+                _root = self.blackboard_path.parent.parent
+                _label = f"ship_worker_{worker_spec['role']}"
                 spawn_params = {
                     "runtime": "subagent",
                     "mode": "run",
-                    "label": f"ship_worker_{worker_spec['role']}",
-                    "task": prompt,
+                    "label": _label,
+                    "task": auto_bootstrap(_root, _stages, prompt, _label),
                     "thinking": "high",
                 }
                 spawn_params_list.append(spawn_params)
@@ -234,63 +247,18 @@ class ShipOrchestrator:
         schema = get_ship_package_schema()
         prompt = self._build_consolidator_prompt(planner_output, worker_outputs, schema)
 
+        _stages = self.blackboard_path / "stages"
+        _root = self.blackboard_path.parent.parent
         return {
             "runtime": "subagent",
             "mode": "run",
             "label": "ship_consolidator",
-            "task": prompt,
+            "task": auto_bootstrap(_root, _stages, prompt, "ship_consolidator"),
             "thinking": "high",
         }
 
 
-    def validate_ship_package_structure(self, ship_package: Dict[str, Any],
-                                          planner_output: Dict[str, Any]) -> Dict[str, Any]:
-        """验证 ShipPackage 结构完整性(契约铁律)。
 
-        确保 Consolidator 输出了完整的 work_packages 数组,
-        而不是只有统计摘要。
-
-        Returns: {"valid": bool, "issues": [...], "expected_wp_count": int, "actual_wp_count": int}
-        """
-        issues = []
-        wps = ship_package.get("work_packages", [])
-
-        # 计算预期 WP 数量
-        expected_count = 0
-        for worker_spec in planner_output.get("workers", []):
-            stage_name = f"worker_{worker_spec['role']}"
-            worker_output = self.state_manager.read_stage(stage_name)
-            if worker_output:
-                expected_count += len(worker_output.get("work_packages", []))
-
-        actual_count = len(wps)
-
-        # WP 完成率阈值（可配置）：实际数量低于预期的此比例时判定为异常
-        WP_COMPLETION_THRESHOLD = 0.8
-
-        if actual_count == 0:
-            issues.append(f"work_packages 数组为空(预期 {expected_count} 个 WP)")
-        elif actual_count < expected_count * WP_COMPLETION_THRESHOLD:
-            issues.append(f"work_packages 数量不足:{actual_count}/{expected_count}(丢失 {expected_count - actual_count} 个)")
-
-        # 检查统计摘要反模式
-        if "total_work_packages" in ship_package and actual_count == 0:
-            issues.append("统计摘要反模式:有 total_work_packages 字段但无实际 WP 内容")
-
-        # 检查每个 WP 必需字段
-        required_fields = ["id", "title", "description"]
-        for i, wp in enumerate(wps):
-            missing = [f for f in required_fields if not wp.get(f)]
-            if missing:
-                issues.append(f"WP #{i} ({wp.get('id', '?')}): 缺少必需字段 {missing}")
-
-        valid = len(issues) == 0
-        return {
-            "valid": valid,
-            "issues": issues,
-            "expected_wp_count": expected_count,
-            "actual_wp_count": actual_count,
-        }
 
     def verify_ship_package(self, solution_pro_output: Dict[str, Any],
                                ship_package: Dict[str, Any],
@@ -331,36 +299,83 @@ class ShipOrchestrator:
     def prepare_gate_judge_tasks(self, solution_pro_output: Dict[str, Any],
                                    ship_package: Dict[str, Any],
                                    planner_output: Dict[str, Any] = None) -> List[Dict[str, Any]]:
-        """准备 Gate 级 LLM Judge 任务(含 CompletenessJudge)。"""
+        """准备 Gate 级 LLM Judge 任务(含 CompletenessJudge)。
+
+        Robustness:
+        - None/empty inputs → return empty list with warning (no crash)
+        - Individual gate prompt build failures → skip that gate with error log
+        - planner_output=None → skip completeness gate gracefully
+        """
+        # ── Input validation ──
+        if not isinstance(solution_pro_output, dict):
+            logger.warning(
+                f"prepare_gate_judge_tasks: solution_pro_output is {type(solution_pro_output).__name__}, "
+                "expected dict. Returning empty task list."
+            )
+            return []
+        if not isinstance(ship_package, dict):
+            logger.warning(
+                f"prepare_gate_judge_tasks: ship_package is {type(ship_package).__name__}, "
+                "expected dict. Returning empty task list."
+            )
+            return []
+
         tasks = []
+        # R3-FIX: track judge prompt build failures
+        _gate_judge_failures: List[str] = []
+        # Expected judges: info_conservation + harness_v3 always; completeness if planner_output provided
+        expected_judge_count = 2 + (1 if (planner_output and isinstance(planner_output, dict)) else 0)
 
         # G1: 信息守恒 Judge
-        tasks.append({
-            "name": "info_conservation",
-            "prompt": InformationConservationGate.build_judge_prompt(
-                solution_pro_output, ship_package
-            ),
-            "expected_output": '{"passed": true/false, "issues": [...], "conservation_rate": 0.0-1.0}'
-        })
+        try:
+            tasks.append({
+                "name": "info_conservation",
+                "prompt": InformationConservationGate.build_judge_prompt(
+                    solution_pro_output, ship_package
+                ),
+                "expected_output": '{"passed": true/false, "issues": [...], "conservation_rate": 0.0-1.0}'
+            })
+        except Exception as e:
+            logger.error(f"Failed to build info_conservation judge prompt: {e}", exc_info=True)
+            _gate_judge_failures.append(f"info_conservation: {e}")
 
         # G2: 新增 - 完整性语义 Judge(替代字符串匹配 CompletenessGate)
-        if planner_output:
-            tasks.append({
-                "name": "completeness",
-                "prompt": self._build_completeness_judge_prompt(
-                    solution_pro_output, planner_output, ship_package
-                ),
-                "expected_output": '{"passed": true/false, "issues": [...], "coverage_rate": 0.0-1.0}'
-            })
+        if planner_output and isinstance(planner_output, dict):
+            try:
+                tasks.append({
+                    "name": "completeness",
+                    "prompt": self._build_completeness_judge_prompt(
+                        solution_pro_output, planner_output, ship_package
+                    ),
+                    "expected_output": '{"passed": true/false, "issues": [...], "coverage_rate": 0.0-1.0}'
+                })
+            except Exception as e:
+                logger.error(f"Failed to build completeness judge prompt: {e}", exc_info=True)
+                _gate_judge_failures.append(f"completeness: {e}")
+        elif planner_output is not None:
+            logger.warning(f"prepare_gate_judge_tasks: planner_output is {type(planner_output).__name__}, skipping completeness gate")
 
         # G3: Harness Judge
-        tasks.append({
-            "name": "harness_v3",
-            "prompt": HarnessV3.build_judge_prompt(ship_package),
-            "expected_output": '{"passed": true/false, "score": 0-10, "issues": [...]}'
-        })
+        try:
+            tasks.append({
+                "name": "harness_v3",
+                "prompt": HarnessV3.build_judge_prompt(ship_package),
+                "expected_output": '{"passed": true/false, "score": 0-10, "issues": [...]}'
+            })
+        except Exception as e:
+            logger.error(f"Failed to build harness_v3 judge prompt: {e}", exc_info=True)
+            _gate_judge_failures.append(f"harness_v3: {e}")
 
-        logger.info(f"Prepared {len(tasks)} gate judge tasks ")
+        # R3-FIX: if critical judges failed, block instead of silent continuation
+        if _gate_judge_failures:
+            failure_summary = "; ".join(_gate_judge_failures)
+            if len(tasks) < expected_judge_count:
+                raise ValueError(
+                    f"契约笼子: Gate judge prompt build failed for {len(_gate_judge_failures)}/"
+                    f"{expected_judge_count} judges. Failures: {failure_summary}"
+                )
+
+        logger.info(f"Prepared {len(tasks)} gate judge tasks")
         return tasks
 
     def prepare_worker_judge_tasks(self, planner_output: Dict[str, Any],
@@ -383,78 +398,218 @@ class ShipOrchestrator:
         return tasks
 
     # ========================================================================
+    # Auto-Recovery (Fix 1: Worker MUST FAIL → Fixer → Re-Judge)
+    # ========================================================================
+
+    def analyze_worker_must_failures(self, judge_results: Dict[str, Any],
+                                      planner_output: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """分析 Worker MUST Judge 失败结果,提取失败 Worker 信息。
+
+        容错设计：同时支持精确匹配和模糊匹配（大小写/格式差异）。
+        解决 Orchestrator 因 key 格式不匹配返回 0 failures 的问题。
+
+        Args:
+            judge_results: {"worker_must_<role>": {"passed": bool, "issues": [...]}}
+            planner_output: PipelinePlan dict
+
+        Returns:
+            List of {"role": str, "worker_spec": dict, "issues": list, "task_name": str}
+        """
+        failures = []
+
+        # 构建 judge_results 的模糊索引（lowercase + 去空格）
+        judge_index: Dict[str, tuple] = {}  # normalized_key -> (original_key, verdict)
+        for k, v in judge_results.items():
+            normalized = k.lower().replace(" ", "").replace("_", "")
+            judge_index[normalized] = (k, v)
+
+        for worker_spec in planner_output.get("workers", []):
+            role = worker_spec["role"]
+            task_name = f"worker_must_{role}"
+
+            # 精确匹配优先
+            verdict = judge_results.get(task_name)
+
+            # 模糊匹配 fallback
+            if verdict is None:
+                normalized_lookup = task_name.lower().replace(" ", "").replace("_", "")
+                match = judge_index.get(normalized_lookup)
+                if match:
+                    task_name, verdict = match
+
+            if verdict and isinstance(verdict, dict) and not verdict.get("passed", True):
+                failures.append({
+                    "role": role,
+                    "worker_spec": worker_spec,
+                    "issues": verdict.get("issues", ["MUST 约束检查失败"]),
+                    "task_name": task_name,
+                })
+        logger.info(f"Analyzed worker failures: {len(failures)} failed out of {len(judge_results)} judged")
+        return failures
+
+    def prepare_fixer_spawn(self, failed_worker_info: Dict[str, Any],
+                             worker_output: Dict[str, Any],
+                             blackboard_path: str = None) -> Dict[str, Any]:
+        """为失败的 Worker 准备 Fixer Agent spawn 参数。
+
+        Fixer Agent 的职责:
+        1. 读取原始 Worker 输出
+        2. 根据 FAIL 原因修复 WP(补充缺失的 must_constraints 关键词等)
+        3. 将修复后的输出写回原路径
+
+        Args:
+            failed_worker_info: analyze_worker_must_failures 返回的单个 failure dict
+            worker_output: 原始 Worker 输出 dict
+            blackboard_path: blackboard 路径
+
+        Returns:
+            sessions_spawn 参数 dict
+        """
+        role = failed_worker_info["role"]
+        issues = failed_worker_info["issues"]
+        worker_spec = failed_worker_info["worker_spec"]
+        must_constraints = worker_spec.get("must_constraints", [])
+
+        bp = Path(blackboard_path) if blackboard_path else self.blackboard_path
+        output_path = self._resolve_worker_output_path(bp / "stages", role)
+
+        fixer_prompt = f"""你是 Ship Pro 的 Fixer Agent。你的唯一职责是修复 Worker "{role}" 的输出。
+
+## 失败原因(MUST Judge 判定)
+{json.dumps(issues, indent=2, ensure_ascii=False)}
+
+## MUST 约束(必须满足)
+{json.dumps(must_constraints, indent=2, ensure_ascii=False)}
+
+## 原始 Worker 输出路径
+{output_path}
+
+## 修复步骤
+1. read 原始 Worker 输出文件
+2. 分析每个 FAIL issue,定位需要修改的 WP
+3. 修复 WP:
+   - 如果 MUST 约束中的关键术语缺失 → 在 description 和 acceptance_criteria 中显式包含
+   - 如果 description 太短 → 扩充到 ≥100 字符
+   - 如果 acceptance_criteria 不足 → 补充到 ≥2 条
+   - 如果 deliverables 为空 → 补充至少 1 项
+4. 保持 WP 的 id、title、其他未受影响的字段不变
+5. write 修复后的完整 WorkerDeliverable JSON 回原路径
+
+## 约束
+- ❌ 不要删除任何已有的 WP
+- ❌ 不要修改非失败相关的 WP 内容
+- ❌ 不要改变文件结构(保持 WorkerDeliverable JSON object 格式)
+- ✅ 只修改受 FAIL issue 影响的 WP
+- ✅ 修复后自检:每个 MUST 约束的关键术语在输出中至少出现 1 次
+
+## 输出
+修复完成后输出:{{"status": "fixed", "role": "{role}", "modified_wps": ["WP-ID-1", ...]}}
+"""
+
+        _stages = self.blackboard_path / "stages"
+        _root = self.blackboard_path.parent.parent
+        _label = f"fixer_{role}"
+        return {
+            "runtime": "subagent",
+            "mode": "run",
+            "label": _label,
+            "task": auto_bootstrap(_root, _stages, fixer_prompt, _label),
+            "thinking": "medium",
+        }
+
+    def collect_worker_outputs_from_blackboard(self, blackboard_path: str = None) -> Dict[str, Any]:
+        """从 blackboard 收集所有 Worker 输出(统一路径解析)。
+
+        查找顺序:
+        1. stages/worker_outputs/worker_{role}.json(优先)
+        2. stages/worker_{role}.json(fallback)
+
+        Returns:
+            {role: worker_output_dict}
+        """
+        bp = Path(blackboard_path) if blackboard_path else self.blackboard_path
+        stages_dir = bp / "stages"
+        worker_outputs = {}
+
+        # 读取 planner 获取 worker roles
+        planner_path = stages_dir / "pipeline_plan.json"
+        if not planner_path.exists():
+            logger.warning("pipeline_plan.json not found, cannot collect worker outputs")
+            return worker_outputs
+
+        planner_output = json.loads(planner_path.read_text(encoding="utf-8"))
+        for worker_spec in planner_output.get("workers", []):
+            role = worker_spec["role"]
+            resolved_path = self._resolve_worker_output_path(stages_dir, role)
+            if resolved_path and resolved_path.exists():
+                worker_outputs[role] = json.loads(resolved_path.read_text(encoding="utf-8"))
+            else:
+                logger.warning(f"Worker output not found for role: {role}")
+
+        return worker_outputs
+
+    # ========================================================================
+    # Worker Output Path Resolution (Fix 3: 统一路径)
+    # ========================================================================
+
+    @staticmethod
+    def _resolve_worker_output_path(stages_dir: Path, role: str) -> Path:
+        """解析 Worker 输出文件路径(契约笼子: 单一路径，无 fallback)。
+
+        路径: stages/worker_outputs/worker_{role}.json
+
+        Args:
+            stages_dir: stages 目录路径
+            role: Worker 角色名
+
+        Returns:
+            解析后的文件路径(即使文件不存在也返回)
+        """
+        normalized_role = role.replace(" ", "_")
+        return stages_dir / "worker_outputs" / f"worker_{normalized_role}.json"
+
+    @staticmethod
+    def _list_all_worker_output_files(stages_dir: Path) -> List[Path]:
+        """列出所有 Worker 输出文件(统一查找)。
+
+        查找顺序:
+        1. stages/worker_outputs/worker_*.json(优先)
+        2. stages/worker_*.json(fallback,排除 worker_outputs 子目录中的文件)
+
+        Returns:
+            去重后的文件列表
+        """
+        files = []
+        seen_roles = set()
+
+        # 优先查找 worker_outputs/ 子目录
+        wo_dir = stages_dir / "worker_outputs"
+        if wo_dir.exists():
+            for f in sorted(wo_dir.glob("worker_*.json")):
+                role = f.stem.replace("worker_", "")
+                files.append(f)
+                seen_roles.add(role)
+
+        # Fallback: stages/ 根目录(排除已找到的 role)
+        for f in sorted(stages_dir.glob("worker_*.json")):
+            role = f.stem.replace("worker_", "")
+            if role not in seen_roles:
+                files.append(f)
+                seen_roles.add(role)
+
+        return files
+
+    # ========================================================================
     # Completeness Judge Prompt Builder
     # ========================================================================
 
     def _build_completeness_judge_prompt(self, solution_pro_output: Dict[str, Any],
                                           planner_output: Dict[str, Any],
                                           ship_package: Dict[str, Any]) -> str:
-        """
-        构建完整性语义 Judge prompt。
-        替代 CompletenessGate 字符串匹配。
-        """
-        req_ids = solution_pro_output.get('covered_req_ids', [])
-        work_packages = ship_package.get('work_packages', [])
-
-        return f"""你是 Ship Pro 的完整性验证 Judge。
-
-## 任务
-
-验证 ShipPackage 中的 Work Packages 是否语义覆盖了 Solution Pro 的所有需求。
-
-## 注意
-- 你做的是**语义验证**,不是字符串匹配
-- 即使 WP 中没有显式出现 REQ-ID,只要 WP 的内容语义上解决了该需求,就算覆盖
-- 关注需求的**实质**,不是标签
-
-## 输入
-
-### Solution Pro 的 covered_req_ids({len(req_ids)} 个)
-{json.dumps(req_ids, indent=2, ensure_ascii=False)}
-
-### Solution Pro 关键决策(key_decisions)
-{json.dumps(solution_pro_output.get('key_decisions', []), indent=2, ensure_ascii=False)}
-
-### Solution Pro 风险缓解(risk_mitigations)
-{json.dumps(solution_pro_output.get('risk_mitigations', []), indent=2, ensure_ascii=False)}
-
-### ShipPackage 的 Work Packages({len(work_packages)} 个)
-{json.dumps(work_packages, indent=2, ensure_ascii=False)}
-
-### Planner 的 Worker 分配
-{json.dumps([{{"role": w["role"], "objective": w.get("module_purpose", w.get("task_description", ""))}} for w in planner_output.get("workers", [])], indent=2, ensure_ascii=False)}
-
-## 评估维度
-
-1. **需求覆盖**:每个 key_decision 是否被至少一个 WP 语义覆盖?
-2. **风险覆盖**:每个 risk_mitigation 是否被至少一个 WP 的 acceptance_criteria 或 description 覆盖?
-3. **架构覆盖**:Solution Pro 的 architecture 核心组件是否都有对应 WP?
-
-## 输出格式
-
-```json
-{{
-  "passed": true/false,
-  "coverage_rate": 0.0-1.0,
-  "issues": [
-    {{
-      "severity": "CRITICAL/MAJOR/MINOR",
-      "dimension": "requirement/risk/architecture",
-      "description": "具体问题描述"
-    }}
-  ],
-  "covered_decisions": ["D1", "D2", ...],
-  "uncovered_decisions": ["D5", ...],
-  "covered_risks": ["R1", "R2", ...],
-  "uncovered_risks": ["R3", ...]
-}}
-```
-
-## 判断标准
-- coverage_rate >= 0.8 且无 CRITICAL issue → passed = true
-- 否则 → passed = false
-
-请直接输出 JSON。"""
+        """构建完整性语义 Judge prompt — 委托给 CompletenessGate 对抗 Agent。"""
+        return CompletenessGate.build_adversarial_prompt(
+            solution_pro_output, planner_output, ship_package
+        )
 
     # ========================================================================
     # Helper Methods
@@ -659,51 +814,53 @@ PipelinePlan 中必须包含 `domain_analysis` 字段(放在 workers 之前):
 
 ## 架构位置
 
-Planner → **【你（Worker）】** → Consolidator → 用户
+Planner → **【你(Worker)】** → Consolidator → 用户
 
-你是流水线中的执行环节。Planner 已经把任务分配给你，你的产出会被 Consolidator 组装后交付给最终用户。
+你是流水线中的执行环节。Planner 已经把任务分配给你,你的产出会被 Consolidator 组装后交付给最终用户。
 
-## 质量优先级（最高优先级）
+## 质量优先级(最高优先级)
 
-你优先保证产出的**深度、可行性和合理性**，而非机械覆盖需求数量。
+你优先保证产出的**深度、可行性和合理性**,而非机械覆盖需求数量。
 
-### 每个 WP 的硬性最小要求（代码层会验证，不满足即拒绝）
+### 每个 WP 的硬性最小要求(代码层会验证,不满足即拒绝)
 
 | 字段 | 最小要求 | 示例 |
 |------|---------|------|
 | description | ≥100 字符 | 说清楚做什么、为什么这么做、边界条件、与其他模块的接口 |
-| acceptance_criteria | ≥2 条 | 每条必须是可验证的具体标准（"系统能运行"不算，"API 响应时间 <200ms"算） |
-| deliverables | ≥1 项 | 明确列出交付物（如"分析文档""数据表格""代码模块""调研报告"） |
+| acceptance_criteria | ≥2 条 | 每条必须是可验证的具体标准("系统能运行"不算,"API 响应时间 <200ms"算) |
+| deliverables | ≥1 项 | 明确列出交付物(如"分析文档""数据表格""代码模块""调研报告") |
+| covered_req_ids | ≥1 个(强烈建议) | 本 WP 覆盖的需求 ID(如 ["REQ-001"]),用于信息守恒追踪。空列表会触发 WARNING。 |
 
 **禁止行为**：
-- ❌ 不要输出一句话的 description（如"实现 XX 功能"）
+- ❌ 不要输出一句话的 description（如“实现 XX 功能”）
 - ❌ 不要跳过 acceptance_criteria（没有 AC 的 WP 无法验收）
 - ❌ 不要跳过 deliverables（没有交付物的 WP 无法执行）
+- ⚠️ 不要留空 covered_req_ids（空列表会触发 WARNING，应填写覆盖的 REQ-ID）
 
 ## 产出模式
 
-所有 Worker 统一产出 Work Package 描述（不生成实际代码或内容文件）。
+所有 Worker 统一产出 Work Package 描述(不生成实际代码或内容文件)。
 
-- 代码类交付物 → WP 描述：做什么、验收标准、交付物清单
-- 内容类交付物 → WP 描述：内容大纲、关键论点、预期字数、质量标准
+- 代码类交付物 → WP 描述:做什么、验收标准、交付物清单
+- 内容类交付物 → WP 描述:内容大纲、关键论点、预期字数、质量标准
 - 混合类交付物 → 分别描述各部分
 
-**核心原则**: WP 描述的是"做什么"和"验收标准"，实际内容由后续执行者完成。
+**核心原则**: WP 描述的是"做什么"和"验收标准",实际内容由后续执行者完成。
 
 ### 领域自适应参考
 
 | 领域 | WP 描述应包含 | 示例 |
 |------|-------------|------|
-| 软件开发 | 技术实现方案 + 测试标准 | "实现 JWT 认证模块，响应时间<200ms" |
-| 投资分析 | 分析框架 + 数据要求 | "行业分析：市场规模、增速、竞争格局，数据来源≥3个" |
-| 内容创作 | 内容大纲 + 风格要求 | "引言：2000字，以案例开头，引出核心论点" |
-| 市场调研 | 调研维度 + 数据标准 | "目标市场：规模、CR3、增长率，时间跨度≥3年" |
+| 软件开发 | 技术实现方案 + 测试标准 | "实现 JWT 认证模块,响应时间<200ms" |
+| 投资分析 | 分析框架 + 数据要求 | "行业分析:市场规模、增速、竞争格局,数据来源≥3个" |
+| 内容创作 | 内容大纲 + 风格要求 | "引言:2000字,以案例开头,引出核心论点" |
+| 市场调研 | 调研维度 + 数据标准 | "目标市场:规模、CR3、增长率,时间跨度≥3年" |
 
 ## 你的任务
 
-{worker_spec.get('module_purpose', worker_spec.get('task_description', '（未指定）'))}
+{worker_spec.get('module_purpose', worker_spec.get('task_description', '(未指定)'))}
 
-## Solution Pro 参考信息（精简）
+## Solution Pro 参考信息(精简)
 
 ```json
 {json.dumps(relevant_context, indent=2, ensure_ascii=False)}
@@ -712,44 +869,54 @@ Planner → **【你（Worker）】** → Consolidator → 用户
 ## 约束笼子
 
 ### 任务边界
-- 你只做"拆解+交付"，不做"设计+决策"
-- Solution Pro 没说的不补充，说了的不修改
+- 你只做"拆解+交付",不做"设计+决策"
+- Solution Pro 没说的不补充,说了的不修改
 
 ### 角色边界
 - 你的角色是 {worker_spec['role']}
-- 只生成交付物，不讨论方案优劣
+- 只生成交付物,不讨论方案优劣
 - 不修改其他 Worker 的产出
 
-### 输出边界（契约笼子 — 违反即拒绝）
+### 输出边界(契约笼子 - 违反即拒绝)
 - 输出必须符合 WorkerDeliverable Schema
 - 额外建议标记为 optional_suggestion
-- 所有交付物统一写 WP 描述（做什么 + 验收标准 + 交付物清单），禁止生成实际内容文件
+- 所有交付物统一写 WP 描述(做什么 + 验收标准 + 交付物清单),禁止生成实际内容文件
 - ❌ 不要运行测试
 - ✅ 只输出符合 Schema 的 JSON
 
 ## 最终用户视角自检
 
-完成产出后自检：
-- 最终用户能直接使用我的产出吗？
-- 我的产出与其他 Worker 的产出能无缝组装吗？
-- 我的产出覆盖了 Planner 要求的所有要点吗？
+完成产出后自检:
+- 最终用户能直接使用我的产出吗?
+- 我的产出与其他 Worker 的产出能无缝组装吗?
+- 我的产出覆盖了 Planner 要求的所有要点吗?
 
-## WP ID 前缀规则（契约笼子 — 违反即拒绝）
+## WP ID 前缀规则(契约笼子 - 违反即拒绝)
 
 你的 WP ID 前缀是: `{wp_id_prefix}`
 
-所有工作包的 ID 必须以此为前缀，格式: `{wp_id_prefix}-NNN`
+所有工作包的 ID 必须以此为前缀,格式: `{wp_id_prefix}-NNN`
 例如: `{wp_id_prefix}-001`, `{wp_id_prefix}-002`, `{wp_id_prefix}-003`
 
-❌ 不允许使用通用编号（如 WP-001、WP-002）
+❌ 不允许使用通用编号(如 WP-001、WP-002)
 ❌ 不允许使用其他前缀
 ✅ 必须使用 `{wp_id_prefix}` 作为前缀
 
-## MUST 约束（从 Solution Pro 继承，不可违反）
+## MUST 约束(从 Solution Pro 继承,不可违反)
 
 {json.dumps(worker_spec.get('must_constraints', []), indent=2, ensure_ascii=False)}
 
-## 输出格式（JSON Schema）
+## MUST 约束强制包含规则
+
+如果你的 WorkerContext 中包含 must_constraints 列表,你**必须**:
+1. 在每个 WP 的 description 中显式包含约束中的**关键术语**(不能只用同义词替代)
+2. 在至少 1 个 WP 的 acceptance_criteria 中引用约束的核心要求
+3. 自检:grep 你的输出,确认约束中的每个关键术语至少出现 1 次
+
+❌ 禁止:用通用表述替代约束中的特定术语
+✅ 正确:约束说"天使轮+A轮" → 输出中必须出现"天使轮"和"A轮"字样
+
+## 输出格式(JSON Schema)
 
 ```json
 {json.dumps(schema, indent=2, ensure_ascii=False)}
@@ -757,7 +924,7 @@ Planner → **【你（Worker）】** → Consolidator → 用户
 
 ## 输出
 
-请直接输出 JSON，不要包含其他文字。
+请直接输出 JSON,不要包含其他文字。
 """
         return prompt
 
@@ -778,7 +945,7 @@ Planner → **【你（Worker）】** → Consolidator → 用户
 ## ⚠️ 信息守恒铁律(最高优先级)
 
 1. **必须合并所有 WP**:遍历每个 Worker 输出的 `work_packages` 数组,将所有 WP 原样合并到 ShipPackage 的 `work_packages` 字段中。
-2. **保留完整字段**:每个 WP 必须保留全部字段(id, title, description, acceptance_criteria, dependencies, estimated_effort, deliverables)。不得删减任何字段。
+2. **保留完整字段**:每个 WP 必须保留全部字段(id, title, description, acceptance_criteria, dependencies, effort_hours, deliverables, covered_req_ids, anchored_to)。不得删减任何字段。
 3. **不得摘要化**:不得用统计数字(如 `total_work_packages: 40`)替代实际 WP 内容。
 4. **预期数量**:你应该合并 **{expected_wp_count} 个 Work Package** 到输出中。如果数量不匹配,说明你丢失了 WP。
 
@@ -846,11 +1013,11 @@ Planner → **【你（Worker）】** → Consolidator → 用户
 
         bp = Path(blackboard_path) if blackboard_path else self.blackboard_path
         stages_dir = bp / "stages"
-        worker_files = sorted(stages_dir.glob("worker_*.json"))
+        worker_files = self._list_all_worker_output_files(stages_dir)
 
         # 契约笼子:必须有 worker 输出
         if not worker_files:
-            raise ValueError(f"契约笼子: 未找到任何 worker 输出文件 ({stages_dir}/worker_*.json)")
+            raise ValueError(f"契约笼子: 未找到任何 worker 输出文件 ({stages_dir}/worker_outputs/ 或 {stages_dir}/)"  )
 
         results = {"all_passed": True, "workers": {}, "failures": []}
 
@@ -899,18 +1066,25 @@ Planner → **【你（Worker）】** → Consolidator → 用户
                         wp_issues.append(f"{wp_id}: AC {len(acs)} 条 < 2")
                     if len(dels) < 1:
                         wp_issues.append(f"{wp_id}: deliverables 为空")
+                    # P1-2: covered_req_ids 非空检查(warn 级别,不阻断)
+                    covered = wp.get("covered_req_ids", [])
+                    if not covered:
+                        logger.warning(
+                            f"L1 WARN: {wp_id}: covered_req_ids 为空,"
+                            f"信息守恒追踪将缺失。建议填写覆盖的需求 ID。"
+                        )
 
-                # Layer 1c: "不写代码" 约束检测（D2）
-                # 确定性粗筛：仅检测 fenced code block 标记
-                # 语义判断（这段文字是否是代码）交给 Layer 2 MUST Judge
+                # Layer 1c: "不写代码" 约束检测(D2)
+                # 确定性粗筛:仅检测 fenced code block 标记
+                # 语义判断(这段文字是否是代码)交给 Layer 2 MUST Judge
                 def _has_code_indicators(text: str) -> bool:
-                    """确定性粗筛：仅检测明显的代码块标记。"""
+                    """确定性粗筛:仅检测明显的代码块标记。"""
                     return '```' in text
 
                 for wp in wps:
                     desc = wp.get("description", "")
                     if _has_code_indicators(desc):
-                        wp_issues.append(f"{wp.get('id', '?')}: description 包含代码块标记（```），Worker 不应在 description 中写代码")
+                        wp_issues.append(f"{wp.get('id', '?')}: description 包含代码块标记(```),Worker 不应在 description 中写代码")
 
                 if wp_issues:
                     results["all_passed"] = False
@@ -963,8 +1137,8 @@ Planner → **【你（Worker）】** → Consolidator → 用户
             if not must_constraints:
                 continue  # 无 MUST 约束,不需要 Judge
 
-            # 读取 worker output
-            worker_path = stages_dir / f"worker_{role}.json"
+            # 读取 worker output(统一路径解析)
+            worker_path = self._resolve_worker_output_path(stages_dir, role)
             if not worker_path.exists():
                 continue  # Worker 未产出,跳过(merge 会检测)
 
@@ -973,11 +1147,14 @@ Planner → **【你（Worker）】** → Consolidator → 用户
             # 构建 Judge prompt
             judge_prompt = WorkerGate.build_judge_prompt(worker_spec, worker_output)
 
+            _stages = self.blackboard_path / "stages"
+            _root = self.blackboard_path.parent.parent
+            _label = f"worker_must_{role}"
             judge_params.append({
                 "runtime": "subagent",
                 "mode": "run",
-                "label": f"worker_must_{role}",
-                "task": judge_prompt,
+                "label": _label,
+                "task": auto_bootstrap(_root, _stages, judge_prompt, _label),
                 "thinking": "medium",
             })
 
@@ -1050,13 +1227,16 @@ Planner → **【你（Worker）】** → Consolidator → 用户
         bp = Path(blackboard_path) if blackboard_path else self.blackboard_path
         stages_dir = bp / "stages"
 
-        # 收集 worker 输出文件路径
-        worker_files = sorted(stages_dir.glob("worker_*.json"))
+        # 收集 worker 输出文件路径(统一路径解析)
+        worker_files = self._list_all_worker_output_files(stages_dir)
         if not worker_files:
             raise ValueError(f"契约笼子: 无 worker 输出文件")
 
         worker_file_paths = ", ".join(str(f) for f in worker_files)
-        solution_pro_input_path = str(bp / "solution_pro_input.json")
+        # B1-FIX: 统一从 stages/ 读取，与 gate judge 路径一致
+        _sol_stages = bp / "stages" / "solution_pro_input.json"
+        _sol_root = bp / "solution_pro_input.json"
+        solution_pro_input_path = str(_sol_stages if _sol_stages.exists() else _sol_root)
         output_path = str(stages_dir / "ship_package.json")
 
         # 读取 consolidator prompt 模板
@@ -1065,13 +1245,14 @@ Planner → **【你（Worker）】** → Consolidator → 用户
             prompt = prompt_template_path.read_text(encoding="utf-8")
             # 读取 solution_pro_input 获取 solution_name
             solution_name = "Unknown"
-            sol_input_file = bp / "solution_pro_input.json"
+            sol_input_file = bp / "stages" / "solution_pro_input.json" if (bp / "stages" / "solution_pro_input.json").exists() else bp / "solution_pro_input.json"
             if sol_input_file.exists():
                 import json as _json
                 solution_pro_input = _json.loads(sol_input_file.read_text(encoding="utf-8"))
                 solution_name = solution_pro_input.get("solution_name",
                     solution_pro_input.get("project_name", "Unknown"))
 
+            prompt = prompt.replace("{BLACKBOARD_ROOT}", str(bp))
             prompt = prompt.replace("{stages_dir}", str(stages_dir))
             prompt = prompt.replace("{solution_pro_input_path}", solution_pro_input_path)
             prompt = prompt.replace("{output_path}", output_path)
@@ -1099,11 +1280,13 @@ Planner → **【你（Worker）】** → Consolidator → 用户
 - ❌ 添加新 WP
 - ❌ 产出实际代码"""
 
+        _stages = self.blackboard_path / "stages"
+        _root = self.blackboard_path.parent.parent
         return {
             "runtime": "subagent",
             "mode": "run",
             "label": "ship_consolidator_v8",
-            "task": prompt,
+            "task": auto_bootstrap(_root, _stages, prompt, "ship_consolidator_v8"),
             "thinking": "high",
         }
 
@@ -1130,8 +1313,7 @@ Planner → **【你（Worker）】** → Consolidator → 用户
             ShipPackage.model_validate(ship_package)
         except Exception as e:
             logger.warning(f"契约笼子 WARNING: ShipPackage Schema 验证失败: {e}")
-            # 不 raise — ShipPackage Schema 可能比手工检查更严格
-            # 手工检查继续执行
+            raise ValueError(f"ShipPackage validation failed: {e}")
 
         wps = ship_package.get("work_packages", [])
 
@@ -1150,9 +1332,11 @@ Planner → **【你（Worker）】** → Consolidator → 用户
                     f"契约笼子: WP {wp.get('id', wp.get('wp_id', '?'))} 缺少字段 {missing}"
                 )
 
-        # 契约笼子 (D3): WP 计数检查 — Consolidator 不能丢弃或新增 WP
-        worker_files = sorted(stages_dir.glob("worker_*.json"))
+        # 契约笼子 (D3): WP 计数检查 - Consolidator 不能丢弃或新增 WP
+        worker_files = self._list_all_worker_output_files(stages_dir)
         input_wp_count = 0
+        # N2-FIX: track worker file read failures instead of silent pass
+        failed_worker_reads = 0
         for wf in worker_files:
             try:
                 wdata = json.loads(wf.read_text(encoding="utf-8"))
@@ -1160,22 +1344,32 @@ Planner → **【你（Worker）】** → Consolidator → 用户
                     input_wp_count += len(wdata)
                 elif isinstance(wdata, dict) and "work_packages" in wdata:
                     input_wp_count += len(wdata["work_packages"])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Worker file read failed: {wf}: {e}")
+                failed_worker_reads += 1
 
         output_wp_count = len(wps)
-        # Consolidator WP 保留率阈值（可配置）：输出/输入低于此比例时触发契约笼子
+        # Consolidator WP 保留率阈值(可配置):输出/输入低于此比例时触发契约笼子
         CONSOLIDATOR_WP_RETENTION_THRESHOLD = 0.7
-        if input_wp_count > 0 and output_wp_count < input_wp_count * CONSOLIDATOR_WP_RETENTION_THRESHOLD:
+        # N2-FIX: include failed reads in effective input count for honest retention calc
+        effective_input_wp_count = input_wp_count + failed_worker_reads
+        if failed_worker_reads > 0:
+            logger.warning(
+                f"N2-FIX: {failed_worker_reads} worker file(s) failed to read; "
+                f"effective input WP count adjusted to {effective_input_wp_count}"
+            )
+        if effective_input_wp_count > 0 and output_wp_count < effective_input_wp_count * CONSOLIDATOR_WP_RETENTION_THRESHOLD:
             raise ValueError(
-                f"契约笼子: Consolidator 丢弃过多 WP — "
-                f"输入 {input_wp_count} 个 Worker WP，输出仅 {output_wp_count} 个 "
-                f"（保留率 {output_wp_count/input_wp_count:.0%} < 70%）"
+                f"契约笼子: Consolidator 丢弃过多 WP - "
+                f"输入 {effective_input_wp_count} 个 Worker WP (含 {failed_worker_reads} 个读取失败),"
+                f"输出仅 {output_wp_count} 个 "
+                f"(保留率 {output_wp_count/effective_input_wp_count:.0%} < 70%)"
             )
 
         # 契约笼子:Semantic Anchors 守恒检查
         # 读取 solution_pro_input 获取上游 anchors
-        sol_input_path = bp / "solution_pro_input.json"
+        # B1-FIX: 统一从 stages/ 读取，向后兼容 root
+        sol_input_path = bp / "stages" / "solution_pro_input.json" if (bp / "stages" / "solution_pro_input.json").exists() else bp / "solution_pro_input.json"
         anchor_check = {"checked": False, "upstream_count": 0, "preserved_count": 0, "uncovered": []}
 
         if sol_input_path.exists():
@@ -1207,19 +1401,86 @@ Planner → **【你（Worker）】** → Consolidator → 用户
                         f"上游有 {len(upstream_names)} 个 anchors,但 Consolidator 未透传。"
                     )
 
-                # 契约笼子:如果超过 50% 的 anchors 未被任何 WP 引用 → raise
-                if len(upstream_names) > 0 and len(anchor_check["uncovered"]) > len(upstream_names) * 0.5:
+                # P1-3 契约笼子(强化): 如果上游有 anchors，至少一个 WP 必须引用 anchor
+                if len(upstream_names) > 0 and len(wp_referenced) == 0:
+                    raise ValueError(
+                        f"契约笼子: Semantic Anchors 完全未引用 - "
+                        f"上游有 {len(upstream_names)} 个 anchors，但没有任何 WP 的 anchored_to 引用它们: "
+                        f"{sorted(upstream_names)}"
+                    )
+                # P1-3 契约笼子(强化): 要求 80% anchor 覆盖率（从 50% 提升）
+                if len(upstream_names) > 0 and len(anchor_check["uncovered"]) > len(upstream_names) * 0.2:
                     raise ValueError(
                         f"契约笼子: Semantic Anchors 守恒失败 - "
-                        f"{len(anchor_check['uncovered'])}/{len(upstream_names)} 个 anchors 未被任何 WP 引用: "
-                        f"{anchor_check['uncovered']}"
+                        f"{len(anchor_check['uncovered'])}/{len(upstream_names)} 个 anchors 未被任何 WP 引用 "
+                        f"(要求 80% 覆盖率): {anchor_check['uncovered']}"
                     )
+
+        # ── P2 契约笼子: anchored_to ↔ dependencies 一致性检查 ──
+        # 检测范围: dependencies 为空但 anchored_to 引用了其他 WP 实现的 anchor
+        # （有 dependencies 的 WP 说明 Consolidator 已做依赖推断，anchor 引用只是语义追溯）
+        dep_inconsistencies = []
+        # 1. 构建 anchor_name → implementing_wp_id 映射（基于 title 前缀匹配）
+        anchor_impl_map: Dict[str, str] = {}
+        for wp in wps:
+            wp_id = wp.get("id", wp.get("wp_id", "?"))
+            title = wp.get("title", "")
+            for wp2 in wps:
+                for anchor in wp2.get("anchored_to", []):
+                    anchor_key = anchor.split(" - ")[0].strip() if " - " in anchor else anchor.strip()
+                    if anchor_key and title.startswith(anchor_key):
+                        anchor_impl_map[anchor_key] = wp_id
+        
+        # 2. 检查: dependencies 为空的 WP，其 anchored_to 是否引用了其他 WP 的 anchor
+        for wp in wps:
+            wp_id = wp.get("id", wp.get("wp_id", "?"))
+            deps = wp.get("dependencies", [])
+            if deps:  # 有 dependencies 的跳过（Consolidator 已处理）
+                continue
+            for anchor in wp.get("anchored_to", []):
+                anchor_key = anchor.split(" - ")[0].strip() if " - " in anchor else anchor.strip()
+                impl_wp = anchor_impl_map.get(anchor_key)
+                if impl_wp and impl_wp != wp_id:
+                    dep_inconsistencies.append({
+                        "wp_id": wp_id,
+                        "missing_dep": impl_wp,
+                        "anchor": anchor_key,
+                    })
+        
+        if dep_inconsistencies:
+            summary = "; ".join(
+                f"{d['wp_id']} 缺少依赖 {d['missing_dep']}（引用了 anchor '{d['anchor']}'）"
+                for d in dep_inconsistencies
+            )
+            logger.warning(
+                f"契约笼子 P2: anchored_to ↔ dependencies 不一致 ({len(dep_inconsistencies)} 处): {summary}"
+            )
+        
+        # ── ADR-009: Write MD sidecar (non-blocking) ──
+        try:
+            md_content = render_ship_package_md(ship_package)
+            md_path = stages_dir / "ship_package.md"
+            md_path.write_text(md_content, encoding="utf-8")
+            try:
+                from core.md_track_extractor import extract_track_json, validate_md_structure
+                passed, msg, warnings = validate_md_structure(md_content, "ship_pro")
+                if passed:
+                    track = extract_track_json(md_content, "ship_pro")
+                    track_path = stages_dir / "ship_track.json"
+                    track_path.write_text(json.dumps(track, ensure_ascii=False, indent=2), encoding="utf-8")
+                else:
+                    logger.warning(f"ship_track.json skipped: MD validation failed: {msg}")
+            except Exception as e:
+                logger.warning(f"track.json generation failed: {e}")
+        except Exception as e:
+            logger.warning(f"ship_package.md sidecar failed (non-blocking): {e}")
 
         return {
             "valid": True,
             "wp_count": len(wps),
             "total_effort": sum(wp.get("effort_hours", 0) for wp in wps),
             "anchor_check": anchor_check,
+            "dep_inconsistencies": dep_inconsistencies,
         }
 
 

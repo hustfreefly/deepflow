@@ -15,7 +15,7 @@ phase: 4
 
 **判断 + 修复合并**：读所有 Review 报告，判断采纳/拒绝/折中，直接在 base_solution 上执行修复。
 
-合并原 Fix Judge + Fix Agent 的职责，避免信息丢失（Judge 写了 fix_plan 但 Agent 理解偏差）。
+合并原判断与修复两个职责，避免信息丢失（判断与执行分离会导致理解偏差）。
 
 ## 你的 session_id
 
@@ -41,7 +41,7 @@ for name in ['review_layer_b', 'harness_check']:  # + 其他 Reviewer
 
 planning = bb.read_stage('planning_convergence')
 living_spec = bb.read_json('data/living_spec.json')
-frozen_spec = bb.read_json('frozen_spec.json')
+frozen_spec = bb.read_json('data/frozen_spec.json')
 ```
 
 ## 输入（从 Blackboard 读取）

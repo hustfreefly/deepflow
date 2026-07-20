@@ -157,7 +157,7 @@ updated: "2026-05-23"
 > **`inferred_domain` 字段说明**：根据用户输入语义推断的项目所属领域。可选值：`software`、`investment`、`hardware`、`business`、`unknown`。此字段供 coordinator 在后续轮次注入域上下文使用。
 ```
 
-### 文件 2: spec/living_spec.json
+### 文件 2: spec/living_spec.md
 完整 Living Spec 结构:
 ```json
 {

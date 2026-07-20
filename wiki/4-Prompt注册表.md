@@ -1,7 +1,7 @@
 # Prompt 注册表
 
 > 所有 Prompt 模板的完整清单和调用关系  
-> 最后更新：2026-07-08
+> 最后更新: 2026-07-08
 
 ---
 
@@ -10,183 +10,142 @@
 | 域 | Prompt 数量 | 文件位置 |
 |:---|:---|:---|
 | Spec Pro | 8 | `domains/spec_pro/prompts/` |
-| Solution Pro | 40+ | `domains/solution_pro/prompts/` |
-| Ship Pro | 9 | `domains/ship_pro/prompts/` |
-| Research Pro | 6 | `domains/research_pro/prompts/` |
-| 通用 | 20+ | `prompts/` |
-| **总计** | **83+** | |
+| Solution Pro | 39 | `domains/solution_pro/prompts/` |
+| Ship Pro | 1 | `domains/ship_pro/prompts/` |
+| Research Pro | 8 | `domains/research_pro/prompts/` |
+| **总计** | **56** | |
 
 ---
 
-## Spec Pro Prompts
+## Spec Pro Prompts (8)
 
-| 文件名 | 版本 | 调用者 | 用途 |
+| 文件名 | 行数 | 调用者 | 用途 |
 |:---|:---|:---|:---|
-| `parse.md` | 2.2.0 | coordinator.py | 初始解析用户输入（域自推断） |
-| `parse_response.md` | 2.0.0 | coordinator.py | 解析用户回复 |
-| `structure.md` | 2.2.0 | coordinator.py | 结构化提取需求（预计算复杂度） |
-| `assess.md` | 2.2.0 | coordinator.py | 质量评估（跨域评分锚点） |
-| `harness.md` | 2.2.0 | harness.py | Harness 评分（三层门控） |
-| `guide.md` | 2.2.0 | coordinator.py | 对话引导（三测试边界过滤） |
-| `assess_guide.md` | 2.0.0 | coordinator.py | 评估引导 |
-| `orchestrator.md` | 2.0.0 | coordinator.py | 编排任务 |
-| `structure_guide.md` | 2.0.0 | coordinator.py | 结构化引导 |
-| `requirement_structuring.md` | 2.0.0 | coordinator.py | 需求结构化 |
+| `parse.md` | 204 | coordinator.py | 初始解析用户输入 + 域自推断 |
+| `parse_response.md` | 154 | coordinator.py | 解析用户回复 |
+| `structure.md` | 314 | coordinator.py | 结构化提取需求 + 预计算复杂度 |
+| `assess.md` | 300 | coordinator.py | 质量评估 + 跨域评分锚点 |
+| `harness.md` | 163 | harness 评估 | Harness 评分 + 三层门控 |
+| `guide.md` | 206 | coordinator.py | 对话引导 + 三测试边界过滤 |
+| `assess_guide.md` | 78 | coordinator.py | 评估引导 |
+| `orchestrator.md` | 143 | coordinator.py | 编排任务 |
+
+**总行数**: 1,562 行
 
 ---
 
-## Solution Pro Prompts
+## Solution Pro Prompts (39)
 
-### 核心管线 (10 阶段)
+### Planning 模块 (9)
 
-| 阶段 | 文件名 | 版本 | 调用者 | 用途 |
-|:---|:---|:---|:---|:---|
-| 1 | `planner.md` | 2.1.0 | orchestrator_agent.py | 架构设计 |
-| 1 | `planner_v2_harness.md` | 2.1.0 | orchestrator_agent.py | Planner + Harness |
-| 2 | `reviewer.md` | 2.1.0 | orchestrator_agent.py | 方案评审 |
-| 2 | `reviewer_v2_harness.md` | 2.1.0 | orchestrator_agent.py | Reviewer + Harness |
-| 3 | `fixer_v2_harness.md` | 2.1.0 | orchestrator_agent.py | 修复评审问题 |
-| 4 | `researcher_v2_harness.md` | 2.1.0 | orchestrator_agent.py | 深度研究 |
-| 5 | `consolidator.md` | 2.1.0 | orchestrator_agent.py | 合并研究结论 |
-| 5 | `consolidator_v2_harness.md` | 2.1.0 | orchestrator_agent.py | Consolidator + Harness |
-| 6 | `auditor_v2_harness.md` | 2.1.0 | orchestrator_agent.py | 架构审计 |
-| 7 | `fixer_expert_v2_harness.md` | 2.1.0 | orchestrator_agent.py | 修复审计问题 |
-| 8 | `harness_v3.md` | 3.0.0 | harness_scorer.py | 质量评分 |
-| 8 | `harness_scoring.md` | 3.0.0 | harness_scorer.py | Harness 评分 |
-| 9 | `fixer_v2_harness.md` | 2.1.0 | orchestrator_agent.py | 提升质量分数 |
-| 10 | `summarizer.md` | 2.1.0 | orchestrator_agent.py | 生成最终方案 |
-| 10 | `summarizer_v2_harness.md` | 2.1.0 | orchestrator_agent.py | Summarizer + Harness |
+| 文件名 | 行数 | 用途 |
+|:---|:---|:---|
+| `planning_module.md` | 501 | Planning 模块完整指南 |
+| `planning_planner.md` | 192 | 规划器 prompt |
+| `planning_expert_base.md` | 181 | 专家基座 prompt |
+| `expert_planner_base.md` | 123 | 专家规划器基座 |
+| `meta_planner.md` | 205 | 元规划器 |
+| `convergence_planner.md` | 271 | 收敛规划器 |
+| `planner_harness.md` | 262 | 规划器评估 |
+| `P0_CONSTRAINT_INJECTION_DESIGN.md` | 266 | P0 约束注入设计 |
+| `REQ_DEDUP_DESIGN.md` | 215 | 需求去重设计 |
 
-### 辅助 Prompt
+### Research 模块 (5)
 
-| 文件名 | 版本 | 调用者 | 用途 |
+| 文件名 | 行数 | 用途 |
+|:---|:---|:---|
+| `research_module.md` | 479 | Research 模块完整指南 |
+| `research_planner.md` | 189 | 研究规划器 |
+| `research_expert_base.md` | 172 | 研究专家基座 |
+| `researcher_harness.md` | 184 | 研究员评估 |
+| `review_layer_b.md` | 103 | Review Layer B |
+
+### Summary 模块 (13)
+
+| 文件名 | 行数 | 用途 |
+|:---|:---|:---|
+| `summary_module.md` | 835 | Summary 模块完整指南 (5+1 Phase) |
+| `summary_summarizer.md` | 335 | 总结器 |
+| `summary_analyzer_base.md` | 172 | 分析器基座 |
+| `summary_base_synthesizer.md` | 216 | 基础综合器 |
+| `summary_refiner.md` | 173 | 精炼器 |
+| `summary_meta_planner.md` | 290 | 元规划审查 |
+| `summary_json_extractor.md` | 307 | JSON 结构化提取 |
+| `summary_fix_agent.md` | 236 | 修复 Agent |
+| `summary_fix_judge.md` | 174 | 修复判断器 |
+| `summary_harness_check.md` | 289 | Summary Harness 检查 |
+| `summary_review_layer_b.md` | 387 | Summary Review Layer B |
+| `reviewer_convergence.md` | 294 | 收敛评审器 |
+| `reviewer_meta.md` | 226 | 元评审器 |
+
+### 通用 (12)
+
+| 文件名 | 行数 | 用途 |
+|:---|:---|:---|
+| `orchestrator.md` | 365 | 主编排器 |
+| `harness_agent.md` | 371 | Harness Agent |
+| `auditor_harness.md` | 225 | 审计 Harness |
+| `consolidator_harness.md` | 175 | 合并 Harness |
+| `fixer_harness.md` | 178 | 修复 Harness |
+| `fixer_expert_harness.md` | 185 | 修复专家 Harness |
+| `reviewer_harness.md` | 188 | 评审 Harness |
+| `summarizer_harness.md` | 270 | 总结 Harness |
+| `ai_native_cognitive_base.md` | 48 | AI Native 认知基座 |
+| `compliance_checker_base.md` | 58 | 合规检查器基座 |
+| `_shared_subagent_rules.md` | 43 | 子 Agent 共享规则 |
+| `README.md` | 19 | Prompt 目录说明 |
+
+**总行数**: 8,426 行
+
+---
+
+## Ship Pro Prompts (1)
+
+| 文件名 | 行数 | 调用者 | 用途 |
 |:---|:---|:---|:---|
-| `data_collection.md` | 1.0.0 | orchestrator_agent.py | 数据收集 |
-| `designer.md` | 1.0.0 | orchestrator_agent.py | UI/UX 设计 |
-| `deliver.md` | 1.0.0 | orchestrator_agent.py | 交付打包 |
-| `pipeline_orchestrator.md` | 2.0.0 | pipeline_orchestrator.py | 管线编排 |
-| `pipeline_orchestrator_v4.md` | 4.0.0 | pipeline_orchestrator.py | 管线编排 2.0.0 |
-| `orchestrator_completion.md` | 2.0.0 | completion_handler.py | 完成处理 |
-| `cron_watcher.md` | 1.0.0 | cron_watcher.py | 定时监控 |
-| `REQ_DEDUP_DESIGN.md` | 1.0.0 | - | 需求去重设计文档 |
+| `consolidator.md` | 111 | consolidator worker | 合并 Worker 输出 |
+
+**总行数**: 111 行
 
 ---
 
-## Ship Pro Prompts
+## Research Pro Prompts (8)
 
-| 文件名 | 版本 | 调用者 | 用途 |
+| 文件名 | 行数 | 调用者 | 用途 |
 |:---|:---|:---|:---|
-| `architect.md` | 3.0.0 | orchestrator.py | 架构设计 |
-| `specifier.md` | 3.0.0 | orchestrator.py | 工作包规格 |
-| `decomposer.md` | 3.0.0 | orchestrator.py | 任务分解 |
-| `packager.md` | 3.0.0 | orchestrator.py | 打包 |
-| `reviewer.md` | 3.0.0 | orchestrator.py | 最终审核 |
-| `ship_orchestrator.md` | 3.0.0 | orchestrator.py | 编排 |
-| `ship_fixer.md` | 3.0.0 | orchestrator.py | 修复问题 |
-| `ship_harness.md` | 3.0.0 | gates.py | 质量门控 |
-| `ship_reviewer.md` | 3.0.0 | orchestrator.py | 审核 |
-| `ship_pre_scanner.md` | 3.0.0 | orchestrator.py | 预扫描 |
-| `cron_watcher.md` | 1.0.0 | cron_watcher.py | 定时监控 |
+| `orchestrator.md` | — | orchestrator.py | 研究编排 |
+| `planning.md` | — | orchestrator.py | 研究规划 |
+| `search.md` | — | orchestrator.py | 搜索执行 |
+| `tech_analysis.md` | — | orchestrator.py | 技术分析 |
+| `finance_analysis.md` | — | orchestrator.py | 金融分析 |
+| `quality_reviewer.md` | — | orchestrator.py | 质量审查 |
+| `report_writer.md` | — | orchestrator.py | 报告撰写 |
+| `citation_verify.md` | — | citation_verifier.py | 引用验证 |
 
 ---
 
-## Research Pro Prompts
+## 通用 Prompts (根目录)
 
-| 文件名 | 版本 | 调用者 | 用途 |
-|:---|:---|:---|:---|
-| `planning.md` | 1.0.0 | orchestrator.py | 研究规划 |
-| `search.md` | 1.0.0 | search_agent.py | 搜索关键词生成 |
-| `report_writer.md` | 1.0.0 | writer_agent.py | 报告撰写 |
-| `citation_verify.md` | 1.0.0 | citation_verifier.py | 引用验证 |
-| `finance_analysis.md` | 1.0.0 | analyst_agent.py | 财务分析 |
-| `tech_analysis.md` | 1.0.0 | analyst_agent.py | 技术分析 |
+路径: `prompts/`
+
+| 子目录 | 内容 |
+|:---|:---|
+| `architecture/` | 架构相关 prompt |
+| `code/` | 代码生成 prompt |
+| `general/` | 通用 prompt |
+| `research_pro/` | Research Pro 共享 prompt |
+| `ship_pro/` | Ship Pro 共享 prompt |
+| `solution_pro/` | Solution Pro 共享 prompt |
+| `spec_pro/` | Spec Pro 共享 prompt |
+| `system/` | 系统级 prompt |
+| `registry.yaml` | 全局注册表 |
 
 ---
 
-## 通用 Prompts
+## Prompt 设计原则
 
-### prompts/architecture/ (架构相关)
-
-| 文件名 | 用途 |
-|:---|:---|
-| `auditor.md` | 架构审计 |
-| `correctness.md` | 正确性检查 |
-| `fixer.md` | 问题修复 |
-| `performance.md` | 性能优化 |
-| `planner.md` | 架构规划 |
-| `researcher.md` | 架构研究 |
-| `security.md` | 安全检查 |
-
-### prompts/code/ (代码相关)
-
-| 文件名 | 用途 |
-|:---|:---|
-| `correctness.md` | 代码正确性 |
-| `fixer.md` | 代码修复 |
-| `planner.md` | 代码规划 |
-| `security.md` | 代码安全 |
-| `verifier.md` | 代码验证 |
-
-### prompts/general/ (通用)
-
-| 文件名 | 用途 |
-|:---|:---|
-| `auditor.md` | 通用审计 |
-| `fixer.md` | 通用修复 |
-| `planner.md` | 通用规划 |
-| `researcher.md` | 通用研究 |
-| `verifier.md` | 通用验证 |
-
-### prompts/system/ (系统级)
-
-| 文件名 | 用途 |
-|:---|:---|
-| `data_manager_agent.md` | 数据管理 |
-| `deepflow_navigator.md` | 系统导航 |
-| `pipeline_engine_orchestrator.md` | 管线引擎 |
-| `report_extractor.md` | 报告提取 |
-| `summarizer.md` | 通用摘要 |
-
----
-
-## 版本命名规范
-
-```
-{major}.{minor}.{patch}
-
-major: 破坏性变更 (架构调整)
-minor: 向后兼容 (新增功能)
-patch: 向后兼容 (bug 修复)
-```
-
-**示例**:
-- `2.1.0` - 第 2 版，新增 Harness 功能
-- `3.0.0` - 第 3 版，架构重构
-
----
-
-## 如何添加新 Prompt
-
-1. 在对应域的 `prompts/` 目录创建 `.md` 文件
-2. 在文件头部添加 YAML frontmatter:
-   ```yaml
-   ---
-   id: {domain}_{role}_{version}
-   version: 2.1.0
-   description: 用途描述
-   ---
-   ```
-3. 在对应域的 Cage 配置中注册:
-   ```json
-   {
-     "prompts": {
-       "planner_v2_harness.md": "2.1.0"
-     }
-   }
-   ```
-4. 在代码中调用:
-   ```python
-   from core.prompt_registry import load_prompt
-   
-   prompt = load_prompt("planner_v2_harness.md")
-   ```
+1. **Prompt 是协作契约**，不是指令列表
+   - 包含: Role + Context + Constraints + Examples + Output Schema
+2. **多域示例**: 16+ prompt 已泛化，包含 software/investment/hardware/business 示例
+3. **DAL 集成**: prompt 中预留 `{domain_context}` 占位符，运行时注入域上下文
+4. **结构化输出**: 每个 prompt 定义明确的 JSON Schema，由 Pydantic 验证

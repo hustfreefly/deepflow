@@ -17,7 +17,7 @@ updated: "2026-05-23"
 4. 更新 Living Spec 的 route_recommendation 和 solution_pro_hints 字段
 
 ## 输入
-- **spec/living_spec.json**: 当前 Living Spec
+- **spec/living_spec.md**: 当前 Living Spec
 - **spec/quality_report.json**: 质量评估报告
 
 ## Step 1: 生成摘要
@@ -303,7 +303,7 @@ updated: "2026-05-23"
 5. `variables.num_capabilities` 统计 `living_spec.confirmed.capabilities.always_do` 数组长度
 6. `variables.num_constraints` 统计 `living_spec.confirmed.constraints` 对象中的字段数量
 
-### 更新 spec/living_spec.json
+### 更新 spec/living_spec.md
 
 将 `route_recommendation` 和 `solution_pro_hints` 写入 Living Spec（两种模式都要做）。
 

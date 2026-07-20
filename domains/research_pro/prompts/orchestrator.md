@@ -8,7 +8,10 @@
 所有数据读写都通过 BlackboardManager 2.0.0 API，禁止直接构造文件路径。
 
 ```python
-import sys; sys.path.insert(0, '/deepflow/workspace')
+import os, sys
+_workspace = os.environ.get('DEEPFLOW_WORKSPACE', os.path.expanduser('~/.openclaw/workspace'))
+if _workspace not in sys.path:
+    sys.path.insert(0, _workspace)
 from core.blackboard.blackboard_manager import BlackboardManager
 bm = BlackboardManager(session_id='{session_id}')
 ```
@@ -45,7 +48,8 @@ bm = BlackboardManager(session_id='{session_id}')
 
 ```bash
 python3 -c "
-import sys; sys.path.insert(0, '/deepflow/workspace')
+import os, sys; _workspace = os.environ.get('DEEPFLOW_WORKSPACE', os.path.expanduser('~/.openclaw/workspace'))
+if _workspace not in sys.path: sys.path.insert(0, _workspace)
 import core.bootstrap; import json
 from core.blackboard.blackboard_manager import BlackboardManager
 bm = BlackboardManager(session_id='{session_id}')
@@ -71,7 +75,7 @@ web_fetch(url="<url>")
 获取完整页面内容。
 
 **2c. 来源分级** — 根据域名判断来源质量：
-- Tier-1（权重1.0）: sec.gov, cninfo.com.cn, arxiv.org, gov.cn, reuters.com
+- Tier-1（权重1.0）: sec.gov, cninfo.com.cn, arxiv.org, gov.cn
 - Tier-2（权重0.7）: bloomberg.com, ft.com, caixin.com, 36kr.com
 - Tier-3（权重0.4）: xueqiu.com, zhihu.com, reddit.com
 - unverified（权重0.5）: 其他域名
@@ -79,7 +83,8 @@ web_fetch(url="<url>")
 **2d. 注册来源** — 每个搜索结果都注册到 Source Registry（防幻觉核心）：
 ```bash
 python3 -c "
-import sys; sys.path.insert(0, '/deepflow/workspace')
+import os, sys; _workspace = os.environ.get('DEEPFLOW_WORKSPACE', os.path.expanduser('~/.openclaw/workspace'))
+if _workspace not in sys.path: sys.path.insert(0, _workspace)
 import core.bootstrap; import json
 from core.blackboard.blackboard_manager import BlackboardManager
 from domains.research_pro.source_registry import SourceRegistry
@@ -123,17 +128,18 @@ bm.write('research/analysis.md', analysis_content)
 
 ```bash
 python3 -c "
-import sys; sys.path.insert(0, '/deepflow/workspace')
+import os, sys; _workspace = os.environ.get('DEEPFLOW_WORKSPACE', os.path.expanduser('~/.openclaw/workspace'))
+if _workspace not in sys.path: sys.path.insert(0, _workspace)
 import core.bootstrap; import json
 from core.blackboard.blackboard_manager import BlackboardManager
 from domains.research_pro.citation_verifier import CitationVerifier
+from domains.research_pro.source_registry import SourceRegistry
 bm = BlackboardManager(session_id='{session_id}')
 session_dir = bm.get_session_dir()
-verifier = CitationVerifier(
-    registry_path=str(session_dir / 'source_registry.json'),
-    report_path=str(session_dir / 'report' / 'draft.md')
-)
-result = verifier.verify_all()
+registry = SourceRegistry(str(session_dir / 'source_registry.json'))
+verifier = CitationVerifier(registry)
+report_md = (session_dir / 'report' / 'final.md').read_text(encoding='utf-8')
+result = verifier.verify_all(report_md)
 bm.write('report/citations.json', json.dumps(result, ensure_ascii=False, indent=2))
 print(json.dumps(result, ensure_ascii=False, indent=2))
 "
@@ -173,7 +179,8 @@ bm.write('report/final.md', report_content)
 
 ```bash
 python3 -c "
-import sys; sys.path.insert(0, '/deepflow/workspace')
+import os, sys; _workspace = os.environ.get('DEEPFLOW_WORKSPACE', os.path.expanduser('~/.openclaw/workspace'))
+if _workspace not in sys.path: sys.path.insert(0, _workspace)
 from core.blackboard.blackboard_manager import BlackboardManager
 import json
 bm = BlackboardManager(session_id='{session_id}')

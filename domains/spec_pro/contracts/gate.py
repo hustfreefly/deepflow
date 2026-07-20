@@ -256,9 +256,17 @@ def gate_harness_decision(layer1_result: dict, layer2_scores: dict) -> dict:
     """
     l1_passed = layer1_result.get("passed", False)
 
+    # 兼容 dimensions 数组格式（来自 assess.md 输出）
+    if 'dimensions' in layer2_scores and isinstance(layer2_scores['dimensions'], list):
+        l2_scores = {
+            d.get('dimension', d.get('name', '')): d.get('score', 50)
+            for d in layer2_scores['dimensions']
+            if isinstance(d, dict)
+        }
+        meta_source = "dimensions_array"
     # 优先从 meta_quality 读取（assess.md 新输出），fallback 到 dimension_scores
-    meta = layer2_scores.get("meta_quality", {})
-    if meta:
+    elif layer2_scores.get("meta_quality"):
+        meta = layer2_scores["meta_quality"]
         l2_scores = {dim: meta[dim].get("score", 50) for dim in meta}
         meta_source = "meta_quality"
     else:

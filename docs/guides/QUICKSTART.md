@@ -131,8 +131,10 @@ AI: 🔬 Research Pro · 深度研究引擎
 描述想法        梳理需求        设计方案        交付编译        深度研究
   │              │              │              │              │
   ▼              ▼              ▼              ▼              ▼
-/spec-pro ───→ /solution-pro ─→ /ship-pro ─→ Research Pro
-(想法→需求)    (需求→方案)     (方案→工作包)  (方案→调研报告)
+/spec-pro ───→ /solution-pro ─→ /ship-pro ─→ /deliver-pro
+(想法→需求)    (需求→方案)     (方案→工作包)   (工作包→交付物)
+
+独立引擎: Research Pro (深度研究，不依赖主链路)
 ```
 
 也可以单独使用任何一个域。

@@ -1,0 +1,24 @@
+# DeepFlow - Multi-Agent Pipeline Framework
+# Core dependencies
+
+pydantic>=2.13
+requests>=2.32
+jinja2>=3.1
+jsonschema>=4.25
+PyYAML>=6.0
+msgpack>=1.1
+packaging>=26.0
+filelock>=3.19
+
+# Observability
+prometheus_client>=0.25
+
+# Async support
+httpx>=0.28
+aiosqlite>=0.20
+
+# Testing
+pytest>=8.4
+pytest-asyncio>=1.2
+pytest-cov>=7.1
+fakeredis>=2.36

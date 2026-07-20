@@ -1,0 +1,54 @@
+{#- Skill Health Report — Default Jinja2 Template
+  Variables: scan_metadata, summary, skill_reports, health_rating, health_icon
+  Requires: trim_blocks=True, lstrip_blocks=True (set in Python Environment)
+-#}
+# Skill 健康扫描报告
+
+## 扫描概览
+
+| 项目 | 值 |
+|------|-----|
+| 扫描时间 | {{ scan_metadata.scan_timestamp | default("N/A") }} |
+| 目标路径 | `{{ scan_metadata.target_path | default("N/A") }}` |
+| SKILL.md 总数 | {{ scan_metadata.skill_count | default(0) }} |
+
+## 摘要统计
+
+| 状态 | 数量 | 占比 |
+|------|------|------|
+| ✅ 通过 | {{ summary.passed | default(0) }} | {{ summary.pass_rate | default(0.0) }}% |
+| ⚠️ 警告 | {{ summary.warned | default(0) }} | {{ summary.warn_rate | default(0.0) }}% |
+| ❌ 失败 | {{ summary.failed | default(0) }} | {{ summary.fail_rate | default(0.0) }}% |
+| **合计** | **{{ summary.total | default(0) }}** | **100.0%** |
+
+## 详细结果
+{%- if not skill_reports %}
+
+_无 Skill 数据。_
+{%- else %}
+{%- for skill in skill_reports %}
+
+### {{ loop.index }}. {{ skill.skill_name }}
+
+**路径**: `{{ skill.skill_path }}`
+**状态**: {{ skill.aggregate_status_icon }} {{ skill.aggregate_status_label | default("未知") }}
+
+| 检查器 | 状态 | 消息 |
+|--------|------|------|
+{% for cr in skill.check_results -%}
+| {{ cr.checker_name }} | {{ cr.status_icon }} {{ cr.status }} | {{ cr.message | default("") }} |
+{% endfor -%}
+{%- if skill.detail_blocks %}
+{%- for block in skill.detail_blocks %}
+
+```{{ block.language | default("text") }}
+{{ block.content }}
+```
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+
+---
+
+**总体健康度**: {{ health_icon | default("❓") }} {{ health_rating | default("未知") }}

@@ -20,7 +20,11 @@ class GateResult:
     """Gate 检查结果"""
     
     def __init__(self, passed: bool, issues: List[str], details: Dict[str, Any] = None):
-        self.passed = passed
+        # 契约笼子 B1-FIX: 智能 bool 转换，防止 LLM 返回 "false"/0 等非 bool truthy 值
+        if isinstance(passed, str):
+            self.passed = passed.lower() in ("true", "1", "yes")
+        else:
+            self.passed = bool(passed)
         self.issues = issues
         self.details = details or {}
     
@@ -326,8 +330,8 @@ Ship Package 保留: {json.dumps([a.get('name','?') for a in ship_anchors_preser
 ## Ship Package 摘要
 工作包数: {len(ship_wps)}
 标题: {json.dumps([wp.get('title','') for wp in ship_wps], ensure_ascii=False)}
-依赖边数: {len(ship_package.get('dependency_graph', {{}}).get('edges', []))}
-延迟需求: {json.dumps(ship_package.get('metadata', {{}}).get('pending_req_ids', []), ensure_ascii=False)}
+依赖边数: {len(ship_package.get('dependency_graph', dict()).get('edges', []))}
+延迟需求: {json.dumps(ship_package.get('metadata', dict()).get('pending_req_ids', []), ensure_ascii=False)}
 
 ## 判断标准
 1. 决策保持：每个关键决策必须有对应工作包实现
@@ -408,6 +412,20 @@ class CompletenessGate:
         passed = verdict.get("passed", False)
         issues = verdict.get("issues", [])
         rate = verdict.get("coverage_rate", 0.0)
+        
+        # 契约笼子 B2-FIX: 确定性二次校验 — LLM 声称 passed 但数据不支撑 → 强制 False
+        if passed:
+            if isinstance(rate, (int, float)) and rate < 0.8:
+                passed = False
+                issues.append(f"B2 契约笼子: coverage_rate={rate} < 0.8，强制覆盖 passed=False")
+            critical_issues = [
+                i for i in issues
+                if isinstance(i, dict) and i.get("severity") == "CRITICAL"
+            ]
+            if critical_issues:
+                passed = False
+                issues.append(f"B2 契约笼子: {len(critical_issues)} 个 CRITICAL issue，强制覆盖 passed=False")
+        
         details = {
             "mode": "llm_judge",
             "coverage_rate": rate,
@@ -417,6 +435,91 @@ class CompletenessGate:
             "uncovered_risks": verdict.get("uncovered_risks", []),
         }
         return GateResult(passed=passed, issues=issues, details=details)
+
+    @staticmethod
+    def build_adversarial_prompt(solution_pro_output: Dict[str, Any],
+                                  planner_output: Dict[str, Any],
+                                  ship_package: Dict[str, Any]) -> str:
+        """
+        L2 对抗审查 Agent prompt。
+
+        与原有 CompletenessGate 的区别:
+        1. 默认立场: "这个 ship_package 有问题"（对抗心态）
+        2. 输出结构化修复建议（不只是报告问题）
+        3. 检查维度更广（语义偏离、矛盾、耦合等）
+        """
+        decisions = solution_pro_output.get('key_decisions', [])
+        requirements = solution_pro_output.get('requirements', [])
+        risks = solution_pro_output.get('risk_mitigations', [])
+        wps = ship_package.get('work_packages', [])
+        workers = planner_output.get('workers', [])
+
+        return f"""# 对抗完整性审查 Agent
+
+> **角色定位**: 你是 Ship Pro 的完整性上限守卫。
+> 你的默认立场是"这个 Ship Package 有遗漏"。
+> Ship Package 必须用证据说服你它是完整的，而不是你默认它完整然后找问题。
+
+## 审查维度
+
+### 1. 决策覆盖（关键）
+每个 key_decision 是否有对应的 WP 实现？
+- 不仅检查"有没有 WP 提到这个决策"
+- 还要检查"WP 的实现方案是否与决策一致"
+- 例: 决策说"Fallback chain + charset-normalizer"，WP 只说"UTF-8 读取" → 不算覆盖
+
+### 2. 需求覆盖
+每个 requirement 是否有 WP 语义覆盖？
+- 不要求字面匹配，但要求实质覆盖
+
+### 3. 风险缓解覆盖
+每个 risk_mitigation 是否有 WP 的 AC 或 description 覆盖？
+
+### 4. 架构一致性
+Ship Package 的依赖图是否与 Solution Pro 的架构组件关系一致？
+
+### 5. 语义偏离检测
+是否有 WP 的实现方案偏离了 Solution Pro 的设计意图？
+
+## 输入
+### Solution Pro key_decisions
+{json.dumps(decisions, indent=2, ensure_ascii=False)}
+
+### Solution Pro requirements
+{json.dumps(requirements, indent=2, ensure_ascii=False)}
+
+### Solution Pro risk_mitigations
+{json.dumps(risks, indent=2, ensure_ascii=False)}
+
+### Ship Package WPs
+{json.dumps(wps, indent=2, ensure_ascii=False)}
+
+### Planner Workers
+{json.dumps(workers, indent=2, ensure_ascii=False)}
+
+## 输出格式（JSON）
+{{
+  "passed": true/false,
+  "coverage_rate": 0.0-1.0,
+  "issues": [
+    {{
+      "severity": "CRITICAL/MAJOR/MINOR",
+      "dimension": "decision/requirement/risk/architecture/semantic",
+      "description": "问题描述",
+      "repair_suggestion": "具体修复建议（建议新增/修改哪个 WP）"
+    }}
+  ],
+  "covered_decisions": ["D1", ...],
+  "uncovered_decisions": ["D5", ...],
+  "covered_risks": [...],
+  "uncovered_risks": [...]
+}}
+
+## 判断标准
+- coverage_rate >= 0.9 且无 CRITICAL issue → passed = true
+- 否则 → passed = false
+
+请直接输出 JSON。"""
 
 
 # ============================================================================
@@ -456,8 +559,15 @@ class HarnessV3:
         score = verdict.get("score", 0)
         all_issues = issues + llm_issues
         
+        # B1-FIX: 先转换 verdict passed，再做 and 运算（防止 "false" and True = True）
+        raw_passed = verdict.get("passed", False)
+        if isinstance(raw_passed, str):
+            llm_passed = raw_passed.lower() in ("true", "1", "yes")
+        else:
+            llm_passed = bool(raw_passed)
+        
         return GateResult(
-            passed=verdict.get("passed", False) and len(issues) == 0,
+            passed=llm_passed and len(issues) == 0,
             issues=all_issues,
             details={"score": score, "code_issues": len(issues), "llm_issues": len(llm_issues)}
         )

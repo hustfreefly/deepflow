@@ -270,6 +270,7 @@ Orchestrator 会告知你输入格式类型（A/B/C/D）。
 WorkPackageSpec:
   id: string (必填, "WP-001")
   title: string (必填, 不是 name!)
+  status: string (固定值 "draft", 表示未执行的 WP。所有 WP 初始状态均为 draft，由下游 deliver_pro 在执行时更新为 in_progress/completed/failed)
   objective: string (必填)
   source_modules: string[] (必填)
   dependencies: string[] (WP ID 数组, 如 ["WP-001", "WP-002"], 不是对象!)

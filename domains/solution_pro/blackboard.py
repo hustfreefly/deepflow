@@ -42,6 +42,7 @@ STAGE_PATH_REGISTRY_V1 = {
     "data_collection": "data/collection.json",
     "structured_requirements": "data/structured_requirements.json",
     "frozen_spec": "data/frozen_spec.json",
+    "final_solution_md": "stages/final_solution.md",
     "requirements_traceability_matrix": "requirements_traceability_matrix.json",
     "planning": _sp("planning"),
     "reviewer_technical": _sp("reviewer_technical"),
@@ -132,7 +133,8 @@ DEPRECATED_STAGE_ALIASES = {
 }
 
 
-PIPELINE_STAGES = (
+# V1 legacy pipeline (10-stage) — kept for backward compatibility
+PIPELINE_STAGES_V1 = (
     "data_collection",
     "planning",
     "reviewers",
@@ -143,6 +145,13 @@ PIPELINE_STAGES = (
     "fixer_expert",
     "harness_final",
     "summarizer",
+)
+
+# V2 three-module pipeline (2026-07-13)
+PIPELINE_STAGES = (
+    "planning",        # Planning Module (Meta-Planner → Expert Planning → Convergence)
+    "research",        # Research Module (Expert Research → Consolidation)
+    "summary",         # Summary Module (Synthesis → Refinement → Harness Check)
 )
 
 

@@ -28,7 +28,7 @@ spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/f
   "domain": "...",
   "constraints": [
     {
-      "constraint_id": "{expert_name}-C01",
+      "constraint_id": "C-001",
       "description": "...",
       "priority": "MUST|SHOULD|MAY",
       "rationale": "为什么需要这个约束",
@@ -94,7 +94,7 @@ spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/f
     {"risk_id": "R-001", "description": "SQL 注入", "mitigation": "..."}
   ],
   "acceptance_criteria": [
-    {"criterion_id": "AC-001", "description": "软件域: OWASP ZAP / 投资域: 数据源交叉验证 / 硬件域: TDP 满载测试", "verification_method": "..."}
+    {"criteria_id": "AC-001", "description": "软件域: OWASP ZAP / 投资域: 数据源交叉验证 / 硬件域: TDP 满载测试", "verification_method": "..."}
   ],
   "covered_req_ids": ["REQ-P0-001"]
 }
@@ -115,7 +115,7 @@ spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/f
     {"risk_id": "R-001", "description": "核心专利即将到期", "mitigation": "评估续展可能性和替代方案"}
   ],
   "acceptance_criteria": [
-    {"criterion_id": "AC-001", "description": "专利组合健康度评估", "verification_method": "检索专利数据库验证专利状态"}
+    {"criteria_id": "AC-001", "description": "专利组合健康度评估", "verification_method": "检索专利数据库验证专利状态"}
   ],
   "focus_areas": ["专利组合分析", "技术壁垒评估", "竞争对手专利布局"],
   "covered_req_ids": ["REQ-P0-002"]

@@ -260,5 +260,5 @@ WORKER_TIMEOUT: Dict[str, int] = {
     "assess_worker": 180,
     "structure_worker": 180,
     "harness_worker": 240,
-    "orchestrator": 600,
+    "coordinator": 600,
 }

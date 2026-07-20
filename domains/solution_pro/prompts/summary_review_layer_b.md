@@ -40,14 +40,14 @@ bb = BlackboardManager('{session_id}')
 | Phase 2 | `summary_plan` | 审查焦点和问题 | **必须读** |
 | Planning 模块 | `planning_convergence` | 约束体系 + 验证清单 | **必须读** |
 | 原始需求 | `data/living_spec`（优先）或 `data/frozen_spec` | 需求清单（P0 REQ 提取） | **必须读** |
-| Research 模块 | `research_report` | 研究知识（信息守恒检查） | 必须读 |
+| Research 模块 | `research_digest` | 研究知识（信息守恒检查） | 必须读 |
 
 **读取顺序**：
 1. `data/living_spec`（优先）或 `data/frozen_spec` — 提取所有 P0 REQ-ID
 2. `planning_convergence` — 提取 unified_constraints + verification_checklist
 3. `base_solution` — 逐 section 审查
 4. `summary_plan` — 理解审查焦点
-5. `research_report` — 信息守恒检查
+5. `research_digest` — 信息守恒检查
 
 ---
 
@@ -65,18 +65,15 @@ bb = BlackboardManager('{session_id}')
 import json
 # 双路径：优先 living_spec
 try:
-    living_spec = bb.read_json('data/living_spec.json')
-    p0_req_ids = [r['id'] for r in living_spec.get('requirement_index', []) if r.get('priority') == 'P0']
+    spec = bb.read_json('data/living_spec.json')
+    p0_req_ids = [r['id'] for r in spec.get('requirement_index', []) if r.get('priority') == 'P0']
 except:
-    # 双路径: living_spec 优先
+    # Fallback to frozen_spec
     try:
-        living_spec = bb.read_json('data/living_spec.json')
-        p0_req_ids = [r['id'] for r in living_spec.get('requirement_index', []) if r.get('priority') == 'P0']
+        spec = bb.read_json('data/frozen_spec.json')
+        p0_req_ids = [r['req_id'] for r in spec.get('requirements', []) if r.get('priority') == 'P0']
     except:
-        # 向后兼容 frozen_spec
-        frozen_spec = bb.read_json('data/frozen_spec.json')
-        p0_req_ids = [r['req_id'] for r in frozen_spec.get('requirements', []) 
-                      if r.get('priority', '').startswith('P0')]
+        p0_req_ids = []
 
 # Python 搜索出现位置
 base_solution = bb.read_stage('base_solution')

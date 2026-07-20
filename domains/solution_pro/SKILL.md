@@ -1,17 +1,16 @@
 ---
 name: solution-pro
 description: "DeepFlow Solution Pro — 领域自适应方案设计引擎。触发：设计解决方案、架构设计、技术方案。"
-version: "V2.1.1"
+version: "V3.1.0"
 ---
 
 # Solution Pro — Agent 执行指南
 
-> **版本**: V2.1.1 | **最后更新**: 2026-07-08  
-> **架构**: 领域分析前置 + Orchestrator → Planning（三层）+ Research（多专家并行）+ Summary（5+1 Phase 收敛）  
-> **2.1.0 新增**: Domain Adaptation Layer — domain_analysis.py (DomainProfile 10字段) + 16+ Prompt 泛化 + Schema 开放枚举  
-> **V2.1.1 新增**: 反模式修复 9 个（3 P0 + 6 P1）+ 术语统一 + 测试 127 passed  
-> **2.0.0 架构**: 固定多阶段管线方案（已归档，仅用于已有 session 续跑）  
-> **2.0.0 改进**: 基于 E2E 2.0.0 质量评估，新增研究利用追踪 + Finding Ledger + 6 个确定性检查
+> **版本**: V3.1.0 | **最后更新**: 2026-07-14  
+> **架构**: 纯 Agent Orchestrator（V3.1）+ 对抗审查（L2）  
+> **V3.1.0 变更**: 删除 Python orchestrator 层（~7760 行）+ 删除 bridge 模式 + 新增对抗 Agent（语义质量审查 + 跨模块一致性检查）  
+> **质量保证**: L0 下限守卫（post_validator.py）+ L2 上限提升（对抗 Agent）  
+> **2.1.0 新增**: Domain Adaptation Layer — domain_analysis.py (DomainProfile 10字段) + 16+ Prompt 泛化 + Schema 开放枚举
 
 ---
 
@@ -30,31 +29,46 @@ version: "V2.1.1"
 
 ---
 
-## 🏗️ 架构总览
+## 🏗️ 架构总览（V3.1）
 
 ```
-MasterOrchestrator（极简调度器，不做语义判断）
+Orchestrator Agent（纯 LLM 调度器，depth-1）
   │
   ├── 🧠 Domain Analysis（领域自适应前置步骤）
   │   ├── domain_analysis.py → DomainProfile (10字段 Pydantic schema)
   │   ├── LLM 推断领域类型 + 专家角色 + 质量维度 + 验证方法
+  │
+  ├── 📝 Planning Module Agent（depth-2）
+  │   └── sessions_spawn → Worker Agents（depth-3）
+  │
+  ├── 🔍 Research Module Agent（depth-2）
+  │   └── sessions_spawn → Research Expert Agents（depth-3）
+  │
+  ├── 📋 Summary Module Agent（depth-2）
+  │   └── sessions_spawn → Analyzer + Synthesizer Agents（depth-3）
+  │
+  ├── 🔴 L0 下限守卫: post_validator.py（Schema + 覆盖率 + 守恒）
+  │
+  └── 🟢 L2 上限提升:
+      ├── Adversarial Quality Reviewer（语义质量审查）
+      └── Cross-Module Consistency Checker（跨模块数据流检查）
   │   ├── 4 个 YAML 配置降级为 few-shot 参考（software/investment/hardware/business）
   │   └── domain_profile 注入全链路：Planning/Research/Summary → task_builder → Prompt
   │
-  ├── Module 1: PlanningOrchestrator（三层架构）
+  ├── Module 1: Planning（三层架构，由 Module Agent 直接 spawn Workers）
   │   ├── Layer 0: Meta-Planner → 分析任务 → 选择专家 → 配置 Gate
   │   ├── Layer 1: Expert Planners ×N（并行）→ 各自生成约束/风险/验收标准
   │   └── Layer 2: Convergence Planner → 合并 + 验证 + P0 REQ 追溯
-  │       └── Gate A + Gate B 评估 → planning_convergence.json
+  │       └── planning_convergence.json
   │
-  ├── Module 2: ResearchOrchestrator（多专家并行研究）
+  ├── Module 2: Research（多专家并行研究，由 Module Agent 直接 spawn Workers）
   │   ├── Stage 1: Knowledge Freshness → LLM 提取查询 → web_search → 压缩
   │   ├── Stage 2: Expert Config → 从 planning_output.risk_areas 动态确定
   │   ├── Stage 3: Research Experts ×M（并行 + 迭代）→ 各自研究成果
   │   ├── Stage 4: Consolidation → 批量去重 + 冲突检测 + 分层分类
   │   └── Stage 5: Convergence → research_convergence.json
   │
-  └── Module 3: SummaryOrchestrator（5+1 Phase 收敛）
+  └── Module 3: Summary（5+1 Phase 收敛，由 Module Agent 直接 spawn Workers）
       ├── Phase 1: Base Synthesis → 基础方案
       ├── Phase 2: Meta Summary Planner → 审查规划
       ├── Phase 3: Parallel Analysis ×N → 多角度审查
@@ -62,6 +76,14 @@ MasterOrchestrator（极简调度器，不做语义判断）
       ├── Phase 5a: Document Generator → 方案文档
       └── Phase 5b: JSON Extractor → final_solution.json
 ```
+
+**V3.1 关键变更**（对比 V2.1）：
+- ❌ 删除 Python orchestrator 层（MasterOrchestrator / PlanningOrchestrator / ResearchOrchestrator / SummaryOrchestrator）
+- ❌ 删除 bridge 模式（FileBasedSpawnBridge）
+- ❌ 删除 Gate A/B 数值评分（convergence_layer.py）
+- ✅ Module Agent 直接通过 `sessions_spawn` 创建 Workers
+- ✅ 新增对抗 Agent（语义质量审查 + 跨模块一致性检查）
+- ✅ 保留 post_validator.py 作为 L0 下限守卫
 
 **设计原则**：
 - Code controls flow（确定性逻辑）
@@ -79,13 +101,13 @@ MasterOrchestrator（极简调度器，不做语义判断）
 
 ```python
 # 如果有 Spec Pro 产出，直接使用其 living_spec
-# 否则，从用户输入提取 topic + constraints，构造最小 frozen_spec
+# 否则，从 living_spec.requirement_index 读取 REQ-ID（由 spec_pro 原生生成）
 
-frozen_spec = {
+requirement_index = living_spec.get("requirement_index", [])
     "topic": "{TOPIC}",
     "solution_type": "architecture",  # architecture | migration | optimization
     "mode": "standard",
-    "domain": "backend_api",  # 从 frozen_spec 或用户输入推断
+    "domain": "backend_api",  # 从 living_spec 或用户输入推断
     "constraints": [
         {"req_id": "REQ-P0-001", "description": "...", "priority": "P0"},
     ],
@@ -218,7 +240,7 @@ sessions_yield()
 
 ```
 Step 1.1: Meta-Planner（Layer 0）
-  ├── 输入: frozen_spec.json + structured_requirements.json
+  ├── 输入: living_spec.md (MD source of truth) + structured_requirements.json
   ├── 分析任务领域和复杂度
   ├── 决定需要哪些专家（1-5 个）
   ├── 配置 Gate A 权重 + Gate B 动态检查项
@@ -308,7 +330,7 @@ Step 3.4: Final Convergence
 ```
 blackboard/<session_id>/
 ├── data/
-│   ├── frozen_spec.json              # 冻结的需求规格（REQ-ID 权威源）
+│   ├── frozen_spec.md                # MD source of truth（语义化 REQ-ID）
 │   └── structured_requirements.json  # 结构化需求清单
 │
 ├── stages/
@@ -363,24 +385,21 @@ blackboard/<session_id>/
 | `convergence_planner.md` | Planning L2 | 合并约束 + 验证清单 + P0 追溯 |
 | `reviewer_meta.md` | Planning | 验证 Meta-Planner 输出 |
 | `reviewer_convergence.md` | Planning | 验证 Convergence 输出 |
-| `harness_agent.md` | Planning | Gate A + Gate B 评估 |
+| `harness_agent.md` | 通用 | Gate A + Gate B 评估（统一 Harness） |
 | `research_expert_base.md` | Research | Research Expert 基础模板 |
-| `consolidator.md` | Research | 研究成果整合 |
+| `research_module.md` | Research | Research 模块调度（含 Consolidation） |
 | `summary_base_synthesizer.md` | Summary | Phase 1: 基础方案合成 |
 | `summary_meta_planner.md` | Summary | Phase 2: 审查规划 |
 | `summary_analyzer_base.md` | Summary | Phase 3: 并行分析 |
-| `summary_fix_judge.md` | Summary | Phase 4: 质量判断 |
-| `summary_fix_agent.md` | Summary | Phase 4: 问题修复 |
-| `summary_harness_check.md` | Summary | Phase 4: Harness 检查 |
-| `summary_refiner.md` | Summary | Phase 4: 方案精炼 |
-| `summary_json_extractor.md` | Summary | Phase 5b: JSON 提取 |
-| `orchestrator_completion.md` | Master | 完成处理 |
-| `planner_harness.md` | Planning | Planner Harness 验证 |
-| `researcher_harness.md` | Research | Researcher Harness 验证 |
-| `consolidator_harness.md` | Research | Consolidator Harness 验证 |
+| `summary_review_layer_b.md` | Summary | Phase 3: Review Layer B 审查 |
+| `summary_refiner.md` | Summary | Phase 4: 判断 + 修复（合并原 fix_judge + fix_agent） |
+| `summary_harness_check.md` | Summary | Phase 4 Step 2: Harness 检查 |
+| `summary_summarizer.md` | Summary | Phase 5a: 方案文档生成 |
+| `summary_json_extractor.md` | Summary | Phase 5b: JSON 元数据提取 |
+| `summary_module.md` | Summary | Summary 模块调度入口 |
+| `orchestrator.md` | Master | 主调度器（含完成处理） |
 | `ai_native_cognitive_base.md` | 通用 | AI Native 认知基础 |
-| `harness_scoring.md` | 通用 | Harness 评分逻辑 |
-| `auditor_harness.md` | 通用 | Auditor Harness 验证 |
+| `compliance_checker_base.md` | 通用 | 合规检查基础模板 |
 
 ### 2.0.0 专用（仅用于已有 2.0.0 session 续跑）
 

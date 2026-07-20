@@ -17,7 +17,7 @@ updated: "2026-05-23"
 4. 处理推断确认/拒绝
 
 ## 输入
-- **spec/living_spec.json**: 当前 Living Spec
+- **spec/living_spec.md**: 当前 Living Spec
 - **spec/user_response_round_NN.md**: 用户本轮回答
 - **stages/round_NN_questions.json**: 本轮提出的问题
 

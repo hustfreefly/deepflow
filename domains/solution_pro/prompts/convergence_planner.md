@@ -48,15 +48,16 @@
 
 ## 输出格式
 
-输出写入三个文件：
+> **契约铁律**：所有输出必须写入 **单一聚合 JSON 文件** `stages/planning_convergence.json`。
+> Planning Orchestrator 只等待此文件，然后自动拆分字段到 blackboard。
+> 不要分三个文件写——orchestrator 不会分别读取它们。
 
-### 1. `stages/unified_constraints.json`
-
-必须符合 `UnifiedConstraintsSchema`：
+输出写入 `stages/planning_convergence.json`（聚合 JSON，包含以下所有字段）：
 
 ```json
 {
   "schema_version": "1.0.0",
+
   "unified_constraints": [
     {
       "constraint_id": "UC-001",
@@ -82,6 +83,7 @@
       ]
     }
   ],
+
   "rejected_constraints": [
     {
       "constraint_id": "RC-001",
@@ -90,13 +92,16 @@
       "source_expert": "frontend_expert"
     }
   ],
+
   "meta": {
     "total_expert_plans": 3,
     "total_input_constraints": 45,
     "total_output_constraints": 30,
     "merge_ratio": 0.67
   },
+
   "covered_req_ids": ["REQ-P0-001", "REQ-P0-002", "REQ-P0-003"],
+
   "p0_constraints_merged": [
     {
       "id": "P0-001",
@@ -105,18 +110,9 @@
       "source_experts": ["meta_planner", "expert_a"],
       "conflicts_resolved": []
     }
-  ]
-}
-```
+  ],
 
-### 2. `stages/verification_checklist.json`
-
-必须符合 `VerificationChecklistSchema`：
-
-```json
-{
-  "schema_version": "1.0.0",
-  "checklist": [
+  "verification_checklist": [
     {
       "check_id": "VC-001",
       "constraint_id": "UC-001",
@@ -128,24 +124,9 @@
       "constraint_id": "UC-002",
       "verification_method": "使用领域基准测试工具验证关键性能指标（软件域: wrk/vegeta 压测；投资域: 估值模型回测；硬件域: 热仿真/实测）",
       "expected_result": "关键性能指标满足目标要求"
-    },
-    {
-      "check_id": "VC-003",
-      "constraint_id": "UC-003",
-      "verification_method": "使用领域验证工具确认核心组件方案（软件域: 版本检查；投资域: 资质审核；硬件域: 规格书对比）",
-      "expected_result": "核心组件方案符合设计要求"
     }
   ],
-  "total_checks": 30
-}
-```
 
-### 3. `stages/requirement_traceability.json`
-
-必须符合以下结构：
-
-```json
-{
   "requirement_traceability_matrix": [
     {
       "req_id": "REQ-P0-001",
@@ -158,14 +139,9 @@
       "uc_id": "UC-002, UC-005",
       "solution_section": "Section 4.1 - Performance Design",
       "coverage_status": "COVERED"
-    },
-    {
-      "req_id": "REQ-P0-003",
-      "uc_id": "UC-010",
-      "solution_section": "Section 5.3 - Data Layer",
-      "coverage_status": "PARTIAL"
     }
   ],
+
   "traceability_summary": {
     "total_p0_reqs": 31,
     "covered_reqs": 28,

@@ -35,8 +35,12 @@ import time
 from pathlib import Path
 
 from core.blackboard.blackboard_manager import BlackboardManager
+from core.blackboard.context_injector import build_bootstrap_task, auto_bootstrap
 
 logger = logging.getLogger(__name__)
+
+# 契约笼子：sessions_spawn task 参数安全阈值（6KB，实际限制 ~8KB）
+BOOTSTRAP_SIZE_THRESHOLD = 6000  # bytes
 
 try:
     from domains.research_pro.orchestrator import ResearchProOrchestrator
@@ -133,6 +137,36 @@ def run_research_pro(
     # Step 6: 根据模式决定超时时间
     timeout_seconds = 1800 if mode == "standard" else 600
 
+    # ═══════════════════════════════════════════
+    # 契约笼子：Auto-Bootstrap（解决 sessions_spawn 截断）
+    # orchestrator prompt > 6KB → 自动写入 blackboard + 替换为 bootstrap 引用
+    # ═══════════════════════════════════════════
+    deepflow_root = Path(__file__).resolve().parent.parent.parent
+    prompt_bytes = len(orchestrator_prompt.encode('utf-8'))
+    
+    if prompt_bytes > BOOTSTRAP_SIZE_THRESHOLD:
+        prompt_filename = "orchestrator_prompt.md"
+        bm.write(prompt_filename, orchestrator_prompt, subdir="stages")
+        
+        # 写入验证
+        verify = bm.read_stage_raw(f"stages/{prompt_filename}")
+        if not verify:
+            raise RuntimeError(
+                f"Bootstrap write-back verification failed for {prompt_filename}"
+            )
+        
+        task = build_bootstrap_task(
+            deepflow_root=deepflow_root,
+            blackboard_id=session_id,
+            prompt_filename=prompt_filename,
+            preamble=f"cd {deepflow_root} && PYTHONPATH=.",
+        )
+        logger.info(
+            f"Research Pro auto-bootstrap: {prompt_bytes}B → {len(task.encode('utf-8'))}B"
+        )
+    else:
+        task = orchestrator_prompt
+
     return {
         "session_id": session_id,
         "analysis_plan": init_result.get("analysis_plan", {}),
@@ -140,7 +174,9 @@ def run_research_pro(
             "runtime": "subagent",
             "mode": "run",
             "label": "research_pro_orchestrator",
-            "task": orchestrator_prompt,
+            "task": auto_bootstrap(deepflow_root, session_dir / "stages", task, "research_orchestrator"),
+            "cwd": str(deepflow_root),
+            "lightContext": True,
             "runTimeoutSeconds": timeout_seconds,
         },
     }

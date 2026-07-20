@@ -14,7 +14,7 @@ updated: "2026-06-03"
 对 Living Spec 进行 7 维度加权评分，输出 S/A/B/C 等级。
 
 ## 输入
-读取 `spec/living_spec.json`。
+读取 `spec/living_spec.md`。
 
 ## 评估维度
 
@@ -177,47 +177,62 @@ updated: "2026-06-03"
   "dimensions": [
     {
       "dimension": "objective",
-      "name": "目标与痛点",
-      "weight": 0.20,
       "score": 85,
+      "weight": 0.20,
       "reasoning": "核心目标清晰，痛点有具体数据",
       "missing_items": []
     },
     {
+      "dimension": "users",
+      "score": 70,
+      "weight": 0.15,
+      "reasoning": "角色基本明确但缺少典型场景描述",
+      "missing_items": ["缺少用户使用场景"]
+    },
+    {
+      "dimension": "capabilities",
+      "score": 75,
+      "weight": 0.15,
+      "reasoning": "Always/Never 边界清晰，Should 层缺失",
+      "missing_items": ["缺少 Should 层能力描述"]
+    },
+    {
+      "dimension": "quality_attributes",
+      "score": 60,
+      "weight": 0.15,
+      "reasoning": "有方向性描述但缺少具体量化指标",
+      "missing_items": ["缺少性能指标", "缺少安全标准"]
+    },
+    {
+      "dimension": "constraints",
+      "score": 80,
+      "weight": 0.15,
+      "reasoning": "预算和时间约束明确",
+      "missing_items": []
+    },
+    {
       "dimension": "integration",
-      "name": "环境与集成",
-      "weight": 0.10,
       "score": 30,
+      "weight": 0.10,
       "reasoning": "只提到了1个已有系统，集成需求未说明",
       "missing_items": ["缺少集成接口要求", "缺少部署环境说明"]
+    },
+    {
+      "dimension": "risks",
+      "score": 40,
+      "weight": 0.10,
+      "reasoning": "仅识别了1个风险，缺少假设和依赖",
+      "missing_items": ["缺少风险应对方案", "缺少假设清单"]
     }
   ],
-  "meta_quality": {
-    "clarity": { "score": 80, "reasoning": "目标清晰但约束模糊" },
-    "completeness": { "score": 65, "reasoning": "5/7 维度 > 50 分" },
-    "executability": { "score": 70, "reasoning": "能力需求具体但缺质量标准" },
-    "consistency": { "score": 85, "reasoning": "各维度无矛盾" },
-    "downstream_fitness": { "score": 60, "reasoning": "缺集成和风险分析" }
-  },
   "top_missing": ["缺少集成环境的详细信息", "风险识别不充分"],
   "recommendation": "建议继续收集集成环境和风险维度"
 }
 ```
 
-### 元质量评估（从需求维度推导）
-
-基于你刚才的 7 维度评分，评估以下 5 个元质量维度（每个 0-100 分）：
-
-| 元维度 | 含义 | 推导逻辑 |
-|--------|------|----------|
-| clarity（清晰度） | 需求是否表述清晰、无歧义 | 主要看 objective + constraints 的清晰度 |
-| completeness（完整度） | 需求是否覆盖所有关键维度 | 看 7 维度中有几个得分 > 50 |
-| executability（可执行度） | 需求是否足够具体可以执行 | 主要看 capabilities + quality_attributes 的具体程度 |
-| consistency（一致性） | 各维度之间是否一致、无矛盾 | 看 constraints 与 capabilities/quality 是否有冲突 |
-| downstream_fitness（下游适配度） | 需求是否适合下游方案设计 | 主要看 integration + risks 的覆盖度 |
-
-输出格式（追加到 JSON 输出的 `meta_quality` 字段中，如上所示）。
-```
+> **Schema 对齐说明**：输出 JSON 必须严格匹配 `QualityReport` Pydantic 模型：
+> - `dimensions` 为 list[Dimension]，每个元素包含 `dimension`, `score`, `weight`, `reasoning`, `missing_items`
+> - 不包含 `meta_quality`（已废弃，不在 Pydantic 契约中）
 
 ## 特殊状态：deliberately_omitted（用户主动放弃）
 

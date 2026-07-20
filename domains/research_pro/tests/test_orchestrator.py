@@ -507,8 +507,8 @@ class TestOrchestrator(unittest.TestCase):
     def test_completion_quality_scoring_uses_configured_thresholds(self):
         """quality_scoring 的 trust score 和 Tier 1 ratio 参与完成判定。"""
         orch = ResearchProOrchestrator(mode='quick', base_path=self.bp)
-        orch.registry.register('https://sec.gov/a', 'A', 'content-a', 'tier_1')
-        orch.registry.register('https://example.com/b', 'B', 'content-b', 'tier_3')
+        orch.registry.register('https://sec.gov/a', 'A', 'content-a', 'tier_1', fetch_status='fetched', content_origin='web_fetch')
+        orch.registry.register('https://example.com/b', 'B', 'content-b', 'tier_3', fetch_status='fetched', content_origin='web_fetch')
 
         completion = orch._evaluate_completion(
             report_md="# ResearchPro 研究报告\n\n## 摘要\nx\n\n## 核心发现\nx\n\n## 风险提示\nx\n\n## 参考资料\nx",

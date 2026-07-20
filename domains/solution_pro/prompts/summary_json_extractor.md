@@ -11,7 +11,7 @@ role: json_extractor
 
 你的职责是从已写完的方案文档中提取轻量级结构化元数据，供下游消费。
 
-> **核心原则**：JSON 包含结构化元数据 + 完整方案内容。final_solution 是 solution_document 的结构化版本，不是摘要。不压缩、不截断、不丢失任何 section。
+> **核心原则**：JSON 只包含轻量级结构化元数据（~1KB 衍生品）。完整方案的 source of truth 是 `frozen_spec.md`（MD-first 架构，ADR-009 Phase 3）。`full_solution` 字段为 Optional，仅放方案摘要。
 
 ---
 
@@ -37,7 +37,7 @@ bb = BlackboardManager('{session_id}')
 | 来源 | stage 名称 | 内容 | 优先级 |
 |------|-----------|------|--------|
 | Phase 5a | `solution_document` | 完整方案文档（**提取来源**） | **必须读** |
-| Phase 4 Step 3 | `verification_result` | 验证结果 | **必须读** |
+| Phase 4 Step 2 | `verification_result` | 验证结果 | **必须读** |
 | Planning 模块 | `planning_convergence` | 约束体系（约束覆盖统计） | 必须读 |
 
 **读取顺序**：
@@ -55,7 +55,7 @@ bb = BlackboardManager('{session_id}')
 4. **提取实施阶段** — 从实施计划 section
 5. **提取风险摘要** — 从风险缓解 section
 6. **引用 verification_result** — 验证状态
-7. **提取完整方案内容** — 将 solution_document 的每个 section 完整提取到 `full_solution.sections` 中。不截断、不压缩、不摘要。
+7. **（已废弃）** — 完整方案内容由 `frozen_spec.md`（MD-first）承载，JSON 不再复制完整方案。`full_solution` 仅放摘要。
 
 ---
 
@@ -126,11 +126,24 @@ bb = BlackboardManager('{session_id}')
     }
   ],
   
+  "covered_req_ids": ["REQ-001", "REQ-002"],
+  "semantic_anchors": [
+    {
+      "anchor_id": "SA-001",
+      "concept": "核心概念",
+      "doc_section": "Section 2"
+    }
+  ],
+  
   "verification_status": {
     "layer1_passed": 28,
     "layer1_failed": 2,
     "layer1_total": 30,
     "layer1_pass_rate": 0.93,
+    "layer2_passed": 3,
+    "layer2_failed": 0,
+    "layer2_total": 3,
+    "layer2_pass_rate": 1.0,
     "layer2_p0_coverage_pct": 1.0,
     "layer2_architecture_consistent": true,
     "layer2_guardrails_violated": [],
@@ -139,17 +152,10 @@ bb = BlackboardManager('{session_id}')
   },
   
   "full_solution": {
+    "_comment": "Optional — 方案摘要，非完整内容。完整方案见 frozen_spec.md",
     "title": "方案标题",
-    "sections": [
-      {
-        "heading": "方案概述",
-        "content": "完整内容（不截断）"
-      },
-      {
-        "heading": "方案设计",
-        "content": "完整内容（不截断）"
-      }
-    ]
+    "summary": "一段话概括方案核心思路和关键决策",
+    "key_sections": ["方案概述", "方案设计", "关键选型", "实施计划"]
   },
 
   "document_ref": "solution_document",
@@ -171,15 +177,17 @@ bb = BlackboardManager('{session_id}')
 
 ## 🔴 关键约束
 
-1. **JSON 包含结构化元数据 + 完整方案内容** — final_solution 是方案的结构化版本，不是摘要
+1. **JSON 只放轻量级元数据** — 完整方案由 `frozen_spec.md`（MD-first）承载，JSON 不复制完整方案内容
 2. **从已写完的文档中提取** — 不重新生成方案内容
 3. **必须包含 document_ref** — 指向 solution_document stage
 4. **必须包含 verification_status** — 从 verification_result 提取
 5. **必须包含 constraint_coverage** — 统计约束覆盖率
-6. **不能 spawn 子 Agent**
-7. **不能修改 solution_document**
-8. **full_solution.sections 的 content 必须完整** — 每个 section 的 content 长度应与 solution_document 中对应 section 一致。如果 section 超过 4000 字，分段写入但不截断。
-9. **不能丢失任何 section** — solution_document 中有的 section，final_solution.full_solution.sections 中必须有对应条目。
+6. **必须包含 covered_req_ids** — 从 solution_document 中提取被覆盖的需求 ID（从 living_spec 或 traceability matrix 中获取）
+7. **必须包含 semantic_anchors** — 从 solution_document 中提取语义锚点（关键概念与文档 section 的映射）
+8. **不能 spawn 子 Agent**
+9. **不能修改 solution_document**
+10. **full_solution 为 Optional 摘要** — 仅放方案标题 + 一段话摘要 + key_sections 列表，不复制完整 section 内容
+11. **（已废弃）** — 完整方案保真由 MD-first 架构保证，JSON 不承担此职责
 
 ---
 
@@ -209,15 +217,33 @@ print(f'Constraint coverage: {len(covered)}/{len(constraints)} = {coverage_ratio
 
 ### 验证状态提取
 
-```python
-# Python 提取验证状态
-verification = bb.read_stage('verification_result')
-if isinstance(verification, str):
-    import json
-    verification = json.loads(verification)
+> **注意**：`verification_result` 是一个 **list**（来自 Reviewer Layer 的 review_results），每个元素是 `{"analyzer_name": "...", "result": {...}}`。需要遍历 list 找到对应 analyzer。
 
-layer1 = verification.get('layer1_checklist', {})
-layer2 = verification.get('layer2_harness', {})
+```python
+# Python 提取验证状态（review_results 是 list，非 dict）
+review_results = bb.read_stage('verification_result')
+if isinstance(review_results, str):
+    import json
+    review_results = json.loads(review_results)
+
+layer1 = {}
+layer2 = {}
+
+if isinstance(review_results, list):
+    for item in review_results:
+        analyzer = item.get('analyzer_name', '')
+        result = item.get('result', {})
+        if isinstance(result, str):
+            import json
+            result = json.loads(result)
+        if 'layer1' in analyzer or 'checklist' in analyzer:
+            layer1 = result
+        elif 'layer2' in analyzer or 'harness' in analyzer:
+            layer2 = result
+elif isinstance(review_results, dict):
+    # 向后兼容：如果是 dict 格式
+    layer1 = review_results.get('layer1_checklist', {})
+    layer2 = review_results.get('layer2_harness', {})
 
 print(f"Layer 1: {layer1.get('passed', 0)}/{layer1.get('total_checks', 0)} passed")
 print(f"Layer 2 verdict: {layer2.get('overall_verdict', 'UNKNOWN')}")
@@ -239,8 +265,8 @@ print(f"Layer 2 verdict: {layer2.get('overall_verdict', 'UNKNOWN')}")
 ## 写入 Blackboard
 
 ```python
-import json
-bb.write_stage('final_solution', json.dumps(final_solution_json, indent=2, ensure_ascii=False))
+# write_stage 接收 dict，不接收 str（参见 _shared_subagent_rules.md）
+bb.write_stage('final_solution', final_solution_dict)
 ```
 
 ---

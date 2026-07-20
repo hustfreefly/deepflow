@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## V3.0.0 (2026-07-20) — 五域架构 + MD-First + GitHub 首发
+
+### 🆕 Deliver Pro V1.0.0 — 执行引擎
+- **Code-First Assembly**: 确定性拼接替代 LLM 组装，解决 84% 内容丢失
+  - 保留率 ≥95%（实测 100.8%），零 LLM 调用
+  - 不变量: `len(final) >= sum(len(worker.content))`
+- **5 Phase 流水线**: Analyze → Generate → Integrate → Validate → Package
+- **双场景验证**: 报告场景（VC 框架, 4.15/5.0）+ 编程场景（JWT, 30/30 pytest）
+- 18 个 Pydantic 契约模型 + 6 个 prompt 模板
+
+### Solution Pro V3.1.0 — 纯 Agent Orchestrator
+- **架构升级**: Python orchestrator → 纯 Agent Orchestrator + 对抗审查
+  - 删除 ~7,760 行 Python orchestrator 代码
+  - 新增对抗 Agent: adversarial_quality_reviewer + cross_module_consistency_checker
+- **L0 下限守卫**: post_validator.py（Schema + 覆盖率 + 守恒检查）
+- **L2 上限提升**: 对抗 Agent（语义质量审查 + 跨模块一致性检查）
+- FixFlow R6: Research→Summary 数据流修复 + 信息守恒 soft gate
+
+### Ship Pro V8.2 — 单入口 + 域自适应
+- **单入口 Dispatcher**: `run_ship_pro(project_name)` → Orchestrator 全权调度
+- **AI Native 泛化**: domain_analysis 前置 + 3 跨域示例教思考
+- FixFlow R1-R8: 50+ 项修复，Codex 跨模型交叉验证
+
+### MD-First 架构迁移（ADR-009）
+- **核心决策**: MD 做 source of truth，JSON 做 ~1KB 衍生品
+- 全域完成: `render_xxx_md()` + sidecar write + MD 优先读取
+- **Semantic REQ-ID**: REQ-{CATEGORY}-{NNN} 格式（16 种 category 前缀）
+- **全域 MD 迁移**: 4/5 域完成（Spec/Solution/Ship/Deliver），592+ tests passed
+
+### Semantic Anchors + 信息守恒
+- 不可变实体跨域透传: living_spec → frozen_spec → WorkerContext
+- 三层防线: 注入(预防) + 位置优化(增强) + Judge(检测修复)
+- 契约笼子: Pydantic raise ValueError，不静默降级
+
+### GitHub 首发清理
+- 移除 _archive/ (331 files) + frontend/ (39 files) + domains/*/_archive/ (442 files)
+- 移除前端死文档（FRONTEND_DESIGN.md 等）
+- .gitignore 补全 archive/frontend 规则
+- 11 个 auto-backup 提交 squash 为 1 个有意义提交
+
+### 各域版本
+| 域 | 版本 | 测试 | 关键变更 |
+|:---|:---:|:---:|:---|
+| Deliver Pro | V1.0.0 | 213 | 🆕 执行引擎 |
+| Solution Pro | V3.1.0 | 143 | 纯 Agent + 对抗审查 |
+| Ship Pro | V8.2 | 36 | 单入口 + 域自适应 |
+| Spec Pro | V2.2.0 | 60 | MD-First + Semantic REQ-ID |
+| Research Pro | V1.0 | 15 | 未变 |
+| **Total** | — | **467** | — |
+
 ## V2.1.1 (2026-07-08) — 全项目 AI Native 反模式修复
 
 ### 修复概要
@@ -37,8 +87,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 测试
 - Solution Pro: 127 passed
-- Spec Pro: 52 passed  
-- 总计: 179 passed, 10 skipped, 0 failures
+- Spec Pro: 52 passed
+- Ship Pro: 19 passed
+- 总计: 198 collected, 0 failures
 
 ### AI Native 修复模式
 所有修复遵循同一模式：**代码做确定性粗筛（结构/标记/格式），语义判断交给 LLM Judge**。
@@ -49,6 +100,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Solution Pro: 36 文件  
 - Ship Pro: 3 文件
 - Skills: 2 文件（FixFlow V1.3, AgentDryRun V3.4）
+
+## [2.2.0] - 2026-07-08 — Spec Pro V2.2.0
+
+### Spec Pro V2.2.0
+- **AI Native 反模式修复 (2 个)**
+  - Jaccard bigram 语义去重 → 精确匹配，语义去重交 LLM
+  - 子串匹配做修改定位 → 精确匹配
+- **测试**: 52 passed
+
+### 文件变更
+- Spec Pro: 17 文件修改
+- 详见 V2.1.1 修复概要表
 
 ## [2.1.0] - 2026-07-07
 

@@ -1,3 +1,7 @@
+> ⚠️ HISTORICAL: 本文档为 2026-04-15 的 V3 方案 D（External Coordinator 模式）。当前协议为五域 MD-first 架构，详见 [deliver_pro/03-protocols.md](../deliver_pro/03-protocols.md)。
+
+---
+
 # DeepFlow 0.1.0 协议层说明书
 
 > **历史文档**: 本文档为 V3.0 设计阶段的历史记录，当前实现见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)

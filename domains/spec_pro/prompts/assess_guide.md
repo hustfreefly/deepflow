@@ -15,7 +15,7 @@ updated: "2026-07-07"
 ---
 
 ## 输入文件
-- `spec/living_spec.json`
+- `spec/living_spec.md`
 - `spec/quality_trajectory.json`（可选，用于判断轮次策略）
 - `spec/conversation_log.json`（历史对话，用于问题去重）
 - `stages/round_{NN-1}_questions.json`（上轮问题）
@@ -32,7 +32,7 @@ updated: "2026-07-07"
 > **完整评估框架见 `assess.md`**。以下为本阶段的输入输出规范。
 
 ### 输入
-- `spec/living_spec.json`（当前版本，评分基于 `confirmed` 层内容）
+- `spec/living_spec.md`（当前版本，评分基于 `confirmed` 层内容）
 - `spec/quality_trajectory.json`（历史趋势，用于判断进步幅度）
 
 ### 输出
@@ -52,7 +52,7 @@ updated: "2026-07-07"
 
 ### 输入
 - `spec/quality_report.json`（Phase 1 产出，决定提问优先级）
-- `spec/living_spec.json`（当前版本）
+- `spec/living_spec.md`（当前版本）
 - `spec/conversation_log.json`（用于问题去重）
 
 ### 输出

@@ -7,6 +7,7 @@ Phase 2 Worker 的输出定义。
 - 只约束必要字段（确保可验证性）
 - 支持多种交付物类型（工作包、AC、依赖图等）
 """
+import warnings
 from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional, Dict, Any
 
@@ -29,6 +30,22 @@ class WorkPackage(BaseModel):
             elif 'id' in data and 'wp_id' not in data:
                 data['wp_id'] = data['id']
         return data
+
+    @model_validator(mode='after')
+    def _warn_empty_covered_req_ids(self):
+        """P1-2: covered_req_ids 为空时发出 warning（不阻断）。
+        
+        空 covered_req_ids 意味着本 WP 无法被信息守恒追踪，
+        下游 Consolidator/Gate 可能标记为 WARNING。
+        """
+        if not self.covered_req_ids:
+            warnings.warn(
+                f"WorkPackage {self.id}: covered_req_ids 为空。"
+                f"建议填写本 WP 覆盖的需求 ID，以确保信息守恒可追溯。",
+                UserWarning,
+                stacklevel=2,
+            )
+        return self
     title: str = Field(..., description="工作包标题")
     description: str = Field(
         ..., min_length=100,

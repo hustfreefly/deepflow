@@ -1,11 +1,14 @@
 """
 Solution Pro 模块入口
 
-Version: 2.0.0
-Date: 2026-07-05
+Version: 3.0.0
+Date: 2026-07-14
 
-2.0.0: AI Native 重构，三模块架构（Planning → Research → Summary）
-2.0.0: 2.0.0 入口 run_solution_pro()，使用 MasterOrchestrator 三模块架构
+3.0.0: 单一路径架构（Agent Orchestrator + Python 契约后置验证）
+       删除双路径 + 删除降级机制。
+       唯一路径：Agent Orchestrator（sessions_spawn）。
+       Python 契约笼子由 Module Agent 在 exec 中调用 orchestrator.run() 触发。
+       后置验证由 post_validator.py 在 Agent 完成后执行。
 
 ## 唯一入口
 
@@ -15,64 +18,10 @@ result = run_solution_pro(user_input="...", topic="...", ...)
 sessions_spawn(**result["spawn_params"])
 ```
 
-- **run_solution_pro**: 3 模块编排架构（推荐）（Planning → Research → Summary）
-  - 适用于：新流程、需要模块化、断点续跑、降级策略
+- **run_solution_pro**: Agent Orchestrator 路径
   - 入口：run_solution_pro(user_input, **kwargs)
-  - 核心：MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator
-"""
-
-"""
-Solution Pro - 10阶段方案设计管线
-
-## 唯一入口
-
-```python
-from domains.solution_pro import run_solution_pro
-
-result = run_solution_pro(
-    topic="设计一个AI算力调度平台",
-    solution_type="architecture",  # 可选
-    mode="standard",  # 可选
-    constraints=["10000+并发"],  # 可选
-    stakeholders=["技术团队"],  # 可选
-)
-
-# result = {
-# "session_id": "sol_xxx",
-# "base_path": "/path/to/blackboard/sol_xxx",
-# "plan_path": "/path/to/blackboard/sol_xxx/execution_plan.json",
-# }
-```
-
-## 主 Agent 执行流程
-
-在主 Agent 的 exec 中生成任务与执行计划：
-```python
-from domains.solution_pro import run_solution_pro
-
-result = run_solution_pro(
-    topic="...",
-    solution_type="architecture",
-    mode="standard",
-    constraints=[],
-    stakeholders=[],
-)
-print(result["plan_path"])
-```
-
-## 架构
-
-```
-主 Agent exec
-  └── run_solution_pro(topic)
-        └── _SolutionDispatcher.init() → 生成 session_id + blackboard
-        └── _SolutionDispatcher.save_tasks()
-        └── _SolutionDispatcher.save_execution_plan()
-              └── 生成固定10阶段 execution_plan.json + tasks.json
-                    ├── LLM Orchestrator 按 execution_plan 调度 workers
-                    ├── Planner 完成后刷新 control_contract.json
-                    └── expected_output_path 作为完成判定契约
-```
+  - 架构：Orchestrator Agent → spawn 3 Module Agents → 各 Module 调用 Python orchestrator.run()
+  - 后置验证：Agent 完成后 post_validator.py 检查输出质量
 """
 
 import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
@@ -81,52 +30,105 @@ import os
 import pathlib
 from datetime import datetime, timezone
 from typing import Optional  # 契约笼子：_try_load_handoff_package 返回类型
-from core.blackboard.context_injector import build_agent_context
+from core.blackboard.context_injector import build_agent_context, build_bootstrap_task, build_agent_context_slim
 from pathlib import Path
 
 from .blackboard import BlackboardManager
-from .master_orchestrator import MasterOrchestrator
+
+
+
+
+def _extract_requirements_from_input(user_input: str) -> list:
+    """从 user_input 文本确定性提取需求列表（Fallback 路径）。
+
+    适用场景: 用户未经 Spec Pro 直接调用 Solution Pro 时，
+    从 Markdown 编号列表中提取需求。
+
+    格式提取（确定性，不做语义判断）:
+      - 查找 '## Requirements' 段
+      - 提取编号列表（1. 2. 3. 或 - ）
+      - 分配 REQ-INPUT-NNN 前缀
+
+    Returns:
+        requirement_index 列表（可能为空）
+    """
+    import re
+    lines = user_input.split('\n')
+
+    # 1. 尝试找 '## Requirements' 段落
+    req_section_lines: list[str] = []
+    in_req_section = False
+    for line in lines:
+        stripped = line.strip()
+        if re.match(r'^##\s+[Rr]equirements?', stripped):
+            in_req_section = True
+            continue
+        if in_req_section and stripped.startswith('## '):
+            break  # 下一个 section
+        if in_req_section:
+            req_section_lines.append(stripped)
+
+    # 如果没找到 Requirements section，用全文
+    search_lines = req_section_lines if req_section_lines else [l.strip() for l in lines]
+
+    # 2. 提取编号列表项
+    requirements = []
+    counter = 0
+    for line in search_lines:
+        # 匹配: 1. xxx, - xxx, * xxx
+        match = re.match(r'^(?:\d+[.)\s]|[-*]\s+)(.+)', line)
+        if match:
+            text = match.group(1).strip()
+            if len(text) >= 10:  # 过滤过短的项
+                counter += 1
+                requirements.append({
+                    'id': f'REQ-INPUT-{counter:03d}',
+                    'description': text,
+                    'priority': 'MUST',
+                    'source_section': 'user_input',
+                    'category': 'FUNC',
+                })
+
+    return requirements
 
 
 def _try_load_handoff_package(bm: BlackboardManager) -> Optional[dict]:
-    """从 blackboard 加载 Spec Pro 的 handoff package（契约笼子验证版）。
+    """从 blackboard 加载 Spec Pro 的 handoff package（ADR-009 P1: MD 唯一版）。
 
-    设计意图：
-      当 living_spec 未通过 kwargs 传入时，从 blackboard 扫描
-      最新的 spec_handoff_package.json，用 Pydantic 模型验证后
-      提取 living_spec。验证失败 → raise ValueError，不静默降级。
+    ADR-009 P1（2026-07-12）：MD 唯一架构
+      必须从 living_spec.md 读取（parse_living_spec_md）。
+      MD 不可用 → raise ValueError（不再 fallback 到 JSON）。
 
-    Args:
-        bm: 已初始化的 BlackboardManager 实例
+    契约笼子：
+      Pydantic 验证 handoff_allowed + gate 结果。
+      handoff_allowed=False → raise ValueError。
+      MD 不可用 → raise ValueError（不可信的约束不是约束）。
 
     Returns:
-        验证后的 living_spec dict，如果找不到 handoff package 则返回 None
+        living_spec dict（仅从 MD parse）
 
     Raises:
-        ValueError: handoff_allowed=False 或契约验证失败时抛出
+        ValueError: handoff_allowed=False / 契约验证失败 / MD 不可用
     """
     import glob
+    import logging as _logging
+    _logger = _logging.getLogger(__name__)
 
-    # 契约笼子：导入 Pydantic 模型
     from contracts.shared.handoff_contract import HandoffPackage
 
-    # 在 blackboard 根目录下扫描最新的 spec/spec_handoff_package.json
-    # 设计意图：spec_pro 和 solution_pro 共享同一个 blackboard 根目录，
-    #          但各自有独立的 session 子目录，所以需要扫描查找。
-    blackboard_root = bm._base  # blackboard 根目录
+    # 扫描最新的 spec_handoff_package.json
+    blackboard_root = bm._base
     pattern = str(blackboard_root / "*" / "spec" / "spec_handoff_package.json")
     candidates = sorted(glob.glob(pattern), key=lambda p: Path(p).stat().st_mtime, reverse=True)
 
     if not candidates:
-        # 没有 handoff package → 返回 None，让调用方决定后续行为
         return None
 
-    # 读取最新的 handoff package
+    # 读取 + Pydantic 验证
     latest_path = Path(candidates[0])
     with open(latest_path, "r", encoding="utf-8") as f:
         raw_package = json.load(f)
 
-    # 契约笼子：Pydantic 验证（失败直接 raise ValueError）
     try:
         package = HandoffPackage(**raw_package)
     except Exception as e:
@@ -134,14 +136,36 @@ def _try_load_handoff_package(bm: BlackboardManager) -> Optional[dict]:
             f"handoff package 契约验证失败 ({latest_path}): {e}"
         ) from e
 
-    # 契约铁律：handoff_allowed=False → 阻断，不静默继续
+    # 契约铁律：handoff_allowed=False → 阻断
     if not package.handoff_allowed:
         raise ValueError(
             f"Spec Pro handoff 被拒绝: block_reason={package.block_reason}"
         )
 
-    # 验证通过 → 提取 living_spec
-    return package.living_spec
+    # ── ADR-009 P1: MD 唯一（不可信的约束不是约束） ──
+    md_path_str = raw_package.get("living_spec_md_path")
+    if not md_path_str:
+        raise ValueError(
+            f"ADR-009 契约违反: handoff package 缺少 living_spec_md_path。"
+            f"Root cause: save_handoff_package() MD 渲染失败或未执行。"
+            f"Package: {latest_path}"
+        )
+
+    md_path = Path(md_path_str)
+    if not md_path.exists():
+        raise ValueError(
+            f"ADR-009 契约违反: living_spec.md 文件缺失 ({md_path})。"
+            f"Root cause: save_handoff_package() 写入失败或文件被删除。"
+        )
+
+    from domains.spec_pro.spec_living_md import parse_living_spec_md
+    md_content = md_path.read_text(encoding="utf-8")
+    living_spec = parse_living_spec_md(md_content)
+    _logger.info(
+        f"ADR-009: living_spec loaded from MD ({len(md_content)} chars, "
+        f"{len(living_spec.get('confirmed', {}))} confirmed keys)"
+    )
+    return living_spec
 
 
 def run_solution_pro(user_input: str, **kwargs):
@@ -163,11 +187,7 @@ def run_solution_pro(user_input: str, **kwargs):
                   living_spec（Spec Pro 桥接）
 
     Returns:
-        {
-            "session_id": str,
-            "base_path": str,
-            "spawn_params": dict,  # 直接传给 sessions_spawn
-        }
+        {"session_id": str, "base_path": str, "spawn_params": dict}
     """
     # 1. 初始化 Blackboard session
     topic = kwargs.get("topic", user_input[:50])
@@ -178,24 +198,89 @@ def run_solution_pro(user_input: str, **kwargs):
     session_id = bm.session_id
     session_dir = str(bm.session_dir)
 
-    # 2. 使用 frozen_spec.py 生成完整 Frozen Spec（含 REQ-IDs、executive_summary、requirement_groups）
-    from domains.solution_pro.frozen_spec import build_frozen_spec
+    # 2. ADR-009 Phase 3: 从 living_spec 直接读取 requirement_index
+    #    frozen_spec.py 已废弃（DEPRECATED），不再生成 frozen_spec
+    #    requirement_index 由 spec_pro/coordinator.py 在 _write_living_spec() 中生成
     living_spec = kwargs.get("living_spec")
 
     # 契约笼子（2026-07-06）：handoff package 消费逻辑
-    # 设计意图：当 living_spec 未通过 kwargs 直接传入时，
-    #          从 blackboard 读取 spec_pro 产出的 handoff package，
-    #          用 Pydantic 模型验证后提取 living_spec。
-    #          确保 handoff_allowed=False 时立即阻断，不静默继续。
     if living_spec is None:
         living_spec = _try_load_handoff_package(bm)
 
-    frozen_spec = build_frozen_spec(
-        topic=topic,
-        constraints=kwargs.get("constraints", []),
-        living_spec=living_spec,
+    # ADR-009 Phase 3: requirement_index 已在 living_spec 中（由 spec_pro 生成）
+    # 契约笼子: living_spec 必须包含 requirement_index，否则 raise
+    requirement_index = living_spec.get("requirement_index", []) if isinstance(living_spec, dict) else []
+    if not requirement_index:
+        import logging
+        _logger = logging.getLogger(__name__)
+        _logger.warning(
+            "ADR-009 Phase 3: living_spec.requirement_index 为空。"
+            "尝试 fallback 生成..."
+        )
+        # Fallback 1: 从 living_spec 的 narrative/confirmed 提取
+        try:
+            from domains.solution_pro.living_spec import generate_requirement_index
+            requirement_index = generate_requirement_index(living_spec or {})
+        except Exception:
+            requirement_index = []
+
+        # Fallback 2 (L2): 从 user_input 文本确定性提取（Markdown 编号列表格式）
+        if not requirement_index and user_input:
+            requirement_index = _extract_requirements_from_input(user_input)
+
+        # 契约铁律: 0 requirements = raise ValueError（不静默降级）
+        if not requirement_index:
+            raise ValueError(
+                "ADR-009 契约违反: requirement_index 为空。\n"
+                "根因: 以下三种路径均未产出需求:\n"
+                "  1. living_spec.requirement_index 为空（Spec Pro 未生成）\n"
+                "  2. generate_requirement_index(living_spec) 未提取到需求\n"
+                "  3. _extract_requirements_from_input(user_input) 未提取到需求\n"
+                "修复: 先运行 Spec Pro 生成 living_spec.md，或确保 user_input 包含编号需求列表。"
+            )
+
+    # 写入简化的 frozen_spec（含 requirement_index + requirements 兼容层）
+    # CRITICAL #2: Ship Pro 期望 requirements 字段，同时保留 requirement_index 用于内部追踪
+    # B1-FIX: semantic_anchors 从 living_spec 透传（pipeline_designer.py:169 契约笼子要求）
+    _semantic_anchors = (
+        living_spec.get("semantic_anchors", [])
+        if isinstance(living_spec, dict) else []
     )
+    frozen_spec = {
+        "topic": topic,
+        "requirement_index": requirement_index,
+        "requirements": requirement_index,  # CRITICAL #2: Ship Pro 兼容层
+        "semantic_anchors": _semantic_anchors,  # B1-FIX: Ship Pro 契约笼子要求
+        "metadata": {
+            "source": "spec_pro",
+            "adr009_phase": 3,
+            "generated_at": datetime.now().isoformat(),
+        },
+    }
     bm.write("data/frozen_spec.json", frozen_spec)
+
+    # B2-FIX: Write FULL living_spec to blackboard (preserve narrative/confirmed/stakeholders/guardrails)
+    # Previously only simplified frozen_spec was written, losing critical context.
+    if isinstance(living_spec, dict) and living_spec:
+        try:
+            bm.write("data/living_spec.json", living_spec)
+        except Exception as e:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                f"B2: Failed to write full living_spec.json: {e}"
+            )
+
+    # CRITICAL: Render frozen_spec.md for Ship Pro cross-domain consumption (ADR-009)
+    # Ship Pro expects data/frozen_spec.md (MD source of truth), not JSON
+    try:
+        from domains.solution_pro.frozen_living_md import render_frozen_spec_md
+        frozen_spec_md = render_frozen_spec_md(frozen_spec)
+        bm.write("data/frozen_spec.md", frozen_spec_md)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            f"Failed to render frozen_spec.md (Ship Pro will fail): {e}"
+        )
 
     # 3. 初始化 master_state
     bm.write("master_state.json", {
@@ -204,7 +289,6 @@ def run_solution_pro(user_input: str, **kwargs):
         "current_module": None,
         "completed_modules": [],
         "failed_modules": [],
-        "degraded_modules": [],
     })
 
     # 4. 清理旧文件（断点续跑时防止误判）
@@ -219,12 +303,11 @@ def run_solution_pro(user_input: str, **kwargs):
 
     deepflow_root = str(Path(__file__).resolve().parent.parent.parent)
 
-    # 注入 Agent 上下文（Blackboard API 指南 + 路径信息）
-    agent_context = build_agent_context(
+    # 契约笼子（2026-07-12）：精简上下文注入，避免 ~6KB 样板占用 LLM 注意力窗口
+    # 完整指令已在 orchestrator.md 中，不需要重复注入 API 文档和目录树
+    agent_context = build_agent_context_slim(
         deepflow_root=Path(deepflow_root),
         blackboard_id=session_id,
-        include_schema=False,
-        include_analysis_workflow=True,
     )
 
     import json as _json
@@ -240,20 +323,84 @@ def run_solution_pro(user_input: str, **kwargs):
         .replace("{config}", config_json)
     )
 
-    # 6. 返回 spawn_params（主 Agent 用 sessions_spawn 启动）
+    # 6. FIX: Bootstrap task pattern — 写入 blackboard，发送最小引用
+    #    解决 sessions_spawn task 参数 ~8KB 硬限制导致的静默截断
+    #    完整 prompt 写入 stages/orchestrator_prompt.md（~16KB）
+    #    task 参数只包含 bootstrap 引用（~1KB）
+    prompt_filename = "orchestrator_prompt.md"
+    bm.write(prompt_filename, orchestrator_prompt, subdir="stages")
+
+    bootstrap_task = build_bootstrap_task(
+        deepflow_root=Path(deepflow_root),
+        blackboard_id=session_id,
+        prompt_filename=prompt_filename,
+        preamble=f"cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。",
+    )
+
+    # 7. 返回 spawn_params（唯一路径：Agent Orchestrator）
+    #    Python 契约笼子由 Module Agent 在 exec 中调用 orchestrator.run() 时触发
+    #    后置验证由 post_validator.py 在 Agent 完成后执行
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        f"run_solution_pro: session={session_id}, Agent Orchestrator path"
+    )
     return {
         "session_id": session_id,
         "base_path": session_dir,
+        "execution_path": "agent_orchestrator",
         "spawn_params": {
             "runtime": "subagent",
             "mode": "run",
             "label": "solution_orchestrator",
-            "task": orchestrator_prompt,
+            "task": bootstrap_task,
             "cwd": deepflow_root,
             "lightContext": True,
         },
     }
 
 
-# 契约笼子（2026-07-05）：显式导出 2.0.0 和 2.0.0，避免函数覆盖
-__all__ = ['run_solution_pro']
+# ============================================================================
+# ADR-009: Track Generation
+# ============================================================================
+
+def generate_solution_track(base_path: str) -> dict | None:
+    """
+    ADR-009: 从 final_solution.md 生成 solution_track.json。
+
+    在 Solution Pro Orchestrator 完成后调用（通过 exec 或 post-completion hook）。
+    非阻断：任何步骤失败 → log warning，返回 None。
+
+    Args:
+        base_path: Solution Pro session 目录（blackboard/{session_id}/）
+
+    Returns:
+        track_data dict if successful, None if failed
+    """
+    import logging
+    from pathlib import Path as _Path
+
+    logger = logging.getLogger(__name__)
+    try:
+        from core.track_generator import generate_track_from_md
+    except ImportError:
+        logger.info("ADR-009: track_generator not available, skipping")
+        return None
+
+    base = _Path(base_path)
+    # Try stages/final_solution.md first (sidecar), then root final_solution.md
+    md_path = base / "stages" / "final_solution.md"
+    if not md_path.exists():
+        md_path = base / "final_solution.md"
+    if not md_path.exists():
+        logger.warning(f"ADR-009: final_solution.md not found in {base_path}")
+        return None
+
+    return generate_track_from_md(
+        md_path=md_path,
+        domain="solution_pro",
+        output_path=base / "solution_track.json",
+    )
+
+
+# 契约笼子（2026-07-14）：显式导出
+__all__ = ['run_solution_pro', 'generate_solution_track']

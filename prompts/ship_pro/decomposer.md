@@ -68,6 +68,7 @@ tags: [ship_pro, prompt, decomposition, work_package]
   "work_packages": [
     {
       "id": "WP-001",
+      "status": "draft",
       "title": "<简洁描述 WP 目标，不超过 30 字>",
       "source_modules": ["COMP-001", "COMP-002"],
       "dependencies": [],
@@ -95,6 +96,8 @@ tags: [ship_pro, prompt, decomposition, work_package]
   }
 }
 ```
+
+**status 字段说明**：每个 WP 的 `status` 字段固定为 `"draft"`，表示未执行的 WP。下游 deliver_pro 在执行时会将 status 更新为 `in_progress` → `completed` / `failed`。
 
 ## 原则继承（从 Architect 继承）
 

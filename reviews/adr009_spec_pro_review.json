@@ -1,0 +1,43 @@
+{
+  "domain": "spec_pro",
+  "issues": [
+    {
+      "severity": "P0",
+      "category": "集成点",
+      "description": "集成点cmd_status()不是Spec Pro完成的唯一路径。Coordinator.is_done()可被直接调用，绕过cmd_status()。",
+      "suggestion": "将track生成移至Coordinator层，在is_done()返回True时触发，或添加状态变更钩子确保任何完成路径都触发track生成。"
+    },
+    {
+      "severity": "P1",
+      "category": "转换器",
+      "description": "_spec_json_to_md()未处理living_spec.json中的confirmed层完整结构，如core_decisions/architecture/primitives等深度嵌套字段。",
+      "suggestion": "扩展转换器以递归处理嵌套结构，或添加字段覆盖度检查，确保关键信息不丢失。"
+    },
+    {
+      "severity": "P1",
+      "category": "方案",
+      "description": "当前CLI层集成方案依赖外部调用cmd_status()，若主Agent直接读取Blackboard状态而不调用API，track将不会生成。",
+      "suggestion": "考虑在Coordinator.build_handoff_on_done()中集成track生成，与handoff package构建同步进行。"
+    },
+    {
+      "severity": "P2",
+      "category": "泛化性",
+      "description": "_spec_json_to_md()硬编码字段映射，当living_spec结构演进时（如新增confirmed.requirement_annotations），需要同步修改转换器。",
+      "suggestion": "引入Schema驱动的转换器，从living_spec.contracts.LivingSpec Pydantic模型自动生成MD，或添加版本兼容性检查。"
+    },
+    {
+      "severity": "P2",
+      "category": "转换器",
+      "description": "生成的MD未经过validate_md_structure()校验，格式可能与templates/spec_requirements.md模板不完全一致。",
+      "suggestion": "在generate_track_from_json()中添加MD结构校验步骤，确保生成的MD符合ADR-009标准格式。"
+    },
+    {
+      "severity": "P2",
+      "category": "集成点",
+      "description": "generate_spec_track()在cmd_status()中调用，但cmd_status()可能被多次调用（轮询状态），导致重复生成。",
+      "suggestion": "添加幂等性检查，如检查spec_track.json是否已存在，或基于文件mtime判断是否需要重新生成。"
+    }
+  ],
+  "overall_assessment": "当前方案评分: 6/10。方案基本可行但存在关键缺陷：集成点位置不当导致覆盖不全，转换器字段覆盖不完整，缺乏输出校验。Spec Pro作为DeepFlow首域，其track生成方案应具有示范效应，当前实现尚未达到生产就绪标准。",
+  "better_alternative": "推荐替代方案：在Coordinator.build_handoff_on_done()中集成track生成。理由：(1) build_handoff_on_done()是Spec Pro完成的必经路径，密度gate通过后才会调用；(2) 与handoff package构建同步，语义一致（都是完成时的下游交付物）；(3) 天然幂等（handoff package本身有唯一性保证）；(4) 可复用living_spec.json的已验证数据，避免重复读取。实现：在build_handoff_on_done()中，density gate通过后、保存handoff package前，调用generate_spec_track()，并将track.json路径加入handoff package的artifacts列表。"
+}

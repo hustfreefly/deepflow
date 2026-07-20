@@ -1,4 +1,5 @@
 """StageContract: checkpoint 的 schema + semantic minimums + artifact path 验证。"""
+import json
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
@@ -8,6 +9,7 @@ class StageContract(BaseModel):
     stage_name: str
     required_keys: List[str] = Field(default_factory=list)
     schema_type: Optional[str] = None  # "dict" | "list" | "string_content"
+    content: Optional[str] = None  # 可选内容字段（兼容 Mothership 直传）
     min_content_length: int = 10  # 内容最小长度（防止空壳 dict）
     artifact_path: Optional[str] = None  # 关联的 artifact 路径
 
@@ -87,9 +89,16 @@ STAGE_CONTRACTS: Dict[str, StageContract] = {
 def validate_checkpoint(contract: StageContract, data: dict) -> tuple:
     """验证 checkpoint 数据是否符合契约。
 
+    P1-11 FIX: 加强语义最小验证 — `{}` 不再通过。
+    每个 stage 必须有实质性内容，不能是空壳 dict。
+
     Returns:
         (is_valid, reason)
     """
+    # 0. P1-11: Empty dict 铁律拒绝
+    if not data or len(data) == 0:
+        return False, "P1-11: 空 dict 不符合任何 stage 契约"
+
     # 1. required_keys
     missing = [k for k in contract.required_keys if k not in data]
     if missing:
@@ -106,5 +115,38 @@ def validate_checkpoint(contract: StageContract, data: dict) -> tuple:
     # 3. 排除损坏的 dict
     if "error" in data and len(data) <= 2:
         return False, f"数据看起来是错误记录: {data}"
+
+    # 4. P1-11: Stage-specific semantic minimums
+    stage = contract.stage_name
+    if stage == "planning_convergence":
+        if not (data.get("unified_constraints") or data.get("gate_verdict")
+                or data.get("gate_a_scores")):
+            return False, (
+                "P1-11: planning_convergence 缺少实质性内容 "
+                "(需要 unified_constraints / gate_verdict / gate_a_scores 之一)"
+            )
+    elif stage == "research_convergence":
+        if not (data.get("research_summary") or data.get("key_findings")
+                or data.get("consolidated_findings") or data.get("findings_index")):
+            return False, (
+                "P1-11: research_convergence 缺少实质性内容 "
+                "(需要 research_summary / key_findings / consolidated_findings 之一)"
+            )
+    elif stage == "final_solution":
+        if not (data.get("full_solution") or data.get("status")
+                or data.get("schema_version")):
+            return False, (
+                "P1-11: final_solution 缺少实质性内容 "
+                "(需要 full_solution / status / schema_version 之一)"
+            )
+
+    # 5. P1-11: Non-content stages must have meaningful size
+    if "content" not in data and contract.required_keys == []:
+        serialized = json.dumps(data, sort_keys=True) if isinstance(data, dict) else str(data)
+        if len(serialized) < contract.min_content_length:
+            return False, (
+                f"P1-11: {stage} 序列化长度 {len(serialized)} < "
+                f"最小 {contract.min_content_length}"
+            )
 
     return True, "OK"

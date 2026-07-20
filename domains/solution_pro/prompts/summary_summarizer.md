@@ -38,16 +38,14 @@ bb = BlackboardManager('{session_id}')
 |------|-----------|------|--------|
 | Phase 4 Step 2 | `refined_solution` | 修复后的方案（**核心内容来源**） | **必须读** |
 | Phase 3 | `analysis_*` | 所有 Analyzer 审查报告（参考改进点） | 必须读 |
-| Phase 4 Step 1 | `fix_plan` | 裁判的判断（参考修复逻辑） | 必须读 |
-| Phase 4 Step 3 | `verification_result` | 验证结果（参考合规情况） | 必须读 |
+| Phase 4 Step 2 | `verification_result` | 验证结果（参考合规情况） | 必须读 |
 | Phase 2 | `summary_plan` | 文档结构建议 | 必须读 |
 
 **读取顺序**：
 1. `summary_plan` — 理解建议的文档结构
 2. `refined_solution` — 提取方案核心内容
 3. `analysis_*` — 参考审查报告的改进点
-4. `fix_plan` — 理解修复逻辑
-5. `verification_result` — 了解合规情况
+4. `verification_result` — 了解合规情况
 
 ### 读取 Spec 数据（living_spec 优先）
 ```python
@@ -215,7 +213,7 @@ bb.write_stage('solution_document', doc)
 
 ## 权限
 
-- ✅ 读 Blackboard — 读取 refined_solution, analysis_*, fix_plan, verification_result, summary_plan
+- ✅ 读 Blackboard — 读取 refined_solution, analysis_*, verification_result, summary_plan
 - ✅ 写 Blackboard — 写入 `solution_document` stage
 - ❌ 不能 spawn 子 Agent
 - ❌ 不能修改 refined_solution

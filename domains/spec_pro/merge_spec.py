@@ -17,14 +17,110 @@ import os
 import sys
 import tempfile
 from datetime import datetime
+from domains.spec_pro.spec_living_md import render_living_spec_md
 
 # Response Normalizer: 将任意格式的 ResponseWorker 输出转换为标准 v2 格式
-from domains.spec_pro.response_normalizer import normalize_response, log_format_migration
+from domains.spec_pro.response_normalizer import normalize_response, log_format_migration, ResponseFormatError
 
 # 契约笼子：Pydantic Gate 验证
 from domains.spec_pro.contracts.gate import gate_living_spec
 
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# Fallback: 宽松字段提取（当 ParseWorker 输出 key 不匹配 v1/v2 时）
+# ============================================================================
+
+# 已知的 living_spec 字段集合（用于 fallback 提取）
+_KNOWN_CONFIRMED_FIELDS = {
+    "objective", "pain_points", "success_metrics", "users", "key_scenarios",
+    "capabilities", "quality_attributes", "constraints", "integration",
+    "risks_and_assumptions", "terms", "benchmark_references",
+    "design_delegations", "adaptive_requirements", "quality_priorities",
+    "industry_references", "user_directives",
+}
+_KNOWN_TOP_LEVEL_FIELDS = {
+    "guardrails", "semantic_anchors", "inferred", "inference_responses",
+    "new_inferences", "conversation_digest", "input_guard", "meta_signals",
+}
+
+
+def _extract_known_fields(data: dict) -> dict:
+    """从非标准格式的 dict 中宽松提取已知字段，构建 pseudo parsed_updates。
+
+    不 raise error，能提取多少就提取多少。输出 warning。
+    """
+    if not isinstance(data, dict):
+        logger.warning(f"Fallback extraction: input is not dict, got {type(data).__name__}")
+        return {"parsed_updates": {}}
+
+    parsed_updates: dict = {}
+
+    # 1. 直接从 top-level 提取已知 confirmed 字段
+    for field in _KNOWN_CONFIRMED_FIELDS:
+        if field in data:
+            parsed_updates[field] = data[field]
+
+    # 2. 尝试从嵌套 dict 中提取（常见变体：data["confirmed"][...], data["spec"][...]）
+    for wrapper_key in ("confirmed", "spec", "updates", "result", "living_spec"):
+        wrapper = data.get(wrapper_key)
+        if isinstance(wrapper, dict):
+            for field in _KNOWN_CONFIRMED_FIELDS:
+                if field in wrapper and field not in parsed_updates:
+                    parsed_updates[field] = wrapper[field]
+
+    # 3. 提取 top-level 非 confirmed 字段
+    result: dict = {}
+    if parsed_updates:
+        result["parsed_updates"] = parsed_updates
+    for field in _KNOWN_TOP_LEVEL_FIELDS:
+        if field in data:
+            result[field] = data[field]
+
+    # 4. 如果什么都没找到，返回空 parsed_updates（不报错）
+    if not parsed_updates and not any(f in data for f in _KNOWN_TOP_LEVEL_FIELDS):
+        logger.warning(
+            f"Fallback extraction: no known fields found. Available keys: {sorted(data.keys())}"
+        )
+        result["parsed_updates"] = {}
+
+    return result
+
+
+def _ensure_living_spec_template(living_spec_path: str) -> dict:
+    """如果 living_spec.json 不存在，自动创建空模板并写入。返回 spec dict。"""
+    if os.path.exists(living_spec_path):
+        with open(living_spec_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    logger.warning(f"living_spec.json not found at {living_spec_path}, creating empty template")
+    spec = {
+        "confirmed": {
+            "objective": "",
+            "pain_points": [],
+            "success_metrics": [],
+            "users": [],
+            "key_scenarios": [],
+            "capabilities": {"always_do": [], "should_do": [], "never_do": []},
+            "quality_attributes": [],
+            "constraints": {},
+            "integration": {"existing_systems": [], "requirements": []},
+            "risks_and_assumptions": {"risks": [], "assumptions": [], "dependencies": []},
+            "terms": [],
+        },
+        "inferred": [],
+        "guardrails": {"always_do": [], "ask_first": [], "never_do": []},
+        "meta": {
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "conversation_rounds": 0,
+        },
+    }
+    # 确保目录存在
+    os.makedirs(os.path.dirname(living_spec_path) or ".", exist_ok=True)
+    _atomic_write_json(living_spec_path, spec)
+    _write_md_sidecar(living_spec_path, spec)
+    return spec
 
 
 def _atomic_write_json(path: str, data: dict) -> None:
@@ -42,6 +138,17 @@ def _atomic_write_json(path: str, data: dict) -> None:
         os.unlink(tmp_path)
         raise
 
+
+
+def _write_md_sidecar(living_spec_path: str, spec: dict) -> None:
+    """Write living_spec.md alongside living_spec.json (non-blocking)."""
+    try:
+        md_path = living_spec_path.replace(".json", ".md")
+        md_content = render_living_spec_md(spec)
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(md_content)
+    except Exception as e:
+        logger.warning(f"MD sidecar write failed (non-blocking): {e}")
 
 def _is_duplicate_exact(item: str, target: list) -> bool:
     """确定性精确去重。语义去重（意思相近但文字不同）由 LLM 在 parse 阶段处理。"""
@@ -120,22 +227,29 @@ def merge_confirmed(spec: dict, updates: dict) -> None:
     for sub in ["always_do", "should_do", "never_do"]:
         append_unique(caps.setdefault(sub, []), new_caps.get(sub, []))
 
-    # quality_attributes: semantic dedup by category + spec[:15] (F6)
+    # quality_attributes: dedup by category + normalized spec (ADR-009 P1)
+    # 契约笼子: normalize 做确定性粗筛（lowercase + strip + collapse whitespace），
+    # 不做语义判断。语义相同但措辞不同的去重由 LLM merge 阶段完成。
     new_qa = updates.get("quality_attributes", [])
     if isinstance(new_qa, list):
         qa_list = confirmed.setdefault("quality_attributes", [])
-        existing_keys = {
-            (item.get("category", ""), str(item.get("spec", ""))[:15])
-            for item in qa_list if isinstance(item, dict)
-        }
+
+        def _qa_key(item: dict) -> tuple:
+            spec = str(item.get("spec", ""))
+            # Normalize: lowercase + strip + collapse whitespace + remove punctuation
+            import re as _re
+            normalized = _re.sub(r'\s+', ' ', spec.lower().strip())
+            normalized = _re.sub(r'[^\w\s]', '', normalized)
+            return (item.get("category", "").lower().strip(), normalized)
+
+        existing_keys = {_qa_key(item) for item in qa_list if isinstance(item, dict)}
         for qa in new_qa:
             if isinstance(qa, dict):
-                key = (qa.get("category", ""), str(qa.get("spec", ""))[:15])
+                key = _qa_key(qa)
                 if key not in existing_keys:
                     qa_list.append(qa)
                     existing_keys.add(key)
             else:
-                # 非 dict 类型，按普通去重
                 if qa not in qa_list:
                     qa_list.append(qa)
 
@@ -429,22 +543,18 @@ def merge_spec_v6(base_path: str, stage_name: str) -> dict:
     if response is None:
         return {"status": "error", "message": f"Stage not found: {stage_name}"}
 
-    # 读取 living_spec
+    # 读取 living_spec（Fix 2: 不存在时自动创建空模板）
     living_spec_path = os.path.join(base_path, "spec", "living_spec.json")
-    if not os.path.exists(living_spec_path):
-        return {"status": "error", "message": "Living spec file not found"}
+    spec = _ensure_living_spec_template(living_spec_path)
 
-    try:
-        with open(living_spec_path, "r", encoding="utf-8") as f:
-            spec = json.load(f)
-    except json.JSONDecodeError as e:
-        return {"status": "error", "message": f"Invalid JSON in living spec file: {e}"}
-
-    # 通过 ResponseNormalizer 规范化输入
+    # Fix 2: 添加 fallback 模式 — key 不匹配 v1/v2 时宽松提取而非报错
+    migration_warnings: list = []
     try:
         response, migration_warnings = normalize_response(response)
-    except (KeyError, TypeError, ValueError) as e:
-        return {"status": "error", "message": f"Response format error: {e}"}
+    except (ResponseFormatError, KeyError, TypeError, ValueError) as e:
+        logger.warning(f"Schema mismatch in v6, using fallback extraction: {e}")
+        response = _extract_known_fields(response if isinstance(response, dict) else {})
+        migration_warnings.append(f"fallback_extraction: {e}")
 
     if migration_warnings:
         try:
@@ -491,6 +601,7 @@ def merge_spec_v6(base_path: str, stage_name: str) -> dict:
 
     # 原子写入
     _atomic_write_json(living_spec_path, spec)
+    _write_md_sidecar(living_spec_path, spec)
 
     return {"status": "merged", "contradictions": contradictions}
 
@@ -500,27 +611,25 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
     # P0-5: 文件不存在/JSON 格式错误异常处理
     if not os.path.exists(response_path):
         return {"status": "error", "message": f"Response file not found: {response_path}"}
-    if not os.path.exists(living_spec_path):
-        return {"status": "error", "message": f"Living spec file not found: {living_spec_path}"}
+
+    # Fix 2: living_spec.json 不存在时自动创建空模板（解决鸡生蛋问题）
+    spec = _ensure_living_spec_template(living_spec_path)
     
     try:
         with open(response_path, "r", encoding="utf-8") as f:
             response = json.load(f)
     except json.JSONDecodeError as e:
         return {"status": "error", "message": f"Invalid JSON in response file: {e}"}
-    
-    try:
-        with open(living_spec_path, "r", encoding="utf-8") as f:
-            spec = json.load(f)
-    except json.JSONDecodeError as e:
-        return {"status": "error", "message": f"Invalid JSON in living spec file: {e}"}
 
     # 🔧 P0 修复: 通过 ResponseNormalizer 规范化输入
-    # 不再假设 response 有 parsed_updates 字段，normalizer 会自动适配格式版本
+    # Fix 2: 添加 fallback 模式 — key 不匹配 v1/v2 时宽松提取而非报错
+    migration_warnings: list = []
     try:
         response, migration_warnings = normalize_response(response)
-    except (KeyError, TypeError, ValueError) as e:
-        return {"status": "error", "message": f"Response format error: {e}"}
+    except (ResponseFormatError, KeyError, TypeError, ValueError) as e:
+        logger.warning(f"Schema mismatch, using fallback extraction: {e}")
+        response = _extract_known_fields(response if isinstance(response, dict) else {})
+        migration_warnings.append(f"fallback_extraction: {e}")
 
     # 记录格式迁移事件（如果有）
     if migration_warnings:
@@ -577,6 +686,7 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
 
     # 原子写入
     _atomic_write_json(living_spec_path, spec)
+    _write_md_sidecar(living_spec_path, spec)
 
     return {"status": "merged", "contradictions": contradictions}
 
@@ -621,6 +731,7 @@ def apply_revisions(confirmation_path: str, living_spec_path: str) -> dict:
 
     # 原子写入
     _atomic_write_json(living_spec_path, spec)
+    _write_md_sidecar(living_spec_path, spec)
 
     return {"status": "revised", "revisions_applied": len(revisions)}
 

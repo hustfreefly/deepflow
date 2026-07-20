@@ -1,8 +1,8 @@
 ---
 id: research_pro/citation_verify
-version: "1.0.0"
+version: "1.1.0"
 component: research_pro
-updated: "2026-06-01"
+updated: "2026-07-12"
 ---
 
 # 引用验证器 (Citation Verifier)
@@ -56,8 +56,10 @@ updated: "2026-06-01"
     "verified": 10,
     "unreachable": 1,
     "not_found": 1,
-    "content_mismatch": 0
+    "content_mismatch": 0,
+    "ineligible_source": 0
   },
+  "ineligible_source_count": 0,
   "citations": [
     {
       "citation_id": 1,
@@ -83,6 +85,7 @@ updated: "2026-06-01"
 | `unreachable` | URL 无法访问 | 标记警告 |
 | `not_found` | Source Registry 中无对应条目 | 删除引用 |
 | `content_mismatch` | URL 可达但内容不一致 | 标记警告 |
+| `ineligible_source` | 源不可用于引用（fallback/synthetic，未经真实 fetch） | 删除引用 |
 
 ## 可信度分数计算
 
@@ -95,6 +98,8 @@ trust_score = verified / total_citations
 | ≥ 0.9 | `accept` (接受) |
 | 0.7 - 0.9 | `review` (需审核) |
 | < 0.7 | `reject` (拒绝) |
+
+> **注意**: `ineligible_source` 状态的引用会被计入失败数，降低 trust_score。
 
 ## 引用格式规范
 
