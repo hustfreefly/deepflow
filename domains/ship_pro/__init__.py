@@ -1,7 +1,7 @@
 """
 Ship Pro 2.0.0 - 入口模块
 
-架构(2.0.0 统一 blackboard + 单入口 Dispatcher):
+架构(2.0.0 统一 blackboard + 单入口 ShipOrchestrator):
   Main Agent (depth-0)
     → exec: result = run_ship_pro(project_name=...)
     → sessions_spawn(**result["spawn_params"])
@@ -168,7 +168,7 @@ def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
 
     # 4. 构建 Orchestrator prompt
     deepflow_root = str(DEEPFLOW_ROOT)
-    dispatcher_prompt = _build_orchestrator_prompt(
+    orchestrator_prompt = _build_orchestrator_prompt(
         project_name=project_name,
         project_blackboard=str(project_bb),
         ship_pro_dir=str(ship_dir),
@@ -197,11 +197,11 @@ def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
     bootstrap_task = auto_bootstrap(
         deepflow_root=Path(deepflow_root),
         prompt_dir=ship_dir / "stages",
-        task_content=dispatcher_prompt,
-        label="ship_dispatcher",
+        task_content=orchestrator_prompt,
+        label="ship_orchestrator",
     )
     import logging
-    prompt_size = len(dispatcher_prompt.encode('utf-8'))
+    prompt_size = len(orchestrator_prompt.encode('utf-8'))
     logging.getLogger(__name__).info(
         f"Ship Pro Bootstrap: {prompt_size}B → {len(bootstrap_task.encode('utf-8'))}B"
     )
@@ -987,7 +987,7 @@ write 到 "{output_path}",**WorkerDeliverable JSON object**(不是数组!),格�
 
 
 def _build_runner_prompt(session_dir: Path, plan, context_paths: dict, deepflow_root: str) -> str:
-    """构建 PipelineRunner prompt(2.0.0 兼容,2.0.0 用 Dispatcher 替代)"""
+    """构建 PipelineRunner prompt(2.0.0 兼容,2.0.0 用 ShipOrchestrator 替代)"""
     worker_count = len(plan.workers)
     layers = len(plan.execution_order)
     layer_desc = "\n".join(

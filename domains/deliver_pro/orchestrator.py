@@ -1,1593 +1,881 @@
 """
-Deliver Pro Orchestrator — 5 Phase 流水线 + Validate Loop
+DeliverOrchestrator — 批量驱动多个 WP 的 Deliver Pro 5 Phase 流水线。
 
-架构:
-  Main Agent (depth-0)
-    → exec: result = run_deliver_pro(wp=...)
-    → sessions_spawn(**result["spawn_params"])   # 启动 Orchestrator Agent
+按 dependency_graph.execution_layers 分层执行：
+  Layer 0: 无依赖的 WP 并行
+  Layer 1: 依赖 Layer 0 的 WP 并行
+  ...
 
-  Orchestrator Agent (depth-1, 本模块)
-    → Phase 1: prepare_analyze_spawn() → spawn Analyze Agent (depth-2)
-    → Phase 2: prepare_workers_spawn() → spawn Workers (depth-2, 滑动窗口)
-    → Phase 3: run_integrate() → Code-First Assembly（确定性拼接，零 LLM）
-    → Phase 4: prepare_validate_spawn() → spawn Validate Judge (depth-2, Loop ≤5)
-    → Phase 5: prepare_package_spawn() → spawn Package Agent (depth-2)
-
-核心原则:
-  1. Orchestrator 不直接调用 sessions_spawn（Python 不能调 Agent tool）
-  2. 每个 prepare_* 方法返回 spawn_params dict
-  3. Phase 间数据通过 Blackboard 文件传递
-  4. Worker 故障恢复：LLM 诊断（不查表），最多 3 轮/WP
-  5. Validate Loop：最多 5 轮，LLM 判断 should_continue
-
-参考:
-  - Ship Pro: domains/ship_pro/orchestrator/ship_orchestrator.py
-  - Solution Pro: domains/solution_pro/master_orchestrator.py
+每个 WP 独立驱动，通过 blackboard 文件系统检查实际 phase。
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
-
-from domains.deliver_pro.contracts import (
-    WorkPackage,
-    ExecutionPlan,
-    TaskNode,
-    WorkerResult,
-    WorkerOutputMeta,
-    ValidationVerdict,
-    ScoreDimension,
-    FixDirective,
-    PipelineState,
-    PipelinePhase,
-    DeliveryManifest,
-    ComponentStatus,
-    DeliveryStatus,
-    RecoveryAction,
-    WorkerError,
-    RecoveryStrategy,
-    IntegrationReport,
-)
-from core.blackboard.context_injector import auto_bootstrap
-from domains.deliver_pro.prompt_registry import load_prompt
-from domains.deliver_pro.failure_recovery import WorkerFailureRecovery
-
-# ADR-009: MD Track Extractor (optional — graceful fallback if core/ not in path)
-try:
-    from core.md_track_extractor import validate_md_structure, extract_track_json
-    _HAS_TRACK_EXTRACTOR = True
-except ImportError:
-    _HAS_TRACK_EXTRACTOR = False
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-# ============================================================================
-# 常量
-# ============================================================================
+class DeliverOrchestrator:
+    """批量驱动多个 WP 的 Deliver Pro 流水线。"""
 
-MAX_VALIDATE_ROUNDS = 5
-MAX_WORKER_RECOVERY_ATTEMPTS = 3
-VALIDATE_PASS_THRESHOLD = 3.5
-VALIDATE_MIN_DIMENSION = 3
-VALIDATE_CONDITIONAL_THRESHOLD = 3.0
-VALIDATE_FAIL_MIN_DIMENSION = 2
+    def __init__(self, project_name: str):
+        from domains.deliver_pro import BLACKBOARD_ROOT
 
-
-class DeliverProOrchestrator:
-    """
-    Deliver Pro 核心编排器 — 5 Phase 流水线 + Validate Loop.
-
-    纯工具库模式（对标 Ship Pro 的 ShipOrchestrator）：
-    - 提供 prepare_* 方法返回 spawn_params dict
-    - 提供 verify_* 方法进行 Gate 验证
-    - 不直接调用 sessions_spawn（那是 Agent 层的职责）
-    """
-
-    def __init__(
-        self,
-        wp: WorkPackage,
-        blackboard_path: Path,
-        project_name: str = "default",
-    ):
-        """
-        初始化 Orchestrator。
-
-        Args:
-            wp: Work Package（来自 Ship Pro）
-            blackboard_path: Blackboard 根路径
-                            (.deepflow/blackboard/{project_name}/)
-            project_name: 项目名称
-        """
-        self.wp = wp
-        self.blackboard_path = Path(blackboard_path)
         self.project_name = project_name
+        self.blackboard_root = BLACKBOARD_ROOT
+        ship_pkg_path = self._find_ship_package()
+        self.ship_package = json.loads(ship_pkg_path.read_text())
+        self.layers = self._compute_layers()
+        self.progress_path = self.blackboard_root / project_name / "batch_progress.json"
+        self.progress = self._load_progress()
 
-        # Deliver Pro 专属目录
-        self.deliver_pro_dir = self.blackboard_path / "deliver_pro"
-        self.data_dir = self.deliver_pro_dir / "data"
-        self.stages_dir = self.deliver_pro_dir / "stages"
-        self.worker_outputs_dir = self.stages_dir / "worker_outputs"
-        self.integrated_draft_dir = self.stages_dir / "integrated_draft"
-        self.final_deliverable_dir = self.stages_dir / "final_deliverable"
+    # ------------------------------------------------------------------
+    # 初始化辅助
+    # ------------------------------------------------------------------
 
-        # 确保目录存在
-        self._ensure_directories()
+    def _find_ship_package(self) -> Path:
+        """搜索 blackboard/{project}/ship_pro/ 下的 ship package JSON。
 
-        # 初始化状态：优先从磁盘加载，否则创建新状态
-        state_path = self.deliver_pro_dir / "delivery_state.json"
-        if state_path.exists():
+        查找顺序：
+        1. ship_pro/ship_package.json（传统路径）
+        2. ship_pro/ship_track.json（多 Agent Consolidator 产出）
+        3. ship_pro/stages/ship_package.json（旧路径）
+        """
+        candidates = [
+            self.blackboard_root / self.project_name / "ship_pro" / "ship_package.json",
+            self.blackboard_root / self.project_name / "ship_pro" / "ship_track.json",
+            self.blackboard_root / self.project_name / "ship_pro" / "stages" / "ship_package.json",
+        ]
+        for path in candidates:
+            if path.exists():
+                logger.info(f"Ship package found: {path}")
+                return path
+        raise FileNotFoundError(
+            f"ship_package.json not found. Searched: {[str(p) for p in candidates]}"
+        )
+
+    def _compute_layers(self) -> list[list[str]]:
+        """优先用 dependency_graph.execution_layers，fallback 拓扑排序。"""
+        dep_graph = self.ship_package.get("dependency_graph", {})
+        execution_layers = dep_graph.get("execution_layers")
+        if execution_layers:
+            return execution_layers
+
+        # Fallback: 从 WP dependencies 做拓扑排序
+        wp_deps = {}
+        for wp in self.ship_package.get("work_packages", []):
+            wp_deps[wp["wp_id"]] = wp.get("dependencies", [])
+        return self._topo_layers(wp_deps)
+
+    @staticmethod
+    def _topo_layers(wp_deps: dict[str, list[str]]) -> list[list[str]]:
+        """从 dependencies 计算分层（Kahn's algorithm variant）。
+
+        Args:
+            wp_deps: {wp_id: [dependency_wp_ids]}
+
+        Returns:
+            [[layer0_wps], [layer1_wps], ...]
+        """
+        # Build in-degree map
+        in_degree: dict[str, int] = {wp: 0 for wp in wp_deps}
+        dependents: dict[str, list[str]] = {wp: [] for wp in wp_deps}
+
+        for wp, deps in wp_deps.items():
+            for dep in deps:
+                if dep in dependents:
+                    dependents[dep].append(wp)
+                    in_degree[wp] = in_degree.get(wp, 0) + 1
+
+        layers: list[list[str]] = []
+        remaining = dict(in_degree)
+
+        while remaining:
+            # Find all nodes with in-degree 0
+            layer = sorted([wp for wp, deg in remaining.items() if deg == 0])
+            if not layer:
+                # Circular dependency — break by picking the first remaining
+                layer = [sorted(remaining.keys())[0]]
+                logger.warning(f"Circular dependency detected, forcing layer: {layer}")
+
+            layers.append(layer)
+
+            # Remove layer nodes and update in-degrees
+            for wp in layer:
+                del remaining[wp]
+                for dependent in dependents.get(wp, []):
+                    if dependent in remaining:
+                        remaining[dependent] -= 1
+
+        return layers
+
+    # ------------------------------------------------------------------
+    # Progress persistence
+    # ------------------------------------------------------------------
+
+    def _load_progress(self) -> dict:
+        """从 JSON 文件加载进度。"""
+        if self.progress_path.exists():
             try:
-                state_data = json.loads(state_path.read_text(encoding="utf-8"))
-                self.state = PipelineState.model_validate(state_data)
-                logger.info(f"State loaded from disk: phase={self.state.phase}")
-            except Exception:
-                # P2-3: preserve exception context + backup corrupted file
-                logger.warning(
-                    f"Failed to load state from {state_path}, starting fresh",
-                    exc_info=True,
-                )
-                try:
-                    backup_path = state_path.with_suffix(".json.corrupted")
-                    state_path.rename(backup_path)
-                    logger.warning(f"Corrupted state backed up to {backup_path}")
-                except OSError as backup_err:
-                    logger.error(f"Failed to backup corrupted state: {backup_err}")
-                self.state = PipelineState(wp_id=wp.wp_id)
-        else:
-            self.state = PipelineState(wp_id=wp.wp_id)
-
-        # 写入 WP 到 Blackboard（只读输入）
-        self._write_wp()
-
-        logger.info(
-            f"DeliverProOrchestrator initialized: wp={wp.wp_id}, "
-            f"scenario={wp.scenario}, blackboard={self.blackboard_path}"
-        )
-
-    def _ensure_directories(self) -> None:
-        """确保所有必要目录存在。"""
-        for d in [
-            self.data_dir,
-            self.stages_dir,
-            self.worker_outputs_dir,
-            self.stages_dir / "integrated_draft",
-            self.stages_dir / "final_deliverable",
-        ]:
-            d.mkdir(parents=True, exist_ok=True)
-
-    def _write_wp(self) -> None:
-        """写入 WP 到 Blackboard（data/wp.json）。"""
-        wp_path = self.data_dir / "wp.json"
-        if not wp_path.exists():
-            wp_data = self.wp.model_dump(mode="json")
-            wp_path.write_text(
-                json.dumps(wp_data, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            logger.info(f"WP written to {wp_path}")
-
-    def _load_ship_context(self) -> None:
-        """P1-1: 读取 ship_context.json 并缓存到 self._ship_context。"""
-        if hasattr(self, '_ship_context'):
-            return  # 已加载，不重复读取
-        ship_context_path = self.data_dir / "ship_context.json"
-        if ship_context_path.exists():
-            try:
-                self._ship_context = json.loads(
-                    ship_context_path.read_text(encoding="utf-8")
-                )
-                logger.info(
-                    f"Loaded ship_context.json (fields: {list(self._ship_context.keys())})"
-                )
-            except (json.JSONDecodeError, OSError) as e:
-                logger.warning(f"Failed to load ship_context.json: {e}")
-                self._ship_context = {}
-        else:
-            self._ship_context = {}
-
-    def _format_ship_context(self) -> str:
-        """P1-1: 将 ship_context 格式化为可读文本，用于注入 Worker/Analyze prompt。"""
-        ctx = getattr(self, '_ship_context', {})
-        if not ctx:
-            return ""
-        parts = []
-        if ctx.get("key_decisions"):
-            parts.append(f"**Key Decisions:** {ctx['key_decisions']}")
-        if ctx.get("architecture"):
-            parts.append(f"**Architecture:** {ctx['architecture']}")
-        if ctx.get("risk_summary"):
-            parts.append(f"**Risk Summary:** {ctx['risk_summary']}")
-        if ctx.get("implementation_phases"):
-            parts.append(f"**Implementation Phases:** {ctx['implementation_phases']}")
-        if ctx.get("dependency_graph"):
-            parts.append(f"**Dependency Graph:** {ctx['dependency_graph']}")
-        if ctx.get("anchor_coverage"):
-            parts.append(f"**Anchor Coverage:** {ctx['anchor_coverage']}")
-        return "\n".join(parts) if parts else ""
-
-    def _save_state(self) -> None:
-        """保存流水线状态到 delivery_state.json。"""
-        state_path = self.deliver_pro_dir / "delivery_state.json"
-        state_data = self.state.model_dump(mode="json")
-        state_path.write_text(
-            json.dumps(state_data, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
-    # ========================================================================
-    # Phase 1: Analyze
-    # ========================================================================
-
-    def prepare_analyze_spawn(self) -> dict[str, Any]:
-        """
-        Phase 1: 准备 Analyze Agent 的 spawn 参数。
-
-        Analyze Agent 解析 WP → 生成 execution_plan.json（任务图 + 并发计划）。
-
-        Returns:
-            sessions_spawn 参数 dict
-        """
-        self.state.transition_to(PipelinePhase.ANALYZING)
-        self._save_state()
-
-        # P1-1: 读取 ship_context.json（若存在）
-        self._load_ship_context()
-        ship_context_text = self._format_ship_context()
-
-        # 尝试加载 prompt 模板，fallback 到内嵌 prompt
-        try:
-            prompt = load_prompt(
-                "deliver_analyze",
-                wp_id=self.wp.wp_id,
-                wp_summary=self.wp.objective,
-                workspace=str(self.blackboard_path),
-                lib_path=str(self.blackboard_path.parent.parent / "domains"),
-                ship_context=ship_context_text if ship_context_text else "（无 ShipPackage 上下文）",
-                deepflow_root=str(self.blackboard_path.parent.parent),
-            )
-        except FileNotFoundError:
-            prompt = self._build_analyze_prompt()
-
-        _root = self.blackboard_path.parent.parent
-        _label = f"deliver_analyze_{self.wp.wp_id}"
-        return {
-            "runtime": "subagent",
-            "mode": "run",
-            "label": _label,
-            "task": auto_bootstrap(_root, self.stages_dir, prompt, _label),
-            "thinking": "high",
-        }
-
-    def verify_analyze_output(self, plan_data: dict) -> tuple[bool, str]:
-        """
-        验证 Analyze Agent 输出。
-
-        Args:
-            plan_data: execution_plan.json 的内容
-
-        Returns:
-            (passed, error_message)
-        """
-        try:
-            # Pydantic 验证（DAG 无环检查在 model_validator 中）
-            plan = ExecutionPlan.model_validate(plan_data)
-
-            # 额外检查
-            if plan.wp_id != self.wp.wp_id:
-                return False, f"wp_id mismatch: expected {self.wp.wp_id}, got {plan.wp_id}"
-
-            # P1-5 fix: Allow zero-worker plans — mark as COMPLETED directly.
-            # A valid plan with 0 tasks means "nothing to do" (e.g., no-op WP).
-            if plan.task_count == 0:
-                plan_path = self.stages_dir / "execution_plan.json"
-                plan_path.write_text(
-                    json.dumps(plan_data, ensure_ascii=False, indent=2),
-                    encoding="utf-8",
-                )
-                self.state.transition_to(PipelinePhase.GENERATING)
-                self.state.transition_to(PipelinePhase.INTEGRATING)
-                self.state.transition_to(PipelinePhase.VALIDATING)
-                self.state.transition_to(PipelinePhase.PACKAGING)
-                self.state.transition_to(PipelinePhase.COMPLETED)
-                self._save_state()
-                logger.info("P1-5: Zero-worker plan → auto-COMPLETED")
-                return True, "zero_worker_plan"
-
-            # 写入验证后的 plan
-            plan_path = self.stages_dir / "execution_plan.json"
-            plan_path.write_text(
-                json.dumps(plan_data, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-
-            self.state.transition_to(PipelinePhase.GENERATING)
-            self.state.pending_tasks = [t.task_id for t in plan.task_graph]
-            self._save_state()
-
-            logger.info(
-                f"Phase 1 verified: {plan.task_count} tasks, "
-                f"scenario={plan.scenario}, waves={len(plan.concurrency_plan.waves)}"
-            )
-            return True, ""
-
-        except Exception as e:
-            return False, f"ExecutionPlan validation failed: {e}"
-
-    def _build_analyze_prompt(self) -> str:
-        """内嵌 Analyze Agent prompt（fallback）。"""
-        ship_context_text = self._format_ship_context()
-        ship_section = ""
-        if ship_context_text:
-            ship_section = f"""
-## ShipPackage 上下文（来自上游）
-{ship_context_text}
-"""
-        return f"""你是 Deliver Pro 的 Analyze Agent。
-
-## 任务
-解析 Work Package，生成执行计划（任务图 + 并发计划）。
-
-## 输入
-- WP 文件: {self.data_dir / "wp.json"}
-{ship_section}
-## 输出
-写入: {self.stages_dir / "execution_plan.json"}
-
-## 输出格式
-```json
-{{
-  "schema_version": "1.0.0",
-  "wp_id": "{self.wp.wp_id}",
-  "scenario": "{self.wp.scenario}",
-  "task_graph": [
-    {{
-      "task_id": "T-001",
-      "title": "任务标题",
-      "depends_on": [],
-      "estimated_complexity": "low|medium|high",
-      "expected_outputs": [{{"path": "...", "type": "code|report"}}],
-      "acceptance_criteria": ["AC 描述"]
-    }}
-  ],
-  "concurrency_plan": {{
-    "suggested_parallelism": 3,
-    "safety_cap": 8,
-    "waves": [{{"wave": 1, "task_ids": ["T-001", "T-002"]}}]
-  }},
-  "quality_gates": {{
-    "code": ["lint_pass", "test_pass"],
-    "report": ["data_verified", "source_cited"]
-  }}
-}}
-```
-
-## 约束
-1. 任务图必须是无环 DAG
-2. 每个任务必须有明确的 expected_outputs
-3. 并发计划要合理（依赖关系决定执行顺序）
-4. 任务数量建议 2-8 个
-
-请直接输出 JSON。
-"""
-
-    # ========================================================================
-    # Phase 2: Generate (Workers)
-    # ========================================================================
-
-    def peek_next_wave_count(self, plan: ExecutionPlan) -> int:
-        """纯只读：计算下一波可执行任务数量（不修改 state）。
-
-        供 step4_check_workers 调用，替代有副作用的 prepare_workers_spawn。
-        """
-        completed = set(self.state.completed_tasks)
-        ready_tasks = plan.get_ready_tasks(completed)
-
-        running = set(self.state.running_tasks) if hasattr(self.state, 'running_tasks') else set()
-        ready_tasks = [t for t in ready_tasks if t.task_id not in running]
-
-        failed = set(self.state.failed_tasks) if hasattr(self.state, 'failed_tasks') else set()
-        ready_tasks = [t for t in ready_tasks if t.task_id not in failed]
-
-        max_parallel = plan.concurrency_plan.suggested_parallelism
-        return min(len(ready_tasks), max_parallel)
-
-    def prepare_workers_spawn(
-        self,
-        plan: ExecutionPlan,
-        completed_tasks: set[str] | None = None,
-    ) -> list[dict[str, Any]]:
-        """
-        Phase 2: 准备 Worker spawn 参数（滑动窗口 + 依赖图）。
-
-        根据 execution_plan 的依赖关系，返回当前可以执行的任务的 spawn 参数。
-
-        Args:
-            plan: 执行计划
-            completed_tasks: 已完成的任务 ID 集合
-
-        Returns:
-            spawn_params 列表（每个元素对应一个 Worker）
-        """
-        # 契约笼子：幂等前置状态转换（LLM 跳步不崩）
-        if self.state.phase == PipelinePhase.ANALYZING:
-            self.state.transition_to(PipelinePhase.GENERATING)
-            self._save_state()
-
-        completed = completed_tasks if completed_tasks is not None else set(self.state.completed_tasks)
-        ready_tasks = plan.get_ready_tasks(completed)
-
-        # BLK-04: Filter out running tasks to prevent duplicate spawn
-        running = set(self.state.running_tasks) if hasattr(self.state, 'running_tasks') else set()
-        ready_tasks = [t for t in ready_tasks if t.task_id not in running]
-        # NEW-02: Filter out failed tasks to prevent re-spawn of failed workers
-        failed = set(self.state.failed_tasks) if hasattr(self.state, 'failed_tasks') else set()
-        ready_tasks = [t for t in ready_tasks if t.task_id not in failed]
-
-        if not ready_tasks:
-            logger.info("No ready tasks (all dependencies not met or all completed)")
-            return []
-
-        # 限制并发数
-        max_parallel = plan.concurrency_plan.suggested_parallelism
-        ready_tasks = ready_tasks[:max_parallel]
-
-        spawn_params_list = []
-        for task in ready_tasks:
-            params = self._prepare_single_worker_spawn(task, plan)
-            spawn_params_list.append(params)
-
-            # 标记为 running
-            if task.task_id not in self.state.running_tasks:
-                self.state.running_tasks.append(task.task_id)
-
-        self._save_state()
-        logger.info(
-            f"Phase 2: prepared {len(spawn_params_list)} workers "
-            f"(completed={len(completed)}, pending={len(self.state.pending_tasks)})"
-        )
-        return spawn_params_list
-
-    def _prepare_single_worker_spawn(
-        self,
-        task: TaskNode,
-        plan: ExecutionPlan,
-    ) -> dict[str, Any]:
-        """准备单个 Worker 的 spawn 参数。"""
-        # P1-1: 读取 ship_context.json（若存在）
-        self._load_ship_context()
-
-        # 构建 Worker prompt
-        prompt = self._build_worker_prompt(task, plan)
-
-        _root = self.blackboard_path.parent.parent
-        _label = f"deliver-worker-{task.task_id.lower()}"
-        return {
-            "runtime": "subagent",
-            "mode": "run",
-            "label": _label,
-            "task": auto_bootstrap(_root, self.stages_dir, prompt, _label),
-            "thinking": "high",
-            # N5: Inject timeout from TaskNode contract
-            "timeoutSeconds": task.timeout_seconds * 1000,  # Convert to ms
-        }
-
-    def _build_worker_prompt(self, task: TaskNode, plan: ExecutionPlan) -> str:
-        """构建 Worker prompt。"""
-        # 依赖路径
-        dep_paths = []
-        for dep_id in task.depends_on:
-            dep_dir = self.worker_outputs_dir / dep_id
-            dep_paths.append(str(dep_dir))
-
-        # 输出目录
-        output_dir = self.worker_outputs_dir / task.task_id
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        # N1: 格式化任务详细内容
-        ac_text = "\n".join(f"- {ac}" for ac in task.acceptance_criteria) if task.acceptance_criteria else "（无）"
-        outputs_text = "\n".join(
-            f"- {o.get('path', '?')} ({o.get('type', '?')})"
-            for o in task.expected_outputs
-        ) if task.expected_outputs else "（无）"
-
-        # P1-1: 格式化 ShipPackage 上下文
-        ship_context_text = self._format_ship_context()
-
-        # P0-1 fix: use project_name (not wp_id_lower) for absolute path construction
-        project_name = self.project_name
-        # 尝试加载 prompt 模板
-        try:
-            prompt = load_prompt(
-                "deliver_worker_base",
-                task_id=task.task_id,
-                wp_id=self.wp.wp_id,
-                project_name=project_name,
-                scenario=task.scenario_type,
-                dependencies=", ".join(dep_paths) if dep_paths else "无",
-                forced_actions=", ".join(task.forced_actions) if task.forced_actions else "无",
-                title=task.title,
-                description=task.description or task.title,
-                acceptance_criteria=ac_text,
-                expected_outputs=outputs_text,
-                ship_context=ship_context_text if ship_context_text else "（无 ShipPackage 上下文）",
-                deepflow_root=str(self.blackboard_path.parent.parent),
-            )
-            return prompt
-        except FileNotFoundError:
-            pass
-
-        # Fallback: 内嵌 prompt
-        scenario = task.scenario_type or plan.scenario
-        forced_actions = self._get_forced_actions(scenario)
-
-        ship_section = ""
-        if ship_context_text:
-            ship_section = f"""
-## ShipPackage 上下文（来自上游）
-{ship_context_text}
-"""
-
-        return f"""你是 Deliver Pro 的 Worker。
-
-## 你的任务
-- Task ID: {task.task_id}
-- 标题: {task.title}
-- 描述: {task.description or task.title}
-- 场景: {scenario}
-
-## 验收标准
-{ac_text}
-
-## 期望输出
-{outputs_text}
-
-## WP 上下文
-- WP ID: {self.wp.wp_id}
-- 目标: {self.wp.objective}
-- 文件: {self.data_dir / "wp.json"}
-{ship_section}
-## 依赖（上游 Worker 输出）
-{chr(10).join(f'- {p}' for p in dep_paths) if dep_paths else '无依赖'}
-
-## 输出目录
-{output_dir}
-
-必须产出 4 个文件:
-1. DELIVERABLE.md — 主产物
-2. EVIDENCE.md — 验证证据
-3. ISSUES.md — 问题记录（没有则写"无"）
-4. MANIFEST.json — 元数据
-
-## 强制动作（{scenario} 场景）
-{forced_actions}
-
-## 铁律
-1. 无证据不交付
-2. 不完整必须声明（写入 ISSUES.md）
-3. 自检是交付前提
-4. 不修改他人产出
-
-## Preamble
-cd {self.blackboard_path.parent.parent}
-
-请直接开始工作。
-"""
-
-    def _get_forced_actions(self, scenario: str) -> str:
-        """获取场景对应的强制动作。"""
-        if scenario == "code":
-            return """- web_search ≥ 2 次（技术方案/API 文档）
-- write 代码 + 测试
-- exec 安装依赖 + 运行测试 + lint（≥ 2 次）
-- write MANIFEST.json"""
-        elif scenario == "report":
-            return """- web_search ≥ 3 次（行业数据/验证数据点）
-- write 分析报告
-- 事实性陈述逐条验证
-- write EVIDENCE.md + MANIFEST.json"""
-        else:
-            return "- 根据任务需求合理使用工具"
-
-    def verify_worker_output(
-        self,
-        task_id: str,
-        output_dir: Path,
-    ) -> tuple[bool, str, WorkerOutputMeta | None]:
-        """
-        验证 Worker 输出。
-
-        Args:
-            task_id: 任务 ID
-            output_dir: Worker 输出目录
-
-        Returns:
-            (passed, error_message, output_meta)
-        """
-        # 检查必需文件 (P1-2: 4-file contract)
-        # Blocking: DELIVERABLE.md + MANIFEST.json required
-        blocking_files = ["DELIVERABLE.md", "MANIFEST.json"]
-        missing_blocking = [f for f in blocking_files if not (output_dir / f).exists()]
-        if missing_blocking:
-            return False, f"Missing required files: {missing_blocking}", None
-
-        # Non-blocking: EVIDENCE.md + ISSUES.md (PARTIAL if missing, not FAILED)
-        optional_files = ["EVIDENCE.md", "ISSUES.md"]
-        missing_optional = [f for f in optional_files if not (output_dir / f).exists()]
-        if missing_optional:
-            logger.warning(
-                f"Worker {task_id} missing optional files: {missing_optional}. "
-                f"Status will be PARTIAL."
-            )
-
-        # Guard: 检查 DELIVERABLE.md 内容不为空（Doctor #4 修复）
-        deliverable_path = output_dir / "DELIVERABLE.md"
-        content = deliverable_path.read_text(encoding="utf-8").strip()
-        MIN_DELIVERABLE_LENGTH = 50  # 至少 50 字符
-        if len(content) < MIN_DELIVERABLE_LENGTH:
-            logger.warning(
-                f"Worker {task_id} DELIVERABLE.md too short: "
-                f"{len(content)} chars (min {MIN_DELIVERABLE_LENGTH})"
-            )
-            return (
-                False,
-                f"DELIVERABLE.md content too short ({len(content)} chars, "
-                f"minimum {MIN_DELIVERABLE_LENGTH}). Worker likely produced empty output.",
-                None,
-            )
-
-        # 读取 MANIFEST.json
-        try:
-            manifest_path = output_dir / "MANIFEST.json"
-            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            meta = WorkerOutputMeta.model_validate(manifest_data)
-        except Exception as e:
-            return False, f"MANIFEST.json validation failed: {e}", None
-
-        # P1-2: Override status to PARTIAL if optional files missing
-        if missing_optional:
-            meta.status = "PARTIAL"
-            logger.info(f"Worker {task_id} status overridden to PARTIAL (missing: {missing_optional})")
-
-        # 更新状态
-        self.state.mark_task_completed(task_id)
-        if task_id in self.state.running_tasks:
-            self.state.running_tasks.remove(task_id)
-        self._save_state()
-
-        logger.info(f"Worker {task_id} verified: status={meta.status}")
-        return True, "", meta
-
-    # ========================================================================
-    # Phase 3: Integrate
-    # ========================================================================
-
-    def run_integrate(self, plan: ExecutionPlan) -> Any:
-        """Phase 3: Code-First Assembly（确定性拼接，零 LLM 压缩）。
-
-        使用 SmartAssembler 拼接 Worker 产出，保留率 ≥95%。
-        这是生产主链的 Phase 3 入口（替代 LLM Integrate Agent）。
-
-        Args:
-            plan: 执行计划
-
-        Returns:
-            AssemblyResult 包含保留率、文件路径等
-        """
-        from domains.deliver_pro.smart_assembler import SmartAssembler
-
-        # Idempotent transition: skip if already INTEGRATING (e.g., prepare_integrate_spawn called first)
-        if self.state.phase != PipelinePhase.INTEGRATING:
-            self.state.transition_to(PipelinePhase.INTEGRATING)
-            self._save_state()
-
-        assembler = SmartAssembler(
-            worker_outputs_dir=self.worker_outputs_dir,
-            plan_data=plan.model_dump(mode="json"),
-            output_dir=self.integrated_draft_dir,
-        )
-        result = assembler.run()
-
-        self.state.transition_to(PipelinePhase.VALIDATING)
-        self._save_state()
-
-        logger.info(
-            f"Phase 3 Integrate (Code-First): {result.workers_integrated} workers, "
-            f"retention={result.retention_ratio:.1%}"
-        )
-        return result
-
-    def prepare_integrate_spawn(
-        self,
-        plan: ExecutionPlan,
-        fix_directives: list[FixDirective] | None = None,
-    ) -> dict[str, Any]:
-        """
-        Phase 3 (legacy): 准备 Integrate Agent 的 spawn 参数。
-        建议改用 run_integrate() 进行确定性拼接。
-
-        Integrate Agent 组装所有 Worker 输出为统一交付物草稿。
-
-        Args:
-            plan: 执行计划
-            fix_directives: 修复指令（Validate Loop 修复轮次时传入）
-
-        Returns:
-            sessions_spawn 参数 dict
-        """
-        self.state.transition_to(PipelinePhase.INTEGRATING)
-        self._save_state()
-
-        # 收集 Worker 输出路径
-        worker_dirs = []
-        failed_workers = []
-        for task in plan.task_graph:
-            task_dir = self.worker_outputs_dir / task.task_id
-            if task_dir.exists():
-                worker_dirs.append(str(task_dir))
-            else:
-                failed_workers.append(task.task_id)
-
-        # 尝试加载 prompt 模板
-        try:
-            prompt = load_prompt(
-                "deliver_integrate",
-                wp_id=self.wp.wp_id,
-                worker_count=str(len(worker_dirs)),
-                failed_workers=", ".join(failed_workers) if failed_workers else "无",
-                fix_directives=json.dumps([d.model_dump() for d in fix_directives], ensure_ascii=False) if fix_directives else "无",
-                deepflow_root=str(self.blackboard_path.parent.parent),
-            )
-        except FileNotFoundError:
-            prompt = self._build_integrate_prompt(plan, worker_dirs, fix_directives)
-
-        _root = self.blackboard_path.parent.parent
-        _label = f"deliver_integrate_{self.wp.wp_id}"
-        return {
-            "runtime": "subagent",
-            "mode": "run",
-            "label": _label,
-            "task": auto_bootstrap(_root, self.stages_dir, prompt, _label),
-            "thinking": "high",
-        }
-
-    def _build_integrate_prompt(
-        self,
-        plan: ExecutionPlan,
-        worker_dirs: list[str],
-        fix_directives: list[FixDirective] | None = None,
-    ) -> str:
-        """构建 Integrate Agent prompt。"""
-        output_dir = self.stages_dir / "integrated_draft"
-
-        fix_section = ""
-        if fix_directives:
-            fix_items = "\n".join(
-                f"- [{d.priority}] {d.target}: {d.issue} → {d.fix_instruction}"
-                for d in fix_directives
-            )
-            fix_section = f"""
-## 修复指令（来自 Validate Judge）
-{fix_items}
-
-请根据以上修复指令进行定向修复。
-"""
-
-        return f"""你是 Deliver Pro 的 Integrate Agent。
-
-## 任务
-组装所有 Worker 输出为统一交付物草稿。
-
-## 输入
-- 执行计划: {self.stages_dir / "execution_plan.json"}
-- Worker 输出目录:
-{chr(10).join(f'  - {d}' for d in worker_dirs)}
-
-## 输出目录
-{output_dir}
-
-必须产出:
-1. DELIVERABLE.md — 组装后的主产物
-2. integration_report.json — 组装报告
-
-## 组装前检查
-1. 所有 Worker 输出文件存在且格式合规
-2. 编程场景: MANIFEST 接口对齐（provides vs requires）
-3. 报告场景: 术语一致性、数据交叉引用一致
-
-## 组装后验证
-- 编程场景: exec 运行集成测试 + lint
-- 报告场景: 术语扫描 + 数据一致性检查
-{fix_section}
-
-## 铁律
-1. 不修改 Worker 原始输出（只组装 + 格式调整）
-2. 生成者 ≠ 验证者（你是组装者，不是验证者）
-
-请直接开始工作。
-"""
-
-    def verify_integrate_output(
-        self,
-        output_dir: Path,
-        plan: ExecutionPlan | None = None,
-    ) -> tuple[bool, str]:
-        """
-        验证 Integrate Agent 输出。
-
-        P1-3: Added completeness verification — workers count, retention,
-        coverage gaps consistency. If plan is not provided, loads from blackboard.
-
-        Returns:
-            (passed, error_message)
-        """
-        # P1-3: Auto-load plan from blackboard if not provided
-        if plan is None:
-            try:
-                plan = self.load_execution_plan()
-                logger.info("P1-3: Auto-loaded execution plan from blackboard for verification")
+                return json.loads(self.progress_path.read_text())
             except Exception as e:
-                logger.warning(f"P1-3: Could not load execution plan from blackboard: {e}")
-                logger.warning("P1-3: Skipping completeness verification (plan unavailable)")
+                logger.warning(f"Failed to load progress: {e}")
+        return {}
 
-        # 检查必需文件
-        deliverable = output_dir / "DELIVERABLE.md"
-        report = output_dir / "integration_report.json"
-
-        if not deliverable.exists():
-            return False, "integrated_draft/DELIVERABLE.md not found"
-
-        if not report.exists():
-            return False, "integrated_draft/integration_report.json not found"
-
-        # 读取并验证 integration_report.json
-        try:
-            report_data = json.loads(report.read_text(encoding="utf-8"))
-            report_obj = IntegrationReport.model_validate(report_data)
-
-            if report_obj.status not in ("READY_FOR_VALIDATE", "PARTIAL"):
-                return False, (
-                    f"Integration status is {report_obj.status}, "
-                    f"not READY_FOR_VALIDATE or PARTIAL"
-                )
-
-        except Exception as e:
-            return False, f"integration_report.json validation failed: {e}"
-
-        # P1-3: Completeness verification (when plan available)
-        if plan is not None:
-            expected = plan.task_count
-            actual = report_obj.workers_integrated + report_obj.workers_failed
-            if actual != expected:
-                return False, (
-                    f"Worker count mismatch: integrated({report_obj.workers_integrated}) "
-                    f"+ failed({report_obj.workers_failed}) = {actual}, "
-                    f"expected {expected}"
-                )
-
-            # Retention check (Code-First Assembly requires >= 0.95)
-            retention = report_data.get("assembly_stats", {}).get(
-                "body_retention_ratio", 1.0
-            )
-            if retention < 0.95:
-                return False, (
-                    f"Body retention ratio {retention:.3f} < 0.95 "
-                    f"(Code-First Assembly invariant violated)"
-                )
-
-            # Coverage gaps should only reference failed workers
-            failed_ids = set(
-                t.task_id
-                for t in plan.task_graph
-                if t.task_id not in [
-                    # integrated workers are those with successful output
-                    tid
-                    for tid in self.state.completed_tasks
-                ]
-            )
-            gaps = report_obj.coverage.get("gaps", [])
-            for gap in gaps:
-                if gap not in failed_ids:
-                    return False, (
-                        f"Coverage gap '{gap}' references a non-failed worker"
-                    )
-
-        self.state.transition_to(PipelinePhase.VALIDATING)
-        self.state.round_count = 1
-        self._save_state()
-
-        logger.info(
-            f"Phase 3 verified: integrated {report_obj.workers_integrated} workers, "
-            f"failed={report_obj.workers_failed}, coverage={report_obj.coverage_ratio:.1%}"
+    def _save_progress(self) -> None:
+        """保存进度到 JSON 文件。"""
+        self.progress_path.parent.mkdir(parents=True, exist_ok=True)
+        self.progress_path.write_text(
+            json.dumps(self.progress, ensure_ascii=False, indent=2)
         )
-        return True, ""
 
-    # ========================================================================
-    # Phase 4: Validate (Loop ≤5 轮)
-    # ========================================================================
+    # ------------------------------------------------------------------
+    # WP 数据访问
+    # ------------------------------------------------------------------
 
-    def prepare_validate_spawn(
-        self,
-        plan: ExecutionPlan,
-        round_num: int = 1,
-    ) -> dict[str, Any]:
+    def _get_wp_data(self, wp_id: str) -> dict:
+        """从 ship_package 获取 WP 原始数据。"""
+        for wp in self.ship_package.get("work_packages", []):
+            if wp["wp_id"] == wp_id:
+                return wp
+        raise KeyError(f"WP not found: {wp_id}")
+
+    def _get_wp_project_name(self, wp_id: str) -> str:
+        """WP ID → project_name 映射。
+
+        e.g., CORE-001 → deliver_core_001
         """
-        Phase 4: 准备 Validate Judge 的 spawn 参数。
+        return f"deliver_{wp_id.lower().replace('-', '_')}"
 
-        Validate Judge 独立评估交付物质量，输出 PASS/CONDITIONAL/FAIL + fix_directives。
+    def _get_driver(self, wp_id: str):
+        """创建 DeliverRunner(wp_id, project_name)。"""
+        from domains.deliver_pro.driver import DeliverRunner
 
-        Args:
-            plan: 执行计划
-            round_num: 当前轮次
+        project_name = self._get_wp_project_name(wp_id)
+        return DeliverRunner(wp_id, project_name)
+
+    # ------------------------------------------------------------------
+    # Phase 检测（从 blackboard 文件系统）
+    # ------------------------------------------------------------------
+
+    def _check_wp_phase(self, wp_id: str) -> str:
+        """从 blackboard 文件系统检查 WP 实际 phase。
 
         Returns:
-            sessions_spawn 参数 dict
+            "DONE" | "PACKAGING" | "VALIDATING" | "ASSEMBLING" |
+            "GENERATING" | "PENDING"
         """
-        # 契约笼子：幂等前置状态转换（LLM 跳步不崩）
-        if self.state.phase == PipelinePhase.INTEGRATING:
-            self.state.transition_to(PipelinePhase.VALIDATING)
-            self._save_state()
+        wp_project = self._get_wp_project_name(wp_id)
+        wp_subdir = wp_id.lower().replace('-', '_')
+        stages_dir = self.blackboard_root / wp_project / "deliver_pro" / wp_subdir / "stages"
 
-        # 尝试加载 prompt 模板
-        try:
-            prompt = load_prompt(
-                "deliver_validate",
-                wp_id=self.wp.wp_id,
-                round_count=str(round_num),
-                max_rounds=str(MAX_VALIDATE_ROUNDS),
-                deepflow_root=str(self.blackboard_path.parent.parent),
-            )
-        except FileNotFoundError:
-            prompt = self._build_validate_prompt(plan, round_num)
+        if not stages_dir.exists():
+            return "PENDING"
 
-        _root = self.blackboard_path.parent.parent
-        _label = f"deliver_validate_{self.wp.wp_id}_r{round_num}"
-        return {
-            "runtime": "subagent",
-            "mode": "run",
-            "label": _label,
-            "task": auto_bootstrap(_root, self.stages_dir, prompt, _label),
-            "thinking": "high",
-        }
+        # P1-8 fix: DONE requires delivery_manifest.json OR terminal state.
+        # File existence alone ≠ verified completion.
+        final_dir = stages_dir / "final_deliverable"
+        manifest_file = stages_dir / "delivery_manifest.json"
+        if final_dir.exists() and manifest_file.exists():
+            final_files = [f for f in final_dir.rglob("*") if f.is_file()]
+            if final_files:
+                return "DONE"
+        # Also DONE if state is terminal (DELIVERED/COMPLETED/FAILED)
+        state_file = stages_dir.parent / "delivery_state.json"
+        if state_file.exists():
+            try:
+                state_data = json.loads(state_file.read_text())
+                if state_data.get("phase") in ("DELIVERED", "COMPLETED", "FAILED"):
+                    return "DONE"
+            except Exception:
+                pass
 
-    def _build_validate_prompt(self, plan: ExecutionPlan, round_num: int) -> str:
-        """构建 Validate Judge prompt（fallback）。"""
-        # 收集 AC 列表
-        ac_list = []
-        for task in plan.task_graph:
-            for ac in task.acceptance_criteria:
-                ac_list.append(f"- [{task.task_id}] {ac}")
+        # PACKAGING: validation_result.json 存在
+        if (stages_dir / "validation_result.json").exists():
+            return "PACKAGING"
 
-        return f"""你是 Deliver Pro 的 Validate Judge（独立质量裁判）。
-
-## 任务
-独立评估交付物质量，输出判定结果。
-
-## 输入
-- WP 文件: {self.data_dir / "wp.json"}
-- 执行计划: {self.stages_dir / "execution_plan.json"}
-- 交付物草稿: {self.stages_dir / "integrated_draft"}
-
-## 输出
-写入: {self.stages_dir / "validation_result.json"}
-
-## 评分维度（6 维度，每维度 1-5 分）
-1. completeness（完整性，权重 0.25）
-2. correctness（正确性，权重 0.25）
-3. credibility（可信度，权重 0.20）
-4. actionability（可操作性，权重 0.15）
-5. consistency（一致性，权重 0.10）
-6. professionalism（专业性，权重 0.05）
-
-## 验收标准（来自 ExecutionPlan）
-{chr(10).join(ac_list) if ac_list else "（无具体 AC）"}
-
-## 门禁规则
-- PASS: weighted_score ≥ 3.5 且无维度 < 3
-- CONDITIONAL: weighted_score ≥ 3.0 且无维度 < 2
-- FAIL: weighted_score < 3.0 或任意维度 < 2
-
-## should_continue 判断
-- true: 有可修复项 + 有进展 + 修复成本合理
-- false: 无可修复项 / 无进展 / 已达边际收益上限
-
-## 当前轮次
-Round {round_num}/{MAX_VALIDATE_ROUNDS}
-
-## 输出格式
-```json
-{{
-  "round": {round_num},
-  "verdict": "PASS|CONDITIONAL|FAIL",
-  "scores": {{
-    "completeness": {{"score": 4, "max": 5, "weight": 0.25, "notes": "..."}},
-    "correctness": {{"score": 4, "max": 5, "weight": 0.25, "notes": "..."}},
-    "credibility": {{"score": 4, "max": 5, "weight": 0.20, "notes": "..."}},
-    "actionability": {{"score": 4, "max": 5, "weight": 0.15, "notes": "..."}},
-    "consistency": {{"score": 3, "max": 5, "weight": 0.10, "notes": "..."}},
-    "professionalism": {{"score": 3, "max": 5, "weight": 0.05, "notes": "..."}}
-  }},
-  "weighted_score": 3.8,
-  "fix_directives": [
-    {{"target": "T-001", "issue": "...", "fix_instruction": "...", "priority": "high"}}
-  ],
-  "has_fixable": true,
-  "should_continue": true,
-  "should_continue_reason": "..."
-}}
-```
-
-## 铁律
-1. 你是独立裁判，不参与生成
-2. 数值门禁是硬约束，不可被 LLM 判断覆盖
-3. 无证据不交付（编程要有测试输出，报告要有数据源）
-
-请直接输出 JSON。
-"""
-
-    def verify_validate_output(self, verdict_data: dict) -> tuple[bool, str, ValidationVerdict | None]:
-        """
-        验证 Validate Judge 输出。
-
-        Returns:
-            (passed, error_message, verdict)
-        """
-        try:
-            verdict = ValidationVerdict.model_validate(verdict_data)
-
-            # 独立门禁验证：用代码计算 weighted_score 和 verdict，与 LLM 输出交叉验证
-            computed_score = ValidationVerdict.compute_weighted_score(verdict.scores)
-            computed_verdict = ValidationVerdict.compute_verdict(computed_score, verdict.scores)
-            if computed_verdict != verdict.verdict:
-                logger.warning(
-                    f"Gate mismatch: LLM says {verdict.verdict}, "
-                    f"code computes {computed_verdict} (score={computed_score:.2f}). "
-                    f"Using code verdict (hard constraint)."
-                )
-                verdict.verdict = computed_verdict
-                verdict.weighted_score = computed_score
-
-            # N6: Information Conservation Gate
-            # Check AC coverage from integration report
-            integration_report_path = self.stages_dir / "integrated_draft" / "integration_report.json"
-            if integration_report_path.exists():
+        # VALIDATING: integrated_draft/DELIVERABLE.md 存在
+        # But only if state agrees (not stale artifacts from a previous run).
+        if (stages_dir / "integrated_draft" / "DELIVERABLE.md").exists():
+            # Cross-check with state file to avoid stale artifact false positive
+            if state_file.exists():
                 try:
-                    report_data = json.loads(integration_report_path.read_text(encoding="utf-8"))
-                    coverage = report_data.get("coverage", {})
-                    ac_coverage_ratio = coverage.get("ac_coverage_ratio", 0.0)
-                    # AC coverage < 80% → auto FAIL
-                    if ac_coverage_ratio < 0.8:
-                        logger.error(
-                            f"N6: AC coverage {ac_coverage_ratio:.2%} < 80%, auto FAIL"
-                        )
-                        verdict.verdict = "FAIL"
-                        verdict.should_continue = False
-                except Exception as e:
-                    logger.warning(f"N6: Could not read integration report for AC check: {e}")
-
-            # N6: Check ship_context.json semantic anchors preservation
-            ship_context_path = self.data_dir / "ship_context.json"
-            if ship_context_path.exists():
-                try:
-                    ship_ctx = json.loads(ship_context_path.read_text(encoding="utf-8"))
-                    semantic_anchors = ship_ctx.get("semantic_anchors", [])
-                    # Check if anchors are referenced in integrated draft
-                    draft_path = self.stages_dir / "integrated_draft" / "DELIVERABLE.md"
-                    if draft_path.exists() and semantic_anchors:
-                        draft_content = draft_path.read_text(encoding="utf-8")
-                        missing_anchors = [
-                            a for a in semantic_anchors if a not in draft_content
-                        ]
-                        if missing_anchors:
-                            logger.warning(
-                                f"N6: {len(missing_anchors)} semantic anchors missing from final deliverable: "
-                                f"{missing_anchors[:3]}..."
-                            )
-                            # Don't auto-fail for missing anchors, but log warning
-                except Exception as e:
-                    logger.warning(f"N6: Could not check ship_context anchors: {e}")
-
-            # 写入修正后的验证结果（不是原始 verdict_data）
-            verdict_path = self.stages_dir / "validation_result.json"
-            verdict_path.write_text(
-                verdict.model_dump_json(indent=2),
-                encoding="utf-8",
-            )
-
-            # 状态转换：INTEGRATING → VALIDATING
-            # （如果是 FIX_LOOP 回来的，状态已经在 INTEGRATING）
-            if self.state.phase == PipelinePhase.INTEGRATING:
-                self.state.transition_to(PipelinePhase.VALIDATING)
-
-            # 更新状态
-            self.state.validation_score = verdict.weighted_score
-            self.state.last_verdict = verdict.verdict
-            self._save_state()
-
-            logger.info(
-                f"Phase 4 (round {verdict.round}): verdict={verdict.verdict}, "
-                f"score={verdict.weighted_score:.2f}, continue={verdict.should_continue}"
-            )
-            return True, "", verdict
-
-        except Exception as e:
-            return False, f"ValidationVerdict validation failed: {e}", None
-
-    def decide_validate_loop(self, verdict: ValidationVerdict) -> str:
-        """
-        决定 Validate Loop 的下一步。
-
-        Returns:
-            "pass" — 进入 Phase 5
-            "fix" — 进入修复轮次（spawn Integrate with fix_directives）
-            "stop" — 停止循环，进入 Phase 5（标记 unvalidated）
-        """
-        # Guard: null verdict
-        if verdict is None:
-            logger.error("decide_validate_loop called with None verdict")
-            return "stop"
-
-        # 硬约束检查
-        if verdict.is_pass:
-            return "pass"
-
-        # Guard: round_count may be None (first run)
-        current_round = self.state.round_count or 0
-        if current_round >= MAX_VALIDATE_ROUNDS:
-            logger.warning(f"Max validate rounds ({MAX_VALIDATE_ROUNDS}) reached")
-            return "stop"
-
-        # Guard: should_continue may be None
-        if verdict.should_continue is False:
-            logger.info(f"Validate Judge decided to stop: {verdict.should_continue_reason}")
-            return "stop"
-
-        # Guard: has_fixable may be None
-        if not verdict.has_fixable:
-            logger.info("No fixable issues, but verdict is not PASS")
-            return "stop"
-
-        # 进入修复轮次（带状态转换保护）
-        try:
-            if self.state.phase != PipelinePhase.FIX_LOOP:
-                self.state.transition_to(PipelinePhase.FIX_LOOP)
-        except (ValueError, AttributeError) as e:
-            logger.warning(f"State transition to FIX_LOOP failed: {e}, forcing state")
-            self.state.phase = PipelinePhase.FIX_LOOP
-
-        self.state.round_count = current_round + 1
-        self._save_state()
-
-        logger.info(f"Entering fix loop round {self.state.round_count}")
-        return "fix"
-
-    def prepare_fix_integrate_spawn(
-        self,
-        plan: ExecutionPlan,
-        verdict: ValidationVerdict,
-    ) -> dict[str, Any]:
-        """
-        准备修复轮次的 Integrate Agent spawn 参数。
-
-        状态机: FIX_LOOP → (spawn Integrate) → FIX_LOOP → VALIDATING
-        注意：修复轮次不改变状态为 INTEGRATING，保持在 FIX_LOOP，
-        等 Integrate 完成后由 verify_fix_integrate_output 转换到 VALIDATING。
-        """
-        # Guard: null verdict
-        if verdict is None:
-            raise ValueError("prepare_fix_integrate_spawn requires a valid verdict")
-
-        # 收集 Worker 输出路径
-        worker_dirs = []
-        for task in plan.task_graph:
-            task_dir = self.worker_outputs_dir / task.task_id
-            if task_dir.exists():
-                worker_dirs.append(str(task_dir))
-
-        # Guard: empty worker_dirs
-        if not worker_dirs:
-            raise ValueError(f"No worker output directories found in {self.worker_outputs_dir}")
-
-        # 构建 prompt（带 fix_directives）
-        fix_directives = verdict.fix_directives or []
-        prompt = self._build_integrate_prompt(plan, worker_dirs, fix_directives=fix_directives)
-
-        # Guard: round_count may be None
-        round_num = self.state.round_count or 1
-
-        # 不改变状态（保持在 FIX_LOOP）
-        self._save_state()
-
-        _deepflow_root = self.blackboard_path.parent.parent
-        _label = f"deliver_fix_integrate_{self.wp.wp_id}_r{round_num}"
-        return {
-            "runtime": "subagent",
-            "mode": "run",
-            "label": _label,
-            "task": auto_bootstrap(_deepflow_root, self.stages_dir, prompt, _label),
-            "thinking": "high",
-        }
-
-    def verify_fix_integrate_output(self, output_dir: Path) -> tuple[bool, str]:
-        """
-        验证修复轮次的 Integrate Agent 输出。
-
-        状态转换: FIX_LOOP → VALIDATING
-        """
-        # 检查必需文件
-        deliverable = output_dir / "DELIVERABLE.md"
-        if not deliverable.exists():
-            return False, "integrated_draft/DELIVERABLE.md not found after fix"
-
-        # 状态转换: FIX_LOOP → VALIDATING
-        if self.state.phase == PipelinePhase.FIX_LOOP:
-            self.state.transition_to(PipelinePhase.VALIDATING)
-            self._save_state()
-
-        logger.info(f"Fix integrate verified, transitioning to VALIDATING (round {self.state.round_count})")
-        return True, ""
-
-    # ========================================================================
-    # Phase 5: Package
-    # ========================================================================
-
-    def prepare_package_spawn(
-        self,
-        plan: ExecutionPlan,
-        verdict: ValidationVerdict | None = None,
-    ) -> dict[str, Any]:
-        """
-        Phase 5: 准备 Package Agent 的 spawn 参数。
-
-        Package Agent 最终打包 + 组件级诚实交付。
-
-        Returns:
-            sessions_spawn 参数 dict
-        """
-        self.state.transition_to(PipelinePhase.PACKAGING)
-        self._save_state()
-
-        # 尝试加载 prompt 模板
-        try:
-            prompt = load_prompt(
-                "deliver_package",
-                wp_id=self.wp.wp_id,
-                delivery_status="COMPLETE" if (verdict and verdict.is_pass) else "PARTIAL",
-                final_score=f"{verdict.weighted_score:.1f}" if verdict else "N/A",
-                pass_count="0",
-                fail_count=str(len(self.state.failed_tasks)),
-                total=str(plan.task_count),
-                deepflow_root=str(self.blackboard_path.parent.parent),
-            )
-        except FileNotFoundError:
-            prompt = self._build_package_prompt(plan, verdict)
-
-        _deepflow_root = self.blackboard_path.parent.parent
-        _label = f"deliver_package_{self.wp.wp_id}"
-        return {
-            "runtime": "subagent",
-            "mode": "run",
-            "label": _label,
-            "task": auto_bootstrap(_deepflow_root, self.stages_dir, prompt, _label),
-            "thinking": "medium",
-        }
-
-    def _build_package_prompt(
-        self,
-        plan: ExecutionPlan,
-        verdict: ValidationVerdict | None = None,
-    ) -> str:
-        """构建 Package Agent prompt（fallback）。"""
-        verdict_info = ""
-        if verdict:
-            verdict_info = f"""
-## 质量评估
-- 轮次: {verdict.round}
-- 判定: {verdict.verdict}
-- 分数: {verdict.weighted_score:.2f}
-"""
-
-        # 收集任务状态
-        task_status = []
-        for task in plan.task_graph:
-            status = "PASS" if task.task_id in self.state.completed_tasks else "FAILED"
-            task_status.append(f"- {task.task_id}: {status}")
-
-        return f"""你是 Deliver Pro 的 Package Agent。
-
-## 任务
-最终打包 + 组件级诚实交付。
-
-## 输入
-- WP 文件: {self.data_dir / "wp.json"}
-- 交付物草稿: {self.stages_dir / "integrated_draft"}
-- Worker 输出: {self.worker_outputs_dir}
-{verdict_info}
-
-## 输出
-1. 最终交付物: {self.stages_dir / "final_deliverable"}
-2. 交付清单: {self.stages_dir / "delivery_manifest.json"}
-
-## 任务状态
-{chr(10).join(task_status)}
-
-## 交付逻辑
-- 全部 PASS → 完整交付
-- 部分 FAIL + 组件独立 → 交付成功部分 + 失败报告
-- 部分 FAIL + 核心依赖缺失 → 不交付 + 失败报告 + 行动选项
-
-## delivery_manifest.json 格式
-```json
-{{
-  "wp_id": "{self.wp.wp_id}",
-  "delivery_status": "COMPLETE|PARTIAL|FAILED",
-  "components": [
-    {{"task_id": "T-001", "title": "...", "status": "PASS|FAILED", "artifacts": ["..."]}}
-  ],
-  "validation_summary": {{
-    "rounds_run": {verdict.round if verdict else 0},
-    "final_score": {verdict.weighted_score if verdict else 0},
-    "verdict": "{verdict.verdict if verdict else 'N/A'}"
-  }}
-}}
-```
-
-## 铁律
-1. 诚实优于完美 — 宁可承认不足，不编造数据
-2. 组件级独立评估 — 每个组件单独判定状态
-
-请直接开始工作。
-"""
-
-    # ========================================================================
-    # ADR-009: Track JSON Generation (Post-Phase 5)
-    # ========================================================================
-
-    def generate_track_json(self) -> None:
-        """
-        ADR-009: 从 DELIVERABLE.md 提取 track.json。
-
-        在 Phase 5 (Package) 验证通过后、写入 .completed 之前调用。
-        提取失败 → log warning，不阻断交付。
-        """
-        if not _HAS_TRACK_EXTRACTOR:
-            logger.info("ADR-009: md_track_extractor not available, skipping track.json generation")
-            return
-
-        deliverable_path = self.stages_dir / "final_deliverable" / "DELIVERABLE.md"
-        if not deliverable_path.exists():
-            logger.warning("ADR-009: DELIVERABLE.md not found, skipping track.json")
-            return
-
-        try:
-            md_content = deliverable_path.read_text(encoding="utf-8")
-
-            # L1: Validate structure
-            passed, msg, warnings = validate_md_structure(md_content, "deliver_pro")
-            if not passed:
-                logger.warning(f"ADR-009: MD validation failed: {msg}")
-                return
-            if warnings:
-                logger.info(f"ADR-009: MD validation warnings: {warnings}")
-
-            # L2: Extract track.json
-            track_data = extract_track_json(md_content, "deliver_pro")
-
-            # Write via direct file I/O (extractor is pure function)
-            track_path = self.stages_dir / "deliver_track.json"
-            track_path.write_text(
-                json.dumps(track_data, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-
-            logger.info(
-                f"ADR-009: track.json generated — "
-                f"req_count={track_data['metrics']['req_count']}, "
-                f"sections={track_data['metrics']['section_count']}, "
-                f"gate={track_data['gate_summary']}"
-            )
-
-        except ValueError as e:
-            logger.warning(f"ADR-009: track extraction failed (ValueError): {e}")
-        except Exception as e:
-            logger.warning(f"ADR-009: unexpected error during track generation: {e}")
-
-    def verify_package_output(self, manifest_path: Path) -> tuple[bool, str, DeliveryManifest | None]:
-        """
-        验证 Package Agent 输出。
-
-        Returns:
-            (passed, error_message, manifest)
-        """
-        if not manifest_path.exists():
-            return False, "delivery_manifest.json not found", None
-
-        try:
-            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest = DeliveryManifest.model_validate(manifest_data)
-
-            # 更新最终状态
-            if manifest.delivery_status == DeliveryStatus.COMPLETE:
-                self.state.transition_to(PipelinePhase.DELIVERED)
+                    _sf_data = json.loads(state_file.read_text())
+                    _sf_phase = _sf_data.get("phase", "")
+                    # If state is GENERATING or earlier, the draft is stale
+                    if _sf_phase in ("INIT", "ANALYZING", "GENERATING"):
+                        pass  # Fall through to ASSEMBLING/GENERATING check
+                    else:
+                        return "VALIDATING"
+                except Exception:
+                    return "VALIDATING"
             else:
-                # PARTIAL 或 FAILED 也标记完成（带警告）
-                self.state.transition_to(PipelinePhase.COMPLETED)
+                return "VALIDATING"
 
-            self._save_state()
+        # ASSEMBLING: 所有 worker MANIFEST 完成
+        # (检查 execution_plan.json 中的 task_count vs MANIFEST 数量)
+        plan_path = stages_dir / "execution_plan.json"
+        if plan_path.exists():
+            try:
+                import glob
+                plan_data = json.loads(plan_path.read_text())
+                # BLK-01 fix: task_count is a @property, not serialized to JSON
+                task_count = len(plan_data.get("task_graph", []))
+                manifests = glob.glob(str(stages_dir / "worker_outputs" / "*/MANIFEST.json"))
+                if task_count > 0 and len(manifests) >= task_count:
+                    return "ASSEMBLING"
+            except Exception:
+                pass
 
-            # ADR-009: Generate track.json from DELIVERABLE.md (non-blocking)
-            # 在 .completed 之前调用，确保 track 生成是完成标记的前置条件
-            self.generate_track_json()
+        # GENERATING: execution_plan.json 有 task_graph
+        if plan_path.exists():
+            try:
+                plan_data = json.loads(plan_path.read_text())
+                # BLK-01 fix: use len(task_graph) instead of task_count property
+                if plan_data.get("task_graph") or len(plan_data.get("task_graph", [])) > 0:
+                    return "GENERATING"
+            except Exception:
+                pass
 
-            # 写入完成标记
-            (self.deliver_pro_dir / ".completed").write_text(
-                datetime.now().isoformat(), encoding="utf-8"
-            )
+        return "PENDING"
 
-            logger.info(
-                f"Phase 5 verified: status={manifest.delivery_status.value}, "
-                f"pass={manifest.pass_count}, fail={manifest.fail_count}"
-            )
-            return True, "", manifest
+    # ------------------------------------------------------------------
+    # 核心 API
+    # ------------------------------------------------------------------
 
-        except Exception as e:
-            return False, f"DeliveryManifest validation failed: {e}", None
+    def get_next_actions(self) -> dict:
+        """返回当前层所有 WP 的下一步动作。
 
-    # ========================================================================
-    # Worker 故障恢复
-    # ========================================================================
-
-    def prepare_diagnosis_spawn(
-        self,
-        error: WorkerError,
-        task: TaskNode,
-    ) -> dict[str, Any]:
+        Returns:
+            {
+                "layer": int,
+                "actions": [
+                    {"wp_id": str, "action": str, "spawn_params": dict|None, "error": str|None},
+                    ...
+                ]
+            }
         """
-        Worker 失败时，准备 LLM 诊断的 spawn 参数。
+        for layer_idx, layer_wps in enumerate(self.layers):
+            # 检查该层是否有未完成的 WP
+            unfinished = []
+            for wp_id in layer_wps:
+                phase = self._get_wp_phase(wp_id)
+                if phase != "DONE":
+                    unfinished.append(wp_id)
 
-        LLM 端到端诊断，不预定义故障类型（废除 F1-F8）。
+            if not unfinished:
+                continue  # 该层全部完成，检查下一层
+
+            # 该层有未完成 WP → 返回它们的 next actions
+            actions = []
+            for wp_id in unfinished:
+                try:
+                    action = self._get_wp_next_action(wp_id)
+                    actions.append(action)
+                except Exception as e:
+                    actions.append({
+                        "wp_id": wp_id,
+                        "action": "error",
+                        "spawn_params": None,
+                        "error": str(e),
+                    })
+
+            return {"layer": layer_idx, "actions": actions}
+
+        # 所有层都完成
+        return {"layer": -1, "actions": []}
+
+    def _ensure_wp_initialized(self, wp_id: str) -> None:
+        """确保 WP 的 blackboard 目录和 wp.json 存在。"""
+        from domains.deliver_pro import _adapt_ship_pro_wp
+        from domains.deliver_pro.contracts import WorkPackage
+
+        project_name = self._get_wp_project_name(wp_id)
+        wp_subdir = wp_id.lower().replace('-', '_')
+        deliver_pro_dir = self.blackboard_root / project_name / "deliver_pro" / wp_subdir
+        wp_path = deliver_pro_dir / "data" / "wp.json"
+
+        if wp_path.exists():
+            return  # 已初始化
+
+        # 从 ship_package 获取 WP 数据并适配
+        wp_data = self._get_wp_data(wp_id)
+        package_sa = self.ship_package.get("semantic_anchors", [])
+        adapted = _adapt_ship_pro_wp(wp_data, package_semantic_anchors=package_sa)
+        wp_obj = WorkPackage.model_validate(adapted)
+
+        # 创建目录结构
+        deliver_pro_dir.mkdir(parents=True, exist_ok=True)
+        (deliver_pro_dir / "data").mkdir(exist_ok=True)
+        (deliver_pro_dir / "stages").mkdir(exist_ok=True)
+        (deliver_pro_dir / "stages" / "worker_outputs").mkdir(exist_ok=True)
+
+        # 写入 wp.json
+        wp_path.write_text(
+            json.dumps(wp_obj.model_dump(mode="json"), ensure_ascii=False, indent=2)
+        )
+        logger.info(f"Initialized WP {wp_id} at {wp_path}")
+
+    def _get_wp_next_action(self, wp_id: str) -> dict:
+        """获取单个 WP 的下一步动作（含 spawn params）。"""
+        phase = self._check_wp_phase(wp_id)
+        progress_entry = self.progress.get(wp_id, {})
+        progress_entry["phase"] = phase
+        self.progress[wp_id] = progress_entry
+
+        # DONE / PACKAGING → 无需 spawn
+        if phase == "DONE":
+            return {"wp_id": wp_id, "action": "done", "spawn_params": None, "error": None}
+
+        if phase == "PACKAGING":
+            # BLK-02 fix: PACKAGING should spawn Package agent, not return done
+            try:
+                self._ensure_wp_initialized(wp_id)
+                driver = self._get_driver(wp_id)
+                params = driver.step7_package(verdict_str="PASS")
+                return {"wp_id": wp_id, "action": "package", "spawn_params": params, "error": None}
+            except Exception as e:
+                return {"wp_id": wp_id, "action": "package_failed", "spawn_params": None, "error": str(e)}
+
+        # 需要 driver → 确保已初始化
+        try:
+            self._ensure_wp_initialized(wp_id)
+            driver = self._get_driver(wp_id)
+        except Exception as e:
+            return {"wp_id": wp_id, "action": "init_failed", "spawn_params": None, "error": str(e)}
+
+        if phase == "PENDING":
+            try:
+                params = driver.step1_analyze()
+                return {"wp_id": wp_id, "action": "analyze", "spawn_params": params, "error": None}
+            except Exception as e:
+                return {"wp_id": wp_id, "action": "analyze_failed", "spawn_params": None, "error": str(e)}
+
+        if phase == "GENERATING":
+            ok, info = driver.step2_check_analyze()
+            if not ok:
+                return {"wp_id": wp_id, "action": "analyze_check_failed", "spawn_params": None, "error": str(info)}
+            try:
+                # BLK-05 fix: Check if workers are already done before spawning new ones
+                all_done, check_info = driver.step4_check_workers()
+                if all_done:
+                    # Workers already completed → trigger assembly
+                    return {"wp_id": wp_id, "action": "assemble", "spawn_params": None, "error": None}
+                params_list = driver.step3_workers()
+                return {"wp_id": wp_id, "action": "spawn_workers", "spawn_params": params_list, "error": None}
+            except Exception as e:
+                return {"wp_id": wp_id, "action": "workers_failed", "spawn_params": None, "error": str(e)}
+
+        if phase == "ASSEMBLING":
+            try:
+                result = driver.step5_integrate()
+                if result.get("status") == "ASSEMBLY_ERROR":
+                    params = driver.step7_package(verdict_str="FAIL")
+                    return {"wp_id": wp_id, "action": "package_failed", "spawn_params": params, "error": "Assembly failed"}
+                params = driver.step6_validate(round_num=1)
+                return {"wp_id": wp_id, "action": "validate", "spawn_params": params, "error": None}
+            except Exception as e:
+                return {"wp_id": wp_id, "action": "assembly_failed", "spawn_params": None, "error": str(e)}
+
+        if phase == "VALIDATING":
+            verdict, details = driver.step6_check_validate()
+            # P1-1 fix: NOT_FOUND = validate agent still running → skip, don't trigger package_failed
+            if verdict == "NOT_FOUND":
+                return {"wp_id": wp_id, "action": "skip", "spawn_params": None, "error": "validate_pending"}
+            try:
+                params = driver.step7_package()  # P1-3 fix: auto-read verdict from validation_result.json
+                action = "package" if verdict == "PASS" else "package_failed"
+                return {"wp_id": wp_id, "action": action, "spawn_params": params, "error": None}
+            except Exception as e:
+                return {"wp_id": wp_id, "action": "package_failed", "spawn_params": None, "error": str(e)}
+
+        return {"wp_id": wp_id, "action": "unknown", "spawn_params": None, "error": f"Unknown phase: {phase}"}
+
+    def _get_wp_phase(self, wp_id: str) -> str:
+        """获取 WP 的逻辑 phase（优先用 progress 记录，fallback 到文件系统检测）。"""
+        # 先用文件系统检测实际 phase
+        return self._check_wp_phase(wp_id)
+
+    def report_done(self, wp_id: str, action: str, success: bool = True, error: str = None) -> None:
+        """报告动作完成，更新 progress。"""
+        if wp_id not in self.progress:
+            self.progress[wp_id] = {}
+
+        entry = self.progress[wp_id]
+        entry["last_action"] = action
+        entry["last_success"] = success
+        entry["last_error"] = error
+
+        if success:
+            entry["action_count"] = entry.get("action_count", 0) + 1
+        else:
+            entry["error_count"] = entry.get("error_count", 0) + 1
+
+        # 更新 phase
+        entry["phase"] = self._check_wp_phase(wp_id)
+
+        self._save_progress()
+
+    def get_status(self) -> dict:
+        """整体进度概览。"""
+        total_wps = sum(len(layer) for layer in self.layers)
+        completed = 0
+        failed = 0
+        in_progress = 0
+
+        for layer in self.layers:
+            for wp_id in layer:
+                phase = self._check_wp_phase(wp_id)
+                if phase == "DONE":
+                    completed += 1
+                elif self.progress.get(wp_id, {}).get("last_error"):
+                    failed += 1
+                else:
+                    in_progress += 1
+
+        # 找当前层（第一个有未完成 WP 的层）
+        current_layer = -1
+        for i, layer in enumerate(self.layers):
+            if any(self._check_wp_phase(wp_id) != "DONE" for wp_id in layer):
+                current_layer = i
+                break
+
+        all_done = completed == total_wps
+
+        return {
+            "total_wps": total_wps,
+            "completed": completed,
+            "failed": failed,
+            "in_progress": in_progress,
+            "current_layer": current_layer,
+            "all_done": all_done,
+        }
+
+    def tick(self) -> list[dict]:
+        """AI Native 统一推进接口：一次调用完成 scan → reconcile → dedup → 返回 spawn list。
+
+        主 Agent 只需：
+        1. 调用 tick()
+        2. 对返回的每个 spawn_params 调用 sessions_spawn
+        3. yield 等待完成
+        4. 再次调用 tick()
+
+        内部自动处理：
+        - MANIFEST 路径修正（worker_outputs/ → stages/worker_outputs/）
+        - State reconcile（completed_tasks 从 MANIFEST 计算）
+        - 去重（已 spawn 的 agent 不重复返回）
+        - Assembly 自动执行（确定性代码，不需要 agent）
+
+        Returns:
+            list of {"wp_id": str, "action": str, "spawn_params": dict|None}
+            action: "analyze" | "spawn_workers" | "validate" | "package" | "done"
+        """
+        import shutil
+
+        results = []
+        next_actions = self.get_next_actions()
+
+        for action_item in next_actions.get("actions", []):
+            wp_id = action_item["wp_id"]
+            action = action_item["action"]
+
+            # 1. MANIFEST 路径修正
+            self._reconcile_manifests(wp_id)
+
+            # 2. 去重：检查 progress 中是否已 spawn 同 action（含具体 task IDs）
+            progress_entry = self.progress.get(wp_id, {})
+            last_spawned = progress_entry.get("last_spawned_action")
+            current_params = action_item.get("spawn_params")
+            has_real_params = bool(current_params) and (
+                not isinstance(current_params, list) or len(current_params) > 0
+            )
+            # P0-3 fix: dedup key 包含具体 task IDs，不同 wave 的 spawn_workers 不互相阻塞
+            current_task_ids = ""
+            if isinstance(current_params, list):
+                current_task_ids = ",".join(sorted(
+                    p.get("label", p.get("task_id", "")) for p in current_params
+                    if isinstance(p, dict)
+                ))
+            dedup_key = f"{action}:{current_task_ids}" if current_task_ids else action
+            if last_spawned == dedup_key and has_real_params:
+                continue  # 同一批 worker 已在进行中，跳过
+            if last_spawned == dedup_key and not has_real_params:
+                progress_entry.pop("last_spawned_action", None)
+                self.progress[wp_id] = progress_entry
+
+            # 3. Assembly 自动执行（确定性代码，不需要 agent）
+            if action == "assemble":
+                try:
+                    driver = self._get_driver(wp_id)
+                    result = driver.step5_integrate()
+                    # P1-6 fix: Check assembly status — don't discard ASSEMBLY_ERROR
+                    if result.get("status") == "ASSEMBLY_ERROR":
+                        logger.error(f"{wp_id}: ASSEMBLY_ERROR — routing to failure packaging")
+                        self.report_done(wp_id, "assemble", False, error="ASSEMBLY_ERROR")
+                        try:
+                            params = driver.step7_package(verdict_str="FAIL")
+                            results.append({"wp_id": wp_id, "action": "package_failed", "spawn_params": params, "error": "Assembly failed"})
+                        except Exception as pkg_e:
+                            results.append({"wp_id": wp_id, "action": "terminal_failed", "spawn_params": None, "error": f"Assembly+Package both failed: {pkg_e}"})
+                    else:
+                        self.report_done(wp_id, "assemble", True)
+                        # 立即获取下一个动作（validate）
+                        new_action = self._get_wp_next_action(wp_id)
+                        results.append(new_action)
+                except Exception as e:
+                    # P1-7 fix: assembly exception → terminal_failed (not retryable)
+                    logger.error(f"{wp_id}: assembly exception — {e}")
+                    results.append({"wp_id": wp_id, "action": "terminal_failed", "spawn_params": None, "error": str(e)})
+                continue
+
+            # 4. 记录 spawn 状态（P0-3 fix: 用 dedup_key 而非 action，区分不同 wave）
+            if has_real_params:
+                progress_entry["last_spawned_action"] = dedup_key
+                self.progress[wp_id] = progress_entry
+                self._save_progress()
+
+            results.append(action_item)
+
+        return results
+
+    def drive_once(self) -> dict:
+        """Auto-loop 接口：一次调用返回当前所有可执行的 spawn 动作。
+
+        Agent 层使用模式：
+            while True:
+                result = driver.drive_once()
+                if result["all_done"]:
+                    break
+                for action in result["spawn_actions"]:
+                    sessions_spawn(task=action["task"], label=action["label"], ...)
+                sessions_yield()  # 等待所有 worker 完成
+
+        自动处理（无需 Agent 干预）：
+        - State reconcile（completed/running tasks 从 MANIFEST 同步）
+        - Assembly（确定性代码，自动执行）
+        - Dedup（已 spawn 的不重复返回）
+        - Stale running_tasks 清理
+
+        Returns:
+            {
+                "all_done": bool,
+                "spawn_actions": [
+                    {"wp_id": str, "action": str, "task": str, "label": str, ...},
+                ],
+                "status": dict,  # get_status() output
+                "auto_completed": [str],  # actions auto-executed (e.g., assemble)
+            }
+        """
+        status = self.get_status()
+        if status["all_done"]:
+            return {"all_done": True, "spawn_actions": [], "status": status, "auto_completed": []}
+
+        tick_results = self.tick()
+        spawn_actions = []
+        auto_completed = []
+
+        for item in tick_results:
+            wp_id = item["wp_id"]
+            action = item["action"]
+            params = item.get("spawn_params")
+
+            if action == "done":
+                auto_completed.append(f"{wp_id}:{action}")
+                continue
+
+            # P1-4 fix: skip ≠ progress. Track separately so drive_all can detect waiting.
+            if action == "skip":
+                # Don't add to auto_completed — it's not real progress
+                continue
+
+            # P1-7 fix: terminal_failed is a final state, not retryable
+            if action == "terminal_failed":
+                auto_completed.append(f"{wp_id}:{action}")
+                continue
+
+            if action.startswith("assemble"):
+                # Assembly is auto-executed by tick(), record it
+                auto_completed.append(f"{wp_id}:{action}")
+                continue
+
+            if params:
+                # Extract spawn-relevant fields
+                if isinstance(params, list):
+                    for p in params:
+                        spawn_actions.append({
+                            "wp_id": wp_id,
+                            "action": action,
+                            "task": p.get("task", ""),
+                            "label": p.get("label", ""),
+                            "model": p.get("model"),
+                            "mode": p.get("mode", "run"),
+                            "thinking": p.get("thinking", "medium"),
+                        })
+                else:
+                    spawn_actions.append({
+                        "wp_id": wp_id,
+                        "action": action,
+                        "task": params.get("task", ""),
+                        "label": params.get("label", ""),
+                        "model": params.get("model"),
+                        "mode": params.get("mode", "run"),
+                        "thinking": params.get("thinking", "medium"),
+                    })
+            elif item.get("error"):
+                logger.warning(f"{wp_id}: {action} failed — {item['error']}")
+
+        # Refresh status after tick
+        status = self.get_status()
+        return {
+            "all_done": status["all_done"],
+            "spawn_actions": spawn_actions,
+            "status": status,
+            "auto_completed": auto_completed,
+        }
+
+    def drive_all(self, max_iterations: int = 50) -> dict:
+        """Blocking auto-loop: keep driving until agents need to spawn or pipeline is done.
+
+        Agent 层使用模式（极简）:
+            while True:
+                result = driver.drive_all()
+                if result["all_done"]:
+                    break  # Pipeline 完成！
+                # spawn agents
+                for action in result["spawn_actions"]:
+                    sessions_spawn(task=action["task"], label=action["label"], ...)
+                sessions_yield()  # 等待所有 worker 完成
+                # loop back to drive_all()
+
+        内部自动处理（无需 Agent 干预）:
+        - 所有确定性转换（Assembly, state reconcile, dedup）
+        - NOT_FOUND verdict → skip（等 validate agent 完成）
+        - 多轮 tick() 直到需要 agent 干预
 
         Args:
-            error: Worker 错误信息
-            task: 失败的任务定义
+            max_iterations: 安全上限，防止无限循环
 
         Returns:
-            sessions_spawn 参数 dict
+            {
+                "all_done": bool,
+                "spawn_actions": [...],  # 需要 agent spawn 的动作
+                "auto_completed": [...],  # 自动完成的动作
+                "iterations": int,  # tick() 调用次数
+            }
         """
-        recovery_history_str = ""
-        if error.recovery_history:
-            recovery_history_str = "\n".join(
-                f"- Round {r.get('round', '?')}: {r.get('action', '?')} → {r.get('result', '?')}"
-                for r in error.recovery_history
-            )
+        all_auto_completed = []
+        iterations = 0
 
-        prompt = f"""你是 Deliver Pro 的故障诊断专家。
+        for i in range(max_iterations):
+            iterations += 1
+            result = self.drive_once()
 
-## 任务
-诊断 Worker 失败原因，生成恢复方案。
+            if result["all_done"]:
+                return {
+                    "all_done": True,
+                    "spawn_actions": [],
+                    "auto_completed": all_auto_completed + result.get("auto_completed", []),
+                    "iterations": iterations,
+                }
 
-## 失败信息
-- Task ID: {error.task_id}
-- 错误类型: {error.error_type}
-- 错误消息: {error.message}
-- 上下文: {json.dumps(error.context, ensure_ascii=False)}
+            # Collect auto-completed actions
+            all_auto_completed.extend(result.get("auto_completed", []))
 
-## 任务定义
-- 标题: {task.title}
-- 场景: {task.scenario_type}
-- 依赖: {task.depends_on}
+            # If there are spawn actions, return them to the agent
+            if result["spawn_actions"]:
+                return {
+                    "all_done": False,
+                    "spawn_actions": result["spawn_actions"],
+                    "auto_completed": all_auto_completed,
+                    "iterations": iterations,
+                    "status": result.get("status", {}),
+                }
 
-## 已尝试的恢复策略
-{recovery_history_str or "（首次失败）"}
+            # No spawn actions but not done — keep driving (deterministic transitions)
+            # This handles cases where tick() returns only skip/done/assemble actions
 
-## 输出格式
-```json
-{{
-  "task_id": "{error.task_id}",
-  "diagnosis": "LLM 的诊断结果",
-  "recovery_action": "retry|switch_model|split_wp|simplify|add_context|skip",
-  "specific_changes": "具体的修改建议",
-  "confidence": 0.7,
-  "suggested_model": "qwen3.7-plus"
-}}
-```
+            # P1-1 fix: Early exit on consecutive empty iterations (agents still running)
+            # If only "skip" actions (e.g., NOT_FOUND verdict), return "waiting" instead
+            # of burning through max_iterations scanning the filesystem.
+            if not result.get("auto_completed") and not result.get("spawn_actions"):
+                # Truly empty iteration — nothing happened, agents still running
+                return {
+                    "all_done": False,
+                    "spawn_actions": [],
+                    "auto_completed": all_auto_completed,
+                    "iterations": iterations,
+                    "waiting": True,
+                }
 
-## 恢复策略说明
-- retry: 原样重试（适用于临时错误）
-- switch_model: 换模型（适用于模型能力不足）
-- split_wp: 拆分任务（适用于任务过复杂）
-- simplify: 简化任务（适用于范围过大）
-- add_context: 补充上下文（适用于信息不足）
-- skip: 跳过（标记 FAILED，适用于不可恢复）
-
-请直接输出 JSON。
-"""
-
-        _deepflow_root = self.blackboard_path.parent.parent
-        _label = f"deliver_diagnosis_{error.task_id}"
+        # Safety limit reached
         return {
-            "runtime": "subagent",
-            "mode": "run",
-            "label": _label,
-            "task": auto_bootstrap(_deepflow_root, self.stages_dir, prompt, _label),
-            "thinking": "medium",
+            "all_done": False,
+            "spawn_actions": [],
+            "auto_completed": all_auto_completed,
+            "iterations": iterations,
+            "error": f"max_iterations ({max_iterations}) reached without spawning or completing",
         }
 
-    def verify_diagnosis_output(
-        self,
-        diagnosis_data: dict,
-    ) -> tuple[bool, str, RecoveryAction | None]:
-        """
-        验证 LLM 诊断输出。
+    def get_progress_report(self) -> str:
+        """生成人类可读的 pipeline 进度报告。"""
+        status = self.get_status()
+        lines = [
+            f"## Deliver Pro Pipeline Status",
+            f"Total: {status['total_wps']} | Done: {status['completed']} | Failed: {status['failed']} | In Progress: {status['in_progress']}",
+            f"All Done: {status['all_done']}",
+            "",
+        ]
 
-        Returns:
-            (passed, error_message, recovery_action)
+        for layer_idx, layer in enumerate(self.layers):
+            lines.append(f"### Layer {layer_idx}")
+            for wp_id in layer:
+                phase = self._check_wp_phase(wp_id)
+                # Check validation score if available
+                proj = f"deliver_{wp_id.lower().replace('-', '_')}"
+                wp_subdir = wp_id.lower().replace('-', '_')
+                vr = self.blackboard_root / proj / "deliver_pro" / wp_subdir / "stages" / "validation_result.json"
+                score_str = ""
+                if vr.exists():
+                    try:
+                        vdata = json.loads(vr.read_text())
+                        score = vdata.get("weighted_score", "?")
+                        verdict = vdata.get("verdict", "?")
+                        score_str = f" ({score}/5.0 {verdict})"
+                    except Exception:
+                        pass
+                lines.append(f"  {wp_id}: {phase}{score_str}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    def _reconcile_manifests(self, wp_id: str) -> None:
+        """自动修正 MANIFEST 路径 + 同步 state 文件。
+
+        三层修复：
+        1. 移动旧路径 worker_outputs/ → stages/worker_outputs/（legacy fix）
+        2. 扫描正确路径 stages/worker_outputs/，更新 completed_tasks
+        3. 清理 stale running_tasks（running 但无 MANIFEST = 从未实际 spawn）
         """
-        try:
-            action = RecoveryAction.model_validate(diagnosis_data)
-            logger.info(
-                f"Diagnosis for {action.task_id}: action={action.recovery_action.value}, "
-                f"confidence={action.confidence:.2f}"
+        import shutil
+        import glob
+
+        wp_project = self._get_wp_project_name(wp_id)
+        wp_subdir = wp_id.lower().replace('-', '_')
+        project_dir = self.blackboard_root / wp_project / "deliver_pro" / wp_subdir
+        wrong_dir = project_dir / "worker_outputs"
+        correct_dir = project_dir / "stages" / "worker_outputs"
+
+        # Step 1: Legacy path migration (only if old path exists)
+        if wrong_dir.exists():
+            for task_dir in wrong_dir.iterdir():
+                if not task_dir.is_dir():
+                    continue
+                dst = correct_dir / task_dir.name
+                if not (dst / "MANIFEST.json").exists():
+                    correct_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.copytree(str(task_dir), str(dst), dirs_exist_ok=True)
+
+        # Step 2+3: ALWAYS reconcile state from correct path
+        state_path = project_dir / "delivery_state.json"
+        if not state_path.exists():
+            return
+
+        state = json.loads(state_path.read_text())
+        manifests = sorted(glob.glob(str(correct_dir / "*/MANIFEST.json")))
+
+        # Build completed set from actual MANIFESTs on disk
+        completed_from_disk = set()
+        for m in manifests:
+            try:
+                d = json.loads(open(m).read())
+                tid = d.get("task_id", "")
+                if tid and d.get("status") in ("COMPLETE", "PASS"):
+                    completed_from_disk.add(tid)
+            except Exception:
+                pass
+
+        # Clean stale running_tasks: if task is in running but has no MANIFEST → stale
+        old_running = set(state.get("running_tasks", []))
+        # A task is truly running if it's in running AND has a MANIFEST that's not COMPLETE
+        # OR has no MANIFEST yet (still in progress)
+        manifest_task_ids = set()
+        for m in manifests:
+            try:
+                d = json.loads(open(m).read())
+                manifest_task_ids.add(d.get("task_id", ""))
+            except Exception:
+                pass
+
+        # Stale = in running_tasks but has COMPLETE MANIFEST (should be in completed)
+        stale_running = old_running & completed_from_disk
+        clean_running = old_running - stale_running
+
+        # B1 fix: Timeout stale running_tasks.
+        # Tasks in running_tasks but WITHOUT a MANIFEST and running for too long
+        # are dead workers (spawned but never produced output).
+        # Mark them as failed so the pipeline doesn't hang forever.
+        WORKER_TIMEOUT_SECONDS = 600  # 10 minutes
+        timed_out = set()
+        for task_id in clean_running:
+            if task_id in manifest_task_ids:
+                continue  # Has MANIFEST, will be handled by completed_from_disk
+            # No MANIFEST → check if task has been running too long
+            task_dir = correct_dir / task_id
+            if task_dir.exists():
+                # Directory exists but no MANIFEST → partial write or crashed
+                mtime = task_dir.stat().st_mtime
+                import time
+                if time.time() - mtime > WORKER_TIMEOUT_SECONDS:
+                    timed_out.add(task_id)
+            else:
+                # No directory at all → worker never started or was cleaned
+                # Check state file updated_at for how long it's been running
+                state_updated = state.get("updated_at", "")
+                if state_updated:
+                    try:
+                        from datetime import datetime
+                        updated_dt = datetime.fromisoformat(state_updated)
+                        import time
+                        if time.time() - updated_dt.timestamp() > WORKER_TIMEOUT_SECONDS * 2:
+                            timed_out.add(task_id)
+                    except (ValueError, TypeError):
+                        pass
+
+        if timed_out:
+            failed_tasks = set(state.get("failed_tasks", []))
+            failed_tasks.update(timed_out)
+            clean_running -= timed_out
+            state["failed_tasks"] = sorted(failed_tasks)
+            logger.warning(
+                f"{wp_id}: B1 timeout — {len(timed_out)} workers timed out: "
+                f"{sorted(timed_out)}"
             )
-            return True, "", action
-        except Exception as e:
-            return False, f"RecoveryAction validation failed: {e}", None
 
-    def should_retry_worker(self, task_id: str, attempts: int) -> bool:
-        """判断是否应该重试 Worker。"""
-        return attempts < MAX_WORKER_RECOVERY_ATTEMPTS
+        # Only update if something changed
+        old_completed = set(state.get("completed_tasks", []))
+        old_failed = set(state.get("failed_tasks", []))
+        if (completed_from_disk != old_completed or clean_running != old_running
+                or timed_out):
+            state["completed_tasks"] = sorted(completed_from_disk)
+            state["running_tasks"] = sorted(clean_running)
+            if state.get("phase") not in ("COMPLETED", "DELIVERED", "PACKAGING", "VALIDATING", "ASSEMBLING"):
+                state["phase"] = "GENERATING"
+            state_path.write_text(json.dumps(state, indent=2))
+            if stale_running:
+                logger.info(f"{wp_id}: cleaned stale running_tasks={stale_running}, "
+                           f"completed={sorted(completed_from_disk)}")
 
-    def mark_worker_failed(self, task_id: str, reason: str) -> None:
-        """标记 Worker 为失败状态。"""
-        self.state.mark_task_failed(task_id)
-        if task_id in self.state.running_tasks:
-            self.state.running_tasks.remove(task_id)
-        self._save_state()
-        logger.warning(f"Worker {task_id} marked as FAILED: {reason}")
+    def reset_wp(self, wp_id: str) -> None:
+        """重置单个 WP 的进度。"""
+        if wp_id in self.progress:
+            del self.progress[wp_id]
+        self._save_progress()
 
-    # ========================================================================
-    # 状态查询
-    # ========================================================================
-
-    def get_pipeline_summary(self) -> dict[str, Any]:
-        """获取流水线摘要。"""
-        return {
-            "wp_id": self.wp.wp_id,
-            "phase": self.state.phase.value,
-            "completed_tasks": self.state.completed_tasks,
-            "failed_tasks": self.state.failed_tasks,
-            "pending_tasks": self.state.pending_tasks,
-            "running_tasks": self.state.running_tasks,
-            "round_count": self.state.round_count,
-            "validation_score": self.state.validation_score,
-            "last_verdict": self.state.last_verdict,
-            "is_terminal": self.state.is_terminal,
-        }
-
-    def load_execution_plan(self) -> ExecutionPlan | None:
-        """从 Blackboard 加载执行计划。"""
-        plan_path = self.stages_dir / "execution_plan.json"
-        if not plan_path.exists():
-            return None
-        try:
-            plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
-            return ExecutionPlan.model_validate(plan_data)
-        except Exception as e:
-            logger.error(f"Failed to load execution_plan: {e}")
-            return None
-
-    def load_validation_verdict(self) -> ValidationVerdict | None:
-        """从 Blackboard 加载验证结果。"""
-        verdict_path = self.stages_dir / "validation_result.json"
-        if not verdict_path.exists():
-            return None
-        try:
-            verdict_data = json.loads(verdict_path.read_text(encoding="utf-8"))
-            return ValidationVerdict.model_validate(verdict_data)
-        except Exception as e:
-            logger.error(f"Failed to load validation_result: {e}")
-            return None
+    def reset_all(self) -> None:
+        """重置所有进度。"""
+        self.progress = {}
+        self._save_progress()

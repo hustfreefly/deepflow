@@ -1,8 +1,8 @@
 ---
 id: solution/planning_module
-version: "3.1.0"
+version: "3.1.1"
 component: solution
-updated: "2026-07-14"
+updated: "2026-07-21"
 ---
 
 # Solution Pro V3 — Module 1: Planning (Module Agent)
@@ -63,6 +63,23 @@ bm.write('module_planning_state.json', {
 print('MODULE_INITIALIZED')
 "
 ```
+
+### Phase 0.5: Checkpoint Resume
+
+在开始任何 Step 之前，检查是否有前一次执行的断点：
+
+```python
+# FixFlow R9: 断点续跑检测，避免从头重跑已完成的 Steps
+checkpoint = bm.read_stage('.checkpoint', default=None)
+if checkpoint:
+    last_step = checkpoint.get('last_completed_step', 0)
+    print(f"RESUMING: Last completed step = {last_step}, starting from step {last_step + 1}")
+    # 跳到对应 Step 继续执行
+else:
+    print("FRESH_START: No checkpoint found, starting from Step 1")
+```
+
+**重要**：如果 checkpoint 显示所有 Steps 已完成（last_completed_step >= 4）但 `planning_convergence` 不存在，说明上一次在 Step 4 之后中断，直接执行 Step 4.4（写入完成标记）。
 
 ### Phase 1: 直接通过 sessions_spawn 创建 Workers
 
@@ -127,8 +144,19 @@ else:
 "
 ```
 
-- `META_PLANNING_OK` → 继续 Step 2
+- `META_PLANNING_OK` → 写入 checkpoint，继续 Step 2
 - `META_PLANNING_MISSING` → Fail Fast
+
+✅ Step 1 验证通过后，立即写入 checkpoint：
+```python
+# FixFlow R9: Step 级 checkpoint，支持断点续跑
+import datetime
+bm.write_stage('.checkpoint', {
+    'last_completed_step': 1,
+    'step_name': 'step1_meta_planner',
+    'timestamp': datetime.datetime.utcnow().isoformat(),
+})
+```
 
 ---
 
@@ -178,8 +206,19 @@ else:
 "
 ```
 
-- `PLANNING_TASKS_OK` → 继续 Step 3
+- `PLANNING_TASKS_OK` → 写入 checkpoint，继续 Step 3
 - `PLANNING_TASKS_MISSING` → Fail Fast
+
+✅ Step 2 验证通过后，立即写入 checkpoint：
+```python
+# FixFlow R9: Step 级 checkpoint，支持断点续跑
+import datetime
+bm.write_stage('.checkpoint', {
+    'last_completed_step': 2,
+    'step_name': 'step2_planning_planner',
+    'timestamp': datetime.datetime.utcnow().isoformat(),
+})
+```
 
 ---
 
@@ -195,7 +234,7 @@ bm = BlackboardManager('{session_id}')
 
 # 读取 planning_tasks 获取 experts 列表
 planning_tasks = bm.read_stage('planning_tasks')
-experts = planning_tasks.get('experts', [])
+experts = planning_tasks.get('experts') or planning_tasks.get('expert_panel', [])  # FixFlow R9: 兼容 expert_panel 字段名
 print(f'EXPERTS_FOUND: {len(experts)}')
 
 # 读取 expert planner base prompt
@@ -237,7 +276,7 @@ bm = BlackboardManager('{session_id}')
 
 # 读取 experts 列表
 planning_tasks = bm.read_stage('planning_tasks')
-experts = planning_tasks.get('experts', [])
+experts = planning_tasks.get('experts') or planning_tasks.get('expert_panel', [])  # FixFlow R9: 兼容 expert_panel 字段名
 
 all_ok = True
 for expert in experts:
@@ -256,8 +295,19 @@ else:
 "
 ```
 
-- `ALL_EXPERTS_OK` → 继续 Step 4
+- `ALL_EXPERTS_OK` → 写入 checkpoint，继续 Step 4
 - `SOME_EXPERTS_MISSING` → Fail Fast
+
+✅ Step 3 验证通过后，立即写入 checkpoint：
+```python
+# FixFlow R9: Step 级 checkpoint，支持断点续跑
+import datetime
+bm.write_stage('.checkpoint', {
+    'last_completed_step': 3,
+    'step_name': 'step3_expert_planners',
+    'timestamp': datetime.datetime.utcnow().isoformat(),
+})
+```
 
 ---
 
@@ -307,8 +357,19 @@ else:
 "
 ```
 
-- `PLANNING_CONVERGENCE_OK` → **立即写入完成标记**（下方 4.4），然后继续 Step 5
+- `PLANNING_CONVERGENCE_OK` → 写入 checkpoint，**立即写入完成标记**（下方 4.4），然后继续 Step 5
 - `PLANNING_CONVERGENCE_MISSING` → Fail Fast
+
+✅ Step 4 验证通过后，立即写入 checkpoint：
+```python
+# FixFlow R9: Step 级 checkpoint，支持断点续跑
+import datetime
+bm.write_stage('.checkpoint', {
+    'last_completed_step': 4,
+    'step_name': 'step4_convergence_planner',
+    'timestamp': datetime.datetime.utcnow().isoformat(),
+})
+```
 
 ---
 

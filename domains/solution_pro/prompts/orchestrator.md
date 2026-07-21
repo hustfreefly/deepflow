@@ -1,8 +1,8 @@
 ---
 id: solution/orchestrator
-version: "3.1.0"
+version: "3.1.1"
 component: solution
-updated: "2026-07-14"
+updated: "2026-07-21"
 ---
 
 # Solution Pro V3.1 — Orchestrator (Thin Dispatcher)
@@ -33,6 +33,13 @@ updated: "2026-07-14"
 ```
 
 **如果你发现自己想生成文字，停下来，直接执行 exec 验证。**
+
+```
+✅ 唤醒后流程（每次 wake 必做）:
+  1. exec → Step 0.5 Stall Detection（检测 Module 是否 stall）
+  2. exec → 对应模块的验证脚本（1c/2c/3c）
+  3. 根据验证结果决定下一步
+```
 
 ## 你的 session_id
 
@@ -103,6 +110,44 @@ print('INITIALIZED')
 ```
 
 检查断点：读取 `.stage_progress`，如果 `completed_modules` 非空，从下一个未完成的模块开始。
+
+---
+
+### Step 0.5: Stall Detection（每次 wake 必做，在验证 Module 输出之前）
+
+> FixFlow R9: 通用 stall 检测，适用于 Planning/Research/Summary 任何 Module。
+> 当 Module Agent 被 yield 唤醒后，先检查 Module 是否 stall（status=running 但实际已中断）。
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
+# 1. 读取 Module 状态
+module_state = bb.read_json('module_planning_state.json', default={})  # FixFlow R9: 通用检测，文件名随当前模块变化
+module_name = module_state.get('module', 'planning')
+
+# 2. 检查是否 stalled
+if module_state.get('status') == 'running':
+    # Module 声称还在 running — 检查是否有 checkpoint
+    checkpoint = bb.read_stage('.checkpoint', default=None)
+    if checkpoint:
+        last_step = checkpoint.get('last_completed_step', 0)
+        print(f'STALL_DETECTED: Module {module_name!r} status=running but checkpoint shows step {last_step}')
+        print('ACTION: Re-spawning Module Agent with resume capability')
+        # spawn 续跑 Agent（和正常 spawn 一样，但 task 中包含 checkpoint 信息）
+    else:
+        print(f'STALL_DETECTED: Module {module_name!r} status=running but no checkpoint')
+        print('ACTION: Re-spawning Module Agent from scratch')
+else:
+    print(f'MODULE_STATUS: {module_state.get(\"status\", \"unknown\")} — no stall')
+"
+```
+
+**处理逻辑**：
+- `STALL_DETECTED` → 重新 spawn Module Agent，在 task 中附带 checkpoint 信息以便续跑
+- `MODULE_STATUS: completed` → 正常继续下一个模块
+- `MODULE_STATUS: unknown` → Module 未初始化，从头 spawn
 
 ---
 
@@ -501,7 +546,7 @@ print('PIPELINE_FAILED')
 
 ## 🔴 Wake Response 自检（每次 yield 唤醒后）
 
-1. ☐ 我的下一个 action 是 exec tool call 吗？ → 不是 → **立即执行验证 exec**
+1. ☐ 我的下一个 action 是 exec tool call 吗？ → 不是 → **立即执行 Step 0.5 Stall Detection exec**
 2. ☐ 我是否想生成文字？ → 是 → **停下来，执行 exec**
 3. ☐ 验证结果是什么？ → OK → 继续下一模块 / MISSING → Fail Fast
 4. ☐ 还有未执行的模块？ → 有 → **立即继续**

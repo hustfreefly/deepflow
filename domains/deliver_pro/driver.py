@@ -6,7 +6,7 @@ Main Agent 逐步调 exec 驱动流水线，每步都是简单的 Python 调用�
 
 架构:
   Main Agent
-    → exec: driver = DeliverProDriver(wp_id, project_name)
+    → exec: driver = DeliverRunner(wp_id, project_name)
     → exec: params = driver.step1_analyze()  → sessions_spawn + yield
     → exec: driver.step2_check_analyze()     → 验证
     → exec: params = driver.step3_workers()  → sessions_spawn (多个) + yield
@@ -24,17 +24,17 @@ from pathlib import Path
 from typing import Any
 
 from domains.deliver_pro.contracts import WorkPackage
-from domains.deliver_pro.orchestrator import DeliverProOrchestrator
+from domains.deliver_pro.wp_runner import DeliverWPRunner
 
 logger = logging.getLogger(__name__)
 
 
-class DeliverProDriver:
+class DeliverRunner:
     """Python 驱动的 Deliver Pro 5 Phase 流水线。
 
     用法（Main Agent 逐步调 exec）:
         # Step 0: 初始化
-        driver = DeliverProDriver("CORE-001", "skill-health-cli_core_001")
+        driver = DeliverRunner("CORE-001", "skill-health-cli_core_001")
 
         # Step 1: Analyze
         spawn_params = driver.step1_analyze()
@@ -70,7 +70,8 @@ class DeliverProDriver:
 
         self.project_name = project_name
         self.blackboard_path = BLACKBOARD_ROOT / project_name
-        self.deliver_pro_dir = self.blackboard_path / "deliver_pro"
+        wp_subdir = wp_id.lower().replace('-', '_')
+        self.deliver_pro_dir = self.blackboard_path / "deliver_pro" / wp_subdir
         self.stages_dir = self.deliver_pro_dir / "stages"
         self.worker_outputs_dir = self.stages_dir / "worker_outputs"
 
@@ -80,7 +81,7 @@ class DeliverProDriver:
             raise FileNotFoundError(f"WP not found: {wp_path}")
 
         self.wp = WorkPackage.model_validate(json.loads(wp_path.read_text()))
-        self.orch = DeliverProOrchestrator(
+        self.orch = DeliverWPRunner(
             self.wp, self.blackboard_path, project_name
         )
         self.wp_id = wp_id
