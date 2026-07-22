@@ -172,14 +172,16 @@ class TestComputeLayers:
 # ---------------------------------------------------------------------------
 
 class TestWpProjectName:
-    """WP → project_name 映射。"""
+    """WP → project_name 映射（V3: 统一到项目自己的 blackboard）。"""
 
     def test_mapping(self, tmp_path, mock_blackboard):
+        bb_root, project_name = mock_blackboard
         with _make_orchestrator(tmp_path, mock_blackboard) as driver:
-            assert driver._get_wp_project_name("CORE-001") == "deliver_core_001"
-            assert driver._get_wp_project_name("FMV-002") == "deliver_fmv_002"
-            assert driver._get_wp_project_name("RPT-003") == "deliver_rpt_003"
-            assert driver._get_wp_project_name("FIX-001") == "deliver_fix_001"
+            # V3: 所有 WP 输出统一写到项目自己的 blackboard（self.project_name）
+            assert driver._get_wp_project_name("CORE-001") == project_name
+            assert driver._get_wp_project_name("FMV-002") == project_name
+            assert driver._get_wp_project_name("RPT-003") == project_name
+            assert driver._get_wp_project_name("FIX-001") == project_name
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +195,7 @@ class TestCheckWpPhase:
         """空目录 → PENDING。"""
         bb_root, project_name = mock_blackboard
         # Create deliver_pro dir but no stages
-        wp_project = "deliver_core_001"
+        wp_project = project_name
         stages_dir = bb_root / wp_project / "deliver_pro" / "core_001" / "stages"
         stages_dir.mkdir(parents=True)
 
@@ -208,7 +210,7 @@ class TestCheckWpPhase:
     def test_done_final_deliverable_has_files(self, tmp_path, mock_blackboard):
         """final_deliverable 有文件 + delivery_manifest.json → DONE (P1-8 fix)。"""
         bb_root, project_name = mock_blackboard
-        wp_project = "deliver_core_001"
+        wp_project = project_name
         stages_dir = bb_root / wp_project / "deliver_pro" / "core_001" / "stages"
         final_dir = stages_dir / "final_deliverable"
         final_dir.mkdir(parents=True)
@@ -222,7 +224,7 @@ class TestCheckWpPhase:
     def test_done_terminal_state(self, tmp_path, mock_blackboard):
         """V3: DONE 由 delivery_manifest.json + final_deliverable 推导（不再读 state 文件）。"""
         bb_root, project_name = mock_blackboard
-        wp_project = "deliver_core_001"
+        wp_project = project_name
         deliver_pro_dir = bb_root / wp_project / "deliver_pro" / "core_001"
         deliver_pro_dir.mkdir(parents=True)
         stages_dir = deliver_pro_dir / "stages"
@@ -239,7 +241,7 @@ class TestCheckWpPhase:
     def test_not_done_without_manifest(self, tmp_path, mock_blackboard):
         """final_deliverable 有文件但无 manifest 且非终态 → 不是 DONE (P1-8 fix)。"""
         bb_root, project_name = mock_blackboard
-        wp_project = "deliver_core_001"
+        wp_project = project_name
         final_dir = bb_root / wp_project / "deliver_pro" / "core_001" / "stages" / "final_deliverable"
         final_dir.mkdir(parents=True)
         (final_dir / "DELIVERABLE.md").write_text("# Done")
@@ -252,7 +254,7 @@ class TestCheckWpPhase:
     def test_packaging_validation_result_exists(self, tmp_path, mock_blackboard):
         """validation_result.json 存在 → PACKAGING。"""
         bb_root, project_name = mock_blackboard
-        wp_project = "deliver_core_001"
+        wp_project = project_name
         stages_dir = bb_root / wp_project / "deliver_pro" / "core_001" / "stages"
         stages_dir.mkdir(parents=True)
         (stages_dir / "validation_result.json").write_text("{}")
@@ -263,7 +265,7 @@ class TestCheckWpPhase:
     def test_validating_integrated_draft_exists(self, tmp_path, mock_blackboard):
         """integrated_draft/DELIVERABLE.md 存在 → VALIDATING。"""
         bb_root, project_name = mock_blackboard
-        wp_project = "deliver_core_001"
+        wp_project = project_name
         draft_dir = bb_root / wp_project / "deliver_pro" / "core_001" / "stages" / "integrated_draft"
         draft_dir.mkdir(parents=True)
         (draft_dir / "DELIVERABLE.md").write_text("# Draft")
@@ -274,7 +276,7 @@ class TestCheckWpPhase:
     def test_generating_execution_plan_exists(self, tmp_path, mock_blackboard):
         """execution_plan.json 有 task_count → GENERATING。"""
         bb_root, project_name = mock_blackboard
-        wp_project = "deliver_core_001"
+        wp_project = project_name
         stages_dir = bb_root / wp_project / "deliver_pro" / "core_001" / "stages"
         stages_dir.mkdir(parents=True)
         plan = {"task_count": 3, "task_graph": {"nodes": []}}
@@ -379,11 +381,11 @@ class TestGetNextActions:
         """全部完成 → layer=-1, actions=[]。"""
         bb_root, project_name = mock_blackboard
 
-        # 让所有 WP 都 DONE（P1-8 fix: 需要 delivery_manifest.json）
+        # 让所有 WP 都 DONE（V3: 统一到项目自己的 blackboard + delivery_manifest.json）
         for wp_id in ["CORE-001", "CORE-002", "CORE-003", "CORE-004", "CORE-005",
                        "FMV-001", "FMV-002", "RPT-001", "RPT-002",
                        "FIX-001", "FIX-002", "FIX-003"]:
-            wp_project = f"deliver_{wp_id.lower().replace('-', '_')}"
+            wp_project = project_name
             wp_subdir = wp_id.lower().replace('-', '_')
             stages_dir = bb_root / wp_project / "deliver_pro" / wp_subdir / "stages"
             final_dir = stages_dir / "final_deliverable"

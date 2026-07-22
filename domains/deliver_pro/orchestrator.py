@@ -151,9 +151,14 @@ class DeliverOrchestrator:
     def _get_wp_project_name(self, wp_id: str) -> str:
         """WP ID → project_name 映射。
 
-        e.g., CORE-001 → deliver_core_001
+        V3: 所有 WP 输出统一写到项目自己的 blackboard（self.project_name），
+        与 run_deliver_pro 设置的 blackboard 目录保持一致。
+
+        历史设计曾映射到独立项目目录（deliver_{wp_id}），导致：
+        - WP 输出与 ship_package / orchestrator blackboard 分离
+        - 跨项目目录的旧残留（deliver_smk_001 等）被 derive_phase 误判为 DONE
         """
-        return f"deliver_{wp_id.lower().replace('-', '_')}"
+        return self.project_name
 
     def _get_driver(self, wp_id: str):
         """创建 DeliverRunner(wp_id, project_name)。"""
