@@ -283,6 +283,9 @@ class DeliverWPRunner:
                 lib_path=str(self.blackboard_path.parent.parent / "domains"),
                 ship_context=ship_context_text if ship_context_text else "（无 ShipPackage 上下文）",
                 deepflow_root=str(self.blackboard_path.parent.parent),
+                wp_data_path=str(self.data_dir / "wp.json"),
+                output_path=str(self.stages_dir / "execution_plan.json"),
+                stages_dir=str(self.stages_dir),
             )
         except FileNotFoundError:
             prompt = self._build_analyze_prompt()
@@ -296,6 +299,11 @@ class DeliverWPRunner:
             "task": auto_bootstrap(_root, self.stages_dir, prompt, _label),
             "thinking": "high",
         }
+
+    # 第一行动提示（供 Orchestrator 在 spawn 时使用，非必选）
+    ANALYZE_FIRST_ACTION_HINT = (
+        f"读取 bootstrap 后，你的下一个 action 必须是 exec: cat <wp_data_path>"
+    )
 
     def verify_analyze_output(self, plan_data: dict) -> tuple[bool, str]:
         """
@@ -1249,7 +1257,15 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
 
         # V3: 重入 INTEGRATING 前失效下游 artifact
         # （否则旧 validation_result.json 会让推导跳到 PACKAGING，带着旧 verdict 打包）
+        # DryRun D-P2-3: 失效前备份旧 verdict，防止 fix-integrate 失败后丢失修复依据
         from domains.deliver_pro.phase_deriver import invalidate_downstream
+        _vr_path = self.stages_dir / "validation_result.json"
+        if _vr_path.exists():
+            try:
+                import shutil
+                shutil.copy2(str(_vr_path), str(self.stages_dir / "validation_result.json.bak"))
+            except Exception as e:
+                logger.warning(f"Failed to backup validation_result.json: {e}")
         invalidate_downstream(self.deliver_pro_dir, from_phase="INTEGRATING")
 
         # Guard: round_count may be None

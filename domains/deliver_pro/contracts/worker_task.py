@@ -51,6 +51,15 @@ class WorkerOutputMeta(BaseModel):
     wp_id: str
     scenario: str
     status: str = Field(description="COMPLETE | PARTIAL | FAILED")
+    # DryRun D-P2-1: Worker prompt (P1-4 约束) 要求写入这两个字段，contract 需对齐
+    covered_ac_ids: list[str] = Field(
+        default_factory=list,
+        description="本 Worker 覆盖的验收标准 ID 列表",
+    )
+    covered_req_ids: list[str] = Field(
+        default_factory=list,
+        description="本 Worker 覆盖的需求 ID 列表",
+    )
     outputs: list[dict] = Field(
         default_factory=list,
         description="产出文件列表 [{path, type, checksum}]",
