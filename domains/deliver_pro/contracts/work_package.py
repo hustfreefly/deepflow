@@ -27,7 +27,8 @@ class WorkPackage(BaseModel):
     约束：不可修改（只读）。
     """
 
-    wp_id: str = Field(description="WP ID, e.g. 'WP-001'")
+    # FixFlow P2-1: min_length=1 — 空 wp_id 会导致路径拼接错误，fail-fast 拒绝
+    wp_id: str = Field(min_length=1, description="WP ID, e.g. 'WP-001'")
     title: str = Field(description="WP 标题")
     objective: str = Field(description="WP 目标描述")
     scenario: str = Field(

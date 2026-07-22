@@ -135,94 +135,94 @@ class DeliverRunner:
     def step4_check_workers(self) -> tuple[bool, dict]:
         """Phase 2 验证: 检查 Workers 完成情况。
 
+        V3: 进度从文件系统推导（derive, don't sync）。
+        新出现的 MANIFEST 先过 verify_worker_output 质量门（失败会写回 MANIFEST）。
+
         Returns:
             (all_done, info)
             all_done=True → 可以进入 Phase 3
             all_done=False → 需要继续等待或 spawn 更多 workers
         """
         import glob
+        from domains.deliver_pro.phase_deriver import migrate_legacy_worker_outputs
 
-        manifests = glob.glob(str(self.worker_outputs_dir / "*/MANIFEST.json"))
+        # 幂等搬迁 legacy 路径
+        wp_subdir = self.wp_id.lower().replace('-', '_')
+        migrate_legacy_worker_outputs(self.deliver_pro_dir)
+
         plan = self.orch.load_execution_plan()
         total = plan.task_count
-        completed = len(manifests)
 
-        # B3 fix: Verify BEFORE marking completed.
-        # Only verified workers count as completed; invalid → failed.
-        newly_detected = []
+        # 质量门：验证所有未验证的 MANIFEST（verify 失败会写回 MANIFEST status=FAILED）
+        manifests = glob.glob(str(self.worker_outputs_dir / "*/MANIFEST.json"))
         for manifest_path in manifests:
+            task_id = Path(manifest_path).parent.name
             try:
                 manifest = json.loads(Path(manifest_path).read_text())
-                task_id = manifest.get("task_id", "")
-                if task_id and task_id not in self.orch.state.completed_tasks \
-                        and task_id not in self.orch.state.failed_tasks:
-                    newly_detected.append(task_id)
-            except Exception:
-                pass
+                # 已判定 FAILED 的跳过（不重复验证）
+                if manifest.get("status") == "FAILED":
+                    continue
+                output_dir = self.worker_outputs_dir / task_id
+                valid, msg, _ = self.orch.verify_worker_output(task_id, output_dir)
+                if not valid:
+                    logger.warning(f"Worker {task_id} verify failed: {msg}")
+            except Exception as e:
+                logger.warning(f"Worker {task_id} verify exception: {e}")
 
-        # Verify each newly detected worker output
-        verified_count = 0
-        for task_id in newly_detected:
-            output_dir = self.worker_outputs_dir / task_id
-            valid, msg, _ = self.orch.verify_worker_output(task_id, output_dir)
-            if valid:
-                verified_count += 1
-            else:
-                logger.warning(f"Worker {task_id} verify failed: {msg}")
-                self.orch.mark_worker_failed(task_id, msg)
-
-        # Recount completed from verified state (not MANIFEST count)
-        completed = len(self.orch.state.completed_tasks)
+        # V3: 从文件系统推导进度（verify 可能刚更新了 MANIFEST）
+        progress = self.orch._derive_worker_progress(plan)
+        completed = len(progress["completed"])
+        failed = len(progress["failed"]) + len(progress["blocked"])
 
         self.orch._save_state()
 
         info = {
             "completed": completed,
             "total": total,
-            "manifests": [str(m) for m in manifests],
+            "failed": failed,
+            "running": sorted(progress["running"]),
+            "blocked": sorted(progress["blocked"]),
         }
+
+        processed = completed + failed
+        next_wave = self.orch.peek_next_wave_count(plan)
+        info["next_wave"] = next_wave
 
         if completed >= total:
             logger.info(f"Step 4: All {completed}/{total} workers done")
-            # Reset stuck detection on completion
             self._last_completed_count = 0
             self._stuck_checks = 0
             return True, info
-        else:
-            # P1-1: Stuck detection
-            if completed == self._last_completed_count:
-                self._stuck_checks += 1
-                if self._stuck_checks >= 3:
-                    logger.warning(
-                        f"⚠️ P1-1 STUCK: {self.wp_id} no progress for "
-                        f"{self._stuck_checks} checks. "
-                        f"Completed: {completed}/{total}"
-                    )
-                    info["stuck"] = True
-                    info["stuck_checks"] = self._stuck_checks
-            else:
-                self._last_completed_count = completed
-                self._stuck_checks = 0
 
-            # BLOCKER-A fix: Use read-only peek (no side effects)
-            next_wave = self.orch.peek_next_wave_count(plan)
-            info["next_wave"] = next_wave
-            # BLOCKER-B fix: Account for failed tasks in terminal check
-            failed = len(self.orch.state.failed_tasks)
-            processed = completed + failed
-            if processed >= total and next_wave == 0:
-                logger.info(
-                    f"Step 4: Terminal — {completed}/{total} done, "
-                    f"{failed} failed, no more runnable work"
-                )
-                info["failed"] = failed
-                info["terminal"] = True
-                return True, info
+        # Terminal: 全部任务已解决（completed + failed >= total）且无更多可执行
+        if processed >= total and next_wave == 0:
             logger.info(
-                f"Step 4: {completed}/{total} done, "
-                f"{failed} failed, next_wave={next_wave}"
+                f"Step 4: Terminal — {completed}/{total} done, "
+                f"{failed} failed/blocked, no more runnable work"
             )
-            return False, info
+            info["terminal"] = True
+            return True, info
+
+        # P1-1: Stuck detection
+        if completed == self._last_completed_count:
+            self._stuck_checks += 1
+            if self._stuck_checks >= 3:
+                logger.warning(
+                    f"⚠️ P1-1 STUCK: {self.wp_id} no progress for "
+                    f"{self._stuck_checks} checks. "
+                    f"Completed: {completed}/{total}"
+                )
+                info["stuck"] = True
+                info["stuck_checks"] = self._stuck_checks
+        else:
+            self._last_completed_count = completed
+            self._stuck_checks = 0
+
+        logger.info(
+            f"Step 4: {completed}/{total} done, "
+            f"{failed} failed, next_wave={next_wave}"
+        )
+        return False, info
 
     def step5_integrate(self) -> dict:
         """Phase 3: Code-First Assembly（Python 直接执行，不需要 Agent）。"""
@@ -366,17 +366,11 @@ class DeliverRunner:
         return self.orch.prepare_fix_integrate_spawn(plan, verdict_obj)
 
     def get_status(self) -> dict:
-        """获取当前流水线状态。"""
+        """获取当前流水线状态（V3: phase 从文件系统推导）。"""
         import glob
+        from domains.deliver_pro.phase_deriver import derive_phase
 
-        state_path = self.deliver_pro_dir / "delivery_state.json"
-        phase = "UNKNOWN"
-        if state_path.exists():
-            try:
-                state = json.loads(state_path.read_text())
-                phase = state.get("phase", "UNKNOWN")
-            except Exception:
-                pass
+        phase = derive_phase(self.deliver_pro_dir)
 
         manifests = glob.glob(str(self.worker_outputs_dir / "*/MANIFEST.json"))
         integrated = (self.stages_dir / "integrated_draft" / "DELIVERABLE.md").exists()

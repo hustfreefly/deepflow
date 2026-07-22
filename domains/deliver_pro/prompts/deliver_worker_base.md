@@ -16,7 +16,7 @@
 ## 4 文件输出
 
 ```
-{deepflow_root}/blackboard/{project_name}/deliver_pro/stages/worker_outputs/{task_id}/
+{deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subdir}}/stages/worker_outputs/{task_id}/  <!-- FixFlow P1-1: 路径变量改必需(fail-fast) -->
 ├── DELIVERABLE.md   # 主产物
 ├── EVIDENCE.md      # 验证证据
 ├── ISSUES.md        # 阻塞/风险（没有写"无"）
@@ -107,4 +107,4 @@
 {forced_actions}
 
 ### 输出目录（绝对路径，必须写入此路径）
-{deepflow_root}/blackboard/{project_name}/deliver_pro/stages/worker_outputs/{task_id}/
+{deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subdir}}/stages/worker_outputs/{task_id}/  <!-- FixFlow P1-1 -->

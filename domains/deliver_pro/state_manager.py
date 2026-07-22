@@ -1,6 +1,10 @@
 """
 Deliver Pro State Manager — 流水线状态管理。
 
+# DEPRECATED: 无生产调用方。状态管理已由 wp_runner.py 中的 DeliverWPRunner
+# 和 orchestrator.py 中的 DeliverOrchestrator 直接处理 delivery_state.json。
+# 保留仅用于测试兼容性，新代码不应引用此类。
+
 管理 delivery_state.json（单一真相源），控制状态转换合法性。
 """
 
@@ -22,9 +26,12 @@ class StateTransitionError(Exception):
     pass
 
 
-class DeliverProStateManager:
+class DeliverProStateManager:  # DEPRECATED — 无生产调用方，保留仅用于测试兼容
     """
     Deliver Pro 状态管理器。
+
+    DEPRECATED: 无生产调用方。状态管理已由 wp_runner.py.DeliverWPRunner
+    和 orchestrator.py.DeliverOrchestrator 直接处理。
 
     职责：
     1. 管理 delivery_state.json（单一真相源）

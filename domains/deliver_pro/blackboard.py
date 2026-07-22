@@ -28,17 +28,20 @@ class DeliverProBlackboard:
         └── final_deliverable/ # Package 最终交付物
     """
 
-    def __init__(self, project_name: str, base_dir: Optional[Path] = None):
+    def __init__(self, project_name: str, base_dir: Optional[Path] = None, wp_subdir: str = ""):
         """
         初始化 Blackboard。
 
         Args:
             project_name: 项目名称（用于构建路径）
             base_dir: 基础目录（默认为当前工作目录）
+            wp_subdir: WP 子目录（Fix commit 3489118: 路径需包含 wp_subdir 层）
         """
         self.project_name = project_name
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
-        self.root = self.base_dir / "blackboard" / project_name / "deliver_pro"
+        # Fix(commit 3489118): 路径必须包含 wp_subdir 层，与 wp_runner.py 对齐
+        self.wp_subdir = wp_subdir
+        self.root = self.base_dir / "blackboard" / project_name / "deliver_pro" / wp_subdir
 
         # 创建目录结构
         self._init_directories()

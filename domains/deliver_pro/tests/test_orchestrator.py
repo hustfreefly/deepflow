@@ -220,7 +220,7 @@ class TestCheckWpPhase:
             assert driver._check_wp_phase("CORE-001") == "DONE"
 
     def test_done_terminal_state(self, tmp_path, mock_blackboard):
-        """delivery_state.json phase=DELIVERED → DONE (P1-8 fix)。"""
+        """V3: DONE 由 delivery_manifest.json + final_deliverable 推导（不再读 state 文件）。"""
         bb_root, project_name = mock_blackboard
         wp_project = "deliver_core_001"
         deliver_pro_dir = bb_root / wp_project / "deliver_pro" / "core_001"
@@ -230,8 +230,8 @@ class TestCheckWpPhase:
         final_dir = stages_dir / "final_deliverable"
         final_dir.mkdir(parents=True)
         (final_dir / "DELIVERABLE.md").write_text("# Done")
-        # Terminal state in delivery_state.json → DONE even without manifest
-        (deliver_pro_dir / "delivery_state.json").write_text('{"phase": "DELIVERED"}')
+        # V3: delivery_manifest.json 存在 + final_deliverable 非空 → DONE
+        (stages_dir / "delivery_manifest.json").write_text('{"wp_id": "CORE-001"}')
 
         with _make_orchestrator(tmp_path, mock_blackboard) as driver:
             assert driver._check_wp_phase("CORE-001") == "DONE"

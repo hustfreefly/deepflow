@@ -680,11 +680,63 @@ python -m tools.prompt_registry diff investment/planner v1.0.0 v2.0.0
 
 ---
 
-## 10. 修订历史
+## 10. 路径变量最佳实践
+
+<!-- FixFlow R10 (2026-07-22) 新增：路径变量命名规范 -->
+
+### 10.1 双花括号 vs 单花括号约定
+
+模板中的变量替换使用花括号语法，但**路径相关变量**和**非路径变量**有严格的区分：
+
+| 类型 | 语法 | 语义 | 缺失行为 | 示例 |
+|:---|:---|:---|:---|:---|
+| **路径变量（必需）** | `{{variable}}` | 双花括号 = 必需参数 | **fail-fast**：缺失时 raise ValueError | `{{wp_subdir}}`、`{{project_name}}` |
+| **非路径变量（可选）** | `{variable}` | 单花括号 = 可选参数 | 有 fallback 或默认值 | `{deepflow_root}`、`{task_id}` |
+
+### 10.2 设计理由
+
+路径变量使用双花括号的核心理由：
+
+1. **静默错误比崩溃更危险**：路径变量缺失时，单花括号会被 LLM 原样保留（如 `{wp_subdir}` 变成字面字符串），导致写入错误目录但无报错
+2. **fail-fast 原则**：双花括号在 `str.format()` 中缺失 key 会立即抛 `KeyError`，在 `read_prompt_with_vars()` 中可被捕获并转为明确的参数缺失错误
+3. **意图信号**：双花括号向 LLM 和人类读者明确传达"此变量必须提供，不可省略"
+
+### 10.3 案例：FixFlow R10 (2026-07-22)
+
+**问题**：`deliver_worker_base.md` 中 `{wp_subdir}` 和 `{project_name}` 使用单花括号。
+
+**故障链**：
+```
+commit 3489118 漏传 wp_subdir 参数
+    ↓
+str.format() 对单花括号 {wp_subdir} 不报错（保留字面量）
+    ↓
+Worker 写入 deliver_pro/{wp_subdir}/ 字面路径
+    ↓
+step4_check_workers 在错误路径找不到产出 → 报 MISSING
+    ↓
+排查困难：错误信息是"产出缺失"，根因是"路径变量未替换"
+```
+
+**修复**：`{wp_subdir}` → `{{wp_subdir}}`，`{project_name}` → `{{project_name}}`
+
+**效果**：参数缺失时立即 `KeyError`，fail-fast 暴露根因。
+
+### 10.4 实施规则
+
+1. **新增 prompt 时**：路径拼接变量一律用 `{{double_braces}}`
+2. **已有 prompt 迁移**：发现路径变量用单花括号时，改为双花括号
+3. **`read_prompt_with_vars()` 适配**：双花括号变量通过 `str.format()` 替换，单花括号变量通过显式 `.replace()` 或 fallback 链处理
+4. **验证**：DryRun 检查 prompt 中所有 `{...}` 模式，路径变量必须是 `{{...}}`
+
+---
+
+## 11. 修订历史
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
 | 1.0.0 | 2026-05-01 | 初始版本 |
+| 1.1.0 | 2026-07-22 | FixFlow R10: 新增 §10 路径变量最佳实践（双花括号=必需，单花括号=可选） |
 
 ---
 

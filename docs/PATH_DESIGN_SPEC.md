@@ -412,6 +412,96 @@ def validate_path_length(path: Path, max_length: int = None):
 
 ---
 
+## 3.5 项目级路径约定（Deliver Pro）
+
+<!-- FixFlow R10 (2026-07-22) 新增：Deliver Pro 路径层级与 legacy 兼容 -->
+
+### 3.5.1 路径层级
+
+Deliver Pro 在统一 blackboard 下的路径结构：
+
+```
+.deepflow/blackboard/
+└── {project_name}/              # 项目级目录（双花括号变量，必需）
+    └── deliver_pro/
+        └── {wp_subdir}/         # WP 级目录（双花括号变量，必需）
+            ├── stages/
+            │   └── worker_outputs/
+            │       ├── worker_1/
+            │       └── worker_2/
+            └── MANIFEST.json
+```
+
+### 3.5.2 `wp_subdir` 计算公式
+
+```python
+# contracts/work_package.py
+def compute_wp_subdir(wp_id: str) -> str:
+    """
+    将 wp_id 转换为文件系统安全的目录名。
+    
+    规则：wp_id.lower().replace('-', '_')
+    示例：
+        "CORE-001" → "core_001"
+        "FMV-001"  → "fmv_001"
+        "JWT-AUTH" → "jwt_auth"
+    """
+    return wp_id.lower().replace('-', '_')
+```
+
+**契约约束**：`wp_id` 字段增加 `min_length=1` 验证（FixFlow R10 P2-1），防止空 wp_id 导致路径计算为非法目录。
+
+### 3.5.3 Legacy 路径兼容机制
+
+<!-- FixFlow R10 (2026-07-22)：legacy fallback 与 _check_wp_phase 对齐 -->
+
+**背景**：早期版本中，Worker 产出可能写入 `deliver_pro/{wp_subdir}/worker_outputs/` 而非 `deliver_pro/{wp_subdir}/stages/worker_outputs/`。为保证向后兼容，引入 legacy 路径 fallback。
+
+**实现位置**：
+
+| 模块 | 函数 | Fallback 逻辑 |
+|:---|:---|:---|
+| `driver.py` | `step4_check_workers()` | 先查 `stages/worker_outputs/`，未找到则回退查 `worker_outputs/` |
+| `driver.py` | `_reconcile_manifests()` | 同上 fallback 逻辑 |
+| `driver.py` | `_check_wp_phase()` | 已原生支持 legacy 路径（参考实现） |
+
+**Fallback 策略**：
+
+```python
+def _resolve_worker_output_dir(wp_dir: Path) -> Path:
+    """
+    解析 Worker 输出目录，支持 legacy 路径 fallback。
+    
+    优先级：
+    1. {wp_dir}/stages/worker_outputs/  （标准路径）
+    2. {wp_dir}/worker_outputs/          （legacy 路径）
+    """
+    standard = wp_dir / "stages" / "worker_outputs"
+    if standard.exists():
+        return standard
+    
+    legacy = wp_dir / "worker_outputs"
+    if legacy.exists():
+        warnings.warn(
+            f"Using legacy worker output path: {legacy}. "
+            f"Expected: {standard}",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return legacy
+    
+    # 都不存在时返回标准路径（让后续报错更明确）
+    return standard
+```
+
+**设计原则**：
+- Legacy fallback 是**过渡期兼容**，不是永久特性
+- 新 WP 必须写入标准路径（`stages/worker_outputs/`）
+- Legacy 路径命中时发出 `DeprecationWarning`
+- `_check_wp_phase()` 是参考实现，`step4_check_workers()` 和 `_reconcile_manifests()` 与其对齐
+
+---
+
 ## 4. 与 OpenClaw 的集成方案
 
 ### 4.1 问题场景

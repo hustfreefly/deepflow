@@ -27,8 +27,12 @@ class DeliverOrchestrator:
 
         self.project_name = project_name
         self.blackboard_root = BLACKBOARD_ROOT
-        ship_pkg_path = self._find_ship_package()
-        self.ship_package = json.loads(ship_pkg_path.read_text())
+        try:
+            ship_pkg_path = self._find_ship_package()
+            self.ship_package = json.loads(ship_pkg_path.read_text())
+        except FileNotFoundError:
+            logger.warning("B1: ship_package.json not found, using empty package")
+            self.ship_package = {"work_packages": [], "dependency_graph": {}}
         self.layers = self._compute_layers()
         self.progress_path = self.blackboard_root / project_name / "batch_progress.json"
         self.progress = self._load_progress()
@@ -159,89 +163,29 @@ class DeliverOrchestrator:
         return DeliverRunner(wp_id, project_name)
 
     # ------------------------------------------------------------------
-    # Phase 检测（从 blackboard 文件系统）
+    # Phase 检测（V3: 纯文件推导，不再交叉校验 state 文件）
     # ------------------------------------------------------------------
 
     def _check_wp_phase(self, wp_id: str) -> str:
-        """从 blackboard 文件系统检查 WP 实际 phase。
+        """V3: 从文件系统推导 WP phase（derive, don't sync）。
+
+        不再读取 delivery_state.json 做交叉校验——文件系统即真相。
+        旧 artifact 失效由 invalidate_downstream 在重入阶段时处理。
 
         Returns:
             "DONE" | "PACKAGING" | "VALIDATING" | "ASSEMBLING" |
             "GENERATING" | "PENDING"
         """
+        from domains.deliver_pro.phase_deriver import derive_phase, migrate_legacy_worker_outputs
+
         wp_project = self._get_wp_project_name(wp_id)
         wp_subdir = wp_id.lower().replace('-', '_')
-        stages_dir = self.blackboard_root / wp_project / "deliver_pro" / wp_subdir / "stages"
+        wp_dir = self.blackboard_root / wp_project / "deliver_pro" / wp_subdir
 
-        if not stages_dir.exists():
-            return "PENDING"
+        # 幂等搬迁 legacy 路径（无操作若已是标准路径）
+        migrate_legacy_worker_outputs(wp_dir)
 
-        # P1-8 fix: DONE requires delivery_manifest.json OR terminal state.
-        # File existence alone ≠ verified completion.
-        final_dir = stages_dir / "final_deliverable"
-        manifest_file = stages_dir / "delivery_manifest.json"
-        if final_dir.exists() and manifest_file.exists():
-            final_files = [f for f in final_dir.rglob("*") if f.is_file()]
-            if final_files:
-                return "DONE"
-        # Also DONE if state is terminal (DELIVERED/COMPLETED/FAILED)
-        state_file = stages_dir.parent / "delivery_state.json"
-        if state_file.exists():
-            try:
-                state_data = json.loads(state_file.read_text())
-                if state_data.get("phase") in ("DELIVERED", "COMPLETED", "FAILED"):
-                    return "DONE"
-            except Exception:
-                pass
-
-        # PACKAGING: validation_result.json 存在
-        if (stages_dir / "validation_result.json").exists():
-            return "PACKAGING"
-
-        # VALIDATING: integrated_draft/DELIVERABLE.md 存在
-        # But only if state agrees (not stale artifacts from a previous run).
-        if (stages_dir / "integrated_draft" / "DELIVERABLE.md").exists():
-            # Cross-check with state file to avoid stale artifact false positive
-            if state_file.exists():
-                try:
-                    _sf_data = json.loads(state_file.read_text())
-                    _sf_phase = _sf_data.get("phase", "")
-                    # If state is GENERATING or earlier, the draft is stale
-                    if _sf_phase in ("INIT", "ANALYZING", "GENERATING"):
-                        pass  # Fall through to ASSEMBLING/GENERATING check
-                    else:
-                        return "VALIDATING"
-                except Exception:
-                    return "VALIDATING"
-            else:
-                return "VALIDATING"
-
-        # ASSEMBLING: 所有 worker MANIFEST 完成
-        # (检查 execution_plan.json 中的 task_count vs MANIFEST 数量)
-        plan_path = stages_dir / "execution_plan.json"
-        if plan_path.exists():
-            try:
-                import glob
-                plan_data = json.loads(plan_path.read_text())
-                # BLK-01 fix: task_count is a @property, not serialized to JSON
-                task_count = len(plan_data.get("task_graph", []))
-                manifests = glob.glob(str(stages_dir / "worker_outputs" / "*/MANIFEST.json"))
-                if task_count > 0 and len(manifests) >= task_count:
-                    return "ASSEMBLING"
-            except Exception:
-                pass
-
-        # GENERATING: execution_plan.json 有 task_graph
-        if plan_path.exists():
-            try:
-                plan_data = json.loads(plan_path.read_text())
-                # BLK-01 fix: use len(task_graph) instead of task_count property
-                if plan_data.get("task_graph") or len(plan_data.get("task_graph", [])) > 0:
-                    return "GENERATING"
-            except Exception:
-                pass
-
-        return "PENDING"
+        return derive_phase(wp_dir)
 
     # ------------------------------------------------------------------
     # 核心 API
@@ -483,10 +427,9 @@ class DeliverOrchestrator:
             wp_id = action_item["wp_id"]
             action = action_item["action"]
 
-            # 1. MANIFEST 路径修正
-            self._reconcile_manifests(wp_id)
+            # V3: legacy 路径搬迁已在 _check_wp_phase 中幂等处理（derive, don't sync）
 
-            # 2. 去重：检查 progress 中是否已 spawn 同 action（含具体 task IDs）
+            # 去重：检查 progress 中是否已 spawn 同 action（含具体 task IDs）
             progress_entry = self.progress.get(wp_id, {})
             last_spawned = progress_entry.get("last_spawned_action")
             current_params = action_item.get("spawn_params")
@@ -751,123 +694,6 @@ class DeliverOrchestrator:
             lines.append("")
 
         return "\n".join(lines)
-
-    def _reconcile_manifests(self, wp_id: str) -> None:
-        """自动修正 MANIFEST 路径 + 同步 state 文件。
-
-        三层修复：
-        1. 移动旧路径 worker_outputs/ → stages/worker_outputs/（legacy fix）
-        2. 扫描正确路径 stages/worker_outputs/，更新 completed_tasks
-        3. 清理 stale running_tasks（running 但无 MANIFEST = 从未实际 spawn）
-        """
-        import shutil
-        import glob
-
-        wp_project = self._get_wp_project_name(wp_id)
-        wp_subdir = wp_id.lower().replace('-', '_')
-        project_dir = self.blackboard_root / wp_project / "deliver_pro" / wp_subdir
-        wrong_dir = project_dir / "worker_outputs"
-        correct_dir = project_dir / "stages" / "worker_outputs"
-
-        # Step 1: Legacy path migration (only if old path exists)
-        if wrong_dir.exists():
-            for task_dir in wrong_dir.iterdir():
-                if not task_dir.is_dir():
-                    continue
-                dst = correct_dir / task_dir.name
-                if not (dst / "MANIFEST.json").exists():
-                    correct_dir.mkdir(parents=True, exist_ok=True)
-                    shutil.copytree(str(task_dir), str(dst), dirs_exist_ok=True)
-
-        # Step 2+3: ALWAYS reconcile state from correct path
-        state_path = project_dir / "delivery_state.json"
-        if not state_path.exists():
-            return
-
-        state = json.loads(state_path.read_text())
-        manifests = sorted(glob.glob(str(correct_dir / "*/MANIFEST.json")))
-
-        # Build completed set from actual MANIFESTs on disk
-        completed_from_disk = set()
-        for m in manifests:
-            try:
-                d = json.loads(open(m).read())
-                tid = d.get("task_id", "")
-                if tid and d.get("status") in ("COMPLETE", "PASS"):
-                    completed_from_disk.add(tid)
-            except Exception:
-                pass
-
-        # Clean stale running_tasks: if task is in running but has no MANIFEST → stale
-        old_running = set(state.get("running_tasks", []))
-        # A task is truly running if it's in running AND has a MANIFEST that's not COMPLETE
-        # OR has no MANIFEST yet (still in progress)
-        manifest_task_ids = set()
-        for m in manifests:
-            try:
-                d = json.loads(open(m).read())
-                manifest_task_ids.add(d.get("task_id", ""))
-            except Exception:
-                pass
-
-        # Stale = in running_tasks but has COMPLETE MANIFEST (should be in completed)
-        stale_running = old_running & completed_from_disk
-        clean_running = old_running - stale_running
-
-        # B1 fix: Timeout stale running_tasks.
-        # Tasks in running_tasks but WITHOUT a MANIFEST and running for too long
-        # are dead workers (spawned but never produced output).
-        # Mark them as failed so the pipeline doesn't hang forever.
-        WORKER_TIMEOUT_SECONDS = 600  # 10 minutes
-        timed_out = set()
-        for task_id in clean_running:
-            if task_id in manifest_task_ids:
-                continue  # Has MANIFEST, will be handled by completed_from_disk
-            # No MANIFEST → check if task has been running too long
-            task_dir = correct_dir / task_id
-            if task_dir.exists():
-                # Directory exists but no MANIFEST → partial write or crashed
-                mtime = task_dir.stat().st_mtime
-                import time
-                if time.time() - mtime > WORKER_TIMEOUT_SECONDS:
-                    timed_out.add(task_id)
-            else:
-                # No directory at all → worker never started or was cleaned
-                # Check state file updated_at for how long it's been running
-                state_updated = state.get("updated_at", "")
-                if state_updated:
-                    try:
-                        from datetime import datetime
-                        updated_dt = datetime.fromisoformat(state_updated)
-                        import time
-                        if time.time() - updated_dt.timestamp() > WORKER_TIMEOUT_SECONDS * 2:
-                            timed_out.add(task_id)
-                    except (ValueError, TypeError):
-                        pass
-
-        if timed_out:
-            failed_tasks = set(state.get("failed_tasks", []))
-            failed_tasks.update(timed_out)
-            clean_running -= timed_out
-            state["failed_tasks"] = sorted(failed_tasks)
-            logger.warning(
-                f"{wp_id}: B1 timeout — {len(timed_out)} workers timed out: "
-                f"{sorted(timed_out)}"
-            )
-
-        # Only update if something changed
-        old_completed = set(state.get("completed_tasks", []))
-        old_failed = set(state.get("failed_tasks", []))
-        if (completed_from_disk != old_completed or clean_running != old_running
-                or timed_out):
-            state["completed_tasks"] = sorted(completed_from_disk)
-            state["running_tasks"] = sorted(clean_running)
-            if state.get("phase") not in ("COMPLETED", "DELIVERED", "PACKAGING", "VALIDATING", "ASSEMBLING"):
-                state["phase"] = "GENERATING"
-            state_path.write_text(json.dumps(state, indent=2))
-            if stale_running:
-                logger.info(f"{wp_id}: cleaned stale running_tasks={stale_running}, "
-                           f"completed={sorted(completed_from_disk)}")
 
     def reset_wp(self, wp_id: str) -> None:
         """重置单个 WP 的进度。"""

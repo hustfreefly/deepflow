@@ -33,6 +33,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+import os
+import tempfile
+
 from domains.deliver_pro.contracts import (
     WorkPackage,
     ExecutionPlan,
@@ -64,6 +67,26 @@ except ImportError:
     _HAS_TRACK_EXTRACTOR = False
 
 logger = logging.getLogger(__name__)
+
+
+def atomic_write_json(path: Path, data: dict) -> None:
+    """原子写入 JSON：先写 .tmp，fsync，再 rename。"""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, str(path))
+    except Exception:
+        # Clean up temp file on failure
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 # ============================================================================
@@ -108,8 +131,9 @@ class DeliverWPRunner:
         self.project_name = project_name
 
         # Deliver Pro 专属目录（按 wp_id 分子目录）
-        wp_subdir = wp.wp_id.lower().replace('-', '_') if wp.wp_id else ""
-        self.deliver_pro_dir = self.blackboard_path / "deliver_pro" / wp_subdir
+        # Fix(commit 3489118): wp_subdir 必须保存为实例属性，供 prompt 模板使用
+        self.wp_subdir = wp.wp_id.lower().replace('-', '_') if wp.wp_id else ""
+        self.deliver_pro_dir = self.blackboard_path / "deliver_pro" / self.wp_subdir
         self.data_dir = self.deliver_pro_dir / "data"
         self.stages_dir = self.deliver_pro_dir / "stages"
         self.worker_outputs_dir = self.stages_dir / "worker_outputs"
@@ -124,6 +148,19 @@ class DeliverWPRunner:
         if state_path.exists():
             try:
                 state_data = json.loads(state_path.read_text(encoding="utf-8"))
+                # B2 fix: Phase field recovery — map unknown phase to valid enum
+                raw_phase = state_data.get("phase", "")
+                if raw_phase and raw_phase not in {p.value for p in PipelinePhase}:
+                    _PHASE_ALIASES = {"ASSEMBLING": "INTEGRATING", "ASSEMBLE": "INTEGRATING"}
+                    if raw_phase in _PHASE_ALIASES:
+                        logger.warning(f"B2: Phase alias '{raw_phase}' → '{_PHASE_ALIASES[raw_phase]}'")
+                        state_data["phase"] = _PHASE_ALIASES[raw_phase]
+                    elif state_data.get("completed_tasks") or state_data.get("running_tasks"):
+                        logger.warning(f"B2: Unknown phase '{raw_phase}', salvaging to GENERATING")
+                        state_data["phase"] = "GENERATING"
+                    else:
+                        logger.warning(f"B2: Unknown phase '{raw_phase}', resetting to INIT")
+                        state_data["phase"] = "INIT"
                 self.state = PipelineState.model_validate(state_data)
                 logger.info(f"State loaded from disk: phase={self.state.phase}")
             except Exception:
@@ -214,11 +251,7 @@ class DeliverWPRunner:
     def _save_state(self) -> None:
         """保存流水线状态到 delivery_state.json。"""
         state_path = self.deliver_pro_dir / "delivery_state.json"
-        state_data = self.state.model_dump(mode="json")
-        state_path.write_text(
-            json.dumps(state_data, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        atomic_write_json(state_path, self.state.model_dump())
 
     # ========================================================================
     # Phase 1: Analyze
@@ -380,19 +413,25 @@ class DeliverWPRunner:
     # Phase 2: Generate (Workers)
     # ========================================================================
 
+    def _derive_worker_progress(self, plan: ExecutionPlan):
+        """V3: 从文件系统推导 worker 进度（completed/failed/running/pending）。"""
+        from domains.deliver_pro.phase_deriver import derive_worker_progress
+        plan_task_ids = {t.task_id for t in plan.task_graph}
+        task_deps = {t.task_id: t.depends_on for t in plan.task_graph}
+        return derive_worker_progress(self.deliver_pro_dir, plan_task_ids, task_deps)
+
     def peek_next_wave_count(self, plan: ExecutionPlan) -> int:
         """纯只读：计算下一波可执行任务数量（不修改 state）。
 
-        供 step4_check_workers 调用，替代有副作用的 prepare_workers_spawn。
+        V3: completed/failed/running 全部从文件系统推导。
         """
-        completed = set(self.state.completed_tasks)
+        progress = self._derive_worker_progress(plan)
+        completed = progress["completed"]
         ready_tasks = plan.get_ready_tasks(completed)
 
-        running = set(self.state.running_tasks) if hasattr(self.state, 'running_tasks') else set()
-        ready_tasks = [t for t in ready_tasks if t.task_id not in running]
-
-        failed = set(self.state.failed_tasks) if hasattr(self.state, 'failed_tasks') else set()
-        ready_tasks = [t for t in ready_tasks if t.task_id not in failed]
+        # 排除 running / failed / blocked
+        excluded = progress["running"] | progress["failed"] | progress["blocked"]
+        ready_tasks = [t for t in ready_tasks if t.task_id not in excluded]
 
         max_parallel = plan.concurrency_plan.suggested_parallelism
         return min(len(ready_tasks), max_parallel)
@@ -414,20 +453,19 @@ class DeliverWPRunner:
         Returns:
             spawn_params 列表（每个元素对应一个 Worker）
         """
-        # 契约笼子：幂等前置状态转换（LLM 跳步不崩）
+        # 契约笼子：幂等前置状态记录（V3: 日志语义，不再 raise）
         if self.state.phase == PipelinePhase.ANALYZING:
             self.state.transition_to(PipelinePhase.GENERATING)
             self._save_state()
 
-        completed = completed_tasks if completed_tasks is not None else set(self.state.completed_tasks)
+        # V3: 从文件系统推导进度（derive, don't sync）
+        progress = self._derive_worker_progress(plan)
+        completed = completed_tasks if completed_tasks is not None else progress["completed"]
         ready_tasks = plan.get_ready_tasks(completed)
 
-        # BLK-04: Filter out running tasks to prevent duplicate spawn
-        running = set(self.state.running_tasks) if hasattr(self.state, 'running_tasks') else set()
-        ready_tasks = [t for t in ready_tasks if t.task_id not in running]
-        # NEW-02: Filter out failed tasks to prevent re-spawn of failed workers
-        failed = set(self.state.failed_tasks) if hasattr(self.state, 'failed_tasks') else set()
-        ready_tasks = [t for t in ready_tasks if t.task_id not in failed]
+        # V3: 排除 running / failed / blocked（全部从文件推导）
+        excluded = progress["running"] | progress["failed"] | progress["blocked"]
+        ready_tasks = [t for t in ready_tasks if t.task_id not in excluded]
 
         if not ready_tasks:
             logger.info("No ready tasks (all dependencies not met or all completed)")
@@ -501,13 +539,16 @@ class DeliverWPRunner:
 
         # P0-1 fix: use project_name (not wp_id_lower) for absolute path construction
         project_name = self.project_name
-        # 尝试加载 prompt 模板
+        # Fix(commit 3489118): 必须传递 wp_subdir 给 prompt 模板，
+        # 否则 Worker 看到的输出路径中 {wp_subdir} 不会被替换，
+        # 导致 Worker 写入 deliver_pro/stages/ 而非 deliver_pro/{wp_subdir}/stages/
         try:
             prompt = load_prompt(
                 "deliver_worker_base",
                 task_id=task.task_id,
                 wp_id=self.wp.wp_id,
                 project_name=project_name,
+                wp_subdir=self.wp_subdir,
                 scenario=task.scenario_type,
                 dependencies=", ".join(dep_paths) if dep_paths else "无",
                 forced_actions=", ".join(task.forced_actions) if task.forced_actions else "无",
@@ -614,6 +655,8 @@ cd {self.blackboard_path.parent.parent}
         blocking_files = ["DELIVERABLE.md", "MANIFEST.json"]
         missing_blocking = [f for f in blocking_files if not (output_dir / f).exists()]
         if missing_blocking:
+            # V3: 验证失败事实写入 MANIFEST（若 MANIFEST 本身缺失则创建）
+            self.mark_worker_failed(task_id, f"Missing required files: {missing_blocking}")
             return False, f"Missing required files: {missing_blocking}", None
 
         # Non-blocking: EVIDENCE.md + ISSUES.md (PARTIAL if missing, not FAILED)
@@ -634,6 +677,12 @@ cd {self.blackboard_path.parent.parent}
                 f"Worker {task_id} DELIVERABLE.md too short: "
                 f"{len(content)} chars (min {MIN_DELIVERABLE_LENGTH})"
             )
+            # V3: 验证失败事实写入 MANIFEST（文件系统即真相）
+            self.mark_worker_failed(
+                task_id,
+                f"DELIVERABLE.md content too short ({len(content)} chars, "
+                f"minimum {MIN_DELIVERABLE_LENGTH})",
+            )
             return (
                 False,
                 f"DELIVERABLE.md content too short ({len(content)} chars, "
@@ -647,6 +696,7 @@ cd {self.blackboard_path.parent.parent}
             manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
             meta = WorkerOutputMeta.model_validate(manifest_data)
         except Exception as e:
+            self.mark_worker_failed(task_id, f"MANIFEST.json validation failed: {e}")
             return False, f"MANIFEST.json validation failed: {e}", None
 
         # P1-2: Override status to PARTIAL if optional files missing
@@ -1197,6 +1247,11 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         fix_directives = verdict.fix_directives or []
         prompt = self._build_integrate_prompt(plan, worker_dirs, fix_directives=fix_directives)
 
+        # V3: 重入 INTEGRATING 前失效下游 artifact
+        # （否则旧 validation_result.json 会让推导跳到 PACKAGING，带着旧 verdict 打包）
+        from domains.deliver_pro.phase_deriver import invalidate_downstream
+        invalidate_downstream(self.deliver_pro_dir, from_phase="INTEGRATING")
+
         # Guard: round_count may be None
         round_num = self.state.round_count or 1
 
@@ -1252,6 +1307,10 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         self.state.transition_to(PipelinePhase.PACKAGING)
         self._save_state()
 
+        # V3: 从文件系统推导 worker 进度（fail_count 用于 prompt 渲染）
+        progress = self._derive_worker_progress(plan)
+        derived_fail_count = len(progress["failed"]) + len(progress["blocked"])
+
         # 尝试加载 prompt 模板
         try:
             prompt = load_prompt(
@@ -1259,8 +1318,8 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
                 wp_id=self.wp.wp_id,
                 delivery_status="COMPLETE" if (verdict and verdict.is_pass) else "PARTIAL",
                 final_score=f"{verdict.weighted_score:.1f}" if verdict else "N/A",
-                pass_count="0",
-                fail_count=str(len(self.state.failed_tasks)),
+                pass_count=str(len(progress["completed"])),
+                fail_count=str(derived_fail_count),
                 total=str(plan.task_count),
                 deepflow_root=str(self.blackboard_path.parent.parent),
             )
@@ -1292,10 +1351,16 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
 - 分数: {verdict.weighted_score:.2f}
 """
 
-        # 收集任务状态
+        # 收集任务状态（V3: 从文件系统推导）
+        progress = self._derive_worker_progress(plan)
         task_status = []
         for task in plan.task_graph:
-            status = "PASS" if task.task_id in self.state.completed_tasks else "FAILED"
+            if task.task_id in progress["completed"]:
+                status = "PASS"
+            elif task.task_id in progress["blocked"]:
+                status = "BLOCKED"
+            else:
+                status = "FAILED"
             task_status.append(f"- {task.task_id}: {status}")
 
         return f"""你是 Deliver Pro 的 Package Agent。
@@ -1543,7 +1608,26 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         return attempts < MAX_WORKER_RECOVERY_ATTEMPTS
 
     def mark_worker_failed(self, task_id: str, reason: str) -> None:
-        """标记 Worker 为失败状态。"""
+        """标记 Worker 为失败状态。
+
+        V3: 失败事实写入 MANIFEST.json（文件系统即真相），
+        state 仅作日志记录。
+        """
+        # 写入 MANIFEST（推导层的数据源）
+        manifest_path = self.worker_outputs_dir / task_id / "MANIFEST.json"
+        try:
+            if manifest_path.exists():
+                data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            else:
+                manifest_path.parent.mkdir(parents=True, exist_ok=True)
+                data = {"task_id": task_id}
+            data["status"] = "FAILED"
+            data["failure_reason"] = reason
+            atomic_write_json(manifest_path, data)
+        except Exception as e:
+            logger.error(f"Failed to write FAILED MANIFEST for {task_id}: {e}")
+
+        # 日志记录（不作决策依据）
         self.state.mark_task_failed(task_id)
         if task_id in self.state.running_tasks:
             self.state.running_tasks.remove(task_id)

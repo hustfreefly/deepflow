@@ -7,11 +7,15 @@ PipelineState — Deliver Pro 流水线状态。
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+
+logger = logging.getLogger(__name__)
 
 
 class PipelinePhase(str, Enum):
@@ -84,21 +88,26 @@ class PipelineState(BaseModel):
     )
     completed_at: Optional[str] = None
 
-    def transition_to(self, new_phase: PipelinePhase) -> None:
+    def transition_to(self, new_phase: PipelinePhase, *, force: bool = False) -> None:
         """
-        状态转换（幂等：同 phase 跳过，不报错）。
+        状态记录（V3: 降级为 append-only 日志语义，不再作为决策门禁）。
 
-        Raises:
-            ValueError: 如果转换不合法（且不是同 phase）。
+        V3 变更：不再对"非法转换"raise ValueError。
+        phase 决策一律通过 phase_deriver 从文件系统推导；
+        本方法仅维护 progress log 中的 phase 字段（可观测性用途）。
+
+        Args:
+            new_phase: 目标阶段
+            force: 保留参数，兼容旧调用（已无实际作用）
         """
-        # Idempotent: skip if already in target phase
         if new_phase == self.phase:
             return
         allowed = VALID_TRANSITIONS.get(self.phase, [])
         if new_phase not in allowed:
-            raise ValueError(
-                f"Invalid transition: {self.phase.value} → {new_phase.value}. "
-                f"Allowed: {[p.value for p in allowed]}"
+            # V3: 不 raise，仅记录。文件系统才是真相。
+            logger.warning(
+                f"Non-standard transition (log only): "
+                f"{self.phase.value} → {new_phase.value}"
             )
         self.phase = new_phase
         self.updated_at = datetime.now().isoformat()

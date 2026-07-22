@@ -306,9 +306,11 @@ class TestPipelineState:
         assert state.phase == PipelinePhase.ANALYZING
 
     def test_invalid_transition(self):
+        """V3: transition_to 降级为日志语义，非法转换不再 raise（只记 warning）。"""
         state = PipelineState(wp_id="WP-001")
-        with pytest.raises(ValueError, match="Invalid transition"):
-            state.transition_to(PipelinePhase.GENERATING)  # INIT → GENERATING not allowed
+        # V3: 不再 raise，phase 决策由 phase_deriver 从文件系统推导
+        state.transition_to(PipelinePhase.GENERATING)  # INIT → GENERATING 非标准但不 raise
+        assert state.phase == PipelinePhase.GENERATING
 
     def test_transition_to_completed_sets_timestamp(self):
         state = PipelineState(wp_id="WP-001")
@@ -385,9 +387,10 @@ class TestPipelineState:
         assert state.phase == PipelinePhase.INIT
 
     def test_completed_is_terminal_no_transitions(self):
+        """V3: 终态转换同样不 raise（日志语义），phase 字段被记录。"""
         state = PipelineState(wp_id="WP-001", phase=PipelinePhase.COMPLETED)
-        with pytest.raises(ValueError):
-            state.transition_to(PipelinePhase.INIT)
+        state.transition_to(PipelinePhase.INIT)
+        assert state.phase == PipelinePhase.INIT
 
 
 # ============================================================================
