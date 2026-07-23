@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VaultTokenProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Observability SDK</a> &gt; <a href="index.source.html" class="el_package">com.observability.sdk</a> &gt; <span class="el_source">VaultTokenProvider.java</span></div><h1>VaultTokenProvider.java</h1><pre class="source lang-java linenums">package com.observability.sdk;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Objects;
+import java.util.Optional;
+
+/**
+ * Resolves a Vault token from the configured source.
+ *
+ * &lt;p&gt;Token resolution order (first non-empty wins):
+ * &lt;ol&gt;
+ *   &lt;li&gt;Environment variable {@code VAULT_TOKEN}&lt;/li&gt;
+ *   &lt;li&gt;File at {@code /var/run/secrets/vault/token} (Kubernetes CSI driver)&lt;/li&gt;
+ *   &lt;li&gt;Direct configuration value ({@code vault.token} in config)&lt;/li&gt;
+ * &lt;/ol&gt;
+ *
+ * &lt;p&gt;The resolved token is intended to be injected as an {@code X-Vault-Token}
+ * header on the OTLP exporter so the collector can authenticate with Vault.
+ *
+ * &lt;p&gt;Usage:
+ * &lt;pre&gt;{@code
+ *   VaultTokenProvider provider = new VaultTokenProvider(config);
+ *   Optional&lt;String&gt; token = provider.resolveToken();
+ *   token.ifPresent(t -&gt; exporterBuilder.addHeader(&quot;X-Vault-Token&quot;, t));
+ * }&lt;/pre&gt;
+ */
+public final class VaultTokenProvider {
+
+    /** Environment variable name for Vault token. */
+    public static final String VAULT_TOKEN_ENV = &quot;VAULT_TOKEN&quot;;
+
+    /** Default file path for Vault token (Kubernetes CSI driver mount). */
+    public static final String DEFAULT_VAULT_TOKEN_FILE = &quot;/var/run/secrets/vault/token&quot;;
+
+    private final SdkConfig config;
+
+    /**
+     * Creates a provider for the given SDK configuration.
+     *
+     * @param config the SDK configuration (must not be null)
+     */
+<span class="fc" id="L45">    public VaultTokenProvider(SdkConfig config) {</span>
+<span class="fc" id="L46">        this.config = Objects.requireNonNull(config, &quot;config must not be null&quot;);</span>
+<span class="fc" id="L47">    }</span>
+
+    /**
+     * Returns true if Vault integration is enabled in the configuration.
+     */
+    public boolean isVaultEnabled() {
+<span class="fc" id="L53">        return config.isVaultEnabled();</span>
+    }
+
+    /**
+     * Resolves the Vault token using the configured resolution order.
+     *
+     * &lt;p&gt;Resolution order: env var → file → direct config value.
+     * Returns empty if no token is found.
+     *
+     * @return the resolved token, or empty
+     */
+    public Optional&lt;String&gt; resolveToken() {
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        if (!config.isVaultEnabled()) {</span>
+<span class="fc" id="L66">            return Optional.empty();</span>
+        }
+
+        // 1. Environment variable
+<span class="fc" id="L70">        String envToken = resolveFromEnv(VAULT_TOKEN_ENV);</span>
+<span class="pc bpc" id="L71" title="3 of 4 branches missed.">        if (envToken != null &amp;&amp; !envToken.isEmpty()) {</span>
+<span class="nc" id="L72">            return Optional.of(envToken);</span>
+        }
+
+        // 2. Token file (Kubernetes CSI driver)
+<span class="fc" id="L76">        String fileToken = resolveFromFile(DEFAULT_VAULT_TOKEN_FILE);</span>
+<span class="pc bpc" id="L77" title="3 of 4 branches missed.">        if (fileToken != null &amp;&amp; !fileToken.isEmpty()) {</span>
+<span class="nc" id="L78">            return Optional.of(fileToken);</span>
+        }
+
+        // 3. Direct config value
+<span class="fc" id="L82">        return config.getVaultToken();</span>
+    }
+
+    /**
+     * Resolves token from an environment variable.
+     *
+     * @param envVar the environment variable name
+     * @return the value, or null if not set
+     */
+    public String resolveFromEnv(String envVar) {
+<span class="fc" id="L92">        return System.getenv(envVar);</span>
+    }
+
+    /**
+     * Resolves token from a file.
+     *
+     * @param filePath the path to the token file
+     * @return the trimmed file content, or null if the file does not exist
+     */
+    public String resolveFromFile(String filePath) {
+<span class="fc" id="L102">        Path path = Paths.get(filePath);</span>
+<span class="pc bpc" id="L103" title="1 of 4 branches missed.">        if (!Files.exists(path) || !Files.isReadable(path)) {</span>
+<span class="fc" id="L104">            return null;</span>
+        }
+        try {
+<span class="fc" id="L107">            return new String(Files.readAllBytes(path)).trim();</span>
+<span class="nc" id="L108">        } catch (IOException e) {</span>
+<span class="nc" id="L109">            return null;</span>
+        }
+    }
+
+    /**
+     * Returns the Vault address from the configuration.
+     *
+     * @return the Vault address, or empty if not configured
+     */
+    public Optional&lt;String&gt; getVaultAddress() {
+<span class="fc" id="L119">        return config.getVaultAddress().map(Object::toString);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,54 @@
+{{- if .Values.gateway.logging.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "otel-collector.fullname" . }}-gateway-logging
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "otel-collector.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+data:
+  logging-config.yaml: |
+    # Gateway Collector Structured Logging Configuration
+    # Uses JSON format for machine-parseable logs.
+    # Authorization headers are redacted to prevent secret leakage.
+
+    service:
+      telemetry:
+        logs:
+          level: {{ .Values.gateway.logging.level | default "info" }}
+          encoding: json
+          output_paths:
+            - stdout
+          error_output_paths:
+            - stderr
+          initial_fields:
+            component: gateway
+            collector: otel-collector-gateway
+          {{- if .Values.gateway.logging.sampling }}
+          sampling:
+            enabled: true
+            initial: {{ .Values.gateway.logging.sampling.initial | default 10 }}
+            thereafter: {{ .Values.gateway.logging.sampling.thereafter | default 100 }}
+          {{- end }}
+
+    processors:
+      # Redact sensitive headers from logs before any processing
+      attributes/redact-auth:
+        actions:
+          - key: http.request.header.authorization
+            action: delete
+          - key: authorization
+            action: delete
+          - key: Authorization
+            action: delete
+
+    service:
+      pipelines:
+        logs:
+          processors:
+            - attributes/redact-auth
+            - memory_limiter
+            - batch
+{{- end }}

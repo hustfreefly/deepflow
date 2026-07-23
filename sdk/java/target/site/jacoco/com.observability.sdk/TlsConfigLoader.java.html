@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TlsConfigLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Observability SDK</a> &gt; <a href="index.source.html" class="el_package">com.observability.sdk</a> &gt; <span class="el_source">TlsConfigLoader.java</span></div><h1>TlsConfigLoader.java</h1><pre class="source lang-java linenums">package com.observability.sdk;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
+import java.util.Optional;
+
+/**
+ * Loads TLS certificate material from filesystem paths.
+ *
+ * &lt;p&gt;Certificates are expected to be mounted by cert-manager at the configured
+ * paths. This loader reads PEM-encoded certificate and key files into byte arrays
+ * suitable for the OpenTelemetry OTLP exporter builder.
+ *
+ * &lt;p&gt;Usage:
+ * &lt;pre&gt;{@code
+ *   TlsConfigLoader loader = new TlsConfigLoader(config);
+ *   byte[] trustedCerts = loader.loadTrustedCertificates();  // CA cert
+ *   byte[] clientCert = loader.loadClientCertificateChain();  // client cert
+ *   byte[] clientKey = loader.loadClientKey();                // client private key
+ * }&lt;/pre&gt;
+ */
+public final class TlsConfigLoader {
+
+    private final SdkConfig config;
+
+    /**
+     * Creates a loader for the given SDK configuration.
+     *
+     * @param config the SDK configuration (must not be null)
+     */
+<span class="fc" id="L33">    public TlsConfigLoader(SdkConfig config) {</span>
+<span class="fc" id="L34">        this.config = Objects.requireNonNull(config, &quot;config must not be null&quot;);</span>
+<span class="fc" id="L35">    }</span>
+
+    /**
+     * Returns true if TLS is enabled in the configuration.
+     */
+    public boolean isTlsEnabled() {
+<span class="fc" id="L41">        return config.isTlsEnabled();</span>
+    }
+
+    /**
+     * Loads the trusted CA certificate bundle.
+     *
+     * @return the CA certificate bytes, or empty if no CA path is configured
+     * @throws IOException if the file cannot be read
+     */
+    public Optional&lt;byte[]&gt; loadTrustedCertificates() throws IOException {
+<span class="fc" id="L51">        return config.getCaPath().map(this::readAllBytes);</span>
+    }
+
+    /**
+     * Loads the client certificate chain (for mTLS).
+     *
+     * @return the client certificate bytes, or empty if no cert path is configured
+     * @throws IOException if the file cannot be read
+     */
+    public Optional&lt;byte[]&gt; loadClientCertificateChain() throws IOException {
+<span class="fc" id="L61">        return config.getTlsCertPath().map(this::readAllBytes);</span>
+    }
+
+    /**
+     * Loads the client private key (for mTLS).
+     *
+     * @return the client key bytes, or empty if no key path is configured
+     * @throws IOException if the file cannot be read
+     */
+    public Optional&lt;byte[]&gt; loadClientKey() throws IOException {
+<span class="fc" id="L71">        return config.getTlsKeyPath().map(this::readAllBytes);</span>
+    }
+
+    /**
+     * Validates that all configured TLS paths exist and are readable.
+     *
+     * @throws IOException if any configured path is missing or unreadable
+     */
+    public void validateAllPaths() throws IOException {
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">        if (!config.isTlsEnabled()) {</span>
+<span class="nc" id="L81">            return;</span>
+        }
+
+<span class="fc" id="L84">        config.getCaPath().ifPresent(this::validatePath);</span>
+<span class="fc" id="L85">        config.getTlsCertPath().ifPresent(this::validatePath);</span>
+<span class="fc" id="L86">        config.getTlsKeyPath().ifPresent(this::validatePath);</span>
+<span class="fc" id="L87">    }</span>
+
+    private void validatePath(Path path) {
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        if (!Files.exists(path)) {</span>
+<span class="fc" id="L91">            throw new IllegalStateException(</span>
+<span class="fc" id="L92">                    &quot;TLS file not found: &quot; + path.toAbsolutePath());</span>
+        }
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">        if (!Files.isReadable(path)) {</span>
+<span class="nc" id="L95">            throw new IllegalStateException(</span>
+<span class="nc" id="L96">                    &quot;TLS file not readable: &quot; + path.toAbsolutePath());</span>
+        }
+<span class="fc" id="L98">    }</span>
+
+    private byte[] readAllBytes(Path path) {
+        try {
+<span class="fc" id="L102">            return Files.readAllBytes(path);</span>
+<span class="fc" id="L103">        } catch (IOException e) {</span>
+<span class="fc" id="L104">            throw new IllegalStateException(</span>
+<span class="fc" id="L105">                    &quot;Failed to read TLS file: &quot; + path.toAbsolutePath(), e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

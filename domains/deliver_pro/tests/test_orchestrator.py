@@ -398,3 +398,167 @@ class TestGetNextActions:
 
         assert result["layer"] == -1
         assert result["actions"] == []
+
+
+class TestStaleDispatchRecovery:
+    """孤儿分发恢复：dedup 记录过期后允许重新分发（2026-07-23 smk_001 停摆事故）。
+
+    事故根因：drive_all 标记 last_spawned_action=analyze 后 session 死亡，
+    agent 从未真正运行，但 dedup 记录永久阻塞后续分发。
+    """
+
+    def test_legacy_record_without_timestamp_is_stale(self, tmp_path, mock_blackboard):
+        """旧代码写入的记录（无 last_spawned_at）→ 视为过期 → 重新分发。"""
+        with _make_orchestrator(tmp_path, mock_blackboard) as driver:
+            driver.progress["CORE-001"] = {
+                "phase": "PENDING",
+                "last_spawned_action": "analyze",  # 旧记录，无时间戳
+            }
+            results = driver.tick()
+
+        actions = [r for r in results if r["wp_id"] == "CORE-001"]
+        assert len(actions) == 1
+        assert actions[0]["action"] == "analyze"
+        # 重新分发后应写入时间戳
+        assert "last_spawned_at" in driver.progress["CORE-001"]
+
+    def test_fresh_dispatch_not_redispatched(self, tmp_path, mock_blackboard):
+        """新鲜分发记录（未超时）→ 跳过，不重复分发。"""
+        import time as _time
+
+        with _make_orchestrator(tmp_path, mock_blackboard) as driver:
+            driver.progress["CORE-001"] = {
+                "phase": "PENDING",
+                "last_spawned_action": "analyze",
+                "last_spawned_at": _time.time(),  # 刚刚分发
+            }
+            results = driver.tick()
+
+        actions = [r for r in results if r["wp_id"] == "CORE-001"]
+        assert actions == []
+
+    def test_expired_dispatch_redispatched(self, tmp_path, mock_blackboard):
+        """过期分发记录（超过 analyze 的 1800s 阈值）→ 清除并重新分发。"""
+        import time as _time
+
+        with _make_orchestrator(tmp_path, mock_blackboard) as driver:
+            driver.progress["CORE-001"] = {
+                "phase": "PENDING",
+                "last_spawned_action": "analyze",
+                "last_spawned_at": _time.time() - 2000,  # 超过阈值
+            }
+            results = driver.tick()
+
+        actions = [r for r in results if r["wp_id"] == "CORE-001"]
+        assert len(actions) == 1
+        assert actions[0]["action"] == "analyze"
+
+
+class TestOrphanValidateRecovery:
+    """孤儿 validate 恢复（2026-07-23 E2E 停摆事故）。
+
+    事故根因：validate agent 死亡/从未分发时 validation_result.json 永远缺失，
+    VALIDATING 分支无条件 skip → Layer 0 不 DONE → 全管线锁死。
+    """
+
+    def _setup_validating_wp(self, bb_root, project_name, wp_id="CORE-001"):
+        """构造 VALIDATING 状态的 WP：plan + integrated_draft 存在，无 validation_result。"""
+        wp_subdir = wp_id.lower().replace('-', '_')
+        stages = bb_root / project_name / "deliver_pro" / wp_subdir / "stages"
+        (stages / "integrated_draft").mkdir(parents=True)
+        (stages / "integrated_draft" / "DELIVERABLE.md").write_text("# Draft")
+        (stages / "execution_plan.json").write_text(json.dumps({
+            "wp_id": wp_id, "task_graph": [],
+        }))
+        return stages
+
+    def test_orphan_validate_never_dispatched(self, tmp_path, mock_blackboard):
+        """validate 从未分发（last_spawned=spawn_workers）→ 重新分发 validate。"""
+        bb_root, project_name = mock_blackboard
+        self._setup_validating_wp(bb_root, project_name)
+
+        with _make_orchestrator(tmp_path, mock_blackboard) as driver:
+            driver.progress["CORE-001"] = {
+                "phase": "VALIDATING",
+                "last_spawned_action": "spawn_workers:deliver-worker-t-002",
+                "last_spawned_at": 1784767544.0,  # 旧时间戳
+            }
+            action = driver._get_wp_next_action("CORE-001")
+
+        assert action["action"] == "validate", f"expected validate, got {action}"
+        assert action["spawn_params"] is not None
+
+    def test_orphan_validate_stale_dispatch(self, tmp_path, mock_blackboard):
+        """validate 已分发但 agent 死亡（>30min）→ 重新分发 validate。"""
+        import time as _time
+        bb_root, project_name = mock_blackboard
+        self._setup_validating_wp(bb_root, project_name)
+
+        with _make_orchestrator(tmp_path, mock_blackboard) as driver:
+            driver.progress["CORE-001"] = {
+                "phase": "VALIDATING",
+                "last_spawned_action": "validate",
+                "last_spawned_at": _time.time() - 2000,  # 超过 1800s 阈值
+            }
+            action = driver._get_wp_next_action("CORE-001")
+
+        assert action["action"] == "validate", f"expected validate, got {action}"
+
+    def test_fresh_validate_not_redispatched(self, tmp_path, mock_blackboard):
+        """validate agent 正常运行中（<30min）→ skip，不重复分发。"""
+        import time as _time
+        bb_root, project_name = mock_blackboard
+        self._setup_validating_wp(bb_root, project_name)
+
+        with _make_orchestrator(tmp_path, mock_blackboard) as driver:
+            driver.progress["CORE-001"] = {
+                "phase": "VALIDATING",
+                "last_spawned_action": "validate",
+                "last_spawned_at": _time.time() - 60,  # 1 分钟前，正常
+            }
+            action = driver._get_wp_next_action("CORE-001")
+
+        assert action["action"] == "skip", f"expected skip, got {action}"
+
+
+class TestLegacyFinalDeliverablePath:
+    """Legacy final_deliverable 路径兼容（2026-07-23 prompt 路径歧义事故）。
+
+    package prompt 曾漏 stages/ 前缀，agent 把交付物写到 WP 根目录。
+    derive_phase 应接受该位置（DeprecationWarning），保证旧交付不丢失。
+    """
+
+    def test_legacy_wp_root_final_deliverable_is_done(self, tmp_path, mock_blackboard):
+        """交付物在 WP 根目录 final_deliverable/（legacy）→ DONE + 警告。"""
+        import warnings
+        bb_root, project_name = mock_blackboard
+        wp_dir = bb_root / project_name / "deliver_pro" / "core_001"
+        stages = wp_dir / "stages"
+        stages.mkdir(parents=True)
+        (stages / "delivery_manifest.json").write_text('{"wp_id": "CORE-001"}')
+        # legacy 位置：WP 根目录而非 stages/
+        legacy = wp_dir / "final_deliverable"
+        legacy.mkdir()
+        (legacy / "README.md").write_text("# Deliverable")
+
+        from domains.deliver_pro.phase_deriver import derive_phase
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            assert derive_phase(wp_dir) == "DONE"
+            assert any(issubclass(x.category, DeprecationWarning) for x in w)
+
+    def test_stages_path_preferred_no_warning(self, tmp_path, mock_blackboard):
+        """交付物在契约位置 stages/final_deliverable/ → DONE 且无警告。"""
+        import warnings
+        bb_root, project_name = mock_blackboard
+        wp_dir = bb_root / project_name / "deliver_pro" / "core_001"
+        final_dir = wp_dir / "stages" / "final_deliverable"
+        final_dir.mkdir(parents=True)
+        (final_dir.parent / "delivery_manifest.json").write_text("{}")
+        (final_dir / "README.md").write_text("# Deliverable")
+
+        from domains.deliver_pro.phase_deriver import derive_phase
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            assert derive_phase(wp_dir) == "DONE"
+            assert not any(issubclass(x.category, DeprecationWarning) for x in w)

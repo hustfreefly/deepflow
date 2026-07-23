@@ -1,0 +1,58 @@
+{{- if .Values.monitoring.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "otel-collector.fullname" . }}-agent
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "otel-collector.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+    prometheus: {{ .Values.monitoring.prometheusInstance | default "kube-prometheus-stack" }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "otel-collector.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: agent
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.monitoring.scrapeInterval | default "30s" }}
+      scrapeTimeout: {{ .Values.monitoring.scrapeTimeout | default "10s" }}
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "otel-collector.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "otel-collector.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+    prometheus: {{ .Values.monitoring.prometheusInstance | default "kube-prometheus-stack" }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "otel-collector.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.monitoring.scrapeInterval | default "30s" }}
+      scrapeTimeout: {{ .Values.monitoring.scrapeTimeout | default "10s" }}
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}

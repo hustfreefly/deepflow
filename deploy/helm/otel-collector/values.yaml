@@ -1,0 +1,15 @@
+monitoring:
+  enabled: true
+  prometheusInstance: kube-prometheus-stack
+  scrapeInterval: 30s
+  scrapeTimeout: 10s
+
+agent:
+  logging:
+    enabled: true
+    level: info
+
+gateway:
+  logging:
+    enabled: true
+    level: info

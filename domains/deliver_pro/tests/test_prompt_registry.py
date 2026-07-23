@@ -17,11 +17,14 @@ class TestLoadPrompt:
         clear_cache()
 
     def test_load_all_prompts(self):
-        """All 6 prompt files should load successfully."""
+        """All 6 prompt files should load successfully.
+
+        FixFlow R10: 双花括号路径变量为必需（fail-fast），测试需提供。"""
         prompt_names = list_prompts()
         assert len(prompt_names) >= 6
+        required_vars = {"project_name": "test-project", "wp_subdir": "test_wp"}
         for name in prompt_names:
-            result = load_prompt(name)
+            result = load_prompt(name, **required_vars)
             assert isinstance(result, str)
             assert len(result) > 0
 

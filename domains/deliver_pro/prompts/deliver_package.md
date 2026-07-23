@@ -28,7 +28,7 @@
     {
       "task_id": "T-001", "title": "用户注册",
       "status": "PASS",
-      "artifacts": ["final_deliverable/src/auth.py"],
+      "artifacts": ["stages/final_deliverable/src/auth.py"],
       "failure_reason": null, "user_actions": []
     },
     {
@@ -44,7 +44,7 @@
 }
 ```
 
-## 失败报告：`final_deliverable/FAILURE_REPORT.md`
+## 失败报告：`stages/final_deliverable/FAILURE_REPORT.md`
 
 ```markdown
 # 交付失败报告
@@ -81,4 +81,6 @@
 ## 上下文（运行时注入）
 
 WP: {wp_id} | 状态: {delivery_status} | 评分: {final_score}
-输出: final_deliverable/, stages/delivery_manifest.json
+输出: stages/final_deliverable/, stages/delivery_manifest.json
+
+**路径铁律（P0）**：所有交付物必须写入 `stages/final_deliverable/`（与 delivery_manifest.json 同级）。**禁止**写到 WP 根目录的 `final_deliverable/`——下游 phase 推导只认 `stages/final_deliverable/`，写错位置 = 交付丢失。

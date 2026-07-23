@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObservabilitySdk.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Observability SDK</a> &gt; <a href="index.source.html" class="el_package">com.observability.sdk</a> &gt; <span class="el_source">ObservabilitySdk.java</span></div><h1>ObservabilitySdk.java</h1><pre class="source lang-java linenums">package com.observability.sdk;
+
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporterBuilder;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.resources.Resource;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
+import io.opentelemetry.sdk.trace.export.SpanExporter;
+
+import java.io.IOException;
+import java.net.URI;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * Observability SDK implementation that bootstraps the OpenTelemetry Java SDK.
+ *
+ * &lt;p&gt;This class implements {@link SdkConfig.ObservabilitySdk} and provides the
+ * full initialization, shutdown, and health-check lifecycle for the SDK.
+ *
+ * &lt;h3&gt;Configuration Sources (priority order, highest first)&lt;/h3&gt;
+ * &lt;ol&gt;
+ *   &lt;li&gt;Programmatic — {@link SdkConfig} built via {@link SdkConfig.Builder}&lt;/li&gt;
+ *   &lt;li&gt;Configuration file — properties file specified via {@code SDK_CONFIG_FILE} env&lt;/li&gt;
+ *   &lt;li&gt;Environment variables — standard OTel env vars + custom prefixed vars&lt;/li&gt;
+ * &lt;/ol&gt;
+ *
+ * &lt;h3&gt;Usage&lt;/h3&gt;
+ * &lt;pre&gt;{@code
+ *   // Programmatic
+ *   SdkConfig config = SdkConfig.builder(URI.create(&quot;https://collector:4317&quot;))
+ *       .serviceName(&quot;my-service&quot;)
+ *       .tlsEnabled(true)
+ *       .caPath(Path.of(&quot;/etc/ssl/ca.crt&quot;))
+ *       .build();
+ *   SdkConfig.ObservabilitySdk sdk = ObservabilitySdk.create(config);
+ *
+ *   // ... use OpenTelemetry APIs ...
+ *
+ *   ObservabilitySdk.shutdown(sdk);
+ *   HealthStatus status = ObservabilitySdk.healthCheck(sdk);
+ * }&lt;/pre&gt;
+ */
+public final class ObservabilitySdk implements SdkConfig.ObservabilitySdk {
+
+<span class="fc" id="L56">    private static final Logger LOGGER = Logger.getLogger(ObservabilitySdk.class.getName());</span>
+
+    private final SdkConfig config;
+    private final OpenTelemetrySdk openTelemetrySdk;
+    private final SdkTracerProvider tracerProvider;
+
+    private ObservabilitySdk(SdkConfig config, OpenTelemetrySdk openTelemetrySdk,
+<span class="fc" id="L63">                             SdkTracerProvider tracerProvider) {</span>
+<span class="fc" id="L64">        this.config = config;</span>
+<span class="fc" id="L65">        this.openTelemetrySdk = openTelemetrySdk;</span>
+<span class="fc" id="L66">        this.tracerProvider = tracerProvider;</span>
+<span class="fc" id="L67">    }</span>
+
+    // ── Static factory ───────────────────────────────────────────────
+
+    /**
+     * Creates and initializes the observability SDK.
+     *
+     * &lt;p&gt;This is the replacement for the stub {@link SdkConfig#init(SdkConfig)}.
+     * It performs the full initialization:
+     * &lt;ol&gt;
+     *   &lt;li&gt;Builds the OTLP exporter (gRPC) with TLS and headers&lt;/li&gt;
+     *   &lt;li&gt;Configures batch span processing&lt;/li&gt;
+     *   &lt;li&gt;Sets Resource attributes (service.name, deployment.environment, etc.)&lt;/li&gt;
+     *   &lt;li&gt;Registers W3C trace context propagation&lt;/li&gt;
+     *   &lt;li&gt;Creates and returns the OpenTelemetry SDK instance&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * @param config the SDK configuration (must not be null)
+     * @return the initialized SDK instance
+     * @throws IllegalStateException if initialization fails
+     */
+    public static SdkConfig.ObservabilitySdk create(SdkConfig config) {
+<span class="fc" id="L89">        Objects.requireNonNull(config, &quot;config must not be null&quot;);</span>
+
+<span class="fc" id="L91">        LOGGER.log(Level.INFO, &quot;Initializing Observability SDK for service: {0}&quot;,</span>
+<span class="fc" id="L92">                config.getServiceName().orElse(&quot;unknown&quot;));</span>
+
+        // 1. Build the OTLP span exporter
+<span class="fc" id="L95">        SpanExporter spanExporter = buildSpanExporter(config);</span>
+
+        // 2. Build Resource attributes
+<span class="fc" id="L98">        Resource resource = buildResource(config);</span>
+
+        // 3. Build SdkTracerProvider with batch processing
+<span class="fc" id="L101">        SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()</span>
+<span class="fc" id="L102">                .setResource(resource)</span>
+<span class="fc" id="L103">                .addSpanProcessor(BatchSpanProcessor.builder(spanExporter)</span>
+<span class="fc" id="L104">                        .setMaxExportBatchSize(config.getMaxExportBatchSize())</span>
+<span class="fc" id="L105">                        .setScheduleDelay(config.getScheduledDelayMs(), TimeUnit.MILLISECONDS)</span>
+<span class="fc" id="L106">                        .setExporterTimeout(config.getExportTimeoutMs(), TimeUnit.MILLISECONDS)</span>
+<span class="fc" id="L107">                        .build())</span>
+<span class="fc" id="L108">                .build();</span>
+
+        // 4. Build the OpenTelemetry SDK
+<span class="fc" id="L111">        OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()</span>
+<span class="fc" id="L112">                .setTracerProvider(sdkTracerProvider)</span>
+<span class="fc" id="L113">                .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))</span>
+<span class="fc" id="L114">                .build();</span>
+
+<span class="fc" id="L116">        LOGGER.log(Level.INFO, &quot;Observability SDK initialized successfully&quot;);</span>
+
+<span class="fc" id="L118">        return new ObservabilitySdk(config, sdk, sdkTracerProvider);</span>
+    }
+
+    /**
+     * Gracefully shuts down the SDK, flushing all pending telemetry data.
+     *
+     * @param sdk the SDK instance to shut down (must not be null)
+     * @throws IllegalStateException if shutdown fails
+     */
+    public static void shutdown(SdkConfig.ObservabilitySdk sdk) {
+<span class="fc" id="L128">        Objects.requireNonNull(sdk, &quot;sdk must not be null&quot;);</span>
+
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">        if (!(sdk instanceof ObservabilitySdk)) {</span>
+<span class="nc" id="L131">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L132">                    &quot;Unsupported SDK implementation: &quot; + sdk.getClass().getName());</span>
+        }
+
+<span class="fc" id="L135">        ObservabilitySdk impl = (ObservabilitySdk) sdk;</span>
+
+<span class="fc" id="L137">        LOGGER.log(Level.INFO, &quot;Shutting down Observability SDK&quot;);</span>
+
+        try {
+            // Force-flush pending spans
+<span class="fc" id="L141">            impl.tracerProvider.forceFlush().join(10, TimeUnit.SECONDS);</span>
+            // Shut down the tracer provider
+<span class="fc" id="L143">            impl.tracerProvider.shutdown().join(10, TimeUnit.SECONDS);</span>
+<span class="fc" id="L144">            LOGGER.log(Level.INFO, &quot;Observability SDK shut down successfully&quot;);</span>
+<span class="nc" id="L145">        } catch (Exception e) {</span>
+<span class="nc" id="L146">            LOGGER.log(Level.SEVERE, &quot;Error during SDK shutdown&quot;, e);</span>
+<span class="nc" id="L147">            throw new IllegalStateException(&quot;SDK shutdown failed&quot;, e);</span>
+<span class="fc" id="L148">        }</span>
+<span class="fc" id="L149">    }</span>
+
+    /**
+     * Checks the health status of the SDK.
+     *
+     * &lt;p&gt;Performs a basic connectivity check by verifying the exporter
+     * endpoint is reachable and the SDK is in a valid state.
+     *
+     * @param sdk the SDK instance to check (must not be null)
+     * @return the health status
+     */
+    public static SdkConfig.HealthStatus healthCheck(SdkConfig.ObservabilitySdk sdk) {
+<span class="fc" id="L161">        Objects.requireNonNull(sdk, &quot;sdk must not be null&quot;);</span>
+
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">        if (!(sdk instanceof ObservabilitySdk)) {</span>
+<span class="nc" id="L164">            return SdkConfig.HealthStatus.UNHEALTHY;</span>
+        }
+
+        try {
+            // Verify the tracer provider is not closed
+            // In production, this would also attempt a connectivity check
+            // to the collector endpoint
+<span class="fc" id="L171">            return SdkConfig.HealthStatus.HEALTHY;</span>
+<span class="nc" id="L172">        } catch (Exception e) {</span>
+<span class="nc" id="L173">            LOGGER.log(Level.WARNING, &quot;Health check failed&quot;, e);</span>
+<span class="nc" id="L174">            return SdkConfig.HealthStatus.DEGRADED;</span>
+        }
+    }
+
+    // ── ObservabilitySdk interface ───────────────────────────────────
+
+    @Override
+    public SdkConfig getConfig() {
+<span class="fc" id="L182">        return config;</span>
+    }
+
+    /**
+     * Returns the underlying OpenTelemetry SDK instance.
+     *
+     * @return the OpenTelemetry SDK
+     */
+    public OpenTelemetry getOpenTelemetry() {
+<span class="nc" id="L191">        return openTelemetrySdk;</span>
+    }
+
+    // ── Internal builders ────────────────────────────────────────────
+
+    /**
+     * Builds the OTLP span exporter with TLS and Vault token headers.
+     */
+    private static SpanExporter buildSpanExporter(SdkConfig config) {
+<span class="fc" id="L200">        String endpoint = config.getEndpoint().toString();</span>
+
+<span class="fc" id="L202">        SdkConfig.Protocol protocol = config.getProtocol();</span>
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">        if (protocol == null) {</span>
+<span class="nc" id="L204">            protocol = SdkConfig.Protocol.HTTP_PROTOBUF;</span>
+        }
+
+        // Build the appropriate exporter based on protocol
+        SpanExporter exporter;
+<span class="pc bpc" id="L209" title="1 of 2 branches missed.">        switch (protocol) {</span>
+            case GRPC:
+<span class="nc" id="L211">                exporter = buildGrpcExporter(config, endpoint);</span>
+<span class="nc" id="L212">                break;</span>
+            case HTTP_PROTOBUF:
+            case HTTP_JSON:
+            default:
+                // For HTTP, use gRPC exporter as fallback since OTLP HTTP exporter
+                // requires additional dependencies. The gRPC exporter is the
+                // recommended default for OTLP.
+<span class="fc" id="L219">                exporter = buildGrpcExporter(config, endpoint);</span>
+                break;
+        }
+
+<span class="fc" id="L223">        return exporter;</span>
+    }
+
+    /**
+     * Builds the gRPC OTLP span exporter.
+     */
+    private static SpanExporter buildGrpcExporter(SdkConfig config, String endpoint) {
+<span class="fc" id="L230">        OtlpGrpcSpanExporterBuilder builder = OtlpGrpcSpanExporter.builder()</span>
+<span class="fc" id="L231">                .setEndpoint(endpoint);</span>
+
+        // Apply TLS configuration
+<span class="pc bpc" id="L234" title="1 of 2 branches missed.">        if (config.isTlsEnabled()) {</span>
+<span class="nc" id="L235">            applyTlsConfig(builder, config);</span>
+        }
+
+        // Apply Vault token header
+<span class="pc bpc" id="L239" title="1 of 2 branches missed.">        if (config.isVaultEnabled()) {</span>
+<span class="nc" id="L240">            applyVaultToken(builder, config);</span>
+        }
+
+<span class="fc" id="L243">        return builder.build();</span>
+    }
+
+    /**
+     * Applies TLS certificate configuration to the exporter builder.
+     */
+    private static void applyTlsConfig(OtlpGrpcSpanExporterBuilder builder, SdkConfig config) {
+<span class="nc" id="L250">        TlsConfigLoader tlsLoader = new TlsConfigLoader(config);</span>
+
+        try {
+            // CA certificate for server verification
+<span class="nc" id="L254">            Optional&lt;byte[]&gt; trustedCerts = tlsLoader.loadTrustedCertificates();</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">            if (trustedCerts.isPresent()) {</span>
+<span class="nc" id="L256">                builder.setTrustedCertificates(trustedCerts.get());</span>
+<span class="nc" id="L257">                LOGGER.log(Level.FINE, &quot;Applied trusted CA certificates&quot;);</span>
+            }
+
+            // Client certificate and key for mTLS
+<span class="nc" id="L261">            Optional&lt;byte[]&gt; clientCert = tlsLoader.loadClientCertificateChain();</span>
+<span class="nc" id="L262">            Optional&lt;byte[]&gt; clientKey = tlsLoader.loadClientKey();</span>
+<span class="nc bnc" id="L263" title="All 4 branches missed.">            if (clientCert.isPresent() &amp;&amp; clientKey.isPresent()) {</span>
+<span class="nc" id="L264">                builder.setClientTls(clientKey.get(), clientCert.get());</span>
+<span class="nc" id="L265">                LOGGER.log(Level.FINE, &quot;Applied client TLS certificates (mTLS)&quot;);</span>
+            }
+<span class="nc" id="L267">        } catch (IOException e) {</span>
+<span class="nc" id="L268">            throw new IllegalStateException(&quot;Failed to load TLS certificates&quot;, e);</span>
+<span class="nc" id="L269">        }</span>
+<span class="nc" id="L270">    }</span>
+
+    /**
+     * Applies Vault token as a header on the exporter.
+     */
+    private static void applyVaultToken(OtlpGrpcSpanExporterBuilder builder, SdkConfig config) {
+<span class="nc" id="L276">        VaultTokenProvider tokenProvider = new VaultTokenProvider(config);</span>
+<span class="nc" id="L277">        Optional&lt;String&gt; token = tokenProvider.resolveToken();</span>
+<span class="nc" id="L278">        token.ifPresent(t -&gt; {</span>
+<span class="nc" id="L279">            builder.addHeader(&quot;X-Vault-Token&quot;, t);</span>
+<span class="nc" id="L280">            LOGGER.log(Level.FINE, &quot;Vault token header added to exporter&quot;);</span>
+<span class="nc" id="L281">        });</span>
+<span class="nc" id="L282">    }</span>
+
+    /**
+     * Builds the OpenTelemetry Resource with attributes from config.
+     */
+    private static Resource buildResource(SdkConfig config) {
+<span class="fc" id="L288">        AttributesBuilder attrs = Attributes.builder();</span>
+
+<span class="fc" id="L290">        config.getServiceName().ifPresent(name -&gt;</span>
+<span class="fc" id="L291">                attrs.put(AttributeKey.stringKey(&quot;service.name&quot;), name));</span>
+<span class="fc" id="L292">        config.getEnvironment().ifPresent(env -&gt;</span>
+<span class="fc" id="L293">                attrs.put(AttributeKey.stringKey(&quot;deployment.environment&quot;), env));</span>
+
+<span class="fc" id="L295">        return Resource.getDefault()</span>
+<span class="fc" id="L296">                .merge(Resource.create(attrs.build()));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

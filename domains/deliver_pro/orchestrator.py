@@ -13,10 +13,21 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# 孤儿分发恢复：分发记录超过超时仍未产出 artifact，允许重新分发。
+# 防 session 死亡/中断导致 dedup 记录永久阻塞流水线（2026-07-23 smk_001 停摆事故）。
+_STALE_DISPATCH_TIMEOUTS = {
+    "analyze": 1800,         # 30 min
+    "spawn_workers": 5400,   # 90 min（Worker 跑大任务耗时长）
+    "validate": 1800,        # 30 min
+    "package": 1800,         # 30 min
+}
+_DEFAULT_STALE_TIMEOUT = 1800
 
 
 class DeliverOrchestrator:
@@ -334,6 +345,21 @@ class DeliverOrchestrator:
             verdict, details = driver.step6_check_validate()
             # P1-1 fix: NOT_FOUND = validate agent still running → skip, don't trigger package_failed
             if verdict == "NOT_FOUND":
+                # 孤儿 validate 恢复（2026-07-23 E2E 停摆事故）：
+                # validate agent 死亡或从未被分发时，validation_result.json 永远缺失，
+                # 无条件 skip 会永久停摆（Layer 0 不 DONE → 后续所有 layer 锁死）。
+                # 分发记录过期或从未分发 validate → 重新分发 validate agent。
+                progress_entry = self.progress.get(wp_id, {})
+                last_spawned = progress_entry.get("last_spawned_action", "")
+                validate_dispatched = last_spawned == "validate" or last_spawned.startswith("validate:")
+                if not validate_dispatched or self._is_stale_dispatch(progress_entry, "validate"):
+                    try:
+                        round_num = progress_entry.get("validate_round", 1)
+                        params = driver.step6_validate(round_num=round_num)
+                        logger.warning("%s: re-dispatching orphan validate (round=%s)", wp_id, round_num)
+                        return {"wp_id": wp_id, "action": "validate", "spawn_params": params, "error": None}
+                    except Exception as e:
+                        return {"wp_id": wp_id, "action": "validate_failed", "spawn_params": None, "error": str(e)}
                 return {"wp_id": wp_id, "action": "skip", "spawn_params": None, "error": "validate_pending"}
             try:
                 params = driver.step7_package()  # P1-3 fix: auto-read verdict from validation_result.json
@@ -450,9 +476,21 @@ class DeliverOrchestrator:
                 ))
             dedup_key = f"{action}:{current_task_ids}" if current_task_ids else action
             if last_spawned == dedup_key and has_real_params:
-                continue  # 同一批 worker 已在进行中，跳过
+                # 孤儿分发恢复：dedup 记录可能来自已死 session（agent 从未真正运行）。
+                # 过期则清除记录并继续分发；未过期才真正跳过。
+                if self._is_stale_dispatch(progress_entry, action):
+                    logger.warning(
+                        "%s: clearing stale dispatch '%s' (spawned_at=%s)",
+                        wp_id, dedup_key, progress_entry.get("last_spawned_at"),
+                    )
+                    progress_entry.pop("last_spawned_action", None)
+                    progress_entry.pop("last_spawned_at", None)
+                    self.progress[wp_id] = progress_entry
+                else:
+                    continue  # 同一批 worker 已在进行中，跳过
             if last_spawned == dedup_key and not has_real_params:
                 progress_entry.pop("last_spawned_action", None)
+                progress_entry.pop("last_spawned_at", None)
                 self.progress[wp_id] = progress_entry
 
             # 3. Assembly 自动执行（确定性代码，不需要 agent）
@@ -473,6 +511,16 @@ class DeliverOrchestrator:
                         self.report_done(wp_id, "assemble", True)
                         # 立即获取下一个动作（validate）
                         new_action = self._get_wp_next_action(wp_id)
+                        # 链式 action 也必须记录分发状态（2026-07-23 STORE-003 孤儿事故）：
+                        # 否则 validate agent 死亡后，VALIDATING 分支的 stale 检查
+                        # 只能看到旧的 spawn_workers 时间戳，可能误杀正常运行的 validate。
+                        new_params = new_action.get("spawn_params")
+                        if new_params and new_action.get("action") not in ("done", "skip"):
+                            pe = self.progress.get(wp_id, {})
+                            pe["last_spawned_action"] = new_action["action"]
+                            pe["last_spawned_at"] = time.time()
+                            self.progress[wp_id] = pe
+                            self._save_progress()
                         results.append(new_action)
                 except Exception as e:
                     # P1-7 fix: assembly exception → terminal_failed (not retryable)
@@ -483,12 +531,29 @@ class DeliverOrchestrator:
             # 4. 记录 spawn 状态（P0-3 fix: 用 dedup_key 而非 action，区分不同 wave）
             if has_real_params:
                 progress_entry["last_spawned_action"] = dedup_key
+                progress_entry["last_spawned_at"] = time.time()
                 self.progress[wp_id] = progress_entry
                 self._save_progress()
 
             results.append(action_item)
 
         return results
+
+    @staticmethod
+    def _is_stale_dispatch(progress_entry: dict, action: str) -> bool:
+        """判断分发记录是否为孤儿分发（agent 从未运行或所在 session 已死亡）。
+
+        规则：
+        - 无 last_spawned_at（旧版本代码写入的记录）→ 视为过期，自动恢复
+        - 距分发时间超过该 action 类型的超时阈值 → 视为过期
+
+        超时阈值取保守上限，避免误杀仍在正常运行的 agent。
+        """
+        spawned_at = progress_entry.get("last_spawned_at")
+        if spawned_at is None:
+            return True
+        timeout = _STALE_DISPATCH_TIMEOUTS.get(action, _DEFAULT_STALE_TIMEOUT)
+        return (time.time() - spawned_at) > timeout
 
     def drive_once(self) -> dict:
         """Auto-loop 接口：一次调用返回当前所有可执行的 spawn 动作。

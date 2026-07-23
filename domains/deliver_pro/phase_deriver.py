@@ -170,6 +170,20 @@ def derive_phase(wp_dir: Path) -> str:
     if manifest_file.exists() and final_dir.exists():
         if any(f.is_file() for f in final_dir.rglob("*")):
             return PHASE_DONE
+    # Legacy 兼容（2026-07-23 prompt 路径歧义事故）：package prompt 曾漏写
+    # stages/ 前缀，导致 package agent 把交付物写到 WP 根目录 final_deliverable/。
+    # prompt 已修复（deliver_package.md 路径铁律），此处接受旧位置但发出警告。
+    legacy_final_dir = wp_dir / "final_deliverable"
+    if manifest_file.exists() and legacy_final_dir.exists():
+        if any(f.is_file() for f in legacy_final_dir.rglob("*")):
+            import warnings
+            warnings.warn(
+                f"{wp_dir.name}: final_deliverable 在 WP 根目录（legacy 路径），"
+                f"应迁移到 stages/final_deliverable/",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return PHASE_DONE
 
     # PACKAGING: verdict 已产出（validate 完成，可以打包）
     if (stages_dir / "validation_result.json").exists():
