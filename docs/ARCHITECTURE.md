@@ -95,10 +95,10 @@ DeepFlow 不是一个 Agent，而是 **Agent 的编排框架**。它在 OpenClaw
 | Spec Pro | ~2,744 (核心文件) | 52 passed | 8 |
 | Solution Pro | ~4,750 (orchestrators) | 127 passed, 10 skipped | 39 |
 | Ship Pro | ~877 (单入口) | 19 passed | 1 |
-| Deliver Pro | ~3,000+ (5-Phase + Pulse 调度) | 240 passed | 7 |
+| Deliver Pro | ~3,000+ (5-Phase + Pulse 调度) | 245 passed | 7 |
 | Research Pro | ~1,402 (orchestrator) | — | — |
 | Core | ~9,534 | — | — |
-| **总计** | **~49,000+** | **516 passed, 10 skipped** | **48+** |
+| **总计** | **~49,000+** | **521 passed, 10 skipped** | **48+** |
 
 ---
 
@@ -499,7 +499,9 @@ run_ship_pro()
 
 **契约笼子**: `contracts/pulse_report.py` 五模型 `extra="forbid"`，`_pulse_actions.json` 写入必须过 Pydantic 验证。
 
-**生产验证**: 全链路可观测性平台_E2E（26 WP），7 DONE 卡死状态启动 → **26/26 DONE，0 terminal_failed，0 人工干预**（~5.5h），240/240 tests。
+**生产验证**: 全链路可观测性平台_E2E（26 WP），7 DONE 卡死状态启动 → **26/26 DONE，0 terminal_failed，0 人工干预**（~5.5h），245/245 tests。
+
+**V1.1 契约加固**（同日）: K3 DONE 需 ≥50B 实质交付物 / K5-B 零产出 assembly → terminal_failed（不烧两轮 LLM）/ K2 worker_outputs 排除计数。详见实现文档。
 
 **文档**: `.deepflow/docs/pulse-v1-implementation.md`（落地记录 + 已知问题 K1-K6）
 

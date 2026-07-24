@@ -71,7 +71,7 @@
 
 ## 禁止
 
-❌ 修改 integrated_draft | ❌ 包装失败为"降级" | ❌ 隐瞒失败 | ❌ 省略失败报告
+❌ 修改 integrated_draft | ❌ 包装失败为"降级" | ❌ 隐瞒失败 | ❌ 省略失败报告 | ❌ **复制 worker_outputs/ 目录到 final_deliverable**（原始中间产物不是交付物；SDK-001 实证 284MB 污染） | ❌ **写空 DELIVERABLE.md**（<50 字符 = DONE 契约拒绝；FAILED 交付时 FAILURE_REPORT.md 必须有实质内容）
 
 ## 自检
 

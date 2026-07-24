@@ -403,6 +403,9 @@ class DeliverOrchestrator:
         if phase == "ASSEMBLING":
             try:
                 result = driver.step5_integrate()
+                # K5-B: 零产出 → terminal_failed（不烧 validate/package 两轮 LLM）
+                if result.get("status") == "ASSEMBLY_EMPTY":
+                    return {"wp_id": wp_id, "action": "terminal_failed", "spawn_params": None, "error": result.get("error", "零 worker 产出")}
                 if result.get("status") == "ASSEMBLY_ERROR":
                     params = driver.step7_package(verdict_str="FAIL")
                     return {"wp_id": wp_id, "action": "package_failed", "spawn_params": params, "error": "Assembly failed"}
@@ -630,8 +633,13 @@ class DeliverOrchestrator:
                 try:
                     driver = self._get_driver(wp_id)
                     result = driver.step5_integrate()
+                    # K5-B: 零产出 → terminal_failed（不烧 package agent 写失败报告）
+                    if result.get("status") == "ASSEMBLY_EMPTY":
+                        logger.error(f"{wp_id}: ASSEMBLY_EMPTY — terminal")
+                        self.report_done(wp_id, "assemble", False, error="ASSEMBLY_EMPTY")
+                        results.append({"wp_id": wp_id, "action": "terminal_failed", "spawn_params": None, "error": result.get("error", "零 worker 产出")})
                     # P1-6 fix: Check assembly status — don't discard ASSEMBLY_ERROR
-                    if result.get("status") == "ASSEMBLY_ERROR":
+                    elif result.get("status") == "ASSEMBLY_ERROR":
                         logger.error(f"{wp_id}: ASSEMBLY_ERROR — routing to failure packaging")
                         self.report_done(wp_id, "assemble", False, error="ASSEMBLY_ERROR")
                         try:

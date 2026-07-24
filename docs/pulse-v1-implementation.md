@@ -1,7 +1,22 @@
 # Pulse V1 落地记录（版本固化）
 
-> 2026-07-24 | 状态：已固化（生产验证通过）
+> 2026-07-24 | 状态：已固化（生产验证通过）| **V1.1 契约加固（同日 21:42 用户授权主 Agent 决策）**
 > 前置文档：pulse-scheduling-proposal.md（方案）→ pulse-review-{reliability,ainative,platform,devil}.md（4 专家评审）→ pulse-review-synthesis.md（裁决 A1-A8）
+
+---
+
+## V1.1 契约加固（2026-07-24 晚，commit 见 git log）
+
+抽查发现 21/26 WP 带病交付后，主 Agent 按三公理决策修复 3 项：
+
+| 修复 | 决策依据 | 实现 |
+|---|---|---|
+| K3 空交付物过关 | 契约铁律（DONE 必须可信）；修在 derive_phase（live 契约层），非死代码 verify_package_output | `_has_substantial_file()`：DONE 要求 ≥1 个 ≥50B 非 worker_outputs 文件 |
+| K5 零产出空跑到 DONE | 能力正交（零产出是确定性事实，代码判定，不烧 validate+package 两轮 LLM 得必然 FAIL） | `step5_integrate` 守卫：plan 非空 + workers_integrated=0 → ASSEMBLY_EMPTY → terminal_failed；真 zero-worker WP（plan 空）不受影响 |
+| K2 worker_outputs 灌入交付物 | 克制即专业：prompt 禁令 + derive 排除计数，不加新机制 | deliver_package.md 禁令 + `_has_substantial_file` 排除 worker_outputs/ 子树 |
+
+**验证**: 245/245 tests（+5 新测试；6 处既有 fixture 更新为 ≥50B 内容）
+**K2/K3/K5 状态**: 已修 ✅ | **K6 已修 ✅**（V1 当天）| K1/K4 保留（认知/设计权衡）
 
 ---
 

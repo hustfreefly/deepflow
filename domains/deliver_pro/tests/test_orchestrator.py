@@ -214,7 +214,7 @@ class TestCheckWpPhase:
         stages_dir = bb_root / wp_project / "deliver_pro" / "core_001" / "stages"
         final_dir = stages_dir / "final_deliverable"
         final_dir.mkdir(parents=True)
-        (final_dir / "DELIVERABLE.md").write_text("# Done")
+        (final_dir / "DELIVERABLE.md").write_text("# Done\n" + "x" * 60)
         # P1-8 fix: DONE also requires delivery_manifest.json
         (stages_dir / "delivery_manifest.json").write_text("{}")
 
@@ -231,7 +231,7 @@ class TestCheckWpPhase:
         stages_dir.mkdir(parents=True)
         final_dir = stages_dir / "final_deliverable"
         final_dir.mkdir(parents=True)
-        (final_dir / "DELIVERABLE.md").write_text("# Done")
+        (final_dir / "DELIVERABLE.md").write_text("# Done\n" + "x" * 60)
         # V3: delivery_manifest.json 存在 + final_deliverable 非空 → DONE
         (stages_dir / "delivery_manifest.json").write_text('{"wp_id": "CORE-001"}')
 
@@ -244,7 +244,7 @@ class TestCheckWpPhase:
         wp_project = project_name
         final_dir = bb_root / wp_project / "deliver_pro" / "core_001" / "stages" / "final_deliverable"
         final_dir.mkdir(parents=True)
-        (final_dir / "DELIVERABLE.md").write_text("# Done")
+        (final_dir / "DELIVERABLE.md").write_text("# Done\n" + "x" * 60)
         # No delivery_manifest.json, no terminal state → falls through
 
         with _make_orchestrator(tmp_path, mock_blackboard) as driver:
@@ -390,7 +390,7 @@ class TestGetNextActions:
             stages_dir = bb_root / wp_project / "deliver_pro" / wp_subdir / "stages"
             final_dir = stages_dir / "final_deliverable"
             final_dir.mkdir(parents=True)
-            (final_dir / "DELIVERABLE.md").write_text("# Done")
+            (final_dir / "DELIVERABLE.md").write_text("# Done\n" + "x" * 60)
             (stages_dir / "delivery_manifest.json").write_text("{}")
 
         with _make_orchestrator(tmp_path, mock_blackboard) as driver:
@@ -539,7 +539,7 @@ class TestLegacyFinalDeliverablePath:
         # legacy 位置：WP 根目录而非 stages/
         legacy = wp_dir / "final_deliverable"
         legacy.mkdir()
-        (legacy / "README.md").write_text("# Deliverable")
+        (legacy / "README.md").write_text("# Deliverable\n" + "x" * 60)
 
         from domains.deliver_pro.phase_deriver import derive_phase
         with warnings.catch_warnings(record=True) as w:
@@ -555,7 +555,7 @@ class TestLegacyFinalDeliverablePath:
         final_dir = wp_dir / "stages" / "final_deliverable"
         final_dir.mkdir(parents=True)
         (final_dir.parent / "delivery_manifest.json").write_text("{}")
-        (final_dir / "README.md").write_text("# Deliverable")
+        (final_dir / "README.md").write_text("# Deliverable\n" + "x" * 60)
 
         from domains.deliver_pro.phase_deriver import derive_phase
         with warnings.catch_warnings(record=True) as w:

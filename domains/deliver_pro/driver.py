@@ -236,6 +236,25 @@ class DeliverRunner:
             "status": result.status,
         }
 
+        # K5-B 空跑守卫（Pulse V1.1，2026-07-24）：plan 有任务但零产出 →
+        # 不再烧 validate+package 两轮 LLM 得必然 FAIL，直接 terminal。
+        # 能力正交：零产出是确定性事实，代码判定，不需要 LLM 语义评估。
+        # 注意：真 zero-worker WP（plan.task_graph 为空）不在此守卫范围，
+        # 其空 assembly 是设计内行为，照常走 validate/package。
+        if (
+            result.workers_integrated == 0
+            and result.status != "ASSEMBLY_ERROR"
+            and plan is not None
+            and plan.task_graph
+        ):
+            info["status"] = "ASSEMBLY_EMPTY"
+            info["error"] = (
+                f"zero workers integrated from non-empty plan "
+                f"({len(plan.task_graph)} tasks)"
+            )
+            logger.warning("Step 5: ASSEMBLY_EMPTY — %s", info["error"])
+            return info
+
         # Verify integrate output (non-blocking)
         if result.status != "ASSEMBLY_ERROR":
             valid, msg = self.orch.verify_integrate_output(self.orch.integrated_draft_dir)

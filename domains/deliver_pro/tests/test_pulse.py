@@ -306,10 +306,10 @@ class TestAllResolved:
     def test_completed_marker_written(self, mock_blackboard):
         """1 DONE + 1 terminal_failed → all_resolved → .deliver_completed.json。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            # AAA-001 → DONE
+            # AAA-001 → DONE（Pulse V1.1 K3: 交付物必须 ≥50B）
             stages = _wp_dir(bb_root, project, "AAA-001") / "stages"
             (stages / "final_deliverable").mkdir(parents=True)
-            (stages / "final_deliverable" / "out.md").write_text("done")
+            (stages / "final_deliverable" / "out.md").write_text("x" * 60)
             (stages / "delivery_manifest.json").write_text("{}")
             # BBB-001 → terminal_failed
             orch.progress["BBB-001"] = {"terminal_failed": True}
@@ -420,3 +420,93 @@ class TestContractCage:
             data = json.loads((bb_root / project / "_pulse_actions.json").read_text())
             validated = PulseReport.model_validate(data)
             assert validated.project_name == project
+
+
+# ---------------------------------------------------------------------------
+# K3（Pulse V1.1）: DONE 契约要求实质交付物
+# ---------------------------------------------------------------------------
+
+class TestSubstantialFileContract:
+    """空交付物 / worker_outputs 灌入 不得判 DONE（2026-07-24 STORE-003 / SDK-001 实证）。"""
+
+    def test_done_requires_substantial_file(self, tmp_path):
+        from domains.deliver_pro.phase_deriver import derive_phase, PHASE_DONE
+
+        stages = tmp_path / "stages"
+        (stages / "final_deliverable").mkdir(parents=True)
+        (stages / "delivery_manifest.json").write_text("{}")
+        (stages / "validation_result.json").write_text("{}")
+        (stages / "final_deliverable" / "DELIVERABLE.md").write_text("")  # 0B
+        assert derive_phase(tmp_path) == "PACKAGING"  # 空交付物 → 不是 DONE
+        (stages / "final_deliverable" / "DELIVERABLE.md").write_text("x" * 60)
+        assert derive_phase(tmp_path) == PHASE_DONE
+
+    def test_done_excludes_worker_outputs_dump(self, tmp_path):
+        """final_deliverable 内嵌套的 worker_outputs/ 是中间产物，不计入交付物。"""
+        from domains.deliver_pro.phase_deriver import derive_phase, PHASE_DONE
+
+        stages = tmp_path / "stages"
+        dump = stages / "final_deliverable" / "worker_outputs" / "T-001"
+        dump.mkdir(parents=True)
+        (stages / "delivery_manifest.json").write_text("{}")
+        (stages / "validation_result.json").write_text("{}")
+        (dump / "big.bin").write_text("x" * 5000)  # 灌入的大文件不算交付物
+        (stages / "final_deliverable" / "DELIVERABLE.md").write_text("")
+        assert derive_phase(tmp_path) == "PACKAGING"
+        (stages / "final_deliverable" / "DELIVERABLE.md").write_text("x" * 60)
+        assert derive_phase(tmp_path) == PHASE_DONE
+
+
+# ---------------------------------------------------------------------------
+# K5-B（Pulse V1.1）: 零产出 assembly → terminal_failed
+# ---------------------------------------------------------------------------
+
+class TestAssemblyEmptyGuard:
+    """plan 非空但 workers_integrated=0 → 不烧 validate/package 两轮 LLM，直接 terminal。"""
+
+    def test_step5_zero_integrated_assembly_empty(self):
+        from domains.deliver_pro.driver import DeliverRunner
+
+        driver = object.__new__(DeliverRunner)
+        driver.wp_id = "TEST-001"
+        plan = SimpleNamespace(task_graph=[SimpleNamespace(task_id="T-001", depends_on=[])])
+        driver.orch = MagicMock()
+        driver.orch.load_execution_plan.return_value = plan
+        driver.orch.run_integrate.return_value = SimpleNamespace(
+            workers_integrated=0, workers_failed=1, retention_ratio=0.0, status="OK"
+        )
+        info = driver.step5_integrate()
+        assert info["status"] == "ASSEMBLY_EMPTY"
+        assert "zero workers" in info["error"]
+
+    def test_step5_zero_worker_plan_passes_through(self):
+        """真 zero-worker WP（plan.task_graph 为空）→ 守卫不触发（设计内行为）。"""
+        from domains.deliver_pro.driver import DeliverRunner
+
+        driver = object.__new__(DeliverRunner)
+        driver.wp_id = "TEST-001"
+        plan = SimpleNamespace(task_graph=[])
+        driver.orch = MagicMock()
+        driver.orch.load_execution_plan.return_value = plan
+        driver.orch.run_integrate.return_value = SimpleNamespace(
+            workers_integrated=0, workers_failed=0, retention_ratio=1.0, status="OK"
+        )
+        driver.orch.verify_integrate_output.return_value = (True, "ok")
+        info = driver.step5_integrate()
+        assert info["status"] == "OK"
+
+    def test_assembly_empty_maps_terminal_failed(self, mock_blackboard):
+        """tick assemble 分支：ASSEMBLY_EMPTY → terminal_failed + CRITICAL 告警。"""
+        with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
+            driver = MagicMock()
+            driver.step5_integrate.return_value = {
+                "status": "ASSEMBLY_EMPTY", "workers_integrated": 0,
+                "error": "zero workers integrated",
+            }
+            with patch.object(orch, "_get_wp_next_action", return_value={
+                "wp_id": "AAA-001", "action": "assemble", "spawn_params": None, "error": None,
+            }), patch.object(orch, "_get_driver", return_value=driver), \
+                 patch.object(orch, "_count_in_flight", return_value=0):
+                report = orch.pulse()
+            assert orch.progress["AAA-001"]["terminal_failed"] is True
+            assert any(a["code"] == "TERMINAL_FAILED" for a in report["alerts"])

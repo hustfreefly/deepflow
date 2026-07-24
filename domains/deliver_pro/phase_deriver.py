@@ -39,6 +39,10 @@ logger = logging.getLogger(__name__)
 # 30 分钟：宁可慢检测，不误杀慢 Worker（误杀会级联 block 下游任务）
 WORKER_TIMEOUT_SECONDS = 1800
 
+# DONE 契约（K3, Pulse V1.1）：交付目录至少含一个 ≥50B 的实质文件。
+# 防空 DELIVERABLE.md 过关（2026-07-24 STORE-003 实证：0B 交付物也曾被判 DONE）。
+DONE_MIN_FILE_BYTES = 50
+
 # Phase 常量（与 orchestrator 历史字符串保持一致）
 PHASE_DONE = "DONE"
 PHASE_PACKAGING = "PACKAGING"
@@ -53,6 +57,26 @@ def _read_json(path: Path) -> dict[str, Any] | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def _has_substantial_file(directory: Path, min_bytes: int = DONE_MIN_FILE_BYTES) -> bool:
+    """DONE 契约检查：交付目录至少含一个 ≥min_bytes 的实质文件。
+
+    K2 排除规则（Pulse V1.1）：final_deliverable 内嵌套的 worker_outputs/
+    目录是 package agent 违规灌入的原始中间产物（SDK-001 实证 284MB），
+    不计入交付物。
+    """
+    for f in directory.rglob("*"):
+        if not f.is_file():
+            continue
+        try:
+            if "worker_outputs" in f.relative_to(directory).parts:
+                continue
+            if f.stat().st_size >= min_bytes:
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
 
 
 def derive_worker_progress(
@@ -168,14 +192,14 @@ def derive_phase(wp_dir: Path) -> str:
     manifest_file = stages_dir / "delivery_manifest.json"
     final_dir = stages_dir / "final_deliverable"
     if manifest_file.exists() and final_dir.exists():
-        if any(f.is_file() for f in final_dir.rglob("*")):
+        if _has_substantial_file(final_dir):
             return PHASE_DONE
     # Legacy 兼容（2026-07-23 prompt 路径歧义事故）：package prompt 曾漏写
     # stages/ 前缀，导致 package agent 把交付物写到 WP 根目录 final_deliverable/。
     # prompt 已修复（deliver_package.md 路径铁律），此处接受旧位置但发出警告。
     legacy_final_dir = wp_dir / "final_deliverable"
     if manifest_file.exists() and legacy_final_dir.exists():
-        if any(f.is_file() for f in legacy_final_dir.rglob("*")):
+        if _has_substantial_file(legacy_final_dir):
             import warnings
             warnings.warn(
                 f"{wp_dir.name}: final_deliverable 在 WP 根目录（legacy 路径），"
