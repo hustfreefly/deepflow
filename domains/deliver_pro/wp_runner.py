@@ -517,6 +517,9 @@ class DeliverWPRunner:
             "runtime": "subagent",
             "mode": "run",
             "label": _label,
+            # Pulse V1: task_id 用于 orchestrator 的 dedup_key / task_attempts 账本 /
+            # 孤儿目录清理。非 sessions_spawn 合法参数，Agent 层 spawn 前需剥离。
+            "task_id": task.task_id,
             "task": auto_bootstrap(_root, self.stages_dir, prompt, _label),
             "thinking": "high",
             # N5: Inject timeout from TaskNode contract

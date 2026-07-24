@@ -7,6 +7,11 @@ updated: "2026-07-21"
 
 # Deliver Pro Orchestrator — 薄层调度器 (V2)
 
+> **⚠️ 已废弃（2026-07-24，Pulse V1 上线）**：yield 循环调度模式已被脉冲式调度替代
+> （cron 每 5min 点火 + `prompts/deliver_pulse.md`，裁决见 `.deepflow/docs/pulse-review-synthesis.md`）。
+> 根因：run-mode session「yield 时无 pending children = 自杀」，2026-07-23 E2E 实证 5 次必死。
+> 本文件仅供单 WP 手动调试参考，**禁止用于生产调度**。
+
 ## ⚠️ 第一行动（硬约束）
 
 **你的第一个 action 必须是下面的 exec。不要读任何其他文件。不要探索。不要思考“先了解一下情况”。所有你需要的信息都在这个 prompt 里。**

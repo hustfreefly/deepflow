@@ -95,10 +95,10 @@ DeepFlow 不是一个 Agent，而是 **Agent 的编排框架**。它在 OpenClaw
 | Spec Pro | ~2,744 (核心文件) | 52 passed | 8 |
 | Solution Pro | ~4,750 (orchestrators) | 127 passed, 10 skipped | 39 |
 | Ship Pro | ~877 (单入口) | 19 passed | 1 |
-| Deliver Pro | ~2,500+ (5-Phase) | 190+ passed | — |
+| Deliver Pro | ~3,000+ (5-Phase + Pulse 调度) | 240 passed | 7 |
 | Research Pro | ~1,402 (orchestrator) | — | — |
 | Core | ~9,534 | — | — |
-| **总计** | **~49,000+** | **466 passed, 10 skipped** | **48+** |
+| **总计** | **~49,000+** | **516 passed, 10 skipped** | **48+** |
 
 ---
 
@@ -480,6 +480,28 @@ run_ship_pro()
 - **统一输出 4 文件**: DELIVERABLE.md + EVIDENCE.md + ISSUES.md + MANIFEST.json
 - **故障恢复**: LLM 端到端诊断（废除 F1-F8 查表法），上限 3 轮
 - **E2E 验证**: 报告场景 4.15/5.0，编程场景 4.4/5.0 + 30/30 pytest passed
+
+#### 4.5.1 Pulse Scheduling V1 — 脉冲式调度（2026-07-24 固化）
+
+**替代**: V2 薄层 LLM Orchestrator 的 yield 循环调度（run-mode session「yield 时无 pending children = 自杀」，2026-07-23 E2E 实证 5 连死）。
+
+**形态**: cron 每 5min 点火 isolated session → `DeliverOrchestrator.pulse()` 单次全量扫描（决策全在 Python）→ `_pulse_actions.json` 契约落盘 → pulse agent 逐条 spawn + confirm 回执 → session 结束。不依赖 session 长寿、不依赖事件投递，文件系统是唯一真相。
+
+**核心机制**（4 专家评审裁决 A1-A8）:
+- **A1**: 原子写（temp+rename）+ fcntl 单实例锁（stale >10min 告警）
+- **A2**: 重试预算（task ≤3 次 → 合成 MANIFEST 终败；WP 级 ≤3 → terminal_failed；终态 = done + terminal_failed）
+- **A3**: derive 判超时 → 无视 stale dedup 直接重派（30/90min 两常数）
+- **A4**: 两阶段 dispatch（未确认 10min 孤儿窗口 / 已确认 30-90min）+ spawn 失败回滚
+- **A5**: MAX_IN_FLIGHT=8 全局并发上限 + MAX_SPAWN_PER_PULSE=5（预算在记录 dispatch 之前注入）
+- **A6**: cron `--no-deliver` + 告警合并单条飞书（只 WARN/CRITICAL）
+- **A7**: 零进展 ≥3 次告警 + 30min 冷却
+- **A8**: `--light-context` + 完成标记快速通道 + completed 后 cron 自删（已实测）
+
+**契约笼子**: `contracts/pulse_report.py` 五模型 `extra="forbid"`，`_pulse_actions.json` 写入必须过 Pydantic 验证。
+
+**生产验证**: 全链路可观测性平台_E2E（26 WP），7 DONE 卡死状态启动 → **26/26 DONE，0 terminal_failed，0 人工干预**（~5.5h），240/240 tests。
+
+**文档**: `.deepflow/docs/pulse-v1-implementation.md`（落地记录 + 已知问题 K1-K6）
 
 **模块**: `smart_assembler.py`, `orchestrator.py`, `blackboard.py`, `state_manager.py`, `failure_recovery.py`
 **测试**: 190+ passed

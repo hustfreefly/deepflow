@@ -99,6 +99,10 @@ exec: mkdir -p {deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subd
 
 - [ ] 所有 AC 已覆盖 [ ] 证据充分 [ ] 4 文件齐全 [ ] 无 ISSUES 遗漏 [ ] MANIFEST 完整
 
+## 最终输出纪律（Pulse V1）
+
+你的最终回复**不会被任何人阅读**（调度方只从文件系统读你的 MANIFEST，父 session 可能已结束）。最终回复保持一行以内，例如 `DONE: {task_id} MANIFEST written`。不要在最终回复里贴产出内容。
+
 ## 任务详情（运行时注入）
 
 - **Task ID**: {task_id}
