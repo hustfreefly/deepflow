@@ -346,30 +346,6 @@ class DeliverRunner:
         logger.info(f"Step 7: Package spawn ready (verdict={actual_verdict})")
         return params
 
-    def step7_check_package(self) -> tuple[bool, dict]:
-        """Phase 5 验证: 检查 final_deliverable 目录 + delivery_manifest。"""
-        final_dir = self.stages_dir / "final_deliverable"
-        if not final_dir.exists():
-            return False, {"error": "final_deliverable dir not found"}
-
-        files = [f for f in final_dir.rglob("*") if f.is_file()]
-        if not files:
-            return False, {"error": "final_deliverable is empty"}
-
-        # Verify package output via delivery_manifest.json (blocking)
-        manifest_path = self.stages_dir / "delivery_manifest.json"
-        if manifest_path.exists():
-            valid, msg, _ = self.orch.verify_package_output(manifest_path)
-            if not valid:
-                return False, {"error": f"verify_package_output failed: {msg}"}
-            # Mark pipeline COMPLETED (guard: skip if already terminal)
-            from domains.deliver_pro.contracts import PipelinePhase
-            if not self.orch.state.is_terminal:
-                self.orch.state.transition_to(PipelinePhase.COMPLETED)
-                self.orch._save_state()
-
-        return True, {"file_count": len(files), "files": [str(f) for f in files]}
-
     def step6_5_fix_integrate(self, verdict_data: dict) -> dict[str, Any]:
         """Phase 4.5: 准备 FIX 轮次的 Integrate Agent spawn 参数。
 

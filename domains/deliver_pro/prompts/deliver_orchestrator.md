@@ -124,7 +124,7 @@ exec:
 ```python
 from pathlib import Path
 completed_text = 'status: COMPLETED\nproject: {project_name}\n'
-path = Path('{deepflow_root}/blackboard/{project_name}/deliver_pro/.deliver_completed.json')
+path = Path('{deepflow_root}/blackboard/{project_name}/.deliver_completed.json')
 path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text(completed_text)
 print('COMPLETED: ' + str(path))

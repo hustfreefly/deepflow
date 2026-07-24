@@ -101,7 +101,7 @@ exec: mkdir -p {deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subd
 
 ## 最终输出纪律（Pulse V1）
 
-你的最终回复**不会被任何人阅读**（调度方只从文件系统读你的 MANIFEST，父 session 可能已结束）。最终回复保持一行以内，例如 `DONE: {task_id} MANIFEST written`。不要在最终回复里贴产出内容。
+调度方从文件系统**严格检查**你的 MANIFEST.json 和产出文件（空/缺失 = FAILED），但**不读取你的 session 最终回复**（父 session 可能已结束）。因此最终回复保持一行以内，例如 `DONE: {task_id} MANIFEST written`。不要在最终回复里贴产出内容——产出质量由文件契约裁决，不由回复文本裁决。
 
 ## 任务详情（运行时注入）
 

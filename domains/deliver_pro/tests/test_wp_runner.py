@@ -532,46 +532,6 @@ class TestPreparePackageSpawn:
         assert orchestrator.state.phase == PipelinePhase.PACKAGING
 
 
-class TestVerifyPackageOutput:
-    def test_valid_manifest(self, orchestrator, tmp_path):
-        manifest_path = tmp_path / "delivery_manifest.json"
-        manifest_data = {
-            "wp_id": "WP-001",
-            "delivery_status": "COMPLETE",
-            "components": [
-                {"task_id": "T-001", "title": "Task 1", "status": "PASS", "artifacts": []},
-            ],
-        }
-        manifest_path.write_text(json.dumps(manifest_data), encoding="utf-8")
-
-        orchestrator.state.phase = PipelinePhase.PACKAGING
-        passed, msg, manifest = orchestrator.verify_package_output(manifest_path)
-        assert passed is True
-        assert manifest is not None
-        assert manifest.delivery_status == DeliveryStatus.COMPLETE
-        assert orchestrator.state.phase == PipelinePhase.DELIVERED
-
-    def test_missing_manifest(self, orchestrator, tmp_path):
-        manifest_path = tmp_path / "nonexistent.json"
-        passed, msg, manifest = orchestrator.verify_package_output(manifest_path)
-        assert passed is False
-        assert "not found" in msg
-
-    def test_partial_delivery(self, orchestrator, tmp_path):
-        manifest_path = tmp_path / "delivery_manifest.json"
-        manifest_data = {
-            "wp_id": "WP-001",
-            "delivery_status": "PARTIAL",
-            "components": [],
-        }
-        manifest_path.write_text(json.dumps(manifest_data), encoding="utf-8")
-
-        orchestrator.state.phase = PipelinePhase.PACKAGING
-        passed, msg, manifest = orchestrator.verify_package_output(manifest_path)
-        assert passed is True
-        assert manifest.delivery_status == DeliveryStatus.PARTIAL
-
-
 # ============================================================================
 # Worker Failure Recovery
 # ============================================================================

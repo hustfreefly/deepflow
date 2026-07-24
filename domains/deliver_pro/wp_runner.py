@@ -1481,47 +1481,6 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         except Exception as e:
             logger.warning(f"ADR-009: unexpected error during track generation: {e}")
 
-    def verify_package_output(self, manifest_path: Path) -> tuple[bool, str, DeliveryManifest | None]:
-        """
-        验证 Package Agent 输出。
-
-        Returns:
-            (passed, error_message, manifest)
-        """
-        if not manifest_path.exists():
-            return False, "delivery_manifest.json not found", None
-
-        try:
-            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest = DeliveryManifest.model_validate(manifest_data)
-
-            # 更新最终状态
-            if manifest.delivery_status == DeliveryStatus.COMPLETE:
-                self.state.transition_to(PipelinePhase.DELIVERED)
-            else:
-                # PARTIAL 或 FAILED 也标记完成（带警告）
-                self.state.transition_to(PipelinePhase.COMPLETED)
-
-            self._save_state()
-
-            # ADR-009: Generate track.json from DELIVERABLE.md (non-blocking)
-            # 在 .completed 之前调用，确保 track 生成是完成标记的前置条件
-            self.generate_track_json()
-
-            # 写入完成标记
-            (self.deliver_pro_dir / ".completed").write_text(
-                datetime.now().isoformat(), encoding="utf-8"
-            )
-
-            logger.info(
-                f"Phase 5 verified: status={manifest.delivery_status.value}, "
-                f"pass={manifest.pass_count}, fail={manifest.fail_count}"
-            )
-            return True, "", manifest
-
-        except Exception as e:
-            return False, f"DeliveryManifest validation failed: {e}", None
-
     # ========================================================================
     # Worker 故障恢复
     # ========================================================================

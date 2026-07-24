@@ -297,6 +297,32 @@ class TestInFlightCap:
             assert report["summary"]["in_flight"] == 7
             assert any(a["code"] == "IN_FLIGHT_CAP" for a in report["alerts"])
 
+    def test_max_spawn_per_pulse_cap(self, tmp_path):
+        """MAX_SPAWN_PER_PULSE=5 独立截断：in_flight=0 时 8 个候选只派 5 个。"""
+        from domains.deliver_pro.orchestrator import MAX_SPAWN_PER_PULSE
+
+        project_name = "test-pulse-cap"
+        bb_root = tmp_path / "blackboard"
+        ship_dir = bb_root / project_name / "ship_pro" / "stages"
+        ship_dir.mkdir(parents=True)
+        wps = [{"wp_id": f"WP-{i:03d}", "dependencies": [], "title": f"T{i}"} for i in range(8)]
+        (ship_dir / "ship_package.json").write_text(json.dumps({
+            "work_packages": wps,
+            "dependency_graph": {"execution_layers": [[w["wp_id"] for w in wps]]},
+        }))
+        with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
+            from domains.deliver_pro.orchestrator import DeliverOrchestrator
+            orch = DeliverOrchestrator(project_name)
+            driver = MagicMock()
+            driver.step1_analyze.side_effect = lambda: {
+                "task": "analyze", "label": "analyze-x", "mode": "run",
+            }
+            with patch.object(orch, "_get_driver", return_value=driver), \
+                 patch.object(orch, "_count_in_flight", return_value=0):
+                report = orch.pulse()
+            assert len(report["actions"]) == MAX_SPAWN_PER_PULSE == 5
+            assert report["summary"]["truncated"] is True
+
 
 # ---------------------------------------------------------------------------
 # A2/P1-4: 终态 all_resolved

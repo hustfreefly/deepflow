@@ -41,6 +41,9 @@ WORKER_TIMEOUT_SECONDS = 1800
 
 # DONE 契约（K3, Pulse V1.1）：交付目录至少含一个 ≥50B 的实质文件。
 # 防空 DELIVERABLE.md 过关（2026-07-24 STORE-003 实证：0B 交付物也曾被判 DONE）。
+# 单位注意（DryRun R1 C#2）：本层按【字节】(st_size) 检测；worker 层 wp_runner
+# 按【字符】(len) 检测 MIN_DELIVERABLE_LENGTH=50。50 字符 ASCII ≥ 50 字节，
+# 通过 worker 层的产物必然通过本层 —— 宽松方向，不会误杀。
 DONE_MIN_FILE_BYTES = 50
 
 # Phase 常量（与 orchestrator 历史字符串保持一致）

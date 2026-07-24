@@ -1155,6 +1155,13 @@ class DeliverOrchestrator:
                     continue  # 确定性代码已在 tick 内执行
                 params = item.get("spawn_params")
                 if not params:
+                    # A#1(DryRun R1): 错误 action 不静默丢弃 — 转 WARN alert（可观测性）
+                    if item.get("error"):
+                        alerts.append({
+                            "severity": "WARN",
+                            "code": "ACTION_ERROR",
+                            "message": f"{wp_id}/{action}: {item['error']}",
+                        })
                     continue
                 param_list = params if isinstance(params, list) else [params]
                 for p in param_list:
@@ -1215,7 +1222,8 @@ class DeliverOrchestrator:
                     "completed": status["completed"],
                     "terminal_failed": status["terminal_failed"],
                     "in_progress": status["in_progress"],
-                    "in_flight": in_flight,
+                    # B#3(DryRun R1): 终态报告中在途数归零（all_resolved 后残留计数只是采样时序差）
+                    "in_flight": 0 if pulse_status == "completed" else in_flight,
                     "zero_progress_count": pulse_state.get("zero_progress_count", 0),
                     "truncated": self._last_tick_truncated,
                 },

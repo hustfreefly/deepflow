@@ -52,13 +52,22 @@ def cmd_confirm(args) -> int:
         print("ERROR: results must be a JSON array", file=sys.stderr)
         return 1
 
-    # 契约笼子：回执必须通过 SpawnConfirmation 验证
+    # 契约笼子：回执必须通过 SpawnConfirmation 验证（A#2/DryRun R1: 逐条验证，
+    # 单条格式错误不拖垮整批 — all-or-nothing 会让全部 spawn 变孤儿）
     from domains.deliver_pro.contracts.pulse_report import SpawnConfirmation
 
-    validated = [SpawnConfirmation(**r).model_dump(mode="json") for r in results]
+    validated = []
+    validation_errors = []
+    for i, r in enumerate(results):
+        try:
+            validated.append(SpawnConfirmation(**r).model_dump(mode="json"))
+        except Exception as e:
+            validation_errors.append({"index": i, "item": r, "error": str(e)})
 
     orch = _load_orchestrator(args.project)
     out = orch.confirm_dispatches(validated)
+    if validation_errors:
+        out["validation_errors"] = validation_errors
     print(json.dumps(out, ensure_ascii=False, indent=2))
     return 0
 

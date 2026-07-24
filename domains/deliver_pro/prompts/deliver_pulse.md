@@ -69,3 +69,5 @@ cd {deepflow_root} && PYTHONPATH=. python3 -m domains.deliver_pro.pulse_cli conf
 - ❌ 自己实现调度/重试/超时逻辑
 - ❌ 向 worker 发消息或干预 worker
 - ❌ 每条 alert 单独发一条飞书（必须合并为一条）
+- ❌ 在飞书消息中贴原始 JSON 或大段报告内容（标题行 + 每条 alert 一行 + summary 一行，仅此而已）
+- ❌ 对失败的 pulse/confirm 命令自行重试（记录 error 即可，下一 pulse 会自动恢复）

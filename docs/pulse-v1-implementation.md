@@ -18,6 +18,25 @@
 **验证**: 245/245 tests（+5 新测试；6 处既有 fixture 更新为 ≥50B 内容）
 **K2/K3/K5 状态**: 已修 ✅ | **K6 已修 ✅**（V1 当天）| K1/K4 保留（认知/设计权衡）
 
+## V1.2 DryRun 修复（2026-07-24 22:20，AgentDryRun V3.4 四 Agent 并行审计）
+
+审计判定：A 代码契约 **GO** / B 测试扫描 **GO** / C Prompt 语义 **CONDITIONAL GO**（1 路径 FAIL）/ D 系统契约 **GO**。修复 9 项：
+
+| # | 级别 | 修复 | 决策依据 |
+|---|---|---|---|
+| C3 | 🔴 | deliver_orchestrator.md Step 3 完成标记路径与 pulse 不一致（多一层 deliver_pro/）→ 已对齐 | 契约铁律：调试路径必须和生产路径同真相 |
+| A1 | 🟡 | pulse() 错误 action（analyze_failed 等）静默丢弃 → 转 ACTION_ERROR WARN alert | 信息守恒：错误不允许静默丢失 |
+| B3 | 🟡 | completed 报告 in_flight 采样时序差 → 终态强制归零 | 报告语义诚实 |
+| C2 | 🟡 | 三处"50"度量漂移（worker=len字符 / derive=st_size字节）→ prompt 措辞改字节 + 代码注释交叉引用 | 宽松方向不会误杀，统一防未来提阈值变 bug |
+| C4 | 🟡 | deliver_pulse.md 补 2 条禁令（不贴原始 JSON / 不重试失败命令） | 已知翻车模式防御 |
+| C5 | 🟡 | worker"不会被任何人阅读"→"文件严格检查，回复文本从简"（防语义副作用：质量没人管） | 措辞精确性 |
+| A2 | 🟡 | confirm SpawnConfirmation all-or-nothing → 逐条验证（单条错误不拖垮整批 spawn） | 爆炸半径最小化 |
+| B2 | 🟡 | 删除死代码：step7_check_package + verify_package_output + 3 死测试（双独立验证确认无 live 调用方；存在即误导——K3 差点修在死层） | 契约笼子必须只有一条 live 路径 |
+| B1 | 🟡 | 补 MAX_SPAWN_PER_PULSE=5 独立截断测试 | 硬上限必须有测试 |
+
+**保留技术债**: K7 重复 worker MANIFEST 竞争（10min 孤儿窗口部分缓解，D#3b/c）；flock 非 PulseLocked 异常传播（实为安全，Agent B 误判 UnboundLocalError——finally 在第二个 try 内）
+**验证**: 243/243 tests（245-3 死测试+1 新测试）
+
 ---
 
 ## 1. 版本定义
