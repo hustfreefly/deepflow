@@ -30,7 +30,7 @@ import os
 import pathlib
 from datetime import datetime, timezone
 from typing import Optional  # 契约笼子：_try_load_handoff_package 返回类型
-from core.blackboard.context_injector import build_agent_context, build_bootstrap_task, build_agent_context_slim
+from core.blackboard.context_injector import build_bootstrap_task
 from pathlib import Path
 
 from .blackboard import BlackboardManager
@@ -297,62 +297,38 @@ def run_solution_pro(user_input: str, **kwargs):
         if old_path.exists():
             old_path.unlink()
 
-    # 5. 读取 Orchestrator prompt 模板并填充变量
-    prompt_path = pathlib.Path(__file__).parent / "prompts" / "orchestrator.md"
-    prompt_template = prompt_path.read_text(encoding="utf-8")
-
+    # 5. V3.1 架构：Orchestrator Agent（depth-1）直接 spawn Module Agents
+    #    Orchestrator 读取 orchestrator.md，按 Planning → Research → Summary 顺序执行
+    #    每个 Module Agent（depth-2）直接通过 sessions_spawn 创建 Workers（depth-3）
     deepflow_root = str(Path(__file__).resolve().parent.parent.parent)
 
-    # 契约笼子（2026-07-12）：精简上下文注入，避免 ~6KB 样板占用 LLM 注意力窗口
-    # 完整指令已在 orchestrator.md 中，不需要重复注入 API 文档和目录树
-    agent_context = build_agent_context_slim(
-        deepflow_root=Path(deepflow_root),
-        blackboard_id=session_id,
-    )
-
-    import json as _json
-    config_json = _json.dumps(kwargs, ensure_ascii=False, indent=2)
-
+    # 5a. 读取 orchestrator.md 模板并填充变量
+    orchestrator_prompt_path = pathlib.Path(__file__).parent / "prompts" / "orchestrator.md"
+    orchestrator_prompt = orchestrator_prompt_path.read_text(encoding="utf-8")
     orchestrator_prompt = (
-        agent_context
-        + "\n\n---\n\n"
-        + prompt_template
-        .replace("{deepflow_root}", deepflow_root)
+        orchestrator_prompt
         .replace("{session_id}", session_id)
-        .replace("{user_input}", user_input)
-        .replace("{config}", config_json)
+        .replace("{deepflow_root}", deepflow_root)
     )
 
-    # 6. FIX: Bootstrap task pattern — 写入 blackboard，发送最小引用
-    #    解决 sessions_spawn task 参数 ~8KB 硬限制导致的静默截断
-    #    完整 prompt 写入 stages/orchestrator_prompt.md（~16KB）
-    #    task 参数只包含 bootstrap 引用（~1KB）
-    prompt_filename = "orchestrator_prompt.md"
-    bm.write(prompt_filename, orchestrator_prompt, subdir="stages")
+    # 5b. 写入 blackboard（供 Orchestrator 读取）
+    bm.write("orchestrator_prompt.md", orchestrator_prompt, subdir="stages")
 
-    bootstrap_task = build_bootstrap_task(
-        deepflow_root=Path(deepflow_root),
-        blackboard_id=session_id,
-        prompt_filename=prompt_filename,
-        preamble=f"cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。",
-    )
-
-    # 7. 返回 spawn_params（唯一路径：Agent Orchestrator）
-    #    Python 契约笼子由 Module Agent 在 exec 中调用 orchestrator.run() 时触发
-    #    后置验证由 post_validator.py 在 Agent 完成后执行
+    # 6. 返回 spawn_params
+    #    主 Agent 执行：sessions_spawn(**result["spawn_params"]) → sessions_yield()
     import logging as _logging
     _logging.getLogger(__name__).info(
-        f"run_solution_pro: session={session_id}, Agent Orchestrator path"
+        f"run_solution_pro: session={session_id}, V3.1 Orchestrator path"
     )
     return {
         "session_id": session_id,
         "base_path": session_dir,
-        "execution_path": "agent_orchestrator",
+        "execution_path": "v3.1_orchestrator",
         "spawn_params": {
             "runtime": "subagent",
             "mode": "run",
             "label": "solution_orchestrator",
-            "task": bootstrap_task,
+            "task": orchestrator_prompt,
             "cwd": deepflow_root,
             "lightContext": True,
         },

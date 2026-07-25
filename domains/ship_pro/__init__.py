@@ -12,7 +12,7 @@ Ship Pro 2.0.0 - 入口模块
     → exec: design_pipeline() → Designer prompt
     → spawn: Designer LLM → PipelinePlan
     → exec: prepare_runner_spawn() → Worker prompts
-    → spawn: Workers (并行/分层, spawn 后必须 sessions_yield)
+    → spawn: Workers (并行/分层, spawn 后结束当前 turn，cron 会自动唤醒继续)
     → exec: L1 validation
     → spawn: Consolidator
     → exec: ShipPackage validation
@@ -382,6 +382,8 @@ def _build_orchestrator_prompt(
 
     return f"""你是 Ship Pro Orchestrator - 管线的全权调度者。
 
+> 引用共享规则：read core/prompts/_shared_subagent_rules.md
+
 ## 项目信息
 - 项目: {project_name}
 - 统一 Blackboard: {project_blackboard}
@@ -401,19 +403,19 @@ def _build_orchestrator_prompt(
 
 **❌ 错误模式（你的本能）：**
 - thinking: "Let me read the file" → 不产出 tool call → 平台隐式执行 → 不可靠
-- thinking: "Must yield now" + text: "Yielding..." → 不产出 tool call → session 可能终止
+- thinking: "Must end turn now" + text: "Ending turn..." → 不产出 tool call → session 可能终止
 
 **✅ 正确模式（你必须做的）：**
 - thinking: "我需要读取文件" → 产出 `read(path=...)` tool call
-- spawn Workers 后 → 产出 `sessions_yield()` tool call
+- spawn Workers 后 → 结束当前 turn（cron 会自动唤醒继续）
 
 ## 🔴🔴🔴 铁律（违反 = 管线中断）
 
 1. **每次 assistant turn 必须产出至少一个 tool call** — thinking + text 但没有 tool call = session 终止。
-2. **spawn 子 Agent 后，下一个 tool call 必须是 sessions_yield()。**
+2. **spawn 子 Agent 后，结束当前 turn（cron 会自动唤醒继续）。**
 3. **禁止在 thinking 中描述操作而不调用工具。**
-4. **禁止只输出"waiting for..."而不调用 sessions_yield()。**
-5. yield 被唤醒后，必须输出可见文字。
+4. **禁止只输出"waiting for..."而不结束当前 turn。**
+5. 被唤醒后，必须输出可见文字。
 6. 不要 read() Worker task 文件。
 
 ## 工具调用格式示例
@@ -435,10 +437,10 @@ thinking: "spawn Workers"
 **等待子 Agent 完成:**
 ```
 thinking: "等待 Workers 完成"
-→ 产出 tool call: sessions_yield()
+→ 结束当前 turn（cron 会自动唤醒继续）
 ```
 
-## 示例：spawn Workers + yield 的正确流程
+## 示例：spawn Workers + 结束 turn 的正确流程
 
 以下是你在 Step 3 中必须执行的正确流程：
 
@@ -446,19 +448,19 @@ thinking: "等待 Workers 完成"
 Turn 1: spawn Layer 1 Workers
   → tool call: sessions_spawn(task=..., label="worker_core_scanner", ...)
   → tool call: sessions_spawn(task=..., label="worker_models", ...)
-  → tool call: sessions_yield(message="Layer 1 spawned, waiting...")
+  → 结束当前 turn（cron 会自动唤醒继续）
 
 [平台休眠，等待 Workers 完成]
 
 Turn 2: Layer 1 完成事件到达，你被唤醒
   → text: "Layer 1 完成。继续 Layer 2。"
   → tool call: sessions_spawn(task=..., label="worker_validation_engine", ...)
-  → tool call: sessions_yield(message="Layer 2 spawned, waiting...")
+  → 结束当前 turn（cron 会自动唤醒继续）
 
 [继续直到所有 Layers 完成]
 ```
 
-注意：每个 turn 都有 tool call。sessions_yield() 是 tool call，不是 text。
+注意：spawn 后结束 turn，cron 会自动唤醒继续。
 
 ## 执行步骤
 
@@ -557,7 +559,7 @@ for p in params:
 "
 
 2. 按 execution_order 分层 spawn Workers(每层内并行)
-3. **spawn 后立即 sessions_yield()** 等待每层完成
+3. **spawn 后结束当前 turn** 等待每层完成（cron 会自动唤醒继续）
 4. 检查 Worker 输出文件存在
 
 ### Step 4: L1 验证
@@ -594,7 +596,7 @@ Path('{ship_pro_dir}/stages/_worker_judge_tasks.json').write_text(json.dumps(tas
 print(json.dumps({{'task_count': len(tasks), 'names': [t['name'] for t in tasks]}}))
 "
 
-如果 task_count > 0，并行 spawn 所有 Worker Judge Agent。**spawn 后立即 sessions_yield()** 等待完成。
+如果 task_count > 0，并行 spawn 所有 Worker Judge Agent。**spawn 后结束当前 turn** 等待完成（cron 会自动唤醒继续）。
 
 **Phase B: 检查结果**
 
@@ -628,7 +630,7 @@ params = orch.prepare_consolidator_spawn_v8('{ship_pro_dir}')
 import json; print(json.dumps({{'task_len': len(params['task'])}}))
 "
 
-spawn Consolidator → **立即 sessions_yield()** 等待完成。
+spawn Consolidator → **结束当前 turn** 等待完成（cron 会自动唤醒继续）。
 
 ### Step 5.5: L2/L3 语义验证(契约笼子强制)
 
@@ -667,7 +669,7 @@ print(json.dumps({{'task_count': len(tasks), 'names': [t['name'] for t in tasks]
 {{"info_conservation": {{"passed": true/false, ...}}, "completeness": {{...}}, "harness_v3": {{...}}}}
 ```
 
-spawn 后 **立即 sessions_yield()** 等待完成。
+spawn 后 **结束当前 turn** 等待完成（cron 会自动唤醒继续）。
 
 **Phase C: 检查结果 + 重试**
 
@@ -723,7 +725,7 @@ print(json.dumps({{k: {{'passed': v.passed, 'details': str(v.details)[:200]}} fo
 - Pending REQs
 
 ## 禁止行为
-- ❌ spawn 子 Agent 后不调用 sessions_yield() — 这会导致 session 终止，管线中断
+- ❌ spawn 子 Agent 后不结束当前 turn — 这会导致 session 终止，管线中断
 - ❌ `exec sleep` + `process poll` 轮询等待
 - ❌ read() Worker task 文件
 - ❌ 跳过 validate 步骤
@@ -751,7 +753,8 @@ def _build_worker_prompts(
         # Fix 3: 统一写入路径为 stages/worker_outputs/
         worker_outputs_dir = session_dir / "stages" / "worker_outputs"
         worker_outputs_dir.mkdir(parents=True, exist_ok=True)
-        output_path = str(worker_outputs_dir / f"worker_{worker.role.replace(' ', '_')}.json")
+        safe_role = worker.role.replace(' ', '_').replace('/', '_')
+        output_path = str(worker_outputs_dir / f"worker_{safe_role}.json")
 
         prompt = _build_single_worker_prompt(worker, ctx, ctx_path, output_path)
 
@@ -1014,19 +1017,19 @@ def _build_runner_prompt(session_dir: Path, plan, context_paths: dict, deepflow_
 ### Phase 2: Build
 1. exec: 读取 spawn params
 2. 按层级 spawn Workers(每层内并行)
-3. **sessions_yield()** 等待当前层全部完成
+3. **结束当前 turn** 等待当前层全部完成（cron 会自动唤醒继续）
 4. exec L1 验证
 5. PASS → 下一层或 Phase 3; FAIL → 输出详情
 
 ### Phase 3: Consolidate
 1. exec: prepare_consolidator_spawn_v8
 2. spawn Consolidator
-3. **sessions_yield()** 等待完成
+3. **结束当前 turn** 等待完成（cron 会自动唤醒继续）
 4. exec: validate_ship_package
 5. 输出 ShipPackage 路径
 
 ## 禁止行为
-- ❌ spawn 后不调用 sessions_yield()
+- ❌ spawn 后不结束当前 turn
 - ❌ read() Worker task 文件
 - ❌ 跳过 validate
 - ❌ 自行 retry/degrade

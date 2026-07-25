@@ -1,3 +1,5 @@
+> 引用共享规则：read core/prompts/_shared_subagent_rules.md
+
 
 # Research Pro Orchestrator
 

@@ -50,6 +50,10 @@ class BlackboardManager:
         Raises:
             ValueError: session_id 为空
         """
+        # 契约笼子：sanitize session_id，将 / 替换为 _，避免路径问题
+        # 源头修复：所有下游代码不需要特殊处理斜杠
+        session_id = session_id.replace("/", "_")
+        
         if not session_id:
             raise ValueError("session_id must not be empty")
 

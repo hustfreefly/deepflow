@@ -273,6 +273,42 @@ def cmd_confirm(args):
     }
 
 
+def cmd_resume(args):
+    """P2-3: 恢复中断的 session，从 current_round 继续执行"""
+    try:
+        state = load_coord_state(args.session_id)
+    except (ValueError, OSError) as e:
+        return {
+            "success": False,
+            "error": f"Failed to load session state: {e}",
+        }
+
+    coord = reconstruct_coord(state)
+    current_round = state.get("current_round", 1)
+
+    # 从 current_round 恢复执行
+    try:
+        result = coord.run(start_round=current_round)
+        save_coord_state(coord)
+        return {
+            "success": True,
+            "session_id": coord.session_id,
+            "resumed_from_round": current_round,
+            "message": f"Resumed session from round {current_round}",
+        }
+    except AttributeError:
+        # coord 无 run(start_round=) 方法，回退到 build_next_round_task
+        task = coord.build_next_round_task()
+        save_coord_state(coord)
+        return {
+            "success": True,
+            "session_id": coord.session_id,
+            "resumed_from_round": current_round,
+            "coordinator_task": task,
+            "message": f"Resumed session from round {current_round} via build_next_round_task",
+        }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Spec Pro API")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
@@ -301,7 +337,11 @@ def main():
     p_confirm.add_argument("session_id", help="Session ID")
     p_confirm.add_argument("action", choices=["confirm", "revise"])
     p_confirm.add_argument("revisions", nargs="?", help="Revisions JSON (for revise)")
-    
+
+    # P2-3: resume
+    p_resume = subparsers.add_parser("resume", help="Resume interrupted session")
+    p_resume.add_argument("session_id", help="Session ID")
+
     args = parser.parse_args()
     
     if not args.command:
@@ -319,6 +359,8 @@ def main():
             result = cmd_status(args)
         elif args.command == "confirm":
             result = cmd_confirm(args)
+        elif args.command == "resume":
+            result = cmd_resume(args)
         else:
             parser.print_help()
             return 1

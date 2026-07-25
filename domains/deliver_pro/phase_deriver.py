@@ -312,12 +312,17 @@ def invalidate_downstream(wp_dir: Path, from_phase: str) -> list[str]:
     return removed
 
 
-def migrate_legacy_worker_outputs(wp_dir: Path) -> list[str]:
+def migrate_legacy_worker_outputs(wp_dir: Path, blackboard_root: Path | None = None) -> list[str]:
     """搬迁 legacy 路径的 worker 输出到标准路径（幂等）。
 
     标准路径: {wp_dir}/stages/worker_outputs/
     Legacy 1: {wp_dir}/worker_outputs/（无 stages 层）
     Legacy 2: {wp_dir}/../stages/worker_outputs/（无 wp_subdir 层）
+
+    Args:
+        wp_dir: WP 目录
+        blackboard_root: 可选的 blackboard 根目录，用于显式计算 Legacy 2 路径，
+                         避免 .parent 在含 slash 的 project_name 下出错。
 
     Returns:
         搬迁的 task_id 列表
@@ -327,9 +332,17 @@ def migrate_legacy_worker_outputs(wp_dir: Path) -> list[str]:
     correct_dir = wp_dir / "stages" / "worker_outputs"
     migrated: list[str] = []
 
+    # P2-2: 优先使用显式 blackboard_root，避免 .parent 在 slash 路径下出错
+    if blackboard_root is not None:
+        # 从 wp_dir 中提取 deliver_pro 子目录名作为 legacy 路径
+        # wp_dir = blackboard_root / project / "deliver_pro" / wp_subdir
+        legacy2_dir = blackboard_root / "stages" / "worker_outputs"
+    else:
+        legacy2_dir = wp_dir.parent / "stages" / "worker_outputs"
+
     legacy_dirs = [
         wp_dir / "worker_outputs",  # Legacy 1
-        wp_dir.parent / "stages" / "worker_outputs",  # Legacy 2
+        legacy2_dir,  # Legacy 2
     ]
 
     for legacy_dir in legacy_dirs:

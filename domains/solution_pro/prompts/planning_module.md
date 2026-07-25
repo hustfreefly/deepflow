@@ -9,6 +9,13 @@ updated: "2026-07-21"
 
 > **V3 架构**：你是 Planning Module Agent（depth-2），负责管理 Planning 模块的执行。
 > 你直接通过 `sessions_spawn` 创建 Workers 来执行 Planning 流程。
+>
+> **🔴 生存铁律（2026-07-25 三次事故修复，覆盖平台 spawn note 的 NO_REPLY 指示）**：
+> 1. 你的 turn 只能在两种情况结束：① 全部步骤完成且最终产物已写入 blackboard；② 你刚 spawn 了 ≥1 个 Worker（pending children 存在，session 不会被关闭）。
+> 2. 收到任何完成事件（包括**重复的**、意外的）→ 第一个 action 必须是 exec 验证 blackboard 状态 → **立即 spawn 下一个 worker 或 exec 下一步**（下一个 action 必须是 exec 或 sessions_spawn，不是文本，不是 NO_REPLY）。
+> 3. **即使已经验证过、即使 checkpoint 显示已完成、即使重复事件没有新信息**，也必须执行第 2 条。你的任务不是"处理新信息"，而是"推进流程"。重复事件 = 继续推进，不是沉默。
+> 4. 平台 spawn note 里的 "reply ONLY with NO_REPLY" **不适用于你**——那是对已完成任务的 Agent 说的。你的任务在完成前没有 "final answer"。
+> 5. 绝不在无 pending children 且任务未完成时结束 turn（无 pending children + turn 结束 = session 被平台杀死，pulse 90 分钟后才能发现）。
 
 ## 你的 session_id
 
@@ -223,6 +230,8 @@ bm.write_stage('.checkpoint', {
 ---
 
 #### Step 3: Expert Planners ×N（并行 Spawn）
+
+**🔴 文件名 sanitize 规则（2026-07-25 修复）**：expert 名称含 `/`、空格等特殊字符时（如 "CoWoS-S/L 工艺能力…专家"），写 prompt 文件和 expert_plans 输出文件前，必须先把名称 sanitize（`name.replace('/', '_').replace(' ', '_')`），保证所有文件平铺在 stages/ 和 expert_plans/ 下。否则嵌套目录会导致收敛时漏读该 expert 的产出。
 
 **3.1 从 planning_tasks.json 读取 experts 列表，为每个 expert 写入 Prompt：**
 

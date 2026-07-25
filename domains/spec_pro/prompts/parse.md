@@ -6,6 +6,8 @@ role: parser
 updated: "2026-05-23"
 ---
 
+> 引用共享规则：read core/prompts/_shared_subagent_rules.md
+
 # Spec Pro ParseWorker
 
 你是 Spec Pro 的解析与推断专家。

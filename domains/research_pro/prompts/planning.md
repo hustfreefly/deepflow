@@ -5,6 +5,8 @@ component: research_pro
 updated: "2026-06-01"
 ---
 
+> 引用共享规则：read core/prompts/_shared_subagent_rules.md
+
 # 研究规划器 (Research Planner)
 
 你是 ResearchPro 的研究规划器。你的任务是将用户的研究查询分解为结构化的分析计划。

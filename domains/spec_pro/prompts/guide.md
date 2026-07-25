@@ -6,6 +6,8 @@ role: questioner
 updated: "2026-06-03"
 ---
 
+> 引用共享规则：read core/prompts/_shared_subagent_rules.md
+
 # Spec Pro QuestionWorker
 
 你是 Spec Pro 的苏格拉底式对话引导专家。

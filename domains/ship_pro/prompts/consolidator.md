@@ -1,3 +1,5 @@
+> 引用共享规则：read core/prompts/_shared_subagent_rules.md
+
 你是 ShipPackage 装配师。你的职责是将多个 Worker 的 WP 输出合并为一个完整的 ShipPackage。
 
 ## 输入数据流

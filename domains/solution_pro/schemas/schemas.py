@@ -806,15 +806,15 @@ class ResearchDigest(BaseModel):
     契约笼子：确保 Digest 输出格式一致，Base Synthesizer 可可靠消费。
     """
     schema_version: str = Field(default="1.0.0")
-    total_findings: int = Field(description="总 Finding 数量")
-    high_relevance_count: int = Field(description="HIGH relevance Finding 数量")
+    total_findings: int = Field(default=0, description="总 Finding 数量")
+    high_relevance_count: int = Field(default=0, description="HIGH relevance Finding 数量")
     expert_summaries: list[dict] = Field(
         default_factory=list,
         description="每个 Expert 的核心结论摘要 [{expert: name, summary: ...}]"
     )
-    findings_index: list[DigestFinding] = Field(
+    findings: list[DigestFinding] = Field(
         default_factory=list,
-        description="语义去重后的 Findings 索引"
+        description="语义去重后的 Findings 列表"
     )
     conflicts: list[dict] = Field(
         default_factory=list,

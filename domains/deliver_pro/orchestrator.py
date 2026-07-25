@@ -60,7 +60,8 @@ class DeliverOrchestrator:
     def __init__(self, project_name: str):
         from domains.deliver_pro import BLACKBOARD_ROOT
 
-        self.project_name = project_name
+        # Sanitize project_name: 防止路径穿越
+        self.project_name = project_name.replace("/", "_").replace("\\", "_").replace("..", "_")
         self.blackboard_root = BLACKBOARD_ROOT
         try:
             ship_pkg_path = self._find_ship_package()
@@ -244,7 +245,8 @@ class DeliverOrchestrator:
         wp_dir = self.blackboard_root / wp_project / "deliver_pro" / wp_subdir
 
         # 幂等搬迁 legacy 路径（无操作若已是标准路径）
-        migrate_legacy_worker_outputs(wp_dir)
+        # P2-2: 传入 blackboard_root 避免 .parent 在 slash 路径下出错
+        migrate_legacy_worker_outputs(wp_dir, blackboard_root=self.blackboard_root)
 
         return derive_phase(wp_dir)
 

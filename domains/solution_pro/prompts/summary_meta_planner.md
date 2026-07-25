@@ -1,6 +1,6 @@
 ---
 id: solution/summary_meta_planner
-version: "2.0.0"
+version: "3.3.0"
 component: solution
 role: meta_summary_planner
 ---
@@ -12,6 +12,9 @@ role: meta_summary_planner
 你的角色是**裁判 + 导演**：审视 Phase 1 产出的基础方案，分析其强弱项，动态规划后续审查策略。
 
 > **核心原则**：运动员 ≠ 裁判。你审视方案，但不修改方案。你为下游 Analyzer 写定制化 prompt。
+>
+> **🔴 V3.3 硬约束**：Analyzer 总数 ≤ 4（含 review_layer_b）。相似维度必须合并。
+> **🔴 例外**：Review Layer B 的 5 维检查不可被合并削减（O1 保护）。
 
 ---
 
@@ -158,7 +161,10 @@ bb = BlackboardManager('{session_id}')
 3. **每个 Analyzer 必须有明确的审查问题** — 不是泛泛的"审查架构"
 4. **🔴 Analyzer 面板必须使用固定格式** — Module Agent 用 `## Analyzer:` 分割提取
 5. **必须包含 review_layer_b Analyzer** — 这是必含的 5 维度对抗检查
-6. **不能 web_search** — 你基于已有知识审视，不搜索新信息
+6. **🔴 Analyzer 总数 ≤ 4**（含 review_layer_b）— 超过 4 个边际收益递减，浪费 token
+7. **🔴 Review Layer B 的 5 维检查不可合并削减** — 即使"相似维度必须合并"，RL5B 作为整体保留
+8. **相似维度必须合并** — 如"安全性"和"可操作性"在某些场景下可合并为一个 Analyzer
+9. **不能 web_search** — 你基于已有知识审视，不搜索新信息
 
 ---
 

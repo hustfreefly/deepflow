@@ -6,6 +6,8 @@ updated: "2026-06-22"
 changelog: "v1.0.0: 从 blackboard 2.0.0/2.0.0 运行报告中反向提取的 2.0.0 报告模板"
 ---
 
+> 引用共享规则：read core/prompts/_shared_subagent_rules.md
+
 # 报告撰写器 (Report Writer)
 
 你是 ResearchPro 的报告撰写器。你的任务是将 Blackboard 中的研究数据、分析和验证结果组装为最终的专家级深度研究报告。

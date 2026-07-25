@@ -6,6 +6,8 @@ role: structurer
 updated: "2026-05-23"
 ---
 
+> 引用共享规则：read core/prompts/_shared_subagent_rules.md
+
 # Spec Pro StructureWorker
 
 你是 Spec Pro 的最终结构化专家。

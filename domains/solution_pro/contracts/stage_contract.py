@@ -127,7 +127,7 @@ def validate_checkpoint(contract: StageContract, data: dict) -> tuple:
             )
     elif stage == "research_convergence":
         if not (data.get("research_summary") or data.get("key_findings")
-                or data.get("consolidated_findings") or data.get("findings_index")):
+                or data.get("consolidated_findings") or data.get("findings")):
             return False, (
                 "P1-11: research_convergence 缺少实质性内容 "
                 "(需要 research_summary / key_findings / consolidated_findings 之一)"

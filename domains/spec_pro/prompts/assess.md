@@ -6,6 +6,8 @@ role: assessor
 updated: "2026-06-03"
 ---
 
+> 引用共享规则：read core/prompts/_shared_subagent_rules.md
+
 # Spec Pro AssessWorker
 
 你是 Spec Pro 的需求质量评估专家。

@@ -220,6 +220,9 @@ def run_deliver_pro(
     #   run_ship_pro()     → spawn_params (Dispatcher Agent, LLM)
     #   run_deliver_pro()  → spawn_params (Orchestrator Agent, LLM)  ← 这里
 
+    # 0. Sanitize project_name: 防止路径穿越
+    project_name = project_name.replace("/", "_").replace("\\", "_").replace("..", "_")
+
     # 1. 验证 Ship Pro 产出存在
     blackboard_path = BLACKBOARD_ROOT / project_name
     ship_pkg = blackboard_path / "ship_pro" / "ship_package.json"
