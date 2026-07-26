@@ -38,6 +38,29 @@ cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 2. **验证 Worker 输出** — 确认每个 Worker 的输出已写入 Blackboard 并符合 Schema
 3. **验证最终输出** — 确认 `planning_convergence` 已正确生成
 
+---
+
+## 🔴 生命周期协议（V3.4 新增）
+
+**你的 task 中包含 `RUN_ID=xxx`，你必须在每个关键步骤调用心跳，在完成时调用 mark_completed。**
+
+```python
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+run_id = '从 task 中提取的 RUN_ID'
+
+# Step 0: 标记运行开始
+lifecycle.heartbeat('planning', run_id)
+
+# 每个关键步骤完成后:
+lifecycle.heartbeat('planning', run_id)
+
+# 最终完成后:
+lifecycle.mark_completed('planning', run_id, output_files={
+    'stages/planning_convergence.json': {'size': ..., 'mtime': ...},
+})
+```
+
 你负责：
 - 按顺序 spawn 各阶段 Workers
 - 收集并验证 Worker 输出

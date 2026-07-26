@@ -53,6 +53,30 @@ spawn Worker → exec: pm.wait_for()（阻塞等待）→ exec 验证 → spawn 
 
 ---
 
+## 🔴 生命周期协议（V3.4 新增）
+
+**你的 task 中包含 `RUN_ID=xxx`，你必须在每个关键步骤调用心跳，在完成时调用 mark_completed。**
+
+```python
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+run_id = '从 task 中提取的 RUN_ID'
+
+# Step 0: 标记运行开始
+lifecycle.heartbeat('summary', run_id)
+
+# 每个 Phase 完成后:
+lifecycle.heartbeat('summary', run_id)
+
+# Step 9 完成后:
+lifecycle.mark_completed('summary', run_id, output_files={
+    'stages/solution_document.json': {'size': ..., 'mtime': ...},
+    'stages/final_solution.json': {'size': ..., 'mtime': ...},
+})
+```
+
+---
+
 ## 执行流程（9 步）
 
 ### Step 0: 初始化模块状态

@@ -38,6 +38,29 @@ cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 2. **验证 Worker 输出** — 确认每个 Worker 的输出已写入 Blackboard 并符合 Schema
 3. **验证最终输出** — 确认 `research_digest` 已正确生成
 
+---
+
+## 🔴 生命周期协议（V3.4 新增）
+
+**你的 task 中包含 `RUN_ID=xxx`，你必须在每个关键步骤调用心跳，在完成时调用 mark_completed。**
+
+```python
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+run_id = '从 task 中提取的 RUN_ID'
+
+# Step 0: 标记运行开始
+lifecycle.heartbeat('research', run_id)
+
+# 每个关键步骤完成后:
+lifecycle.heartbeat('research', run_id)
+
+# 最终完成后:
+lifecycle.mark_completed('research', run_id, output_files={
+    'stages/research_digest.json': {'size': ..., 'mtime': ...},
+})
+```
+
 你负责：
 - 按顺序 spawn 各阶段 Workers
 - 收集并验证 Worker 输出
@@ -237,18 +260,75 @@ else:
 
 #### Step 3: Consolidator
 
-**3.1 Spawn Consolidator（task 内联构造）：**
+**3.0 写入 Consolidator task 到 blackboard：**
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager('{session_id}')
+task = '''你是 Research Consolidator。合并所有 Research Expert 的输出为统一的 research_digest。
+
+## 输入
+1. 用 exec 读取 planning_convergence:
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager(\"{session_id}\")
+import json
+print(json.dumps(bm.read_stage(\"planning_convergence\"), ensure_ascii=False, indent=2))
+```
+
+2. 用 exec 读取所有 expert 输出:
+```python
+import json
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager(\"{session_id}\")
+experts_dir = bm.get_session_dir() / \"stages\" / \"research_experts\"
+results = {}
+if experts_dir.exists():
+    for f in sorted(experts_dir.iterdir()):
+        if f.suffix == \".json\":
+            results[f.stem] = json.loads(f.read_text())
+print(json.dumps(results, ensure_ascii=False, indent=2))
+```
+
+## 输出
+构造 research_digest 并写入:
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager(\"{session_id}\")
+research_digest = {
+    \"findings\": [],
+    \"conflicts\": [],
+    \"coverage_map\": {},
+}
+# ... 你分析数据并填充上述字段 ...
+bm.write_stage(\"research_digest\", research_digest)
+print(\"CONSOLIDATION_DONE\")
+```
+
+## 重要
+- findings 必须具体、有证据支撑
+- conflicts 记录专家间不一致
+- coverage_map 必须覆盖 planning_convergence 中的所有约束（MUST + SHOULD + COULD），每个 UC-xxx ID 必须有对应 finding。SHOULD 级丢失 = 信息断裂
+- 每个 finding 必须有唯一 ID（F-001, F-002, ...），Summary 模块按 ID 引用
+- 完成后必须 print(\"CONSOLIDATION_DONE\")
+'''
+bm.write('research_consolidator_task.md', task, subdir='stages')
+print(f'TASK_WRITTEN: {len(task)} chars')
+"
+```
+
+**3.1 Spawn Consolidator（最小引用）：**
 
 ```
 sessions_spawn(
     runtime="subagent",
     mode="run",
     label="research_worker_consolidator",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的任务\n你是 Research Consolidator。合并所有 Research Expert 的输出为统一的 research_digest。\n\n### 输入\n1. 用 exec 读取 planning_convergence:\ncd {deepflow_root} && PYTHONPATH=. python3 -c \"\nfrom core.blackboard.blackboard_manager import BlackboardManager\nbm = BlackboardManager('{session_id}')\nimport json\nprint(json.dumps(bm.read_stage('planning_convergence'), ensure_ascii=False, indent=2))\n\"\n\n2. 用 exec 读取所有 expert 输出:\ncd {deepflow_root} && PYTHONPATH=. python3 -c \"\nimport json\nfrom core.blackboard.blackboard_manager import BlackboardManager\nbm = BlackboardManager('{session_id}')\nexperts_dir = bm.get_session_dir() / 'stages' / 'research_experts'\nresults = {}\nif experts_dir.exists():\n    for f in sorted(experts_dir.iterdir()):\n        if f.suffix == '.json':\n            results[f.stem] = json.loads(f.read_text())\nprint(json.dumps(results, ensure_ascii=False, indent=2))\n\"\n\n### 输出\n构造 research_digest 并写入:\ncd {deepflow_root} && PYTHONPATH=. python3 -c \"\nfrom core.blackboard.blackboard_manager import BlackboardManager\nbm = BlackboardManager('{session_id}')\nresearch_digest = {\n    'findings': [],\n    'conflicts': [],\n    'coverage_map': {},\n}\n# ... 你分析数据并填充上述字段 ...\nbm.write_stage('research_digest', research_digest)\nprint('CONSOLIDATION_DONE')\n\"\n\n### 重要\n- findings 必须具体、有证据支撑\n- conflicts 记录专家间不一致\n- coverage_map 必须覆盖 planning_convergence 中的 **所有约束**（MUST + SHOULD + COULD），每个 UC-xxx ID 必须有对应 finding。SHOULD 级丢失 = 信息断裂\n- 每个 finding 必须有唯一 ID（F-001, F-002, ...），Summary 模块按 ID 引用\n- 完成后必须 print('CONSOLIDATION_DONE')",
+    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\nsession_id: `{session_id}`\nblackboard: `{deepflow_root}/blackboard/{session_id}`\n\n读取文件 `{deepflow_root}/blackboard/{session_id}/stages/research_consolidator_task.md` 并严格按照其中的指令执行。\n如果文件不存在 → 写入 `{deepflow_root}/blackboard/{session_id}/stages/.failed` 并立即结束。",
     cwd="{deepflow_root}",
     lightContext=True,
 )
-sessions_yield()
 ```
 
 **3.2 验证输出：**
@@ -269,13 +349,21 @@ else:
 
 ---
 
-### Phase 2: 写入完成标记
+### Phase 2: 写入完成标记 + 生命周期终结（不可跳过）
+
+> 🔴 **`mark_completed` 未调用 = 模块未完成。写 `.research_completed` ≠ 完成，只有 `mark_completed` 才通知上游。**
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
+from core.process_manager import ModuleLifecycleManager
 import datetime
+
 bm = BlackboardManager('{session_id}')
+lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+run_id = '{RUN_ID}'
+
+# Step A: 写入完成标记文件
 bm.write_stage('.research_completed', {
     'module': 'research',
     'status': 'completed',
@@ -286,11 +374,28 @@ bm.write('module_research_state.json', {
     'status': 'completed',
     'completed_at': datetime.datetime.utcnow().isoformat() + 'Z'
 })
+
+# Step B: 调用 mark_completed（必须！否则上游 Orchestrator 不知道模块已完成）
+digest_path = bm.get_session_dir() / 'stages' / 'research_digest.json'
+if digest_path.exists():
+    digest_stat = digest_path.stat()
+    lifecycle.mark_completed('research', run_id, output_files={
+        'stages/research_digest.json': {
+            'size': digest_stat.st_size,
+            'mtime': digest_stat.st_mtime,
+        },
+    })
+else:
+    lifecycle.mark_completed('research', run_id)
+
 print('RESEARCH_MODULE_COMPLETED')
+print('LIFECYCLE_MARK_COMPLETED_CALLED')
 "
 ```
 
-输出 `RESEARCH_MODULE_COMPLETED`，任务完成。
+输出必须同时包含 `RESEARCH_MODULE_COMPLETED` 和 `LIFECYCLE_MARK_COMPLETED_CALLED`。两行都打印后，session 方可结束。
+
+❌ **禁止**：在不调用 `mark_completed` 的情况下结束 session。
 
 ---
 

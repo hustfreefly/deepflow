@@ -14,6 +14,9 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+import requests
+
+from .contracts import TimeoutAlertContract
 
 
 @dataclass
@@ -56,8 +59,11 @@ class ProcessManager:
         # result.found=False → 超时，LLM 决定 RESPAWN 或 FAIL
     """
 
-    def __init__(self, session_dir: str | Path):
+    def __init__(self, session_dir: str | Path, webhook_url: str | None = None):
         self.session_dir = Path(session_dir)
+        self.webhook_url = webhook_url
+        self.alerts_dir = self.session_dir / ".alerts"
+        self.alerts_dir.mkdir(parents=True, exist_ok=True)
 
     def wait_for(
         self,
@@ -129,6 +135,10 @@ class ProcessManager:
 
         elapsed = time.time() - start
         print(f"WAIT_FOR_TIMEOUT: {path} elapsed={elapsed:.0f}s", flush=True)
+        
+        # 超时告警（写入告警文件 + 调用 webhook）
+        self._send_timeout_alert(path, elapsed, timeout)
+        
         return WaitResult(
             found=False, path=path, elapsed=elapsed, timeout=timeout,
         )
@@ -244,3 +254,50 @@ class ProcessManager:
 
         print(f"WAIT_FOR_ALL_DONE: {len(paths) - len(remaining)}/{len(paths)} found, elapsed={elapsed:.0f}s", flush=True)
         return results
+
+    def _send_timeout_alert(self, path: str, elapsed: float, timeout: int) -> None:
+        """
+        超时告警（写入告警文件 + 调用 webhook）
+        
+        解决 V37/V39 "超时事件无法被外部系统捕获" 问题。
+        """
+        # 从 session_dir 提取 session_id
+        session_id = self.session_dir.name
+        
+        # 创建告警数据
+        alert_data = {
+            "path": path,
+            "elapsed": elapsed,
+            "timeout": timeout,
+            "session_id": session_id,
+            "webhook_url": self.webhook_url,
+        }
+        
+        # 契约验证
+        try:
+            alert_contract = TimeoutAlertContract(**alert_data)
+        except Exception as e:
+            print(f"TIMEOUT_ALERT_CONTRACT_ERROR: {e}", flush=True)
+            return
+        
+        # 写入告警文件
+        alert_file = self.alerts_dir / f"timeout_{int(time.time())}_{path.replace('/', '_')}.json"
+        alert_file.write_text(
+            json.dumps(alert_contract.model_dump(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        
+        # 调用 webhook
+        if self.webhook_url:
+            try:
+                response = requests.post(
+                    self.webhook_url,
+                    json=alert_contract.model_dump(),
+                    timeout=10,
+                )
+                if response.status_code == 200:
+                    print(f"TIMEOUT_ALERT_SENT: {path}", flush=True)
+                else:
+                    print(f"TIMEOUT_ALERT_FAILED: HTTP {response.status_code}", flush=True)
+            except Exception as e:
+                print(f"TIMEOUT_ALERT_ERROR: {e}", flush=True)

@@ -118,36 +118,35 @@ print('INITIALIZED')
 
 ### Step 0.5: Stall Detection（每次 wake 必做，在验证 Module 输出之前）
 
-> FixFlow R9: 通用 stall 检测，适用于 Planning/Research/Summary 任何 Module。
-> 当 Module Agent 被 yield 唤醒后，先检查 Module 是否 stall（status=running 但实际已中断）。
+> 🔴 V3.4 修复：stall detection 改用 ModuleLifecycleManager，不再读共享 `.checkpoint.json`。
+> 根因：共享 checkpoint 含其他模块的 stale 数据，导致误判 stall 重复 spawn。
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+
+# 动态选择当前模块
 from core.blackboard.blackboard_manager import BlackboardManager
 bb = BlackboardManager('{session_id}')
-
-# 1. 读取 Module 状态
-# 动态选择当前模块的状态文件（FixFlow R9 通用检测）
 progress = bb.read_stage('.stage_progress', default={})
 current = progress.get('current_module') or 'planning'
-_state_map = {'planning': 'module_planning_state.json', 'research': 'module_research_state.json', 'summary': 'module_summary_state.json'}
-module_state = bb.read_json(_state_map.get(current, 'module_planning_state.json'), default={})
-module_name = module_state.get('module', current)
 
-# 2. 检查是否 stalled
-if module_state.get('status') == 'running':
-    # Module 声称还在 running — 检查是否有 checkpoint
-    checkpoint = bb.read_stage('.checkpoint', default=None)
-    if checkpoint:
-        last_step = checkpoint.get('last_completed_step', 0)
-        print(f'STALL_DETECTED: Module {module_name!r} status=running but checkpoint shows step {last_step}')
-        print('ACTION: Re-spawning Module Agent with resume capability')
-        # spawn 续跑 Agent（和正常 spawn 一样，但 task 中包含 checkpoint 信息）
+# 用 lifecycle 检查模块运行状态（而非共享 checkpoint）
+run_record = lifecycle._read_run(current)
+
+if run_record and run_record.get('status') == 'running':
+    import time
+    last_hb = run_record.get('last_heartbeat', 0)
+    age = time.time() - last_hb
+    if age > 1800:
+        print(f'STALL_DETECTED: Module {current!r} heartbeat_age={age:.0f}s')
+        print('ACTION: Re-spawning Module Agent')
     else:
-        print(f'STALL_DETECTED: Module {module_name!r} status=running but no checkpoint')
-        print('ACTION: Re-spawning Module Agent from scratch')
+        print(f'MODULE_RUNNING: {current!r} heartbeat_age={age:.0f}s — healthy')
 else:
-    print(f'MODULE_STATUS: {module_state.get(\"status\", \"unknown\")} — no stall')
+    status = run_record.get('status', 'not_started') if run_record else 'not_started'
+    print(f'MODULE_STATUS: {status} — no stall')
 "
 ```
 
@@ -175,38 +174,60 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 "
 ```
 
-**1b. Spawn Planning Module Agent + 轮询等待（不 yield）：**
+**1b. 获取 run_id 并 Spawn Planning Module Agent（不 yield）：**
 
 🔴 **不要**将完整 prompt 文本嵌入 task 参数（会超过 sessions_spawn 的 ~8KB 限制导致静默截断）。
 改为写入 blackboard，传最小引用。
+
+🔴 **先获取 run_id**（用于去重 + 防 stale）：
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+run = lifecycle.try_acquire_run('planning')
+if run.already_running:
+    print(f'ALREADY_RUNNING: {run.run_id}')
+else:
+    print(f'RUN_ACQUIRED: {run.run_id}')
+    print(f'RUN_ID={run.run_id}')
+"
+```
+
+如果 `ALREADY_RUNNING` → 不 spawn，直接进入 1c 等待。
+如果 `RUN_ACQUIRED` → 用输出的 `RUN_ID` 构造 task 并 spawn：
 
 ```
 sessions_spawn(
     runtime="subagent",
     mode="run",
     label="planning_module_v3",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\n## 环境\n- session_id: `{session_id}`\n- Blackboard: `{deepflow_root}/blackboard/{session_id}`\n- BM init: `from core.blackboard.blackboard_manager import BlackboardManager; bm = BlackboardManager('{session_id}')`\n\n## 你的身份\n你是 Planning Module Agent（V3.1 架构，depth-2）。\n职责：管理 Planning 模块的执行，直接通过 sessions_spawn 创建 Worker。\n\n## 你的完整指令\n读取 blackboard 文件 `stages/planning_module_prompt.md` 并严格按照其中的指令执行。\n\n```python\nbm = BlackboardManager('{session_id}')\nprompt = bm.read_stage_raw('planning_module_prompt.md')\nif prompt: print(f'PROMPT_OK: {len(prompt)} chars')\nelse: print('PROMPT_MISSING')\n```\n\n如果 PROMPT_OK → 按 prompt 内容执行所有步骤。\n如果 PROMPT_MISSING → 写入 `.failed` 并立即结束。",
+    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\nsession_id: `{session_id}`\nRUN_ID: `{run_id}`\nblackboard: `{deepflow_root}/blackboard/{session_id}`\n\n读取文件 `{deepflow_root}/blackboard/{session_id}/stages/planning_module_prompt.md` 并严格按照其中的指令执行。\n如果文件不存在 → 写入 `{deepflow_root}/blackboard/{session_id}/stages/.failed` 并立即结束。",
     cwd="{deepflow_root}",
     lightContext=True,
 )
 ```
 
-**🔴 1c. 轮询等待 Planning 完成（不 yield，用 wait_for 阻塞等待）：**
+**🔴 1c. 轮询等待 Planning 完成（用 ModuleLifecycleManager，不 yield）：**
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
-from core.process_manager import ProcessManager
-import time
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
 
-pm = ProcessManager('{deepflow_root}/blackboard/{session_id}')
-result = pm.wait_for('stages/planning_convergence.json', timeout=1800, poll_interval=15)
+result = lifecycle.wait_for_module(
+    'planning',
+    expected_files=['stages/planning_convergence.json'],
+    timeout=1800,
+    min_file_sizes={'stages/planning_convergence.json': 10000},
+)
 
 if result.found:
     print('PLANNING_CONVERGENCE_FOUND')
+    print(f'RUN_ID: {result.run_id}')
     print(f'ELAPSED: {result.elapsed:.0f}s')
-    print(f'SIZE: {result.file_size} bytes')
 else:
-    print('PLANNING_TIMEOUT')
+    print(f'PLANNING_{result.reason.upper()}')
     print(f'ELAPSED: {result.elapsed:.0f}s')
 "
 ```
@@ -239,7 +260,8 @@ else:
 ```
 
 PLANNING_OK → **🔴 立即继续 Step 2（Research 模块）。不要停！不要结束 turn！你的任务还没完成！**
-PLANNING_MISSING → 写 `.failed`，结束 turn。
+PLANNING_MISSING → 先检查是否为 stall/timeout：如果 1c 输出了 `PLANNING_STALL` 或 `PLANNING_TIMEOUT`，说明文件未产出但 Module 已停止 → 重新 spawn Planning Module Agent（最多重试 1 次，再次失败则写 `.failed`）。
+如果 1c 没有输出 stall/timeout → 写 `.failed`，结束 turn。
 
 > 🔴 **关键**：Planning 完成 ≠ 管线完成。你必须继续执行 Step 2 和 Step 3。三个模块全部完成后才能写 `.completed`。
 
@@ -262,35 +284,57 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 "
 ```
 
-**2b. Spawn Research Module Agent + 轮询等待（不 yield）：**
+**2b. 获取 run_id 并 Spawn Research Module Agent（不 yield）：**
+
+🔴 **先获取 run_id**（用于去重 + 防 stale）：
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+run = lifecycle.try_acquire_run('research')
+if run.already_running:
+    print(f'ALREADY_RUNNING: {run.run_id}')
+else:
+    print(f'RUN_ACQUIRED: {run.run_id}')
+    print(f'RUN_ID={run.run_id}')
+"
+```
+
+如果 `ALREADY_RUNNING` → 不 spawn，直接进入 2c 等待。
+如果 `RUN_ACQUIRED` → 用输出的 `RUN_ID` 构造 task 并 spawn：
 
 ```
 sessions_spawn(
     runtime="subagent",
     mode="run",
     label="research_module_v3",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\n## 环境\n- session_id: `{session_id}`\n- Blackboard: `{deepflow_root}/blackboard/{session_id}`\n- BM init: `from core.blackboard.blackboard_manager import BlackboardManager; bm = BlackboardManager('{session_id}')`\n\n## 你的身份\n你是 Research Module Agent（V3.1 架构，depth-2）。\n职责：管理 Research 模块的执行，直接通过 sessions_spawn 创建 Worker。\n\n## 你的完整指令\n读取 blackboard 文件 `stages/research_module_prompt.md` 并严格按照其中的指令执行。\n\n```python\nbm = BlackboardManager('{session_id}')\nprompt = bm.read_stage_raw('research_module_prompt.md')\nif prompt: print(f'PROMPT_OK: {len(prompt)} chars')\nelse: print('PROMPT_MISSING')\n```\n\n如果 PROMPT_OK → 按 prompt 内容执行所有步骤。\n如果 PROMPT_MISSING → 写入 `.failed` 并立即结束。",
+    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\nsession_id: `{session_id}`\nRUN_ID: `{run_id}`\nblackboard: `{deepflow_root}/blackboard/{session_id}`\n\n读取文件 `{deepflow_root}/blackboard/{session_id}/stages/research_module_prompt.md` 并严格按照其中的指令执行。\n如果文件不存在 → 写入 `{deepflow_root}/blackboard/{session_id}/stages/.failed` 并立即结束。",
     cwd="{deepflow_root}",
     lightContext=True,
 )
 ```
 
-**🔴 2c. 轮询等待 Research 完成（不 yield，用 wait_for 阻塞等待）：**
+**🔴 2c. 轮询等待 Research 完成（用 ModuleLifecycleManager，不 yield）：**
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
-from core.process_manager import ProcessManager
-import time
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
 
-pm = ProcessManager('{deepflow_root}/blackboard/{session_id}')
-result = pm.wait_for('stages/research_digest.json', timeout=3600, poll_interval=15)
+result = lifecycle.wait_for_module(
+    'research',
+    expected_files=['stages/research_digest.json'],
+    timeout=3600,
+    min_file_sizes={'stages/research_digest.json': 20000},
+)
 
 if result.found:
     print('RESEARCH_DIGEST_FOUND')
+    print(f'RUN_ID: {result.run_id}')
     print(f'ELAPSED: {result.elapsed:.0f}s')
-    print(f'SIZE: {result.file_size} bytes')
 else:
-    print('RESEARCH_TIMEOUT')
+    print(f'RESEARCH_{result.reason.upper()}')
     print(f'ELAPSED: {result.elapsed:.0f}s')
 "
 ```
@@ -325,7 +369,8 @@ else:
 ```
 
 RESEARCH_OK → **🔴 立即继续 Step 3（Summary 模块）。不要停！不要结束 turn！你的任务还没完成！**
-RESEARCH_MISSING → 写 `.failed`，结束 turn。
+RESEARCH_MISSING → 先检查是否为 stall/timeout：如果 2c 输出了 `RESEARCH_STALL` 或 `RESEARCH_TIMEOUT`，说明文件未产出但 Module 已停止 → 重新 spawn Research Module Agent（最多重试 1 次，再次失败则写 `.failed`）。
+如果 2c 没有输出 stall/timeout → 写 `.failed`，结束 turn。
 
 > 🔴 **关键**：Research 完成 ≠ 管线完成。你必须继续执行 Step 3。三个模块全部完成后才能写 `.completed`。
 
@@ -348,45 +393,58 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 "
 ```
 
-**3b. Spawn Summary Module Agent + 轮询等待（不 yield）：**
+**3b. 获取 run_id 并 Spawn Summary Module Agent（不 yield）：**
+
+🔴 **先获取 run_id**（用于去重 + 防 stale）：
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+run = lifecycle.try_acquire_run('summary')
+if run.already_running:
+    print(f'ALREADY_RUNNING: {run.run_id}')
+else:
+    print(f'RUN_ACQUIRED: {run.run_id}')
+    print(f'RUN_ID={run.run_id}')
+"
+```
+
+如果 `ALREADY_RUNNING` → 不 spawn，直接进入 3c 等待。
+如果 `RUN_ACQUIRED` → 用输出的 `RUN_ID` 构造 task 并 spawn：
 
 ```
 sessions_spawn(
     runtime="subagent",
     mode="run",
     label="summary_module_v3",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\n## 环境\n- session_id: `{session_id}`\n- Blackboard: `{deepflow_root}/blackboard/{session_id}`\n- BM init: `from core.blackboard.blackboard_manager import BlackboardManager; bm = BlackboardManager('{session_id}')`\n\n## 你的身份\n你是 Summary Module Agent（V3.1 架构，depth-2）。\n职责：管理 Summary 模块的执行（5+1 Phase），直接通过 sessions_spawn 创建 Worker。\n\n## 你的完整指令\n读取 blackboard 文件 `stages/summary_module_prompt.md` 并严格按照其中的指令执行。\n\n```python\nbm = BlackboardManager('{session_id}')\nprompt = bm.read_stage_raw('summary_module_prompt.md')\nif prompt: print(f'PROMPT_OK: {len(prompt)} chars')\nelse: print('PROMPT_MISSING')\n```\n\n如果 PROMPT_OK → 按 prompt 内容执行所有步骤。\n如果 PROMPT_MISSING → 写入 `.failed` 并立即结束。",
+    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\nsession_id: `{session_id}`\nRUN_ID: `{run_id}`\nblackboard: `{deepflow_root}/blackboard/{session_id}`\n\n读取文件 `{deepflow_root}/blackboard/{session_id}/stages/summary_module_prompt.md` 并严格按照其中的指令执行。\n如果文件不存在 → 写入 `{deepflow_root}/blackboard/{session_id}/stages/.failed` 并立即结束。",
     cwd="{deepflow_root}",
     lightContext=True,
 )
 ```
 
-**🔴 3c. 轮询等待 Summary 完成（不 yield，用 wait_for 阻塞等待）：**
+**🔴 3c. 轮询等待 Summary 完成（用 ModuleLifecycleManager，不 yield）：**
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
-from core.process_manager import ProcessManager
-import time
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
 
-pm = ProcessManager('{deepflow_root}/blackboard/{session_id}')
-
-# 等待两个文件：solution_document.json 和 final_solution.json
-results = pm.wait_for_all(
-    ['stages/solution_document.json', 'stages/final_solution.json'],
+result = lifecycle.wait_for_module(
+    'summary',
+    expected_files=['stages/solution_document.json', 'stages/final_solution.json'],
     timeout=3600,
-    poll_interval=15,
+    min_file_sizes={'stages/solution_document.json': 50000, 'stages/final_solution.json': 5000},
 )
 
-for path, r in results.items():
-    if r.found:
-        print(f'FOUND: {path} ({r.file_size} bytes)')
-    else:
-        print(f'MISSING: {path}')
-
-if all(r.found for r in results.values()):
+if result.found:
     print('SUMMARY_ALL_FOUND')
+    print(f'RUN_ID: {result.run_id}')
+    print(f'ELAPSED: {result.elapsed:.0f}s')
 else:
-    print('SUMMARY_INCOMPLETE')
+    print(f'SUMMARY_{result.reason.upper()}')
+    print(f'ELAPSED: {result.elapsed:.0f}s')
 "
 ```
 
@@ -432,7 +490,8 @@ else:
 ```
 
 SUMMARY_OK → **🔴 立即继续 Step 4（post_validator）和 Step 5（写 .completed）。不要停！不要结束 turn！**
-SUMMARY_MISSING → 写 `.failed`，结束 turn。
+SUMMARY_MISSING → 先检查是否为 stall/timeout：如果 3c 输出了 `SUMMARY_STALL` 或 `SUMMARY_TIMEOUT`，说明文件未产出但 Module 已停止 → 重新 spawn Summary Module Agent（最多重试 1 次，再次失败则写 `.failed`）。
+如果 3c 没有输出 stall/timeout → 写 `.failed`，结束 turn。
 
 > 🔴 **关键**：Summary 完成 ≠ 管线完成。你必须继续执行 Step 4（post_validator）和 Step 5（写 .completed）。只有写完 .completed 后你的任务才算结束。
 
@@ -485,7 +544,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="adversarial_reviewer",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\n## 环境\n- session_id: `{session_id}`\n- Blackboard: `{deepflow_root}/blackboard/{session_id}`\n- BM init: `from core.blackboard.blackboard_manager import BlackboardManager; bm = BlackboardManager('{session_id}')`\n\n## 你的身份\n你是 Adversarial Quality Reviewer（对抗质量审查 Agent）。\n职责：从语义层面挑战 Solution Pro 的输出质量。\n\n## 你的完整指令\n读取 blackboard 文件 `stages/adversarial_quality_reviewer.md` 并严格按照其中的指令执行。\n\n```python\nbm = BlackboardManager('{session_id}')\nprompt = bm.read_stage_raw('adversarial_quality_reviewer.md')\nif prompt: print(f'PROMPT_OK: {len(prompt)} chars')\nelse: print('PROMPT_MISSING')\n```\n\n如果 PROMPT_OK → 按 prompt 内容执行审查。\n如果 PROMPT_MISSING → 跳过审查，写入 `stages/adversarial_review_skipped`。",
+    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\nsession_id: `{session_id}`\nblackboard: `{deepflow_root}/blackboard/{session_id}`\n\n读取文件 `{deepflow_root}/blackboard/{session_id}/stages/adversarial_quality_reviewer.md` 并严格按照其中的指令执行。\n如果文件不存在 → 跳过审查。",
     cwd="{deepflow_root}",
     lightContext=True,
 )
@@ -545,7 +604,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="consistency_checker",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\n## 环境\n- session_id: `{session_id}`\n- Blackboard: `{deepflow_root}/blackboard/{session_id}`\n- BM init: `from core.blackboard.blackboard_manager import BlackboardManager; bm = BlackboardManager('{session_id}')`\n\n## 你的身份\n你是 Cross-Module Consistency Checker（跨模块一致性检查 Agent）。\n职责：验证 Planning → Research → Summary 之间的数据流一致性。\n\n## 你的完整指令\n读取 blackboard 文件 `stages/cross_module_consistency_checker.md` 并严格按照其中的指令执行。\n\n```python\nbm = BlackboardManager('{session_id}')\nprompt = bm.read_stage_raw('cross_module_consistency_checker.md')\nif prompt: print(f'PROMPT_OK: {len(prompt)} chars')\nelse: print('PROMPT_MISSING')\n```\n\n如果 PROMPT_OK → 按 prompt 内容执行检查。\n如果 PROMPT_MISSING → 跳过检查。",
+    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\nsession_id: `{session_id}`\nblackboard: `{deepflow_root}/blackboard/{session_id}`\n\n读取文件 `{deepflow_root}/blackboard/{session_id}/stages/cross_module_consistency_checker.md` 并严格按照其中的指令执行。\n如果文件不存在 → 跳过检查。",
     cwd="{deepflow_root}",
     lightContext=True,
 )

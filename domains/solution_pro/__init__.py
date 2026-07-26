@@ -31,6 +31,7 @@ import pathlib
 from datetime import datetime, timezone
 from typing import Optional  # 契约笼子：_try_load_handoff_package 返回类型
 from core.blackboard.context_injector import build_bootstrap_task
+from core.prompt_utils import render_prompt  # V4: 集成 PromptUtils
 from pathlib import Path
 
 from .blackboard import BlackboardManager
@@ -302,33 +303,50 @@ def run_solution_pro(user_input: str, **kwargs):
     #    每个 Module Agent（depth-2）直接通过 sessions_spawn 创建 Workers（depth-3）
     deepflow_root = str(Path(__file__).resolve().parent.parent.parent)
 
-    # 5a. 读取 orchestrator.md 模板并填充变量
+    # 5a. V4: 使用 PromptUtils 渲染 orchestrator.md
     orchestrator_prompt_path = pathlib.Path(__file__).parent / "prompts" / "orchestrator.md"
-    orchestrator_prompt = orchestrator_prompt_path.read_text(encoding="utf-8")
-    orchestrator_prompt = (
-        orchestrator_prompt
-        .replace("{session_id}", session_id)
-        .replace("{deepflow_root}", deepflow_root)
+    render_result = render_prompt(
+        orchestrator_prompt_path,
+        session_id=session_id,
+        deepflow_root=deepflow_root,
     )
+    orchestrator_prompt = render_result.content
 
     # 5b. 写入 blackboard（供 Orchestrator 读取）
     bm.write("orchestrator_prompt.md", orchestrator_prompt, subdir="stages")
 
     # 6. 返回 spawn_params
-    #    主 Agent 执行：sessions_spawn(**result["spawn_params"]) → sessions_yield()
+    #    主 Agent 执行：sessions_spawn(**result["spawn_params"])
+    #
+    # 🔴 FixFlow V3.4（2026-07-26）：task 改为最小引用（读文件模式）
+    #    根因：完整 orchestrator_prompt 约 28KB，超过 sessions_spawn task 限制后被截断，
+    #    导致 Orchestrator 只收到前 2/3 指令（Planning + Research），Step 3/4/5 被截掉。
+    #    修复：task 只传最小引用，让 Orchestrator 自己读 blackboard 中的文件。
     import logging as _logging
     _logging.getLogger(__name__).info(
-        f"run_solution_pro: session={session_id}, V3.1 Orchestrator path"
+        f"run_solution_pro: session={session_id}, V3.2 Orchestrator path"
     )
+    
+    # 最小引用 task（~350 chars），不塞完整 prompt
+    # 根因：task 超过 ~500 chars 会被截断，导致 Orchestrator 只收到部分指令
+    # 修复：task 只传最小引用（session_id + 读文件指令），完整指令在 orchestrator_prompt.md 中
+    minimal_task = (
+        f"## 你的任务\n"
+        f"读取文件并执行其中的指令。\n\n"
+        f"文件路径: `{session_dir}/stages/orchestrator_prompt.md`\n\n"
+        f"用 read 工具读取这个文件，然后严格按照文件内容执行所有步骤。\n"
+        f"如果文件不存在 → 用 write 工具写入 `{session_dir}/stages/.failed` 并立即结束。"
+    )
+    
     return {
         "session_id": session_id,
         "base_path": session_dir,
-        "execution_path": "v3.1_orchestrator",
+        "execution_path": "v3.2_orchestrator",
         "spawn_params": {
             "runtime": "subagent",
             "mode": "run",
             "label": "solution_orchestrator",
-            "task": orchestrator_prompt,
+            "task": minimal_task,
             "cwd": deepflow_root,
             "lightContext": True,
         },

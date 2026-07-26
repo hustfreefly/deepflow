@@ -95,82 +95,59 @@ bb = BlackboardManager('{session_id}')
 
 ## 输出
 
-写入 Blackboard stage `planning_plan`，markdown 格式：
+写入 Blackboard stage `planning_plan`，**必须是合法 JSON**（不是 Markdown、不是纯文本）。
 
-**🔴 专家面板部分必须使用固定格式**（确保 Module Agent 可解析）：
+### JSON Schema
 
-```markdown
-# Planning Plan
-
-## 1. 需求特征分析
-- 核心领域：...
-- 技术复杂度：高/中/低
-- 约束维度分布预估：安全 X 项 / 合规 Y 项 / 性能 Z 项 / ...
-
-## 2. 专家面板
-
-## Expert: [角色名]
-- **视角**：[该专家的独特关注点]
-- **analysis_questions**：
-  1. [具体约束问题 1 — 聚焦"必须遵守什么"]
-  2. [具体约束问题 2 — 聚焦"必须遵守什么"]
-  3. [具体约束问题 3 — 聚焦"必须遵守什么"]
-- **focus_req_ids**：REQ-001, REQ-005, REQ-012
-- **期望深度**：每条约束必须有 rationale + covered_req_ids + priority
-
-## Expert: [角色名]
-- ...
-
-## Expert: [角色名]
-- ...
-
-## 3. 约束分析质量标准
-- 每条约束必须有 rationale（因果链：因为需求 X 要求 Y，所以必须遵守 Z）
-- 每条约束必须关联具体的 REQ-ID
-- 每条约束必须标注优先级（MUST/SHOULD/MAY）
-- MUST 约束必须有可执行的验证方法
-- P0 需求必须被至少 1 个 Expert 深入分析
-- 约束必须具体到可验证级别（不是"保证安全"，而是具体标准/条款/参数）
-- 每条约束必须标注 **relevant_experts**（哪些 Research Expert 应该关注这条约束）
-
-### 约束字段结构（unified_constraints 中每条约束的字段）
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| constraint_id | string | ✅ | 约束唯一标识（如 C-001） |
-| description | string | ✅ | 约束描述（具体到技术级别） |
-| priority | string | ✅ | MUST / SHOULD / MAY |
-| rationale | string | ✅ | 因果链：为什么需要这个约束 |
-| covered_req_ids | list[string] | ✅ | 关联的需求 ID 列表 |
-| verification_method | string | MUST 必填 | 怎么验证是否遵守这个约束 |
-| source_experts | list[string] | ✅ | 哪些 Expert 提出了这条约束 |
-| **relevant_experts** | list[string] | ✅ | 哪些 Research Expert 应该关注这条约束 |
-
-- **relevant_experts**：标注这条约束应该被哪些 Research Expert 关注。
-  使用 Research Expert 的角色名（snake_case），例如：architecture_expert, quality_expert, security_expert 等。
-  每条约束至少标注 1 个 relevant_expert。MUST 级约束通常关联 2-3 个 Expert。
-  这个字段用于 Research 模块自动将约束注入到对应 Expert 的上下文中。
-
-## 4. 专家数量决策理由
-- 为什么选择 N 个专家：[基于约束维度分布的推理过程]
+```json
+{
+  "schema_version": "2.0",
+  "needs_analysis": {
+    "core_domain": "string — 核心领域描述",
+    "complexity": "高|中|低",
+    "dimension_distribution": {"维度名": 数量, "...": "..."}
+  },
+  "experts": [
+    {
+      "name": "string — 专家角色名",
+      "perspective": "string — 该专家的独特关注点",
+      "analysis_questions": ["约束问题1", "约束问题2", "约束问题3"],
+      "focus_req_ids": ["REQ-001", "REQ-005"],
+      "relevant_experts": ["research_expert_name_1"],
+      "expected_depth": "每条约束必须有 rationale + covered_req_ids + priority"
+    }
+  ],
+  "constraint_analysis_standards": {
+    "priority_levels": ["MUST", "SHOULD", "MAY"],
+    "required_fields": ["constraint_id", "description", "priority", "rationale", "covered_req_ids", "verification_method", "source_experts", "relevant_experts"],
+    "quality_rules": ["每条约束必须有rationale", "MUST约束必须有可执行验证方法"]
+  },
+  "expert_count_rationale": "string — 为什么选择 N 个专家的推理过程"
+}
 ```
 
----
-
-## 🔴 关键约束
-
-1. **专家面板必须使用 `## Expert: [name]` 格式** — Module Agent 用这个格式解析专家列表
-2. **不要预设固定的专家列表** — 专家角色必须根据需求约束维度分布来推理
-3. **每个 analysis_question 必须聚焦"必须遵守什么约束"** — 不是"怎么实现"（那是 Research 的事）
-4. **专家数量由需求复杂度决定** — 简单 2-3 个，复杂 5-6 个
-5. **质量标准必须让 Gap Analyst 有据可查** — 不能是模糊的"深入分析"
+### 🔴 强制约束
+1. **输出必须是合法 JSON，禁止输出 Markdown 或纯文本**
+2. **禁止用 ```markdown 代码块包裹**
+3. `bb.write_stage('planning_plan', data)` 的 `data` 必须是 dict，不是 str
+4. experts 数组中每个 expert 必须包含 name/perspective/analysis_questions/focus_req_ids 四个必填字段
+5. **不要预设固定的专家列表** — 专家角色必须根据需求约束维度分布来推理
+6. **每个 analysis_question 必须聚焦“必须遵守什么约束”** — 不是“怎么实现”
+7. **专家数量由需求复杂度决定** — 简单 2-3 个，复杂 5-6 个
 
 ---
 
 ## 写入 Blackboard
 
 ```python
-bb.write_stage('planning_plan', planning_plan_markdown)
+import json
+# planning_plan 必须是 dict，不是 str
+bb.write_stage('planning_plan', planning_plan_dict)
+# 验证
+plan = bb.read_stage('planning_plan')
+assert isinstance(plan, dict), f"planning_plan must be dict, got {type(plan)}"
+assert 'experts' in plan, "planning_plan must have 'experts' key"
+print(f"PLANNING_PLAN_OK: {len(plan['experts'])} experts")
 ```
 
 ---
@@ -179,14 +156,11 @@ bb.write_stage('planning_plan', planning_plan_markdown)
 
 ```python
 plan = bb.read_stage('planning_plan')
-if plan:
-    print(f'PLANNING_PLAN_OK ({len(plan)} chars)')
-    # 检查是否有 Expert: 格式
-    import re
-    experts = re.findall(r'## Expert: (.+)', plan)
-    print(f'EXPERT_COUNT: {len(experts)}')
+if plan and isinstance(plan, dict):
+    experts = plan.get('experts', [])
+    print(f'PLANNING_PLAN_OK ({len(experts)} experts)')
     for e in experts:
-        print(f'  - {e}')
+        print(f'  - {e.get("name", "unknown")}')
 else:
-    print('PLANNING_PLAN_MISSING')
+    print('PLANNING_PLAN_MISSING or INVALID_TYPE')
 ```

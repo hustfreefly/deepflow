@@ -7,10 +7,19 @@ Agent 完成后的 Python 后置验证层。
 调用方式：
     from domains.solution_pro.post_validator import validate_solution_output
     result = validate_solution_output(bb)
+
+V4 重构：调用 core.quality_utils 通用函数，减少重复逻辑。
 """
 
 from typing import Dict, List, Any, Optional
 import logging
+
+# V4: 导入通用函数
+from core.quality_utils import (
+    check_schema as _quality_check_schema,
+    check_coverage as _quality_check_coverage,
+    check_anchors as _quality_check_anchors,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +93,7 @@ def validate_solution_output(bb) -> Dict[str, Any]:
 
 
 def _validate_schema(bb) -> List[Dict[str, str]]:
-    """验证 final_solution 的结构和必要字段"""
+    """验证 final_solution 的结构和必要字段（V4: 调用 quality_utils）"""
     failures = []
 
     # 读取 final_solution（可能是 JSON dict 或不存在）
@@ -106,26 +115,24 @@ def _validate_schema(bb) -> List[Dict[str, str]]:
         })
         return failures
 
-    # 检查必要字段
+    # V4: 调用通用函数
     required_fields = ["key_decisions", "implementation_phases"]
-    for field in required_fields:
-        if field not in final_solution:
-            failures.append({
-                "severity": "critical",
-                "check": "schema",
-                "message": f"final_solution 缺少必要字段: {field}",
-            })
+    field_types = {"key_decisions": list, "implementation_phases": list}
+    result = _quality_check_schema(final_solution, required_fields, field_types)
 
-    # 检查字段类型
+    if not result.passed:
+        # 转换 severity: ERROR → critical
+        severity = "critical" if result.severity == "ERROR" else "warning"
+        failures.append({
+            "severity": severity,
+            "check": "schema",
+            "message": result.message,
+        })
+
+    # 额外检查：空列表警告（保留原有逻辑）
     if "key_decisions" in final_solution:
         kd = final_solution["key_decisions"]
-        if not isinstance(kd, list):
-            failures.append({
-                "severity": "critical",
-                "check": "schema",
-                "message": f"key_decisions 类型错误: {type(kd).__name__}（应为 list）",
-            })
-        elif len(kd) == 0:
+        if isinstance(kd, list) and len(kd) == 0:
             failures.append({
                 "severity": "warning",
                 "check": "schema",
@@ -134,13 +141,7 @@ def _validate_schema(bb) -> List[Dict[str, str]]:
 
     if "implementation_phases" in final_solution:
         ip = final_solution["implementation_phases"]
-        if not isinstance(ip, list):
-            failures.append({
-                "severity": "critical",
-                "check": "schema",
-                "message": f"implementation_phases 类型错误: {type(ip).__name__}（应为 list）",
-            })
-        elif len(ip) == 0:
+        if isinstance(ip, list) and len(ip) == 0:
             failures.append({
                 "severity": "warning",
                 "check": "schema",
@@ -151,7 +152,7 @@ def _validate_schema(bb) -> List[Dict[str, str]]:
 
 
 def _validate_requirement_coverage(bb) -> List[Dict[str, str]]:
-    """验证 requirement_index 中的需求是否在输出中被覆盖"""
+    """验证 requirement_index 中的需求是否在输出中被覆盖（V4: 调用 quality_utils）"""
     failures = []
 
     # 从 living_spec 或 frozen_spec 读取 requirement_index
@@ -170,43 +171,35 @@ def _validate_requirement_coverage(bb) -> List[Dict[str, str]]:
         })
         return failures
 
+    # 提取需求 ID 列表
+    req_ids = []
+    for req in requirement_index:
+        req_id = req.get("id", "") if isinstance(req, dict) else str(req)
+        if req_id:
+            req_ids.append(req_id)
+
     # 读取 final_solution 的内容（用于检查覆盖）
     final_solution = bb.read_stage("final_solution") or {}
 
-    # 将 final_solution 转为字符串用于文本匹配
-    solution_text = str(final_solution)
+    # V4: 调用通用函数（双层阈值：0.5 critical, 0.8 warning）
+    result = _quality_check_coverage(req_ids, final_solution, critical_threshold=0.5, warning_threshold=0.8)
 
-    # 检查每个 requirement 是否被提及
-    total_reqs = len(requirement_index)
-    covered = 0
-    uncovered_ids = []
-
-    for req in requirement_index:
-        req_id = req.get("id", "") if isinstance(req, dict) else str(req)
-        # 检查 req_id 是否出现在 solution_text 中
-        if req_id and req_id in solution_text:
-            covered += 1
-        else:
-            uncovered_ids.append(req_id)
-
-    coverage_rate = covered / total_reqs if total_reqs > 0 else 1.0
-
-    if coverage_rate < 0.5:
+    if result.severity == "CRITICAL":
         failures.append({
             "severity": "critical",
             "check": "requirement_coverage",
             "message": (
-                f"需求覆盖率 {coverage_rate:.0%}（{covered}/{total_reqs}），"
-                f"低于 50% 阈值。未覆盖: {uncovered_ids[:5]}..."
+                f"需求覆盖率 {result.coverage_rate:.0%}（{result.covered_reqs}/{result.total_reqs}），"
+                f"低于 50% 阈值。未覆盖: {result.uncovered[:5]}..."
             ),
         })
-    elif coverage_rate < 0.8:
+    elif result.severity == "WARNING":
         failures.append({
             "severity": "warning",
             "check": "requirement_coverage",
             "message": (
-                f"需求覆盖率 {coverage_rate:.0%}（{covered}/{total_reqs}），"
-                f"低于 80% 目标。未覆盖: {uncovered_ids[:5]}..."
+                f"需求覆盖率 {result.coverage_rate:.0%}（{result.covered_reqs}/{result.total_reqs}），"
+                f"低于 80% 目标。未覆盖: {result.uncovered[:5]}..."
             ),
         })
 
@@ -214,7 +207,7 @@ def _validate_requirement_coverage(bb) -> List[Dict[str, str]]:
 
 
 def _validate_information_conservation(bb) -> List[Dict[str, str]]:
-    """验证 semantic_anchors 是否保留在输出中"""
+    """验证 semantic_anchors 是否保留在输出中（V4: 调用 quality_utils）"""
     failures = []
 
     # 从 living_spec 读取 semantic_anchors
@@ -229,45 +222,42 @@ def _validate_information_conservation(bb) -> List[Dict[str, str]]:
         # 没有 semantic_anchors 需要检查，跳过
         return failures
 
-    # 读取 final_solution 内容
-    final_solution = bb.read_stage("final_solution") or {}
-    solution_text = str(final_solution)
-
-    # 检查每个 anchor 是否被保留
-    total_anchors = len(semantic_anchors)
-    preserved = 0
-    missing_names = []
-
+    # 提取锚点名称列表（处理 dict 和 str 两种格式）
+    anchor_names = []
     for anchor in semantic_anchors:
-        # anchor 可能是 dict（{name, category, ...}）或 str
         if isinstance(anchor, dict):
             anchor_name = anchor.get("name", "") or anchor.get("text", "")
         else:
             anchor_name = str(anchor)
+        if anchor_name:
+            anchor_names.append(anchor_name)
 
-        if anchor_name and anchor_name in solution_text:
-            preserved += 1
-        else:
-            missing_names.append(anchor_name[:50])
+    if not anchor_names:
+        return failures
 
-    conservation_rate = preserved / total_anchors if total_anchors > 0 else 1.0
+    # 读取 final_solution 内容
+    final_solution = bb.read_stage("final_solution") or {}
 
-    if conservation_rate < 0.5:
+    # V4: 调用通用函数（双层阈值：0.5 critical, 0.8 warning）
+    result = _quality_check_anchors(anchor_names, final_solution, critical_threshold=0.5, warning_threshold=0.8)
+
+    if result.severity == "CRITICAL":
+        # 提取丢失的锚点名称
+        missing_names = [a[:50] for a in anchor_names if a.lower() not in str(final_solution).lower()][:5]
         failures.append({
             "severity": "critical",
             "check": "information_conservation",
             "message": (
-                f"信息守恒率 {conservation_rate:.0%}（{preserved}/{total_anchors}），"
-                f"低于 50% 阈值。丢失: {missing_names[:5]}..."
+                f"信息守恒率低于 50% 阈值。丢失: {missing_names}..."
             ),
         })
-    elif conservation_rate < 0.8:
+    elif result.severity == "WARNING":
+        missing_names = [a[:50] for a in anchor_names if a.lower() not in str(final_solution).lower()][:5]
         failures.append({
             "severity": "warning",
             "check": "information_conservation",
             "message": (
-                f"信息守恒率 {conservation_rate:.0%}（{preserved}/{total_anchors}），"
-                f"低于 80% 目标。丢失: {missing_names[:5]}..."
+                f"信息守恒率低于 80% 目标。丢失: {missing_names}..."
             ),
         })
 
