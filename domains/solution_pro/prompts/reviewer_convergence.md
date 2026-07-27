@@ -1,6 +1,6 @@
 # Reviewer: Convergence
 
-你是 Solution Pro 2.0.0 的 Reviewer。你的任务是审核 Convergence Planner 的输出质量。
+你是 Solution Pro V3.3 的 Reviewer。你的任务是审核 Convergence Planner 的输出质量。
 
 ## 你的输入
 
@@ -8,8 +8,7 @@
 - `data/living_spec.json`（优先）或 `data/frozen_spec.json`（向后兼容） — 需求规格
 - `stages/meta_planning.json` — Meta-Planner 输出
 - `stages/expert_plans/*.json` — 多个 Expert Plan
-- `stages/unified_constraints.json` — Convergence Planner 输出（统一约束）
-- `stages/verification_checklist.json` — Convergence Planner 输出（验证清单）
+- `stages/planning_convergence.json` — Convergence Planner 输出（统一约束 + 验证清单）
 
 ## 你的任务
 

@@ -20,7 +20,7 @@ V3.1 架构说明:
 """
 
 from typing import Literal, Optional, Union
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from datetime import datetime
 
 
@@ -339,13 +339,15 @@ class ResearchExpertSchema(V2BaseSchema):
     Research Expert 输出 schema
     
     包含：
-    - research_findings: 研究发现
-    - technology_recommendations: 方案推荐
+    - research_findings (alias: findings): 研究发现
+    - technology_recommendations (alias: recommendations): 方案推荐
     - open_questions: 未解决问题
     """
+    model_config = {"populate_by_name": True}
+
     expert_name: str = Field(description="专家名称")
-    research_findings: list[dict] = Field(description="研究发现")
-    technology_recommendations: list[dict] = Field(default_factory=list, description="方案推荐（选型/工具/方法建议）")
+    research_findings: list[dict] = Field(description="研究发现", alias="findings")
+    technology_recommendations: list[dict] = Field(default_factory=list, description="方案推荐（选型/工具/方法建议）", alias="recommendations")
     open_questions: list[str] = Field(default_factory=list, description="未解决问题")
     covered_req_ids: list[str] = Field(default_factory=list, description="覆盖的 P0 REQ ID")
 
@@ -618,6 +620,23 @@ class FinalSolutionSchema(V2BaseSchema):
     semantic_anchors: list[dict] = Field(
         default_factory=list, description="Semantic anchors from living_spec"
     )
+    conflict_resolutions: Optional[list[dict]] = Field(
+        default_factory=list,
+        description="Conflict resolution summaries from research_digest. "
+        "Each entry: {conflict_id, description, resolution, rationale}. "
+        "Optional — empty list if no conflicts in research_digest."
+    )
+    # --- FixFlow P1: 信息守恒增强 (2026-07-27) ---
+    low_confidence_findings: Optional[list[dict]] = Field(
+        default_factory=list,
+        description="低置信度发现 (confidence < 0.80)，从 research_digest 提取。"
+        "Each entry: {finding_id, title, confidence, reason}."
+    )
+    open_issues: Optional[list[dict]] = Field(
+        default_factory=list,
+        description="开放问题列表，从 base_solution 继承。"
+        "Each entry: {issue_id, description, priority}."
+    )
 
     @model_validator(mode='after')
     def _cage_fs1_coverage_consistency(self) -> 'FinalSolutionSchema':
@@ -680,8 +699,10 @@ class FinalSolutionSchema(V2BaseSchema):
 
 class InformationContractOutput(BaseModel):
     """信息契约输出定义"""
+    model_config = ConfigDict(populate_by_name=True)
+
     name: str = Field(description="输出文件名")
-    schema: dict = Field(description="JSON Schema")
+    schema_def: dict = Field(alias="schema", description="JSON Schema")
     required_by: list[str] = Field(description="下游 Stage 或 Pro 名称")
     replaces: Optional[str] = Field(default=None, description="替代的旧输出")
 

@@ -177,6 +177,7 @@ class TestPhaseProgression:
         assert any(a["module"] == "research" for a in report["actions"])
 
     def test_full_pipeline_to_completed(self, pulse, monkeypatch):
+        """V3.x: Planning → Research → Summary → Validate → Review → Finalize → Completed"""
         # L0 验证 mock 为通过
         monkeypatch.setattr(
             SolutionPulse, "_run_post_validation", lambda self: (True, {"summary": {}})
@@ -234,6 +235,7 @@ class TestPhaseProgression:
         assert report["status"] == "failed"
 
     def test_post_validation_failure_goes_terminal(self, pulse, monkeypatch):
+        """V3.x: post_validation 失败 → terminal"""
         monkeypatch.setattr(
             SolutionPulse,
             "_run_post_validation",
@@ -470,71 +472,11 @@ class TestOrphanDispatchSweep:
         assert state["modules"]["planning"]["retry_count"] == 0
 
 
-class TestReviewPromptReplacement:
-    """DryRun BLOCKER（Agent D）：reviewer prompt 的 {module_name} 占位符
-    必须被替换，否则产出 stage 名与 REVIEW_OUTPUT_STAGES 不匹配。"""
-
-    def test_adversarial_prompt_placeholders_replaced(self, pulse):
-        pulse._write_review_prompt("adversarial_reviewer")
-        content = (pulse.stages_dir / "adversarial_quality_reviewer.md").read_text(
-            encoding="utf-8"
-        )
-        assert "{module_name}" not in content
-        assert "{module_output_file}" not in content
-        assert "adversarial_review_summary" in content
-
-    def test_consistency_prompt_placeholders_replaced(self, pulse):
-        pulse._write_review_prompt("consistency_checker")
-        content = (pulse.stages_dir / "cross_module_consistency_checker.md").read_text(
-            encoding="utf-8"
-        )
-        assert "{module_name}" not in content
-        assert "{session_id}" not in content
-
-
-class TestPostValidationBaseDir:
-    """DryRun BLOCKER（Agent A）：_run_post_validation 必须用 session_dir 对应的
-    blackboard 根初始化 BlackboardManager，否则非默认部署读错位。"""
-
-    def test_blackboard_manager_uses_session_base_dir(self, pulse, monkeypatch):
-        captured = {}
-
-        def fake_validate(bb):
-            captured["session_dir"] = str(bb.session_dir)
-            return {"passed": True, "summary": {}}
-
-        monkeypatch.setattr(
-            "domains.solution_pro.post_validator.validate_solution_output",
-            fake_validate,
-        )
-        passed, _ = pulse._run_post_validation()
-        assert passed is True
-        # BlackboardManager 的 session_dir 必须指向 pulse 的 session_dir（tmp 路径）
-        assert captured["session_dir"] == str(pulse.session_dir)
-
-
-class TestQualityNotes:
-    """DryRun 技术债（Agent D）：finalize 必须把审查 verdict 写入 .completed。"""
-
-    def test_completed_contains_quality_notes(self, pulse, monkeypatch):
-        monkeypatch.setattr(
-            SolutionPulse, "_run_post_validation", lambda self: (True, {})
-        )
-        # 快进全流水线
-        _make_stage(pulse, "planning_convergence")
-        _make_stage(pulse, "research_digest")
-        _make_stage(pulse, "solution_document")
-        _make_stage(pulse, "final_solution")
-        pulse.pulse()  # → review spawn
-        pulse.confirm_dispatches([
-            {"module": "adversarial_reviewer", "label": "solution_adversarial_reviewer", "ok": True},
-            {"module": "consistency_checker", "label": "solution_consistency_checker", "ok": True},
-        ])
-        _make_stage(pulse, "adversarial_review_summary", {"overall_verdict": "PASS"})
-        _make_stage(pulse, "consistency_check", {"overall_verdict": "CONDITIONAL"})
-        report = pulse.pulse()
-        assert report["status"] == "completed"
-        completed = json.loads(pulse.completed_path.read_text())
-        assert completed["quality_notes"]["adversarial_reviewer"] == "PASS"
-        assert completed["quality_notes"]["consistency_checker"] == "CONDITIONAL"
+# V4.0 简化：以下测试类已移除（Step 4/5 后置验证不再由 orchestrator 内置）
+# - TestReviewPromptReplacement
+# - TestPostValidationBaseDir
+# - TestQualityNotes
+# 
+# 这些功能现在是独立可调用工具，不再由 orchestrator 自动触发。
+# 如需测试这些独立工具，请在单独的测试文件中验证。
 

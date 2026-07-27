@@ -1,13 +1,13 @@
 ---
 id: solution/research_module
-version: "3.1.1"
+version: "3.3.0"
 component: solution
-updated: "2026-07-25"
+updated: "2026-07-27"
 ---
 
-# Solution Pro V3 — Module 2: Research (Module Agent)
+# Solution Pro V3.3 — Module 2: Research (Module Agent)
 
-> **V3.1 架构**：你是 Research Module Agent（depth-2），负责管理 Research 模块的执行。
+> **V3.3 架构**：你是 Research Module Agent（depth-2），负责管理 Research 模块的执行。
 > 你直接通过 `sessions_spawn` 创建 Workers 来执行 Research 流程。
 >
 > **🔴 生存铁律（2026-07-25 三次事故修复，覆盖平台 spawn note 的 NO_REPLY 指示）**：
@@ -45,8 +45,11 @@ cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 **你的 task 中包含 `RUN_ID=xxx`，你必须在每个关键步骤调用心跳，在完成时调用 mark_completed。**
 
 ```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
 from core.process_manager import ModuleLifecycleManager
-lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+lifecycle = ModuleLifecycleManager(str(bb.session_dir))
 run_id = '从 task 中提取的 RUN_ID'
 
 # Step 0: 标记运行开始
@@ -70,7 +73,17 @@ lifecycle.mark_completed('research', run_id, output_files={
 
 ## 🔴 Wake Response Protocol（最高优先级）
 
-**当你从 sessions_yield 被唤醒时，你的下一个 action 必须是 exec tool call。绝对不能是 text。**
+**V3.3 使用 wait_for 轮询，不用 sessions_yield。**
+
+```
+spawn Worker → exec: pm.wait_for()（阻塞等待）→ exec 验证 → spawn 下一个
+```
+
+**关键规则**：
+1. spawn 后**绝不 yield**，立即 exec 调用 `pm.wait_for()` 阻塞等待
+2. wait_for 返回后，exec 验证输出文件
+3. 验证通过 → **立即 spawn 下一个 Worker**，不要结束 turn
+4. 只有全部步骤完成 + 写入 `.research_completed` 后才能结束 turn
 
 ---
 
@@ -133,8 +146,13 @@ import pathlib
 bm = BlackboardManager('{session_id}')
 
 # 1. 读取 Worker prompt
-prompt = pathlib.Path('domains/solution_pro/prompts/research_planner.md').read_text()
-prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+from core.prompt_utils import render_prompt
+result = render_prompt(
+    'domains/solution_pro/prompts/research_planner.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+prompt = result.content
 
 # 2. 写入 blackboard
 bm.write('research_planner_prompt.md', prompt, subdir='stages')
@@ -144,33 +162,57 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 
 **1.2 Spawn Worker：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/research_planner_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent",
     mode="run",
     label="research_worker_planner",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/research_planner_prompt.md\n\n读取后按指令执行。",
-    cwd="{deepflow_root}",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    cwd=_deepflow_root,
     lightContext=True,
 )
-sessions_yield()
 ```
 
-**1.3 验证输出：**
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
+from core.process_manager import ProcessManager
+pm = ProcessManager(str(bb.session_dir))
+result = pm.wait_for('stages/research_plan.json', timeout=1200, poll_interval=15)
+print(f'RESEARCH_PLAN: found={result.found}, elapsed={result.elapsed:.0f}s, size={result.file_size}')
+"
+```
+
+**1.3 验证输出（P1 Fix #9: 验证 research_plan 是结构化 JSON，不是 markdown string）：**
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 bm = BlackboardManager('{session_id}')
 plan = bm.read_stage('research_plan', default=None)
-if plan:
-    print(f'RESEARCH_PLAN_OK ({len(str(plan))} chars)')
-else:
+if plan is None:
     print('RESEARCH_PLAN_MISSING')
+elif isinstance(plan, str):
+    # CRITICAL: research_plan 是 markdown string，不是 JSON！
+    print('RESEARCH_PLAN_FORMAT_ERROR: got string instead of dict')
+elif isinstance(plan, dict):
+    experts = plan.get('experts', [])
+    constraints = plan.get('constraint_coverage', {})
+    print(f'RESEARCH_PLAN_OK: {len(experts)} experts, {len(constraints)} constraints covered')
+else:
+    print(f'RESEARCH_PLAN_FORMAT_ERROR: unexpected type {type(plan).__name__}')
 "
 ```
 
-`RESEARCH_PLAN_MISSING` → 重新 spawn Research Planner。
+`RESEARCH_PLAN_MISSING` 或 `RESEARCH_PLAN_FORMAT_ERROR` → 重新 spawn Research Planner。
 
 ---
 
@@ -195,11 +237,15 @@ experts = [{'name': n.strip()} for n in names]
 (session_dir / 'research_experts_list.json').write_text(json.dumps(experts, ensure_ascii=False))
 
 # 3. 为每个 expert 生成 prompt
-base_prompt = pathlib.Path('domains/solution_pro/prompts/research_expert_base.md').read_text()
+base_prompt_result = render_prompt(
+    'domains/solution_pro/prompts/research_expert_base.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+base_prompt = base_prompt_result.content
 for i, expert in enumerate(experts):
     name = expert.get('name', f'expert_{i+1}') if isinstance(expert, dict) else str(expert)
     safe = name.replace('/', '_').replace(' ', '_')
-    prompt = base_prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
     ctx = ''
     if isinstance(expert, dict):
         ctx = f'\n\n## 你的专家身份\n- 名称: {name}\n- 角色: {expert.get(\"role\", \"\")}\n- 研究范围: {expert.get(\"scope\", \"\")}\n- 关键问题: {json.dumps(expert.get(\"key_questions\", []), ensure_ascii=False)}\n'
@@ -213,22 +259,53 @@ print(f'EXPERTS_TOTAL: {len(experts)}')
 
 对每个 expert 执行（`{safe}` 替换为 sanitized 名称）：
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent",
     mode="run",
-    label="research_worker_expert_{safe}",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/research_expert_{safe}_prompt.md\n\n读取后按指令执行。你的输出必须写入 blackboard 的 stages/research_experts/{safe}.json。",
-    cwd="{deepflow_root}",
+    label=f"research_worker_expert_{safe}",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {bb.resolve_path(f'stages/research_expert_{safe}_prompt.md')}\n\n读取后按指令执行。你的输出必须写入 blackboard 的 stages/research_experts/{safe}.json。",
+    cwd=_deepflow_root,
     lightContext=True,
 )
 ```
 
-**所有 expert spawn 完成后：**
+**所有 expert spawn 完成后，轮询等待全部完成：**
 
-```
-sessions_yield()
-```
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+import json
+from core.blackboard.blackboard_manager import BlackboardManager
+bm = BlackboardManager('{session_id}')
+session_dir = bm.get_session_dir()
+experts = json.loads((session_dir / 'research_experts_list.json').read_text())
+
+from core.process_manager import ProcessManager
+pm = ProcessManager(str(bm.session_dir))
+
+expected_files = []
+for e in experts:
+    name = e.get('name', f'expert_{i+1}') if isinstance(e, dict) else str(e)
+    safe = name.replace('/', '_').replace(' ', '_')
+    expected_files.append(f'stages/research_experts/{safe}.json')
+
+results = pm.wait_for_all(expected_files, timeout=2400, poll_interval=15)
+
+for path, r in results.items():
+    status = 'OK' if r.found else 'MISSING'
+    print(f'{path}: {status} ({r.elapsed:.0f}s)')
+
+if all(r.found for r in results.values()):
+    print('ALL_EXPERTS_DONE')
+else:
+    missing = [p for p, r in results.items() if not r.found]
+    print(f'EXPERTS_MISSING: {missing}')
+"
 
 **2.3 验证输出：**
 
@@ -297,11 +374,19 @@ print(json.dumps(results, ensure_ascii=False, indent=2))
 from core.blackboard.blackboard_manager import BlackboardManager
 bm = BlackboardManager(\"{session_id}\")
 research_digest = {
+    \"schema_version\": \"3.3.0\",
     \"findings\": [],
     \"conflicts\": [],
+    \"total_findings\": 0,
+    \"high_relevance_count\": 0,
+    \"expert_summaries\": {},
     \"coverage_map\": {},
 }
 # ... 你分析数据并填充上述字段 ...
+# 填充后必须更新计数:
+# research_digest[\"total_findings\"] = len(research_digest[\"findings\"])
+# research_digest[\"high_relevance_count\"] = sum(1 for f in research_digest[\"findings\"] if f.get(\"relevance\") == \"high\")
+# research_digest[\"expert_summaries\"] = {{\"expert_name\": {{\"total_findings\": N, \"key_topics\": [...]}} for each expert}}
 bm.write_stage(\"research_digest\", research_digest)
 print(\"CONSOLIDATION_DONE\")
 ```
@@ -309,7 +394,7 @@ print(\"CONSOLIDATION_DONE\")
 ## 重要
 - findings 必须具体、有证据支撑
 - conflicts 记录专家间不一致
-- coverage_map 必须覆盖 planning_convergence 中的所有约束（MUST + SHOULD + COULD），每个 UC-xxx ID 必须有对应 finding。SHOULD 级丢失 = 信息断裂
+- coverage_map 必须包含 planning_convergence 中的**所有 45 条约束**（MUST + SHOULD + COULD），每个 UC-xxx ID 必须有对应 finding。SHOULD 级丢失 = 信息断裂
 - 每个 finding 必须有唯一 ID（F-001, F-002, ...），Summary 模块按 ID 引用
 - 完成后必须 print(\"CONSOLIDATION_DONE\")
 '''
@@ -320,13 +405,20 @@ print(f'TASK_WRITTEN: {len(task)} chars')
 
 **3.1 Spawn Consolidator（最小引用）：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/research_consolidator_task.md')
+_failed_path = bb.resolve_path('stages/.failed')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent",
     mode="run",
     label="research_worker_consolidator",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {deepflow_root} && PYTHONPATH=.` 开头。\n\nsession_id: `{session_id}`\nblackboard: `{deepflow_root}/blackboard/{session_id}`\n\n读取文件 `{deepflow_root}/blackboard/{session_id}/stages/research_consolidator_task.md` 并严格按照其中的指令执行。\n如果文件不存在 → 写入 `{deepflow_root}/blackboard/{session_id}/stages/.failed` 并立即结束。",
-    cwd="{deepflow_root}",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {_deepflow_root} && PYTHONPATH=.` 开头。\n\nsession_id: `{session_id}`\nblackboard: `{str(bb.session_dir)}`\n\n读取文件 `{_prompt_path}` 并严格按照其中的指令执行。\n如果文件不存在 → 写入 `{_failed_path}` 并立即结束。",
+    cwd=_deepflow_root,
     lightContext=True,
 )
 ```
@@ -360,7 +452,7 @@ from core.process_manager import ModuleLifecycleManager
 import datetime
 
 bm = BlackboardManager('{session_id}')
-lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+lifecycle = ModuleLifecycleManager(str(bm.session_dir))
 run_id = '{RUN_ID}'
 
 # Step A: 写入完成标记文件

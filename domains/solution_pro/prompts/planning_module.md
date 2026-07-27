@@ -1,13 +1,13 @@
 ---
 id: solution/planning_module
-version: "3.1.1"
+version: "3.3.0"
 component: solution
-updated: "2026-07-21"
+updated: "2026-07-27"
 ---
 
-# Solution Pro V3 — Module 1: Planning (Module Agent)
+# Solution Pro V3.3 — Module 1: Planning (Module Agent)
 
-> **V3 架构**：你是 Planning Module Agent（depth-2），负责管理 Planning 模块的执行。
+> **V3.3 架构**：你是 Planning Module Agent（depth-2），负责管理 Planning 模块的执行。
 > 你直接通过 `sessions_spawn` 创建 Workers 来执行 Planning 流程。
 >
 > **🔴 生存铁律（2026-07-25 三次事故修复，覆盖平台 spawn note 的 NO_REPLY 指示）**：
@@ -45,8 +45,11 @@ cd {deepflow_root} && PYTHONPATH=. python3 -c "..."
 **你的 task 中包含 `RUN_ID=xxx`，你必须在每个关键步骤调用心跳，在完成时调用 mark_completed。**
 
 ```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
 from core.process_manager import ModuleLifecycleManager
-lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+lifecycle = ModuleLifecycleManager(str(bb.session_dir))
 run_id = '从 task 中提取的 RUN_ID'
 
 # Step 0: 标记运行开始
@@ -71,7 +74,17 @@ lifecycle.mark_completed('planning', run_id, output_files={
 
 ## 🔴 Wake Response Protocol（最高优先级）
 
-**当你从 sessions_yield 被唤醒时，你的下一个 action 必须是 exec tool call。绝对不能是 text。**
+**V3.3 使用 wait_for 轮询，不用 sessions_yield。**
+
+```
+spawn Worker → exec: pm.wait_for()（阻塞等待）→ exec 验证 → spawn 下一个
+```
+
+**关键规则**：
+1. spawn 后**绝不 yield**，立即 exec 调用 `pm.wait_for()` 阻塞等待
+2. wait_for 返回后，exec 验证输出文件
+3. 验证通过 → **立即 spawn 下一个 Worker**，不要结束 turn
+4. 只有全部步骤完成 + 写入 `.planning_completed` 后才能结束 turn
 
 ---
 
@@ -137,8 +150,13 @@ import pathlib
 bm = BlackboardManager('{session_id}')
 
 # 1. 读取 Worker prompt
-prompt = pathlib.Path('domains/solution_pro/prompts/meta_planner.md').read_text()
-prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+from core.prompt_utils import render_prompt
+result = render_prompt(
+    'domains/solution_pro/prompts/meta_planner.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+prompt = result.content
 
 # 2. 写入 blackboard
 bm.write('meta_planner_prompt.md', prompt, subdir='stages')
@@ -148,16 +166,33 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 
 **1.2 Spawn Worker：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/meta_planner_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent",
     mode="run",
     label="planning_worker_meta_planner",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/meta_planner_prompt.md\n\n读取后按指令执行。",
-    cwd="{deepflow_root}",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    cwd=_deepflow_root,
     lightContext=True,
 )
-sessions_yield()
+```
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
+from core.process_manager import ProcessManager
+pm = ProcessManager(str(bb.session_dir))
+result = pm.wait_for('stages/meta_planning.json', timeout=1200, poll_interval=15)
+print(f'META_PLANNING: found={result.found}, elapsed={result.elapsed:.0f}s, size={result.file_size}')
+"
 ```
 
 **1.3 唤醒后验证：**
@@ -186,6 +221,14 @@ bm.write_stage('.checkpoint', {
     'step_name': 'step1_meta_planner',
     'timestamp': datetime.datetime.utcnow().isoformat(),
 })
+
+# P0-2: 心跳调用
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager(str(bb.session_dir))
+lifecycle.heartbeat('planning', '{run_id}')
 ```
 
 ---
@@ -200,8 +243,13 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import pathlib
 bm = BlackboardManager('{session_id}')
 
-prompt = pathlib.Path('domains/solution_pro/prompts/planning_planner.md').read_text()
-prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+from core.prompt_utils import render_prompt
+result = render_prompt(
+    'domains/solution_pro/prompts/planning_planner.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+prompt = result.content
 
 bm.write('planning_planner_prompt.md', prompt, subdir='stages')
 print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
@@ -210,16 +258,33 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 
 **2.2 Spawn Worker：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/planning_planner_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent",
     mode="run",
     label="planning_worker_planning_planner",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/planning_planner_prompt.md\n\n读取后按指令执行。",
-    cwd="{deepflow_root}",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    cwd=_deepflow_root,
     lightContext=True,
 )
-sessions_yield()
+```
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
+from core.process_manager import ProcessManager
+pm = ProcessManager(str(bb.session_dir))
+result = pm.wait_for('stages/planning_tasks.json', timeout=1200, poll_interval=15)
+print(f'PLANNING_TASKS: found={result.found}, elapsed={result.elapsed:.0f}s, size={result.file_size}')
+"
 ```
 
 **2.3 唤醒后验证：**
@@ -248,6 +313,14 @@ bm.write_stage('.checkpoint', {
     'step_name': 'step2_planning_planner',
     'timestamp': datetime.datetime.utcnow().isoformat(),
 })
+
+# P0-2: 心跳调用
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager(str(bb.session_dir))
+lifecycle.heartbeat('planning', '{run_id}')
 ```
 
 ---
@@ -270,13 +343,18 @@ experts = planning_tasks.get('experts') or planning_tasks.get('expert_panel', []
 print(f'EXPERTS_FOUND: {len(experts)}')
 
 # 读取 expert planner base prompt
-base_prompt = pathlib.Path('domains/solution_pro/prompts/expert_planner_base.md').read_text()
+from core.prompt_utils import render_prompt
 
 # 为每个 expert 写入独立 prompt
 for expert in experts:
     name = expert.get('name', 'unknown')
-    prompt = base_prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
-    prompt = prompt.replace('{expert_name}', name)
+    result = render_prompt(
+        'domains/solution_pro/prompts/expert_planner_base.md',
+        session_id='{session_id}',
+        deepflow_root='{deepflow_root}',
+        expert_name=name,
+    )
+        prompt = result.content
     bm.write(f'expert_planner_{name}_prompt.md', prompt, subdir='stages')
     print(f'EXPERT_PROMPT_WRITTEN: {name} ({len(prompt)} bytes)')
 "
@@ -284,18 +362,58 @@ for expert in experts:
 
 **3.2 并行 Spawn 所有 Expert Planners：**
 
-```
-# 对每个 expert 执行 spawn（一次性全部 spawn，然后一次 yield）
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
+# 对每个 expert 执行 spawn（一次性全部 spawn，然后轮询等待）
+_prompt_path = bb.resolve_path(f'stages/expert_planner_{name}_prompt.md')
 sessions_spawn(
     runtime="subagent",
     mode="run",
-    label="planning_worker_expert_{name}",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/expert_planner_{name}_prompt.md\n\n读取后按指令执行。",
-    cwd="{deepflow_root}",
+    label=f"planning_worker_expert_{name}",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    cwd=_deepflow_root,
     lightContext=True,
 )
 # ... 对每个 expert 重复上述 spawn ...
-sessions_yield()
+```
+
+**所有 expert spawn 完成后，轮询等待全部完成：**
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+import json
+bm = BlackboardManager('{session_id}')
+
+# 读取 experts 列表
+planning_tasks = bm.read_stage('planning_tasks')
+experts = planning_tasks.get('experts') or planning_tasks.get('expert_panel', [])
+
+from core.process_manager import ProcessManager
+pm = ProcessManager(str(bm.session_dir))
+
+expected_files = []
+for expert in experts:
+    name = expert.get('name', 'unknown')
+    safe_name = name.replace('/', '_').replace(' ', '_')
+    expected_files.append(f'stages/expert_plans/{safe_name}.json')
+
+results = pm.wait_for_all(expected_files, timeout=2400, poll_interval=15)
+
+for path, r in results.items():
+    status = 'OK' if r.found else 'MISSING'
+    print(f'{path}: {status} ({r.elapsed:.0f}s)')
+
+if all(r.found for r in results.values()):
+    print('ALL_EXPERTS_DONE')
+else:
+    missing = [p for p, r in results.items() if not r.found]
+    print(f'EXPERTS_MISSING: {missing}')
+"
 ```
 
 **3.3 唤醒后验证（检查所有 expert 输出）：**
@@ -339,6 +457,14 @@ bm.write_stage('.checkpoint', {
     'step_name': 'step3_expert_planners',
     'timestamp': datetime.datetime.utcnow().isoformat(),
 })
+
+# P0-2: 心跳调用
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager(str(bb.session_dir))
+lifecycle.heartbeat('planning', '{run_id}')
 ```
 
 ---
@@ -353,8 +479,13 @@ from core.blackboard.blackboard_manager import BlackboardManager
 import pathlib
 bm = BlackboardManager('{session_id}')
 
-prompt = pathlib.Path('domains/solution_pro/prompts/convergence_planner.md').read_text()
-prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+from core.prompt_utils import render_prompt
+result = render_prompt(
+    'domains/solution_pro/prompts/convergence_planner.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+prompt = result.content
 
 bm.write('convergence_planner_prompt.md', prompt, subdir='stages')
 print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
@@ -363,16 +494,33 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 
 **4.2 Spawn Worker：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/convergence_planner_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent",
     mode="run",
     label="planning_worker_convergence_planner",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/convergence_planner_prompt.md\n\n读取后按指令执行。\n\n## 重要：你的输入来源\n- stages/meta_planning.json（Meta Planner 输出）\n- stages/expert_plans/*.json（所有 Expert Planner 输出）\n\n你必须读取以上所有文件作为输入。",
-    cwd="{deepflow_root}",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。\n\n## 重要：你的输入来源\n- stages/meta_planning.json（Meta Planner 输出）\n- stages/expert_plans/*.json（所有 Expert Planner 输出）\n\n你必须读取以上所有文件作为输入。",
+    cwd=_deepflow_root,
     lightContext=True,
 )
-sessions_yield()
+```
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
+from core.process_manager import ProcessManager
+pm = ProcessManager(str(bb.session_dir))
+result = pm.wait_for('stages/planning_convergence.json', timeout=1800, poll_interval=15)
+print(f'PLANNING_CONVERGENCE: found={result.found}, elapsed={result.elapsed:.0f}s, size={result.file_size}')
+"
 ```
 
 **4.3 唤醒后验证：**
@@ -420,13 +568,30 @@ bm.write('module_planning_state.json', {
     'completed_at': datetime.datetime.utcnow().isoformat() + 'Z',
 })
 
-# 写入完成标记
+# P0-2: 调用 lifecycle.mark_completed（必须！）
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
+from core.process_manager import ModuleLifecycleManager
+import os
+
+lifecycle = ModuleLifecycleManager(str(bb.session_dir))
+convergence_path = bb.resolve_path('stages/planning_convergence.json')
+lifecycle.mark_completed('planning', '{run_id}', output_files={
+    'stages/planning_convergence.json': {
+        'size': os.path.getsize(convergence_path) if os.path.exists(convergence_path) else 0,
+        'mtime': os.path.getmtime(convergence_path) if os.path.exists(convergence_path) else 0,
+    },
+})
+
+# 写入完成标记（保留向后兼容）
 bm.write_stage('.planning_completed', {
     'module': 'planning',
     'status': 'completed',
     'completed_at': datetime.datetime.utcnow().isoformat() + 'Z',
 })
 print('PLANNING_MODULE_FINALIZED')
+print('LIFECYCLE_MARK_COMPLETED_CALLED')
 "
 ```
 

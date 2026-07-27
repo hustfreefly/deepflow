@@ -335,47 +335,93 @@ class PipelineDesigner:
             "input_summary": input_summary,
         }
     
-    def _auto_design(self, validated_input: Dict[str, Any]) -> Optional[PipelinePlan]:
-        """内部调用 LLM 生成 PipelinePlan（契约笼子：确定性调用，失败不抛异常）"""
-        import os, urllib.request
-        
-        prompt = self._build_designer_prompt(validated_input)
-        api_key = os.environ.get("DASHSCOPE_API_KEY", "")
-        if not api_key:
-            return None
-        
-        try:
-            payload = json.dumps({
-                "model": "qwen-plus",
+    # Multi-provider fallback chain: (env_key, model, api_url, payload_builder, response_parser)
+    _LLM_PROVIDERS = [
+        {
+            "name": "dashscope",
+            "env_key": "DASHSCOPE_API_KEY",
+            "model": "qwen-plus",
+            "api_url": "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
+            "build_payload": lambda prompt, model: json.dumps({
+                "model": model,
                 "input": {"messages": [
                     {"role": "system", "content": "你是任务拆解与交付规划专家，输出纯 JSON，不要 markdown 包裹。"},
                     {"role": "user", "content": prompt}
                 ]},
                 "parameters": {"result_format": "message"}
-            }).encode("utf-8")
-            
-            req = urllib.request.Request(
-                "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
-                data=payload,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                }
-            )
-            
-            with urllib.request.urlopen(req, timeout=120) as response:
-                result = json.loads(response.read().decode("utf-8"))
-            
-            from .orchestrator.ship_orchestrator import extract_json_from_completion
-            content = result["output"]["choices"][0]["message"]["content"]
-            data = extract_json_from_completion(content)
-            if data is None:
-                return None
-            
-            return PipelinePlan(**data)
-        except Exception as e:
-            logger.warning(f"Auto-design LLM call failed: {e}")
-            return None
+            }).encode("utf-8"),
+            "parse_response": lambda result: result["output"]["choices"][0]["message"]["content"],
+        },
+        {
+            "name": "openai_compatible",
+            "env_key": "OPENAI_API_KEY",
+            "env_url": "OPENAI_BASE_URL",
+            "model": "gpt-4o-mini",
+            "api_url": None,  # resolved at runtime from env
+            "build_payload": lambda prompt, model: json.dumps({
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": "你是任务拆解与交付规划专家，输出纯 JSON，不要 markdown 包裹。"},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.2,
+            }).encode("utf-8"),
+            "parse_response": lambda result: result["choices"][0]["message"]["content"],
+        },
+    ]
+
+    def _auto_design(self, validated_input: Dict[str, Any]) -> Optional[PipelinePlan]:
+        """内部调用 LLM 生成 PipelinePlan（契约笼子：确定性调用，失败不抛异常）
+
+        多 provider 回退：按 _LLM_PROVIDERS 顺序尝试，首个可用 provider 成功即返回。
+        所有 provider 均失败时返回 None（不抛异常）。
+        """
+        import os, urllib.request
+
+        prompt = self._build_designer_prompt(validated_input)
+
+        for provider in self._LLM_PROVIDERS:
+            api_key = os.environ.get(provider["env_key"], "")
+            if not api_key:
+                continue
+
+            # Resolve API URL (some providers use env-configured base URL)
+            api_url = provider.get("api_url")
+            if api_url is None and "env_url" in provider:
+                api_url = os.environ.get(provider["env_url"], "")
+                if api_url:
+                    api_url = api_url.rstrip("/") + "/chat/completions"
+            if not api_url:
+                continue
+
+            model = provider["model"]
+            try:
+                payload = provider["build_payload"](prompt, model)
+                req = urllib.request.Request(
+                    api_url,
+                    data=payload,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=120) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+
+                content = provider["parse_response"](result)
+                from .orchestrator.ship_orchestrator import extract_json_from_completion
+                data = extract_json_from_completion(content)
+                if data is None:
+                    logger.warning(f"Provider {provider['name']}: failed to extract JSON from completion")
+                    continue
+
+                return PipelinePlan(**data)
+            except Exception as e:
+                logger.warning(f"Provider {provider['name']} failed: {e}; trying next provider")
+                continue
+
+        logger.warning("All LLM providers exhausted without successful auto-design")
+        return None
     
     def parse_designer_output(self, raw_output: str) -> PipelinePlan:
         """

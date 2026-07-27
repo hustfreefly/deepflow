@@ -93,7 +93,7 @@ def validate_solution_output(bb) -> Dict[str, Any]:
 
 
 def _validate_schema(bb) -> List[Dict[str, str]]:
-    """验证 final_solution 的结构和必要字段（V4: 调用 quality_utils）"""
+    """验证 final_solution 的结构和必要字段（V4: 调用 quality_utils + Pydantic Cage 验证）"""
     failures = []
 
     # 读取 final_solution（可能是 JSON dict 或不存在）
@@ -143,10 +143,28 @@ def _validate_schema(bb) -> List[Dict[str, str]]:
         ip = final_solution["implementation_phases"]
         if isinstance(ip, list) and len(ip) == 0:
             failures.append({
-                "severity": "warning",
+                "severity": "critical",
                 "check": "schema",
-                "message": "implementation_phases 为空列表",
+                "message": "implementation_phases 为空列表，必须包含至少 1 个阶段",
             })
+    else:
+        failures.append({
+            "severity": "critical",
+            "check": "schema",
+            "message": "implementation_phases 字段缺失，必须包含至少 1 个阶段",
+        })
+
+    # P1-FIX: Pydantic 完整验证 — 触发 Cage 验证器 (FS1/FS2/FS3)
+    # 基础字段检查无法捕获语义级错误（如覆盖率不一致、提取失败未标注等）
+    try:
+        from domains.solution_pro.schemas.schemas import FinalSolutionSchema
+        FinalSolutionSchema(**final_solution)
+    except Exception as e:
+        failures.append({
+            "severity": "critical",
+            "check": "pydantic_validation",
+            "message": f"FinalSolutionSchema 验证失败: {e}",
+        })
 
     return failures
 

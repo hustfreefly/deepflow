@@ -58,8 +58,11 @@ spawn Worker → exec: pm.wait_for()（阻塞等待）→ exec 验证 → spawn 
 **你的 task 中包含 `RUN_ID=xxx`，你必须在每个关键步骤调用心跳，在完成时调用 mark_completed。**
 
 ```python
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
 from core.process_manager import ModuleLifecycleManager
-lifecycle = ModuleLifecycleManager('{deepflow_root}/blackboard/{session_id}')
+lifecycle = ModuleLifecycleManager(str(bb.session_dir))
 run_id = '从 task 中提取的 RUN_ID'
 
 # Step 0: 标记运行开始
@@ -129,8 +132,13 @@ cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import pathlib
 bm = BlackboardManager('{session_id}')
-prompt = pathlib.Path('domains/solution_pro/prompts/summary_base_synthesizer.md').read_text()
-prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+from core.prompt_utils import render_prompt
+result = render_prompt(
+    'domains/solution_pro/prompts/summary_base_synthesizer.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+prompt = result.content
 bm.write('summary_base_synthesizer_prompt.md', prompt, subdir='stages')
 print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 "
@@ -138,18 +146,27 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 
 **1.2 Spawn Worker + 轮询等待：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/summary_base_synthesizer_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_base_synthesizer",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/summary_base_synthesizer_prompt.md\n\n读取后按指令执行。",
-    cwd="{deepflow_root}", lightContext=True,
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    cwd=_deepflow_root, lightContext=True,
 )
 ```
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
 from core.process_manager import ProcessManager
-pm = ProcessManager('{deepflow_root}/blackboard/{session_id}')
+pm = ProcessManager(str(bb.session_dir))
 result = pm.wait_for('stages/base_solution.json', timeout=1800, poll_interval=15)
 print(f'BASE_SOLUTION: found={result.found}, elapsed={result.elapsed:.0f}s, size={result.file_size}')
 "
@@ -184,8 +201,13 @@ cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import pathlib
 bm = BlackboardManager('{session_id}')
-prompt = pathlib.Path('domains/solution_pro/prompts/summary_meta_planner.md').read_text()
-prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+from core.prompt_utils import render_prompt
+result = render_prompt(
+    'domains/solution_pro/prompts/summary_meta_planner.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+prompt = result.content
 bm.write('summary_meta_planner_prompt.md', prompt, subdir='stages')
 print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 "
@@ -193,18 +215,27 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 
 **2.2 Spawn Worker + 轮询等待：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/summary_meta_planner_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_meta_planner",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/summary_meta_planner_prompt.md\n\n读取后按指令执行。",
-    cwd="{deepflow_root}", lightContext=True,
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    cwd=_deepflow_root, lightContext=True,
 )
 ```
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
 from core.process_manager import ProcessManager
-pm = ProcessManager('{deepflow_root}/blackboard/{session_id}')
+pm = ProcessManager(str(bb.session_dir))
 result = pm.wait_for('stages/summary_plan.json', timeout=1200, poll_interval=15)
 print(f'SUMMARY_PLAN: found={result.found}, elapsed={result.elapsed:.0f}s')
 "
@@ -255,7 +286,12 @@ plan_text = plan if isinstance(plan, str) else str(plan)
 analyzer_names = re.findall(r'## Analyzer:\s*(\S+)', plan_text)
 print(f'ANALYZERS_TO_SPAWN: {analyzer_names}')
 
-base_prompt = pathlib.Path('domains/solution_pro/prompts/summary_analyzer_base.md').read_text()
+base_prompt_result = render_prompt(
+    'domains/solution_pro/prompts/summary_analyzer_base.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+base_prompt = base_prompt_result.content
 
 for name in analyzer_names:
     safe_name = name.replace('/', '_').replace(' ', '_')
@@ -263,8 +299,13 @@ for name in analyzer_names:
     # 从 summary_plan 中找到对应的 block
     prompt_path = session_dir / 'stages' / f'summary_analyzer_{safe_name}_prompt.md'
     if not prompt_path.exists():
-        prompt = base_prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
-        prompt = prompt.replace('{analyzer_name}', name)
+        result = render_prompt(
+            'domains/solution_pro/prompts/summary_analyzer_base.md',
+            session_id='{session_id}',
+            deepflow_root='{deepflow_root}',
+            analyzer_name=name,
+        )
+                prompt = result.content
         # 从 plan 中提取该 Analyzer 的 focus 和 questions
         # (简化：让 Analyzer 自己从 summary_plan 中提取)
         prompt_path.write_text(prompt)
@@ -277,11 +318,16 @@ print(f'ANALYZERS_TOTAL: {len(analyzer_names)}')
 
 对每个 analyzer 执行 sessions_spawn：
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
-    runtime="subagent", mode="run", label="summary_analyzer_{name}",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/summary_analyzer_{name}_prompt.md\n\n读取后按指令执行。你的输出必须写入 blackboard 的 stages/analysis_{name}.json。",
-    cwd="{deepflow_root}", lightContext=True,
+    runtime="subagent", mode="run", label=f"summary_analyzer_{name}",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {bb.resolve_path(f'stages/summary_analyzer_{name}_prompt.md')}\n\n读取后按指令执行。你的输出必须写入 blackboard 的 stages/analysis_{name}.json。",
+    cwd=_deepflow_root, lightContext=True,
 )
 ```
 
@@ -289,7 +335,6 @@ sessions_spawn(
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
-from core.process_manager import ProcessManager
 from core.blackboard.blackboard_manager import BlackboardManager
 import re
 
@@ -298,7 +343,7 @@ plan = bm.read_stage('summary_plan')
 plan_text = plan if isinstance(plan, str) else str(plan)
 analyzer_names = [n.replace('/', '_').replace(' ', '_') for n in re.findall(r'## Analyzer:\s*(\S+)', plan_text)]
 
-pm = ProcessManager('{deepflow_root}/blackboard/{session_id}')
+pm = ProcessManager(str(bm.session_dir))
 expected_files = [f'stages/analysis_{name}.json' for name in analyzer_names]
 results = pm.wait_for_all(expected_files, timeout=2400, poll_interval=15)
 
@@ -325,8 +370,13 @@ cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import pathlib
 bm = BlackboardManager('{session_id}')
-prompt = pathlib.Path('domains/solution_pro/prompts/summary_fix_judge.md').read_text()
-prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+from core.prompt_utils import render_prompt
+result = render_prompt(
+    'domains/solution_pro/prompts/summary_fix_judge.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+prompt = result.content
 bm.write('summary_fix_judge_prompt.md', prompt, subdir='stages')
 print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 "
@@ -334,18 +384,27 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 
 **4.2 Spawn Worker + 轮询等待：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/summary_fix_judge_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_fix_judge",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/summary_fix_judge_prompt.md\n\n读取后按指令执行。",
-    cwd="{deepflow_root}", lightContext=True,
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    cwd=_deepflow_root, lightContext=True,
 )
 ```
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
 from core.process_manager import ProcessManager
-pm = ProcessManager('{deepflow_root}/blackboard/{session_id}')
+pm = ProcessManager(str(bb.session_dir))
 result = pm.wait_for('stages/fix_plan.json', timeout=1200, poll_interval=15)
 print(f'FIX_PLAN: found={result.found}, elapsed={result.elapsed:.0f}s')
 "
@@ -376,8 +435,13 @@ cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import pathlib
 bm = BlackboardManager('{session_id}')
-prompt = pathlib.Path('domains/solution_pro/prompts/summary_refiner.md').read_text()
-prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+from core.prompt_utils import render_prompt
+result = render_prompt(
+    'domains/solution_pro/prompts/summary_refiner.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+prompt = result.content
 bm.write('summary_refiner_prompt.md', prompt, subdir='stages')
 print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 "
@@ -385,18 +449,27 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 
 **5.2 Spawn Worker + 轮询等待：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/summary_refiner_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_refiner",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/summary_refiner_prompt.md\n\n读取后按指令执行。",
-    cwd="{deepflow_root}", lightContext=True,
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    cwd=_deepflow_root, lightContext=True,
 )
 ```
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
 from core.process_manager import ProcessManager
-pm = ProcessManager('{deepflow_root}/blackboard/{session_id}')
+pm = ProcessManager(str(bb.session_dir))
 result = pm.wait_for('stages/refined_solution.json', timeout=1800, poll_interval=15)
 print(f'REFINED_SOLUTION: found={result.found}, elapsed={result.elapsed:.0f}s')
 "
@@ -427,8 +500,13 @@ cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import pathlib
 bm = BlackboardManager('{session_id}')
-prompt = pathlib.Path('domains/solution_pro/prompts/summary_harness_check.md').read_text()
-prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+from core.prompt_utils import render_prompt
+result = render_prompt(
+    'domains/solution_pro/prompts/summary_harness_check.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+prompt = result.content
 bm.write('summary_harness_check_prompt.md', prompt, subdir='stages')
 print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 "
@@ -436,18 +514,27 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 
 **6.2 Spawn Worker + 轮询等待：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/summary_harness_check_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_harness_check",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/summary_harness_check_prompt.md\n\n读取后按指令执行。",
-    cwd="{deepflow_root}", lightContext=True,
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    cwd=_deepflow_root, lightContext=True,
 )
 ```
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
 from core.process_manager import ProcessManager
-pm = ProcessManager('{deepflow_root}/blackboard/{session_id}')
+pm = ProcessManager(str(bb.session_dir))
 result = pm.wait_for('stages/verification_result.json', timeout=1200, poll_interval=15)
 print(f'VERIFICATION_RESULT: found={result.found}, elapsed={result.elapsed:.0f}s')
 "
@@ -493,11 +580,17 @@ else:
 
 如果 Harness Check FAIL → 重新 spawn Refiner（附带失败详情）→ 再跑 Harness Check：
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/summary_refiner_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_refiner_retry",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/summary_refiner_prompt.md\n\n读取后按指令执行。\n\n## 🔴 额外指令：Harness Check 回修\n读取 stages/verification_result.json 中的失败项，在 refined_solution 基础上定向修复。\n重点关注：failed_checks + missing_p0_reqs + guardrails_violated。\n修复后重新写入 stages/refined_solution.json。",
-    cwd="{deepflow_root}", lightContext=True,
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。\n\n## 🔴 额外指令：Harness Check 回修\n读取 stages/verification_result.json 中的失败项，在 refined_solution 基础上定向修复。\n重点关注：failed_checks + missing_p0_reqs + guardrails_violated。\n修复后重新写入 stages/refined_solution.json。",
+    cwd=_deepflow_root, lightContext=True,
 )
 ```
 
@@ -544,8 +637,13 @@ cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import pathlib
 bm = BlackboardManager('{session_id}')
-prompt = pathlib.Path('domains/solution_pro/prompts/summary_summarizer.md').read_text()
-prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+from core.prompt_utils import render_prompt
+result = render_prompt(
+    'domains/solution_pro/prompts/summary_summarizer.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+prompt = result.content
 bm.write('summary_summarizer_prompt.md', prompt, subdir='stages')
 print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 "
@@ -553,18 +651,27 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 
 **7.2 Spawn Worker + 轮询等待：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/summary_summarizer_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_document_writer",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/summary_summarizer_prompt.md\n\n读取后按指令执行。",
-    cwd="{deepflow_root}", lightContext=True,
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    cwd=_deepflow_root, lightContext=True,
 )
 ```
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
 from core.process_manager import ProcessManager
-pm = ProcessManager('{deepflow_root}/blackboard/{session_id}')
+pm = ProcessManager(str(bb.session_dir))
 result = pm.wait_for('stages/solution_document.json', timeout=1800, poll_interval=15)
 print(f'SOLUTION_DOCUMENT: found={result.found}, elapsed={result.elapsed:.0f}s')
 "
@@ -595,8 +702,13 @@ cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
 import pathlib
 bm = BlackboardManager('{session_id}')
-prompt = pathlib.Path('domains/solution_pro/prompts/summary_json_extractor.md').read_text()
-prompt = prompt.replace('{session_id}', '{session_id}').replace('{deepflow_root}', '{deepflow_root}')
+from core.prompt_utils import render_prompt
+result = render_prompt(
+    'domains/solution_pro/prompts/summary_json_extractor.md',
+    session_id='{session_id}',
+    deepflow_root='{deepflow_root}',
+)
+prompt = result.content
 bm.write('summary_json_extractor_prompt.md', prompt, subdir='stages')
 print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 "
@@ -604,18 +716,27 @@ print(f'PROMPT_WRITTEN: {len(prompt)} bytes')
 
 **8.2 Spawn Worker + 轮询等待：**
 
-```
+```python
+# 路径通过 PathManager 安全验证
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+_prompt_path = bb.resolve_path('stages/summary_json_extractor_prompt.md')
+_deepflow_root = str(bb.session_dir.parent.parent)
+
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_json_extractor",
-    task="cd {deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {deepflow_root}/blackboard/{session_id}/stages/summary_json_extractor_prompt.md\n\n读取后按指令执行。",
-    cwd="{deepflow_root}", lightContext=True,
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    cwd=_deepflow_root, lightContext=True,
 )
 ```
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+bb = BlackboardManager('{session_id}')
+
 from core.process_manager import ProcessManager
-pm = ProcessManager('{deepflow_root}/blackboard/{session_id}')
+pm = ProcessManager(str(bb.session_dir))
 result = pm.wait_for('stages/final_solution.json', timeout=900, poll_interval=15)
 print(f'FINAL_SOLUTION: found={result.found}, elapsed={result.elapsed:.0f}s')
 "
@@ -705,7 +826,7 @@ Summary 各 Worker 的输入必须包含 research_digest 的完整 findings（�
 | # | Step | 角色 | Prompt 文件 | 输入 stage | 输出 stage |
 |---|------|------|-----------|-----------|----------|
 | 1 | Phase 1 | Base Synthesizer | `summary_base_synthesizer.md` | research_digest, planning_convergence | `base_solution` |
-| 2 | Phase 2 | Meta Planner | `summary_meta_planner.md` | base_solution, finding_coverage | `summary_plan` |
+| 2 | Phase 2 | Meta Planner | `summary_meta_planner.md` | base_solution, research_digest | `summary_plan` |
 | 3 | Phase 3 | Analyzers ×N (并行) | `summary_analyzer_base.md` | summary_plan, base_solution | `analysis_{name}` |
 | 4 | Phase 4a | **Fix Judge** 🆕 | `summary_fix_judge.md` | analysis_*, base_solution | `fix_plan` |
 | 5 | Phase 4b | Refiner | `summary_refiner.md` | fix_plan, base_solution | `refined_solution` |

@@ -311,8 +311,9 @@ class TestStateManager:
         assert "custom_phase" in state_mgr.state.stages
         assert state_mgr.state.stages["custom_phase"].status == "running"
     
+    @pytest.mark.skip(reason="P0 FIX: pipeline_state.json 已废弃，.runs/*.run.json 是唯一状态源")
     def test_state_persistence(self, temp_blackboard):
-        """状态持久化测试"""
+        """状态持久化测试 — 已废弃（pipeline_state.json 不再写入）"""
         state_mgr1 = StateManager(temp_blackboard)
         run_id = state_mgr1.state.run_id
         state_mgr1.update_stage("planner", "running")

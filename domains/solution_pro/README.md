@@ -1,8 +1,8 @@
-# Solution Pro V2.1.1 — 领域自适应方案设计引擎
+# Solution Pro V4.0 — 领域自适应方案设计引擎
 
-> **版本**: V2.1.1 (2026-07-08)
-> **架构**: DAL 领域自适应 + MasterOrchestrator → Planning（三层）+ Research（多专家并行）+ Summary（5+1 Phase 收敛）
-> **测试**: 127 passed, 10 skipped, 0 failures
+> **版本**: V4.0.0 (2026-07-27)  
+> **架构**: 纯 Agent Orchestrator（V4.0 简化版）  
+> **测试**: 30 passed, 0 failures
 
 ---
 
@@ -13,33 +13,46 @@
     ↓
 DomainAnalysis（domain_analysis.py）
     ↓ DomainProfile（10 字段 Pydantic schema）
-MasterOrchestrator（master_orchestrator.py, 29 def）
-    ↓ set_domain_profile() + 三级 fallback
-┌─────────────────────────────────────────────┐
-│ Module 1: Planning（三层架构）               │
-│   Layer 0: Meta-Planner → 选专家 + 配 Gate  │
-│   Layer 1: Expert Planners ×N（并行）       │
-│   Layer 2: Convergence Planner → 合并验证   │
-│   → planning_convergence.json               │
-│                                             │
-│ Module 2: Research（多专家并行研究）          │
-│   Stage 1: Knowledge Freshness + web_search │
-│   Stage 2: Expert Config（动态）            │
-│   Stage 3: Research Experts ×M（并行）      │
-│   Stage 4: Consolidation（去重+冲突检测）    │
-│   Stage 5: Convergence                      │
-│   → research_convergence.json               │
-│                                             │
-│ Module 3: Summary（5+1 Phase 收敛）         │
-│   Phase 1: Base Synthesis                   │
-│   Phase 2: Meta Summary Planner             │
-│   Phase 3: Parallel Analysis ×N             │
-│   Phase 4: Fix Judge → Fix Agent            │
-│   Phase 5a: Document Generator              │
-│   Phase 5b: JSON Extractor                  │
-│   → final_solution.json + solution_document │
-└─────────────────────────────────────────────┘
+Orchestrator Agent（纯 LLM 调度器，depth-1）
+    ↓ sessions_spawn
+┌─────────────────────────────────────┐
+│ Module 1: Planning（三层架构）       │
+│   Layer 0: Meta-Planner → 选专家   │
+│   Layer 1: Expert Planners ×N      │
+│   Layer 2: Convergence Planner     │
+│   → planning_convergence.json       │
+│                                     │
+│ Module 2: Research（多专家并行）     │
+│   Stage 1: Knowledge Freshness     │
+│   Stage 2: Expert Config（动态）   │
+│   Stage 3: Research Experts ×M     │
+│   Stage 4: Consolidation           │
+│   Stage 5: Convergence             │
+│   → research_convergence.json       │
+│                                     │
+│ Module 3: Summary（5+1 Phase）     │
+│   Phase 1: Base Synthesis          │
+│   Phase 2: Meta Summary Planner    │
+│   Phase 3: Parallel Analysis ×N    │
+│   Phase 4: Fix Judge → Fix Agent   │
+│   Phase 5a: Document Generator     │
+│   Phase 5b: JSON Extractor         │
+│   → final_solution.json            │
+└─────────────────────────────────────┘
+    ↓
+.completed 标记文件
 ```
+
+### V4.0 简化变更
+
+- ❌ 移除 Orchestrator 内置后置验证（L0 post_validator + L2 对抗审查 + L2 一致性检查）
+- ✅ Orchestrator 简化为 3 步：初始化 → 模块执行 → 完成标记
+- ✅ 状态机从 13 状态简化为 10 状态
+- ✅ spawn 调用点从 5 个减少到 3 个
+- ✅ 代码行数减少 23%（390→299 行）
+
+> **Note**: V4.0 中 post_validator.py 和对抗 Agent 不再是 orchestrator 管线的内置步骤。
+> 它们作为独立工具可供外部调用或按需手动触发。
 
 ### DAL（Domain Adaptation Layer）
 
@@ -56,22 +69,27 @@ MasterOrchestrator（master_orchestrator.py, 29 def）
 
 | 文件 | 职责 |
 |:---|:---|
-| `master_orchestrator.py` | 主编排器（29 def），统一入口 + DAL 注入 |
-| `planning_orchestrator.py` | Planning 三层架构编排 |
-| `research_orchestrator.py` | Research 多专家并行编排 |
-| `summary_orchestrator.py` | Summary 5+1 Phase 收敛编排 |
-| `module_orchestrator_base.py` | 模块编排器基类 |
+| `__init__.py` | 公共 API `run_solution_pro()`（V4.0 入口） |
 | `domain_analysis.py` | DAL 核心：DomainProfile + LLM prompt + parser |
-| `convergence_layer.py` | 收敛层：Gate A/B 重构（V2.1.1 P0 修复） |
+| `blackboard.py` | Blackboard 状态持久化 |
+| `pulse.py` | Pulse 脉冲调度（独立监控系统） |
+| `post_validator.py` | L0 下限守卫（独立工具，非 orchestrator 内置） |
+
+### Prompt 文件
+
+| 文件 | 职责 |
+|:---|:---|
+| `prompts/orchestrator.md` | Orchestrator V4.0 调度器 prompt |
+| `prompts/planning_module.md` | Planning Module Agent prompt |
+| `prompts/research_module.md` | Research Module Agent prompt |
+| `prompts/summary_module.md` | Summary Module Agent prompt |
 
 ### 辅助模块
 
 | 文件 | 职责 |
 |:---|:---|
-| `blackboard.py` | Blackboard 状态持久化 |
-| `state_manager.py` | 断点续跑状态管理 |
-| `harness_scorer.py` | Harness 评分（V2.1.1: 弱维度信号 + LLM 生成建议） |
-| `information_conservation.py` | 信息守恒检查（V2.1.1: 参数化权重/阈值） |
+| `harness_scorer.py` | Harness 评分（V4.0: 弱维度信号 + LLM 生成建议） |
+| `information_conservation.py` | 信息守恒检查（V4.0: 参数化权重/阈值） |
 | `task_builder.py` | Task 构建器（注入 domain_profile） |
 | `control_contract.py` | 控制流契约 |
 | `normalize.py` | 数据标准化 |
@@ -83,11 +101,11 @@ MasterOrchestrator（master_orchestrator.py, 29 def）
 
 | 目录 | 内容 |
 |:---|:---|
-| `schemas/schemas.py` | Pydantic schema 定义（Cage F6/F7 结构化字段） |
+| `schemas/schemas.py` | Pydantic schema 定义 |
 | `contracts/` | Stage/Pipeline 契约定义 |
-| `config/domain_loader.py` | 域配置加载（V2.1.1: 仅 software fallback） |
+| `config/domain_loader.py` | 域配置加载（V4.0: 仅 software fallback） |
 | `prompts/` | 39 个 prompt 模板 |
-| `tests/` | 137 tests |
+| `tests/` | 30 tests |
 | `scripts/` | 辅助脚本 |
 | `eval/` | 评估工具 |
 
@@ -117,19 +135,20 @@ MasterOrchestrator（master_orchestrator.py, 29 def）
 ## 快速开始
 
 ```python
-from domains.solution_pro.master_orchestrator import MasterOrchestrator
-from domains.solution_pro.blackboard import BlackboardManager
+from domains.solution_pro import run_solution_pro
 
-# 创建 Blackboard
-session_id = "sol_{timestamp}"
-bb = BlackboardManager(session_id)
+# 运行 Solution Pro V4.0
+result = run_solution_pro(
+    user_input="需求描述",
+    topic="主题",
+    solution_type="team_design",
+)
 
-# 保存 frozen_spec
-bb.write("data/frozen_spec.json", frozen_spec)
+# 获取 spawn_params
+spawn_params = result["spawn_params"]
 
-# 创建并运行 MasterOrchestrator
-master = MasterOrchestrator(blackboard=bb, spawn_fn=spawn_fn)
-result = master.run(user_input="需求描述", config={"topic": "主题"})
+# 使用 sessions_spawn 启动 Orchestrator
+# sessions_spawn(**spawn_params)
 ```
 
 ---
@@ -138,40 +157,37 @@ result = master.run(user_input="需求描述", config={"topic": "主题"})
 
 | 版本 | 日期 | 核心变更 |
 |:---|:---|:---|
-| **V2.1.1** | 2026-07-08 | AI Native 反模式修复：Cage F6/F7 结构化、harness 去硬编码、DAL 完善 |
-| **V2.1.0** | 2026-07-07 | DAL 领域自适应：DomainProfile 10 字段 + 4 YAML few-shot + 16+ Prompt 泛化 |
-| **V2.0.0** | 2026-06-29 | 三层架构（Planning + Research + Summary）+ 断点续跑 + 超时降级 |
+| **V4.0.0** | 2026-07-27 | 移除 Step 4/5 后置验证，orchestrator 简化为 3 步 |
+| **V3.1.0** | 2026-07-14 | 删除 Python orchestrator 层 + 新增对抗 Agent |
+| **V2.1.1** | 2026-07-08 | AI Native 反模式修复：Cage F6/F7 结构化、harness 去硬编码 |
+| **V2.1.0** | 2026-07-07 | DAL 领域自适应：DomainProfile 10 字段 + 4 YAML few-shot |
+| **V2.0.0** | 2026-06-29 | 三层架构（Planning + Research + Summary）+ 断点续跑 |
 
-### V2.1.1 修复详情（2026-07-08）
+### V4.0.0 变更详情（2026-07-27）
 
-9 个反模式修复（3 P0 + 6 P1），清除代码中"用代码做语义判断"的反模式：
+- ❌ 移除 Orchestrator 内置后置验证（L0 post_validator + L2 对抗审查 + L2 一致性检查）
+- ❌ 移除 POST_VALIDATION 状态
+- ✅ Orchestrator 简化为 3 步：初始化 → 模块执行 → 完成标记
+- ✅ 状态机从 13 状态简化为 10 状态
+- ✅ spawn 调用点从 5 个减少到 3 个
+- ✅ 代码行数减少 23%（390→299 行）
+- ✅ post_validator.py 和对抗 Agent 作为独立工具可供外部调用
 
-| 优先级 | 问题 | 修复 |
-|:---|:---|:---|
-| P0 | Gate B 关键词命中率判定 | → SKIPPED（不伪造语义判断） |
-| P0 | 前 20 字符子串匹配研究利用率 | → [REF-xxx] 引用标记（确定性） |
-| P0 | 硬编码四维度语义分 | → raw_metrics + Layer 2 LLM |
-| P1 | Cage F6 关键词触发器 | → 结构化 control_flow_type 枚举 |
-| P1 | Cage F7 正则提取阈值 | → 结构化 threshold_value 字段 |
-| P1 | VERDICT_SCORE_MAP 硬编码映射 | → Fallback + 优先读 LLM 数值分 |
-| P1 | harness 硬编码改进建议 | → 弱维度信号 + LLM 生成建议 |
-| P1 | conservation 权重/阈值硬编码 | → DEFAULT_WEIGHTS + 参数化 |
-| P1 | domain_loader 4 域硬编码 | → 仅 software fallback + YAML |
+### V3.1.0 变更详情（2026-07-14）
 
-### V2.1.0 变更详情（2026-07-07）
-
-- **DAL 引入**: domain_analysis.py (DomainProfile 10 字段) + domain_loader.py (4 YAML few-shot)
-- **三级 fallback**: 显式指定 → DomainAnalysis 推断 → software 默认
-- **术语统一**: "技术选型"→"关键选型"、"架构设计"→"方案设计"
-- **Schema 开放**: DOMAIN_CATEGORIES Literal→str + SemanticAnchor.category 开放
-- **Pipeline 修复**: ResearchOrchestrator 未传递 domain_profile 给 Worker
+- ❌ 删除 Python orchestrator 层（MasterOrchestrator / PlanningOrchestrator / ResearchOrchestrator / SummaryOrchestrator）
+- ❌ 删除 bridge 模式（FileBasedSpawnBridge）
+- ❌ 删除 Gate A/B 数值评分（convergence_layer.py）
+- ✅ Module Agent 直接通过 `sessions_spawn` 创建 Workers
+- ✅ 新增对抗 Agent（语义质量审查 + 跨模块一致性检查）
+- ✅ 保留 post_validator.py 作为 L0 下限守卫
 
 ---
 
 ## 禁止事项
 
 - ❌ Python 代码中禁止直接 import OpenClaw SDK（使用 `sessions_spawn` 工具）
-- ❌ MasterOrchestrator 做语义判断（只做调度）
+- ❌ Orchestrator 做语义判断（只做调度）
 - ❌ 用正则/if-else 做语义分类或评分
 - ❌ 手动拼接 stage 路径（使用 BlackboardManager API）
 

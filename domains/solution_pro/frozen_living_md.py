@@ -379,7 +379,7 @@ def _parse_md_sections(body: str) -> dict[str, str]:
     current: str | None = None
     lines: list[str] = []
     for line in body.split("\n"):
-        m = re.match(r"^##\s+(\S+)", line)
+        m = re.match(r"^##\s+(.+?)$", line)
         if m:
             if current is not None:
                 sections[current] = "\n".join(lines).strip()

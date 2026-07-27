@@ -1,54 +1,49 @@
 # Solution Pro 质量评估指南
 
-> **版本**: 2.0.0 | **更新日期**: 2026-06-20  
-> **适用范围**: Solution Pro 10 阶段管线的质量评估  
-> **评估框架**: Harness 四维评分 + 15维宪法 + Multi-Reviewer 机制
+> **版本**: 4.0.0 | **更新日期**: 2026-07-27  
+> **适用范围**: Solution Pro V4.0 简化管线的质量评估  
+> **评估框架**: Module 内置 Harness + L0 post_validator（独立工具）+ L2 对抗审查（独立工具）
 
 ---
 
 ## 一、概述
 
-Solution Pro 采用**三层质量评估体系**：
+Solution Pro V4.0 采用**模块化质量评估体系**：
 
-1. **Harness 四维评分** — 每个阶段输出的质量门禁
-2. **15维质量宪法** — 方案设计的核心质量标准
-3. **Multi-Reviewer 机制** — 3路并行评审（技术/业务/风险）
+1. **Module 内置 Harness** — 每个 Module Agent 内部的质量门禁
+2. **L0 下限守卫** — post_validator.py（独立工具，非 orchestrator 内置）
+3. **L2 上限提升** — 对抗 Agent（独立工具，非 orchestrator 内置）
 
-### 质量评估流程
+### V4.0 质量架构变更
+
+> **Note**: V4.0 中 post_validator.py 和对抗 Agent 不再是 orchestrator 管线的内置步骤。
+> 它们作为独立工具可供外部调用或按需手动触发。
 
 ```
-Stage Output (JSON)
-    │
-    ▼
-┌─────────────────────────────────────┐
-│ Harness Scorer (4维度)              │
-│  ├─ 完整性 (30%)                    │
-│  ├─ 必要性 (20%)                    │
-│  ├─ 目标一致性 (30%)                │
-│  └─ 全局影响 (20%)                  │
-└─────────────────────────────────────┘
-    │
-    ▼ PASS (≥0.85) / WARNING / CRITICAL / BLOCK
-    │
-    ▼
-┌─────────────────────────────────────┐
-│ Multi-Reviewer (3路并行)            │
-│  ├─ Reviewer Technical              │
-│  ├─ Reviewer Business               │
-│  └─ Reviewer Risk                   │
-└─────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────┐
-│ Consolidator (合并评审意见)         │
-└─────────────────────────────────────┘
+Orchestrator V4.0（简化管线）
+  │
+  ├── Planning Module Agent
+  │   └── 内置 Harness（Gate A/B）
+  │
+  ├── Research Module Agent
+  │   └── 内置 Harness（Gate A/B）
+  │
+  └── Summary Module Agent
+      └── 内置 Harness（Gate A/B + Fix Loop）
+  │
+  ↓
+.completed 标记文件
+
+（可选）外部质量检查
+  ├── L0: post_validator.py（独立调用）
+  └── L2: adversarial_quality_reviewer + cross_module_consistency_checker（独立调用）
 ```
 
 ---
 
-## 二、Harness 四维评分
+## 二、Module 内置 Harness
 
-### 2.1 评分维度
+### 2.1 Harness 四维评分
 
 | 维度 | 权重 | 评估内容 | 阈值 |
 |------|------|---------|------|
@@ -78,9 +73,103 @@ Stage Output (JSON)
 
 ---
 
-## 三、15维质量宪法
+## 三、L0 下限守卫（独立工具）
 
-### 3.1 宪法维度
+### 3.1 post_validator.py
+
+**职责**: Schema 验证 + 需求覆盖率 + 信息守恒检查
+
+**调用方式**:
+```python
+from domains.solution_pro.post_validator import validate_solution_output
+from core.blackboard.blackboard_manager import BlackboardManager
+
+bb = BlackboardManager(session_id)
+result = validate_solution_output(bb)
+
+if result['passed']:
+    print('L0 validation passed')
+else:
+    print(f'L0 validation failed: {result["failures"]}')
+```
+
+**检查项**:
+1. **Schema 验证** — final_solution 结构和必要字段
+2. **需求覆盖率** — requirement_index 中的需求是否在输出中被覆盖
+3. **信息守恒** — semantic_anchors 是否保留
+
+**返回值**:
+```python
+{
+    "passed": bool,
+    "failures": [{"severity": str, "check": str, "message": str}],
+    "summary": {"total_checks": int, "passed": int, "failed": int}
+}
+```
+
+### 3.2 使用场景
+
+- **手动调用**: 在 E2E 测试后手动运行 L0 验证
+- **CI/CD 集成**: 在自动化测试流程中调用
+- **按需触发**: 在质量审查时调用
+
+---
+
+## 四、L2 上限提升（独立工具）
+
+### 4.1 对抗 Agent
+
+**Adversarial Quality Reviewer** — 语义质量审查
+
+**调用方式**:
+```python
+from core.blackboard.blackboard_manager import BlackboardManager
+from core.prompt_utils import render_prompt
+
+bb = BlackboardManager(session_id)
+result = render_prompt(
+    'domains/solution_pro/prompts/adversarial_quality_reviewer.md',
+    session_id=session_id,
+    deepflow_root='/path/to/deepflow',
+    module_name='summary',
+    module_output_file='final_solution',
+)
+bb.write('adversarial_quality_reviewer.md', result.content, subdir='stages')
+
+# spawn adversarial_reviewer agent
+# sessions_spawn(...)
+```
+
+**输出**: `stages/adversarial_review_summary.json`
+
+**Cross-Module Consistency Checker** — 跨模块数据流检查
+
+**调用方式**:
+```python
+result = render_prompt(
+    'domains/solution_pro/prompts/cross_module_consistency_checker.md',
+    session_id=session_id,
+    deepflow_root='/path/to/deepflow',
+)
+bb.write('cross_module_consistency_checker.md', result.content, subdir='stages')
+
+# spawn consistency_checker agent
+# sessions_spawn(...)
+```
+
+**输出**: `stages/consistency_check.json`
+
+### 4.2 使用场景
+
+- **质量审查**: 在关键交付前运行 L2 审查
+- **问题诊断**: 在发现质量问题时运行 L2 诊断
+- **持续改进**: 收集 L2 审查结果用于改进 prompt
+
+---
+
+## 五、15维质量宪法
+
+### 5.1 宪法维度
 
 | 类别 | 维度 | 说明 |
 |------|------|------|
@@ -100,68 +189,9 @@ Stage Output (JSON)
 | **成本** | 14. 开发成本 | 工时和复杂度合理 |
 | | 15. 运维成本 | 长期运维成本可控 |
 
-### 3.2 评估方法
+### 5.2 评估方法
 
 每个维度评分 0-100，加权平均得到总分。
-
----
-
-## 四、Multi-Reviewer 机制
-
-### 4.1 三路并行评审
-
-| Reviewer | 关注点 | 输出 |
-|----------|--------|------|
-| Technical | 技术可行性、架构合理性、性能瓶颈 | `stages/reviewer_technical.json` |
-| Business | 业务价值、用户需求匹配、市场定位 | `stages/reviewer_business.json` |
-| Risk | 风险识别、缓解策略、应急预案 | `stages/reviewer_risk.json` |
-
-### 4.2 评审合并
-
-Consolidator 合并三路评审意见，生成统一的改进建议列表。
-
----
-
-## 五、Prompt 文件索引
-
-### 5.1 核心 Prompt
-
-| Prompt | 用途 | 版本 |
-|--------|------|------|
-| `pipeline_orchestrator.md` | 管线编排器 | 5.4.0 |
-| `planner.md` | 规划阶段 | 5.4.0 |
-| `designer.md` | 设计阶段 | 5.4.0 |
-| `deliver.md` | 交付阶段 | 5.4.0 |
-| `summarizer.md` | 总结阶段 | 5.5.0 |
-
-### 5.2 评审 Prompt
-
-| Prompt | 用途 | 版本 |
-|--------|------|------|
-| `reviewer.md` | 评审阶段 | 5.4.1 |
-| `consolidator.md` | 合并评审 | 5.4.1 |
-| `auditor.md` | 审计阶段 | 5.4.0 |
-| `fixer.md` | 修复阶段 | 5.4.0 |
-
-### 5.3 Harness Prompt
-
-| Prompt | 用途 | 版本 |
-|--------|------|------|
-| `harness_v3.md` | Harness 评分 | 3.0.0 |
-| `harness_scoring.md` | 评分规则 | 2.1.0 |
-
-### 5.4 专家 Prompt
-
-| Prompt | 用途 | 版本 |
-|--------|------|------|
-| `researcher_harness.md` | 研究专家 | 2.1.0 |
-| `planner_harness.md` | 规划专家 | 2.1.0 |
-| `consolidator_harness.md` | 合并专家 | 2.1.0 |
-| `auditor_harness.md` | 审计专家 | 2.1.0 |
-| `fixer_harness.md` | 修复专家 | 2.1.0 |
-| `reviewer_harness.md` | 评审专家 | 2.1.0 |
-| `summarizer_harness.md` | 总结专家 | 2.1.0 |
-| `fixer_expert_harness.md` | 修复专家 2.0.0 | 2.1.0 |
 
 ---
 
@@ -217,17 +247,19 @@ Consolidator 合并三路评审意见，生成统一的改进建议列表。
 
 ## 七、验证脚本
 
-### 7.1 2.0.0 改进测试
+### 7.1 L0 验证
 
 ```bash
-python3 domains/solution_pro/eval/test_v6_improvements.py <path_to_final_result.json>
-```
+cd /Users/allen/.openclaw/workspace/.deepflow && PYTHONPATH=. python3 -c "
+from domains.solution_pro.post_validator import validate_solution_output
+from core.blackboard.blackboard_manager import BlackboardManager
 
-测试项:
-- Summarizer 单文件输出
-- REQ-ID 传播完整性
-- Schema 合规性
-- 数据传播一致性
+bb = BlackboardManager('session_id')
+result = validate_solution_output(bb)
+print(f'Passed: {result[\"passed\"]}')
+print(f'Summary: {result[\"summary\"]}')
+"
+```
 
 ### 7.2 传播检查
 
@@ -236,7 +268,7 @@ python3 domains/solution_pro/eval/propagation_checker.py <blackboard_path>
 ```
 
 检查项:
-- final_result.json 存在性
+- final_solution.json 存在性
 - covered_req_ids 字段完整性
 - requirement_evidence 传播
 
@@ -246,5 +278,6 @@ python3 domains/solution_pro/eval/propagation_checker.py <blackboard_path>
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
-| 2.0.0 | 2026-06-20 | Prompt 文件索引更新（pipeline_orchestrator_v6 → pipeline_orchestrator） |
+| 4.0.0 | 2026-07-27 | V4.0 简化：L0/L2 从 orchestrator 内置步骤变为独立工具 |
+| 2.0.0 | 2026-06-20 | Prompt 文件索引更新 |
 | 2.0.0 | 2026-06-01 | 初始版本 |

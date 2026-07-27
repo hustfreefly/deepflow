@@ -297,13 +297,18 @@ class ModuleLifecycleManager:
                 min_file_sizes,
             )
 
-            # ========== 增强 2: 完成标记检查（辅助信号）==========
-            completed_marker = self.session_dir / "stages" / f".{module}_completed.json"
-            marker_exists = completed_marker.exists()
+            # 🔴 P0 修复：文件有效 = 模块完成的充分条件
+            # 如果 run record 未更新，自动更新（不依赖 LLM 主动调用 mark_completed）
+            if files_valid:
+                if status != "completed":
+                    auto_result = self.mark_completed(
+                        module, run_id,
+                        output_files=self._get_file_details(expected_files or []),
+                    )
+                    completion_source = "auto_update" if auto_result else "run_record"
+                else:
+                    completion_source = "run_record"
 
-            # 完成判定：输出文件有效 + (run record completed OR 完成标记存在)
-            if files_valid and (status == "completed" or marker_exists):
-                completion_source = "run_record" if status == "completed" else "completed_marker"
                 print(
                     f"LIFECYCLE_WAIT_COMPLETED: {module} run_id={run_id} "
                     f"attempt={record.get('attempt')} elapsed={elapsed:.0f}s "
@@ -349,6 +354,50 @@ class ModuleLifecycleManager:
             elapsed=elapsed,
             reason="timeout",
         )
+
+    def recover_zombie_runs(self, max_age: int = 7200) -> list[str]:
+        """
+        检测并修复 zombie running 状态。
+
+        Zombie 定义：status="running" 但 heartbeat 超过 max_age 秒。
+        修复方式：检查输出文件是否存在，存在则 mark_completed，不存在则 mark_failed。
+
+        Returns:
+            修复的模块名列表（格式：["planning: auto-completed", "summary: marked failed"]）
+        """
+        recovered = []
+        expected_files_map = {
+            "planning": ["stages/planning_convergence.json"],
+            "research": ["stages/research_digest.json"],
+            "summary": ["stages/solution_document.json"],
+        }
+
+        for module in ["planning", "research", "summary"]:
+            record = self._read_run(module)
+            if not record or record.get("status") != "running":
+                continue
+
+            last_hb = record.get("last_heartbeat", 0)
+            age = time.time() - last_hb
+            if age < max_age:
+                continue
+
+            # Zombie 检测：检查输出文件
+            expected = expected_files_map.get(module, [])
+            if self._verify_output_files(expected):
+                self.mark_completed(
+                    module, record["run_id"],
+                    output_files=self._get_file_details(expected),
+                )
+                recovered.append(f"{module}: auto-completed")
+            else:
+                record["status"] = "failed"
+                record["failure_reason"] = "zombie_detected_no_output"
+                record["recovered_at"] = time.time()
+                self._write_run(module, record)
+                recovered.append(f"{module}: marked failed")
+
+        return recovered
 
     def _verify_output_files(
         self,

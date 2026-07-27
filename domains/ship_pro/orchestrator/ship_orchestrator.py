@@ -15,6 +15,7 @@ Phase 3: Consolidator → InfoConservationJudge + CompletenessJudge + HarnessJud
 """
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from pydantic import ValidationError
 import json
 from domains.ship_pro.ship_living_md import render_ship_package_md
 from core.blackboard.context_injector import auto_bootstrap
@@ -126,7 +127,7 @@ class ShipOrchestrator:
         self.state_manager = StateManager(blackboard_path)
         self.state = self.state_manager.state
 
-        logger.info
+        logger.info("ShipOrchestrator initialized")
 
     # ========================================================================
     # Phase 1: Planner
@@ -1030,7 +1031,10 @@ Planner → **【你(Worker)】** → Consolidator → 用户
                 if isinstance(data, list):
                     wps = data
                 elif isinstance(data, dict) and "work_packages" in data:
-                    WorkerDeliverable.model_validate(data)
+                    try:
+                        WorkerDeliverable.model_validate(data)
+                    except ValidationError as e:
+                        raise ValueError(f"WorkerDeliverable validation failed: {e}")
                     wps = data.get("work_packages", [])
                 else:
                     raise ValueError(f"未知输出格式: type={type(data).__name__}")
@@ -1050,7 +1054,10 @@ Planner → **【你(Worker)】** → Consolidator → 用户
 
                 # Layer 1a: Pydantic Schema(每个 WP 单独验证)
                 for wp in wps:
-                    WorkPackage.model_validate(wp)
+                    try:
+                        WorkPackage.model_validate(wp)
+                    except ValidationError as e:
+                        raise ValueError(f"WorkPackage validation failed for {wp.get('id', '?')}: {e}")
 
                 # Layer 1b: 内容深度
                 wp_issues = []
@@ -1309,9 +1316,10 @@ Planner → **【你(Worker)】** → Consolidator → 用户
 
         # 契约笼子 (K2): ShipPackage Pydantic 验证
         from ..contracts.ship_package import ShipPackage
+        from pydantic import ValidationError
         try:
             ShipPackage.model_validate(ship_package)
-        except Exception as e:
+        except ValidationError as e:
             logger.warning(f"契约笼子 WARNING: ShipPackage Schema 验证失败: {e}")
             raise ValueError(f"ShipPackage validation failed: {e}")
 

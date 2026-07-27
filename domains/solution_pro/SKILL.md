@@ -1,15 +1,15 @@
 ---
 name: solution-pro
 description: "DeepFlow Solution Pro — 领域自适应方案设计引擎。触发：设计解决方案、架构设计、技术方案。"
-version: "V3.1.0"
+version: "V4.0.0"
 ---
 
 # Solution Pro — Agent 执行指南
 
-> **版本**: V3.1.0 | **最后更新**: 2026-07-14  
-> **架构**: 纯 Agent Orchestrator（V3.1）+ 对抗审查（L2）  
-> **V3.1.0 变更**: 删除 Python orchestrator 层（~7760 行）+ 删除 bridge 模式 + 新增对抗 Agent（语义质量审查 + 跨模块一致性检查）  
-> **质量保证**: L0 下限守卫（post_validator.py）+ L2 上限提升（对抗 Agent）  
+> **版本**: V4.0.0 | **最后更新**: 2026-07-27  
+> **架构**: 纯 Agent Orchestrator（V4.0 简化版）  
+> **V4.0 变更**: 移除 Step 4/5 后置验证，orchestrator 简化为 3 步（初始化→模块执行→完成标记）  
+> **质量保证**: Module 内置 Harness + post_validator.py（独立调用，非 orchestrator 步骤）  
 > **2.1.0 新增**: Domain Adaptation Layer — domain_analysis.py (DomainProfile 10字段) + 16+ Prompt 泛化 + Schema 开放枚举
 
 ---
@@ -29,7 +29,7 @@ version: "V3.1.0"
 
 ---
 
-## 🏗️ 架构总览（V3.1）
+## 🏗️ 架构总览（V4.0）
 
 ```
 Orchestrator Agent（纯 LLM 调度器，depth-1）
@@ -47,11 +47,6 @@ Orchestrator Agent（纯 LLM 调度器，depth-1）
   ├── 📋 Summary Module Agent（depth-2）
   │   └── sessions_spawn → Analyzer + Synthesizer Agents（depth-3）
   │
-  ├── 🔴 L0 下限守卫: post_validator.py（Schema + 覆盖率 + 守恒）
-  │
-  └── 🟢 L2 上限提升:
-      ├── Adversarial Quality Reviewer（语义质量审查）
-      └── Cross-Module Consistency Checker（跨模块数据流检查）
   │   ├── 4 个 YAML 配置降级为 few-shot 参考（software/investment/hardware/business）
   │   └── domain_profile 注入全链路：Planning/Research/Summary → task_builder → Prompt
   │
@@ -77,6 +72,9 @@ Orchestrator Agent（纯 LLM 调度器，depth-1）
       └── Phase 5b: JSON Extractor → final_solution.json
 ```
 
+> **Note**: V4.0 中 post_validator.py 和对抗 Agent 不再是 orchestrator 管线的内置步骤。
+> 它们作为独立工具可供外部调用或按需手动触发。
+
 **V3.1 关键变更**（对比 V2.1）：
 - ❌ 删除 Python orchestrator 层（MasterOrchestrator / PlanningOrchestrator / ResearchOrchestrator / SummaryOrchestrator）
 - ❌ 删除 bridge 模式（FileBasedSpawnBridge）
@@ -84,6 +82,15 @@ Orchestrator Agent（纯 LLM 调度器，depth-1）
 - ✅ Module Agent 直接通过 `sessions_spawn` 创建 Workers
 - ✅ 新增对抗 Agent（语义质量审查 + 跨模块一致性检查）
 - ✅ 保留 post_validator.py 作为 L0 下限守卫
+
+**V4.0 关键变更**（对比 V3.1）：
+- ❌ 移除 Orchestrator 内置后置验证（L0 post_validator + L2 对抗审查 + L2 一致性检查）
+- ❌ 移除 POST_VALIDATION 状态
+- ✅ Orchestrator 简化为 3 步：初始化 → 模块执行 → 完成标记
+- ✅ 状态机从 13 状态简化为 10 状态
+- ✅ spawn 调用点从 5 个减少到 3 个
+- ✅ 代码行数减少 23%（390→299 行）
+- ✅ post_validator.py 和对抗 Agent 作为独立工具可供外部调用
 
 **设计原则**：
 - Code controls flow（确定性逻辑）
@@ -218,13 +225,18 @@ wrapper_prompt = wrapper_prompt.replace("{cron_job_id}", cron_job_id)
 cron(action="update", jobId=cron_job_id, patch={"payload": {"message": wrapper_prompt}})
 ```
 
-### Step 4: yield 等待完成
+### Step 4: yield 等待完成（Main Agent 级）
+
+> ⚠️ 这是 Main Agent 的 yield，不是 Orchestrator 的步骤。
+> Orchestrator V4.0 已移除内部的 Step 4（后置验证）和 Step 5（复杂完成标记）。
 
 ```python
 sessions_yield()
 ```
 
-### Step 5: 处理完成事件
+### Step 5: 处理完成事件（Main Agent 级）
+
+> ⚠️ 这是 Main Agent 的步骤，不是 Orchestrator 的步骤。
 
 收到 orchestrator announce 后：
 1. 解析完成状态（COMPLETE / DEGRADED / FAILED）

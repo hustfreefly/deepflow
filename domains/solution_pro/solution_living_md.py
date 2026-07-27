@@ -35,6 +35,13 @@ OPTIONAL_SECTIONS = [
     "risk_summary",
     "verification_status",
     "gate_decisions",
+    "covered_req_ids",
+    "semantic_anchors",
+    "architecture",
+    "full_solution",
+    "conflict_resolutions",
+    "low_confidence_findings",
+    "open_issues",
 ]
 
 ALL_SECTIONS = REQUIRED_SECTIONS + OPTIONAL_SECTIONS
@@ -148,17 +155,28 @@ def render_final_solution_md(data: dict) -> str:
         lines.append("|-------|-------|----------|--------|")
         for p in phases:
             if isinstance(p, dict):
-                lines.append(f"| {p.get('phase', '?')} | {p.get('title', '')} | {p.get('timeline', '')} | {p.get('estimated_effort', '')} |")
+                # Support both 'title' and 'name' (summary_json_extractor uses 'name')
+                phase_title = p.get('title') or p.get('name', '')
+                phase_timeline = p.get('timeline') or p.get('duration', '')
+                phase_effort = p.get('estimated_effort', '')
+                lines.append(f"| {p.get('phase', '?')} | {phase_title} | {phase_timeline} | {phase_effort} |")
         lines.append("")
         # Detailed phases
         for p in phases:
             if isinstance(p, dict):
-                lines.append(f"### Phase {p.get('phase', '?')}: {p.get('title', '')}")
+                phase_title = p.get('title') or p.get('name', '')
+                lines.append(f"### Phase {p.get('phase', '?')}: {phase_title}")
                 lines.append("")
                 tasks = p.get("tasks", [])
                 if tasks:
                     for t in tasks:
                         lines.append(f"- {t}")
+                    lines.append("")
+                # Also support 'milestones' as tasks alternative
+                milestones = p.get("milestones", [])
+                if milestones and not tasks:
+                    for m in milestones:
+                        lines.append(f"- {m}")
                     lines.append("")
                 verification = p.get("verification", "")
                 if verification:
@@ -224,6 +242,121 @@ def render_final_solution_md(data: dict) -> str:
         lines.append(f"| L2 (Verification) | {verdict} | {vs.get('passed', 0)}/{vs.get('total_checks', 0)} checks passed |")
     lines.append("| L3 (merge) | PASS | solution complete |")
     lines.append("")
+
+    # ── S9: covered_req_ids (optional, Ship Pro Gate) ──
+    covered_req_ids = data.get("covered_req_ids", [])
+    if covered_req_ids:
+        lines.append("## covered_req_ids")
+        lines.append("")
+        for req_id in covered_req_ids:
+            lines.append(f"- {req_id}")
+        lines.append("")
+
+    # ── S10: semantic_anchors (optional, Ship Pro Gate) ──
+    semantic_anchors = data.get("semantic_anchors", [])
+    if semantic_anchors:
+        lines.append("## semantic_anchors")
+        lines.append("")
+        lines.append("| anchor_id | concept | doc_section |")
+        lines.append("|-----------|---------|-------------|")
+        for sa in semantic_anchors:
+            if isinstance(sa, dict):
+                aid = sa.get("anchor_id", sa.get("anchor", "N/A"))
+                concept = sa.get("concept", sa.get("description", ""))
+                section = sa.get("doc_section", "")
+                lines.append(f"| {aid} | {concept} | {section} |")
+            else:
+                lines.append(f"| {sa} | | |")
+        lines.append("")
+
+    # ── S11: architecture (optional) ──
+    architecture = data.get("architecture", None)
+    if architecture:
+        lines.append("## architecture")
+        lines.append("")
+        if isinstance(architecture, dict):
+            for k, v in architecture.items():
+                lines.append(f"- **{k}**: {v}")
+        elif isinstance(architecture, str):
+            lines.append(architecture)
+        lines.append("")
+
+    # ── S12: full_solution (optional, summary) ──
+    full_solution = data.get("full_solution", None)
+    if full_solution:
+        lines.append("## full_solution")
+        lines.append("")
+        if isinstance(full_solution, dict):
+            title = full_solution.get("title", "")
+            if title:
+                lines.append(f"**Title**: {title}")
+                lines.append("")
+            summary = full_solution.get("summary", "")
+            if summary:
+                lines.append(f"**Summary**: {summary}")
+                lines.append("")
+            key_sections = full_solution.get("key_sections", [])
+            if key_sections:
+                lines.append("**Key Sections**:")
+                for s in key_sections:
+                    lines.append(f"- {s}")
+                lines.append("")
+        elif isinstance(full_solution, str):
+            lines.append(full_solution)
+            lines.append("")
+
+    # ── S13: conflict_resolutions (optional) ──
+    conflict_resolutions = data.get("conflict_resolutions", [])
+    if conflict_resolutions:
+        lines.append("## conflict_resolutions")
+        lines.append("")
+        lines.append("| conflict_id | description | resolution | rationale |")
+        lines.append("|-------------|-------------|------------|-----------|")
+        for cr in conflict_resolutions:
+            if isinstance(cr, dict):
+                cid = cr.get("conflict_id", "")
+                desc = cr.get("description", "")[:60]
+                res = cr.get("resolution", "")[:60]
+                rat = cr.get("rationale", "")[:60]
+                lines.append(f"| {cid} | {desc} | {res} | {rat} |")
+            else:
+                lines.append(f"| | {str(cr)[:60]} | | |")
+        lines.append("")
+
+    # ── S14: low_confidence_findings (optional) ──
+    low_confidence_findings = data.get("low_confidence_findings", [])
+    if low_confidence_findings:
+        lines.append("## low_confidence_findings")
+        lines.append("")
+        lines.append("| finding_id | title | confidence | reason |")
+        lines.append("|------------|-------|------------|--------|")
+        for f in low_confidence_findings:
+            if isinstance(f, dict):
+                fid = f.get("finding_id", "")
+                ftitle = f.get("title", "")[:40]
+                conf = f.get("confidence", "")
+                reason = f.get("reason", "")[:60]
+                lines.append(f"| {fid} | {ftitle} | {conf} | {reason} |")
+            else:
+                lines.append(f"| | {str(f)[:40]} | | |")
+        lines.append("")
+
+    # ── S15: open_issues (optional) ──
+    open_issues = data.get("open_issues", [])
+    if open_issues:
+        lines.append("## open_issues")
+        lines.append("")
+        lines.append("| issue_id | description | priority |")
+        lines.append("|----------|-------------|----------|")
+        for oi in open_issues:
+            if isinstance(oi, dict):
+                oid = oi.get("issue_id", "")
+                desc = oi.get("description", "")[:60]
+                prio = oi.get("priority", "")
+                lines.append(f"| {oid} | {desc} | {prio} |")
+            else:
+                lines.append(f"| | {str(oi)[:60]} | |")
+        lines.append("")
 
     return "\n".join(lines)
 
@@ -297,6 +430,56 @@ def parse_final_solution_md(md: str) -> dict:
     vs_text = sections.get("verification_status", "")
     if vs_text:
         result["verification_status"] = _parse_table_to_dict(vs_text)
+
+    # S5: requirement_coverage / constraint_coverage
+    rc_text = sections.get("requirement_coverage", "")
+    if rc_text:
+        result["constraint_coverage"] = _parse_constraint_coverage(rc_text)
+
+    # S9: covered_req_ids
+    cri_text = sections.get("covered_req_ids", "")
+    if cri_text:
+        result["covered_req_ids"] = _parse_bullet_list(cri_text)
+
+    # S10: semantic_anchors
+    sa_text = sections.get("semantic_anchors", "")
+    if sa_text:
+        result["semantic_anchors"] = _parse_table_to_dicts(sa_text)
+
+    # S11: architecture
+    arch_text = sections.get("architecture", "")
+    if arch_text:
+        result["architecture"] = _parse_architecture(arch_text)
+
+    # S12: full_solution
+    fs_text = sections.get("full_solution", "")
+    if fs_text:
+        result["full_solution"] = fs_text.strip()
+
+    # S13: conflict_resolutions
+    cr_text = sections.get("conflict_resolutions", "")
+    if cr_text:
+        result["conflict_resolutions"] = _parse_table_to_dicts(cr_text)
+
+    # S14: low_confidence_findings
+    lcf_text = sections.get("low_confidence_findings", "")
+    if lcf_text:
+        result["low_confidence_findings"] = _parse_table_to_dicts(lcf_text)
+
+    # S15: open_issues
+    oi_text = sections.get("open_issues", "")
+    if oi_text:
+        result["open_issues"] = _parse_table_to_dicts(oi_text)
+
+    # document_ref (if present)
+    dr_text = sections.get("document_ref", "")
+    if dr_text:
+        result["document_ref"] = dr_text.strip()
+
+    # document_stats (if present)
+    ds_text = sections.get("document_stats", "")
+    if ds_text:
+        result["document_stats"] = _parse_table_to_dict(ds_text)
 
     return result
 
@@ -408,6 +591,60 @@ def _parse_decisions(text: str) -> list[dict]:
                 "alternatives": alternatives,
             })
     return decisions
+
+
+def _parse_bullet_list(text: str) -> list[str]:
+    """Parse a bullet list section into list of strings."""
+    items = []
+    for line in text.split("\n"):
+        line = line.strip()
+        if line.startswith("- "):
+            items.append(line[2:].strip())
+        elif line.startswith("* "):
+            items.append(line[2:].strip())
+    return items
+
+
+def _parse_constraint_coverage(text: str) -> dict:
+    """Parse requirement_coverage section into constraint_coverage dict."""
+    result: dict[str, Any] = {}
+    # Check for key-value table
+    kv = _parse_table_to_dict(text)
+    if kv:
+        for k, v in kv.items():
+            try:
+                result[k] = int(v)
+            except ValueError:
+                try:
+                    result[k] = float(v)
+                except ValueError:
+                    result[k] = v
+        return result
+    # Fallback: extract from text
+    uncovered = _parse_bullet_list(text)
+    if uncovered:
+        result["uncovered"] = uncovered
+    return result
+
+
+def _parse_architecture(text: str) -> Any:
+    """Parse architecture section - could be key-value pairs or free text."""
+    # Try key-value table first
+    kv_rows = _extract_table_rows(text)
+    if kv_rows:
+        return _parse_table_to_dict(text)
+    # Try bullet list with **key**: value pattern
+    items = {}
+    for line in text.split("\n"):
+        line = line.strip()
+        if line.startswith("- **"):
+            m = re.match(r"- \*\*(.+?)\*\*:\s*(.+)", line)
+            if m:
+                items[m.group(1)] = m.group(2)
+    if items:
+        return items
+    # Fallback: raw text
+    return text.strip()
 
 
 def _parse_phases(text: str) -> list[dict]:

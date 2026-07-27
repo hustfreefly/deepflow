@@ -32,12 +32,15 @@ Ship Pro 2.0.0 - 入口模块
   │   └── ...
   └── ...
 """
+import fcntl
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
 from core.trace import start_trace, span, save_to_blackboard  # 全链路追踪:跨域 trace_id
 from core.blackboard.context_injector import build_bootstrap_task, auto_bootstrap  # Bootstrap Pattern: 解决 sessions_spawn 8KB 截断
+from core.process_manager import ModuleLifecycleManager, SingleSourceStateManager  # 通用模块: 生命周期 + 单源状态管理
 
 
 # ============================================================================
@@ -83,6 +86,10 @@ def _find_solution_pro_output(project_blackboard: Path) -> dict:
         )
 
     data = _json.loads(final_json.read_text(encoding="utf-8"))
+
+    # 修复：双编码 JSON 防护（Agent 层可能将 dict 序列化为字符串后再次写入）
+    if isinstance(data, str):
+        data = _json.loads(data)
 
     # Schema 验证: 必需字段存在且非空（确定性检查，代码做代码该做的事）
     _REQUIRED_FIELDS = [
@@ -162,6 +169,96 @@ def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
     # 3. 初始化 Ship Pro 目录
     ship_dir = _get_ship_pro_dir(project_bb)
 
+    # P1 Fix #6: 文件锁防止并发执行
+    lock_file = ship_dir / ".lock"
+    _lock_fd = open(lock_file, 'w')
+    try:
+        fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        _lock_fd.close()
+        return {
+            "project_name": project_name,
+            "project_blackboard": str(project_bb),
+            "ship_pro_dir": str(ship_dir),
+            "trace_id": _trace_id,
+            "status": "already_running",
+            "error": "另一个 Ship Pro 实例正在运行（文件锁冲突）",
+        }
+
+    try:
+        return _run_ship_pro_locked(
+            project_name=project_name,
+            project_bb=project_bb,
+            ship_dir=ship_dir,
+            trace_id=_trace_id,
+            sol_input=sol_input,
+            **kwargs,
+        )
+    finally:
+        fcntl.flock(_lock_fd, fcntl.LOCK_UN)
+        _lock_fd.close()
+
+
+def _run_ship_pro_locked(
+    project_name: str,
+    project_bb: Path,
+    ship_dir: Path,
+    trace_id: str,
+    sol_input: dict,
+    **kwargs,
+) -> dict:
+    """Ship Pro 核心逻辑（在文件锁保护下运行）"""
+    _logger = logging.getLogger(__name__)
+
+    # 3b. 初始化通用模块: 生命周期管理 + 单源状态管理
+    # ─────────────────────────────────────────────────
+    # 使用 ModuleLifecycleManager 管理 Orchestrator 生命周期
+    # 使用 SingleSourceStateManager 作为唯一状态源（.runs/*.run.json）
+    lifecycle = ModuleLifecycleManager(ship_dir)
+    state_mgr = SingleSourceStateManager(ship_dir)
+
+    # 3c. 断点恢复: 检查 Orchestrator 是否已完成
+    #    从 .runs/orchestrator.*.run.json 读取状态
+    recovery_status = state_mgr.get_module_status("orchestrator")
+    if state_mgr.is_module_completed("orchestrator"):
+        completed_run_id = recovery_status.get('run_id', '')
+        _logger.info(f"Ship Pro Orchestrator 已完成 (run_id: {completed_run_id}), 跳过 spawn")
+        # run_id 隔离：从已完成 run 的独立目录查找 ship_package
+        completed_ship_dir = project_bb / f"ship_pro_{completed_run_id}" if completed_run_id else ship_dir
+        ship_package_path = completed_ship_dir / "stages" / "ship_package.json"
+        return {
+            "project_name": project_name,
+            "project_blackboard": str(project_bb),
+            "ship_pro_dir": str(completed_ship_dir),
+            "trace_id": trace_id,
+            "status": "already_completed",
+            "ship_package_path": str(ship_package_path) if ship_package_path.exists() else None,
+            "recovery": recovery_status,
+        }
+
+    # 3d. 获取 Orchestrator 运行权（去重: try_acquire_run 防止重复 spawn）
+    run_info = lifecycle.try_acquire_run("orchestrator")
+    if run_info.already_running:
+        _logger.info(f"Ship Pro Orchestrator 已在运行: {run_info.run_id}, 不重复 spawn")
+        return {
+            "project_name": project_name,
+            "project_blackboard": str(project_bb),
+            "ship_pro_dir": str(ship_dir),
+            "trace_id": trace_id,
+            "status": "already_running",
+            "run_id": run_info.run_id,
+            "recovery": recovery_status,
+        }
+
+    _logger.info(f"Ship Pro Orchestrator 运行权已获取: {run_info.run_id} (attempt {run_info.attempt})")
+
+    # run_id 目录隔离：每个 run 使用独立目录，防止并发/重试冲突
+    run_id = run_info.run_id
+    ship_dir = project_bb / f"ship_pro_{run_id}"
+    ship_dir.mkdir(parents=True, exist_ok=True)
+    (ship_dir / "stages").mkdir(exist_ok=True)
+    _logger.info(f"Ship Pro run_id 隔离目录: {ship_dir}")
+
     # 保存合并输入（统一写入 stages/ 目录，保持 gate judge 路径一致）
     input_path = ship_dir / "stages" / "solution_pro_input.json"
     input_path.write_text(json.dumps(sol_input, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -200,18 +297,24 @@ def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
         task_content=orchestrator_prompt,
         label="ship_orchestrator",
     )
-    import logging
     prompt_size = len(orchestrator_prompt.encode('utf-8'))
-    logging.getLogger(__name__).info(
+    _logger.info(
         f"Ship Pro Bootstrap: {prompt_size}B → {len(bootstrap_task.encode('utf-8'))}B"
     )
+
+    # P1 Fix #8: 增强心跳 - 在 spawn Orchestrator 前立即发送初始心跳
+    lifecycle.heartbeat('orchestrator', run_info.run_id)
+    _logger.info(f"Ship Pro 初始心跳已发送: run_id={run_info.run_id}")
 
     # 5. 返回 spawn params(包含 trace_id 供下游继承)
     return {
         "project_name": project_name,
         "project_blackboard": str(project_bb),
         "ship_pro_dir": str(ship_dir),
-        "trace_id": _trace_id,  # 全链路追踪:trace_id 供下游继承
+        "trace_id": trace_id,  # 全链路追踪:trace_id 供下游继承
+        "run_id": run_info.run_id,  # 通用模块: Orchestrator 运行 ID
+        "status": "ready_to_spawn",
+        "recovery": recovery_status,  # 断点恢复状态
         # AI Native: 字段名由 JSON schema 保证，不做映射/翻译
         "input_summary": {
             "req_count": len(sol_input.get("covered_req_ids", [])),
@@ -235,7 +338,21 @@ def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
 # ============================================================================
 
 def design_pipeline(solution_pro_output_path: str, **kwargs) -> dict:
-    """2.0.0 兼容入口 - 推荐用 run_ship_pro()"""
+    """2.0.0 兼容入口 - 推荐用 run_ship_pro()
+
+    .. deprecated:: 2.0.0
+        Use :func:`run_ship_pro` instead. This function creates legacy
+        ship_v8_* directories and will be removed in a future release.
+    """
+    import warnings
+    warnings.warn(
+        "design_pipeline() is deprecated, use run_ship_pro() instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    logging.getLogger(__name__).warning(
+        "design_pipeline() is deprecated, use run_ship_pro() instead"
+    )
     from .pipeline_designer import PipelineDesigner, validate_solution_pro_input
 
     input_path = Path(solution_pro_output_path)
@@ -245,14 +362,13 @@ def design_pipeline(solution_pro_output_path: str, **kwargs) -> dict:
     solution_pro_input = json.loads(input_path.read_text(encoding="utf-8"))
     validate_solution_pro_input(solution_pro_input)
 
-    session_prefix = kwargs.get("session_id_prefix", "ship_v8")
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    session_id = f"{session_prefix}_{timestamp}"
-
+    # P1 Fix #7: 统一目录结构 - 不再创建 ship_v8_* 时间戳子目录
+    # 直接使用 blackboard_base_dir 作为 session_dir（统一使用 ship_pro/stages/）
     base_dir = kwargs.get("blackboard_base_dir", str(BLACKBOARD_ROOT))
-    session_dir = Path(base_dir) / session_id
+    session_dir = Path(base_dir)
     session_dir.mkdir(parents=True, exist_ok=True)
     (session_dir / "stages").mkdir(exist_ok=True)
+    session_id = session_dir.name  # 使用目录名作为 session_id
 
     import shutil
     dest_input = session_dir / "stages" / "solution_pro_input.json"
@@ -795,7 +911,7 @@ def _build_single_worker_prompt(worker, ctx, ctx_path: str, output_path: str) ->
     if anchors:
         anchor_lines = []
         for a in anchors:
-            name = a.get("name", "?")
+            name = a.get("name", a.get("anchor_id", "?"))
             cat = a.get("category", "?")
             constraint = a.get("constraint", "无约束描述")
             anchor_lines.append(f"- **{name}** [{cat}]: {constraint}")

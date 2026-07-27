@@ -92,6 +92,8 @@ class StateManager:
 
     def __init__(self, blackboard_path: Path):
         self.blackboard_path = Path(blackboard_path)
+        # P0 FIX: pipeline_state.json 已废弃，使用 .runs/*.run.json 作为唯一状态源
+        # self.state_file 保留路径但 _save_state 为 no-op，不再写入磁盘
         self.state_file = self.blackboard_path / "pipeline_state.json"
         self.stages_dir = self.blackboard_path / "stages"
         self.stages_dir.mkdir(parents=True, exist_ok=True)
@@ -185,6 +187,9 @@ class StateManager:
         self.state.updated_at = datetime.now().isoformat()
 
     def _save_state(self):
+        # P0 FIX: no-op — pipeline_state.json 已废弃，.runs/*.run.json 是唯一状态源
+        return
+        # --- 以下代码已废弃 ---
         with tempfile.NamedTemporaryFile(
             mode='w', dir=self.blackboard_path, delete=False, suffix='.tmp'
         ) as tmp:

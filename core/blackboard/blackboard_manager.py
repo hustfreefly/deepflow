@@ -282,6 +282,30 @@ class BlackboardManager:
         """
         return self._session_dir
 
+    def resolve_path(self, relative_path: str) -> str:
+        """
+        解析相对路径为绝对路径（通过 PathManager 安全验证）。
+
+        用于在 prompt 中替代硬编码路径插值 '{deepflow_root}/blackboard/{session_id}/...'
+        改为 bb.resolve_path('stages/xxx.json')。
+
+        Args:
+            relative_path: 相对于 blackboard session 目录的路径
+                          （如 'stages/planning_convergence.json'）
+
+        Returns:
+            绝对路径字符串
+
+        Raises:
+            PathValidationError: 路径包含非法字符或路径遍历
+        """
+        from core.path_manager import PathManager
+
+        # self._base 是 blackboard 目录，其 parent 是 deepflow_root
+        deepflow_root = self._base.parent
+        pm = PathManager(self._session_id, deepflow_root=deepflow_root)
+        return str(pm.get_blackboard_path(relative_path))
+
     def copy_stage(self, from_name: str, to_name: str) -> bool:
         """
         复制 stage 文件（用于快照）

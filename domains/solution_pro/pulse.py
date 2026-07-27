@@ -548,10 +548,14 @@ class SolutionPulse:
                         "architecture_version": "v3.2-pulse",
                     }
                     self._atomic_write_json(self.completed_path, progress)
-                    # P1-2: MD-first 接线 — 生成 final_solution.md
+                    # P1-2: MD-first 接线 — 生成 final_solution.md + solution_document.md
+                    # ADR-009 统一兜底：pipeline 完成时渲染所有 MD 产物
                     try:
                         from .solution_living_md import render_final_solution_md
-                        final_solution = self.bb.read_stage("final_solution")
+                        from .blackboard import BlackboardManager
+                        _bb = BlackboardManager(self.session_id, base_dir=self.blackboard_root)
+                        # 1. final_solution.md
+                        final_solution = _bb.read_stage("final_solution")
                         if final_solution:
                             md_content = render_final_solution_md(final_solution)
                             md_path = self.stages_dir / "final_solution.md"
@@ -565,9 +569,24 @@ class SolutionPulse:
                             except Exception:
                                 os.close(fd)
                                 raise
-                            logger.info("P1-2: final_solution.md written to %s", md_path)
+                            logger.info("ADR-009: final_solution.md written to %s", md_path)
+                        # 2. solution_document.md
+                        solution_document = _bb.read_stage("solution_document")
+                        if solution_document and isinstance(solution_document, str):
+                            doc_path = self.stages_dir / "solution_document.md"
+                            doc_path.parent.mkdir(parents=True, exist_ok=True)
+                            import tempfile as _tf, os as _os
+                            fd2, tmp2 = _tf.mkstemp(dir=doc_path.parent, suffix=".md")
+                            try:
+                                _os.write(fd2, solution_document.encode("utf-8"))
+                                _os.close(fd2)
+                                _os.replace(tmp2, str(doc_path))
+                            except Exception:
+                                _os.close(fd2)
+                                raise
+                            logger.info("ADR-009: solution_document.md written to %s", doc_path)
                     except Exception as e:
-                        logger.warning("P1-2: final_solution.md generation failed (non-blocking): %s", e)
+                        logger.error("ADR-009: MD rendering failed (non-blocking): %s", e)
                     try:
                         from . import generate_solution_track
                         generate_solution_track(str(self.session_dir))

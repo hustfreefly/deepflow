@@ -396,5 +396,54 @@ def generate_solution_track(base_path: str) -> dict | None:
     )
 
 
+# ============================================================================
+# ADR-009: MD-First Rendering (Unified Fallback)
+# ============================================================================
+
+def render_solution_md(session_id: str, base_dir: str = None) -> dict:
+    """
+    ADR-009 统一兜底：渲染 Solution Pro 的所有 MD 产物。
+
+    在 pipeline 完成后调用（pulse.py 自动调用，也可手动调用）。
+    非阻断：任何步骤失败 → log ERROR，继续其他产物。
+
+    Args:
+        session_id: Solution Pro session ID
+        base_dir: Blackboard 根目录（可选）
+
+    Returns:
+        {"final_solution_md": bool, "solution_document_md": bool} 渲染结果
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    results = {"final_solution_md": False, "solution_document_md": False}
+
+    try:
+        from domains.solution_pro.solution_living_md import render_final_solution_md
+        from domains.solution_pro.blackboard import BlackboardManager
+
+        bm = BlackboardManager(session_id, base_dir=base_dir)
+
+        # 1. 渲染 final_solution.md
+        final_solution_json = bm.read_stage('final_solution')
+        if final_solution_json:
+            final_solution_md = render_final_solution_md(final_solution_json)
+            bm.write('final_solution.md', final_solution_md, subdir='stages')
+            results['final_solution_md'] = True
+            print('✅ final_solution.md generated')
+
+        # 2. 提取 solution_document.md
+        solution_document_json = bm.read_stage('solution_document')
+        if solution_document_json and isinstance(solution_document_json, str):
+            bm.write('solution_document.md', solution_document_json, subdir='stages')
+            results['solution_document_md'] = True
+            print('✅ solution_document.md generated')
+    except Exception as e:
+        logger.error(f'ADR-009 MD rendering failed: {e}')
+        # 保持 non-blocking，但记录 ERROR 级别日志
+
+    return results
+
+
 # 契约笼子（2026-07-14）：显式导出
-__all__ = ['run_solution_pro', 'generate_solution_track']
+__all__ = ['run_solution_pro', 'generate_solution_track', 'render_solution_md']

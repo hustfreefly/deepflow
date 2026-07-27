@@ -540,7 +540,7 @@ def layer4_orchestrator():
 
 def main():
     print("=" * 70)
-    print
+    print()
     print("=" * 70)
 
     l1_ok = layer1_structure()
@@ -550,7 +550,7 @@ def main():
 
     # 综合报告
     print("\n" + "=" * 70)
-    print
+    print()
     print("=" * 70)
     
     for layer, ok in [("L1 结构验证", l1_ok), ("L2 单角色预演", l2_ok), 

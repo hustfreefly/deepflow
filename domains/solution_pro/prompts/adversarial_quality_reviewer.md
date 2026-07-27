@@ -1,6 +1,6 @@
 ---
 id: solution/adversarial_quality_reviewer
-version: "2.0.0"
+version: "3.3.0"
 component: solution
 updated: "2026-07-26"
 ---
