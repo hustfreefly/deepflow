@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 MAX_IN_FLIGHT = 8  # A5: 全局在途 agent 硬上限（防 429 风暴）
 MAX_SPAWN_PER_PULSE = 5  # 单次 pulse spawn 上限（对齐平台 maxChildrenPerAgent 默认值）
 ORPHAN_DISPATCH_WINDOW_SECONDS = 600  # A4: 未确认 dispatch 的孤儿窗口（2 个 pulse 周期）
+RECORDLESS_ORPHAN_GRACE_SECONDS = 300  # F1b: 无记录孤儿空目录宽限期（正常 spawn→首文件写入 <70s 的 4x 余量）
 RETRY_BUDGET = 3  # A2: task/WP 级重试预算上限
 PULSE_LOCK_STALE_SECONDS = 600  # A1: 锁持有超 10min → 告警（holder 疑似挂起）
 STALLED_ALERT_THRESHOLD = 3  # A7: 连续 N 次零进展 → 告警
@@ -46,6 +47,17 @@ _STALE_DISPATCH_TIMEOUTS = {
     "package": 1800,         # 30 min
 }
 _DEFAULT_STALE_TIMEOUT = 1800
+
+# F2: 非 worker dispatch 的完成证据映射（与 wp_runner.py 各 step 实现保持双向引用）
+# analyze ← wp_runner step1/step2_check_analyze 读写同一文件
+# validate ← wp_runner verify_validate_output 写入同一文件
+# package  ← wp_runner step7_package 写入同一文件
+_ACTION_COMPLETION_EVIDENCE = {
+    "analyze": "stages/execution_plan.json",
+    "validate": "stages/validation_result.json",
+    "package": "stages/delivery_manifest.json",
+    "package_failed": "stages/delivery_manifest.json",
+}
 
 
 def _check_drive_mode_allowed(method_name: str) -> None:
@@ -335,6 +347,77 @@ class DeliverOrchestrator:
         )
         logger.info(f"Initialized WP {wp_id} at {wp_path}")
 
+    def _has_retriable_timed_out(self, wp_id: str, driver) -> list[str]:
+        """F3: 检测"超时但重试预算未耗尽"的任务（防 blocked 级联冤案）。
+
+        只查 timed_out 子集：MANIFEST-FAILED 的任务不归 retry 管，
+        若把它们也算进来会死锁（WP 永远卡在 GENERATING 不进 ASSEMBLING）。
+        attempts 默认值 1（与 _prepare_worker_retries 语义对齐：目录存在≈spawn 过 1 次）。
+
+        Returns:
+            可重试的 timed_out task_id 列表（空 = 无冤案，可安全推进终态）
+        """
+        try:
+            plan = driver.orch.load_execution_plan()
+            if plan is None:
+                return []
+            progress = driver.orch._derive_worker_progress(plan)
+            timed_out = progress.get("timed_out", set())
+            if not timed_out:
+                return []
+            attempts_map = self.progress.get(wp_id, {}).get("task_attempts", {})
+            return sorted(
+                t for t in timed_out
+                if attempts_map.get(t, 1) < RETRY_BUDGET
+            )
+        except Exception as e:
+            logger.warning("%s: retriable-timed_out check failed (fail-open): %s", wp_id, e)
+            return []  # 检查失败 → fail-open，不阻塞正常流程
+
+    def _has_unexecuted_tasks(self, wp_id: str, driver) -> list[str]:
+        """F3c: 检测"从未真正执行"的任务（终态写入前的最后防线）。
+
+        触发条件（两类）：
+        - timed_out 且 attempts < RETRY_BUDGET（同 F3a/b，可能还有救）
+        - ready（deps 全 COMPLETE）且 attempts == 0 且无 MANIFEST（从未被派发过）
+
+        blocked 任务不触发守卫：若其依赖是真失败（attempts>=1 后 MANIFEST FAILED），
+        FAIL 打包是诚实结果，不该拦截。
+
+        Returns:
+            需要重跑机会的 task_id 列表（空 = 可以安全写终态文件）
+        """
+        try:
+            plan = driver.orch.load_execution_plan()
+            if plan is None:
+                return []
+            progress = driver.orch._derive_worker_progress(plan)
+            attempts_map = self.progress.get(wp_id, {}).get("task_attempts", {})
+            result: list[str] = []
+            # 类 1：timed_out 且预算未耗尽
+            for t in progress.get("timed_out", set()):
+                if attempts_map.get(t, 1) < RETRY_BUDGET:
+                    result.append(t)
+            # 类 2：ready 但从未派发
+            completed = progress.get("completed", set())
+            running = progress.get("running", set())
+            failed = progress.get("failed", set())
+            blocked = progress.get("blocked", set())
+            wo = driver.worker_outputs_dir
+            for task_node in plan.task_graph:
+                tid = task_node.task_id
+                if tid in completed or tid in running or tid in failed or tid in blocked:
+                    continue
+                deps = set(getattr(task_node, "depends_on", None) or [])
+                if deps and not deps.issubset(completed):
+                    continue  # 依赖未完成 → 不算可跑，不守卫
+                if attempts_map.get(tid, 0) == 0 and not (wo / tid / "MANIFEST.json").exists():
+                    result.append(tid)
+            return sorted(result)
+        except Exception as e:
+            logger.warning("%s: unexecuted-tasks check failed (fail-open): %s", wp_id, e)
+            return []
+
     def _get_wp_next_action(self, wp_id: str) -> dict:
         """获取单个 WP 的下一步动作（含 spawn params）。"""
         phase = self._check_wp_phase(wp_id)
@@ -351,6 +434,21 @@ class DeliverOrchestrator:
             try:
                 self._ensure_wp_initialized(wp_id)
                 driver = self._get_driver(wp_id)
+                # F3c fix: 终态写入前的最后防线——存在从未真正执行的任务时拒绝打包，
+                # 回退给它们真正的执行机会（防 Class E：状态污染后的不可逆写入）
+                unexecuted = self._has_unexecuted_tasks(wp_id, driver)
+                if unexecuted:
+                    logger.warning(
+                        "%s: PACKAGING 被 F3c 拦截——%s 从未真正执行，回退重跑",
+                        wp_id, unexecuted,
+                    )
+                    retry_params, retry_alerts = self._prepare_worker_retries(wp_id, driver)
+                    params_list = driver.step3_workers()
+                    merged_params = retry_params + params_list
+                    item = {"wp_id": wp_id, "action": "spawn_workers", "spawn_params": merged_params, "error": None}
+                    if retry_alerts:
+                        item["alerts"] = retry_alerts
+                    return item
                 params = driver.step7_package(verdict_str="PASS")
                 return {"wp_id": wp_id, "action": "package", "spawn_params": params, "error": None}
             except Exception as e:
@@ -395,8 +493,17 @@ class DeliverOrchestrator:
                 # BLK-05 fix: Check if workers are already done before spawning new ones
                 all_done, check_info = driver.step4_check_workers()
                 if all_done:
-                    # Workers already completed → trigger assembly
-                    return {"wp_id": wp_id, "action": "assemble", "spawn_params": None, "error": None}
+                    # F3a fix: blocked 级联防护——存在"超时但重试预算未耗尽"的任务时，
+                    # 不推进 assemble（那些任务从未真正运行就被判死，属于冤案），
+                    # 回落到重试路径给它们真正的执行机会
+                    retriable = self._has_retriable_timed_out(wp_id, driver)
+                    if not retriable:
+                        # Workers already completed → trigger assembly
+                        return {"wp_id": wp_id, "action": "assemble", "spawn_params": None, "error": None}
+                    logger.warning(
+                        "%s: all_done 但被 F3a 拦截——%s 超时且重试预算未耗尽，转重试路径",
+                        wp_id, retriable,
+                    )
                 # A2/A3: derive 判 timed_out 的 task 走重试路径（无视 stale dedup 直接重派）
                 retry_params, retry_alerts = self._prepare_worker_retries(wp_id, driver)
                 params_list = driver.step3_workers()
@@ -410,6 +517,22 @@ class DeliverOrchestrator:
 
         if phase == "ASSEMBLING":
             try:
+                # F3b fix: ASSEMBLING 分支同样需要级联防护——
+                # phase 一旦被 derive 为 ASSEMBLING，若绕过 GENERATING 分支的 F3a 守卫，
+                # 伪 failed 仍会污染拼装。此处做最后拦截：回退按 GENERATING 重试处理
+                retriable = self._has_retriable_timed_out(wp_id, driver)
+                if retriable:
+                    logger.warning(
+                        "%s: ASSEMBLING 被 F3b 拦截——%s 超时且重试预算未耗尽，回退重试",
+                        wp_id, retriable,
+                    )
+                    retry_params, retry_alerts = self._prepare_worker_retries(wp_id, driver)
+                    params_list = driver.step3_workers()
+                    merged_params = retry_params + params_list
+                    item = {"wp_id": wp_id, "action": "spawn_workers", "spawn_params": merged_params, "error": None}
+                    if retry_alerts:
+                        item["alerts"] = retry_alerts
+                    return item
                 result = driver.step5_integrate()
                 # K5-B: 零产出 → terminal_failed（不烧 validate/package 两轮 LLM）
                 if result.get("status") == "ASSEMBLY_EMPTY":
@@ -443,6 +566,20 @@ class DeliverOrchestrator:
                         return {"wp_id": wp_id, "action": "validate_failed", "spawn_params": None, "error": str(e)}
                 return {"wp_id": wp_id, "action": "skip", "spawn_params": None, "error": "validate_pending"}
             try:
+                # F3c fix: 同 PACKAGING 分支——VALIDATING→package 派发前做最后防线
+                unexecuted = self._has_unexecuted_tasks(wp_id, driver)
+                if unexecuted:
+                    logger.warning(
+                        "%s: VALIDATING→package 被 F3c 拦截——%s 从未真正执行，回退重跑",
+                        wp_id, unexecuted,
+                    )
+                    retry_params, retry_alerts = self._prepare_worker_retries(wp_id, driver)
+                    params_list = driver.step3_workers()
+                    merged_params = retry_params + params_list
+                    item = {"wp_id": wp_id, "action": "spawn_workers", "spawn_params": merged_params, "error": None}
+                    if retry_alerts:
+                        item["alerts"] = retry_alerts
+                    return item
                 params = driver.step7_package()  # P1-3 fix: auto-read verdict from validation_result.json
                 action = "package" if verdict == "PASS" else "package_failed"
                 return {"wp_id": wp_id, "action": action, "spawn_params": params, "error": None}
@@ -634,6 +771,11 @@ class DeliverOrchestrator:
                 n_params = len(current_params) if isinstance(current_params, list) else 1
                 if max_spawn_budget <= 0:
                     self._last_tick_truncated = True
+                    # F1a fix: budget=0 时 params 已构建（mkdir 副作用已发生），
+                    # 必须清理空目录，否则孤儿目录被 derive 误判 running 占坑 30min
+                    # （与下方截断分支行为对齐）
+                    if isinstance(current_params, list) and current_params:
+                        self._drop_worker_param_dirs(wp_id, current_params)
                     continue  # 预算耗尽：不记录、不返回、不派生
                 if isinstance(current_params, list) and n_params > max_spawn_budget:
                     dropped = current_params[max_spawn_budget:]
@@ -964,9 +1106,16 @@ class DeliverOrchestrator:
                     and not last_action.startswith("spawn_workers")
                 ):
                     base_action = last_action.split(":")[0]
-                    timeout = _STALE_DISPATCH_TIMEOUTS.get(base_action, _DEFAULT_STALE_TIMEOUT)
-                    if now - spawned_at <= timeout:
-                        n += 1
+                    # F2 fix: 文件系统证据优先——产出已落盘 = 阶段已完成，立即释放名额
+                    # （不再纯按 30min 超时等待。证据不存在才回退到时间推断）
+                    evidence_rel = _ACTION_COMPLETION_EVIDENCE.get(base_action)
+                    evidence_done = bool(
+                        evidence_rel and (wp_dir / evidence_rel).exists()
+                    )
+                    if not evidence_done:
+                        timeout = _STALE_DISPATCH_TIMEOUTS.get(base_action, _DEFAULT_STALE_TIMEOUT)
+                        if now - spawned_at <= timeout:
+                            n += 1
         return n
 
     def _update_pulse_state(self, n_spawn_actions: int, status: dict) -> tuple[dict, dict | None]:
@@ -1039,7 +1188,14 @@ class DeliverOrchestrator:
             last = entry["last_spawned_action"]
             base, _, ids = last.partition(":")
             if ids:
-                tid = label.replace("deliver-worker-", "")
+                # F5 fix: label 已带 WP 前缀（deliver-worker-{wp_id}-{task_id}），
+                # 必须先 strip 前缀再匹配 dedup_key 中的裸 task_id（如 T-001）；
+                # 否则 matched 永远为空 → 回滚静默失效 + 失败目录不清理
+                wp_prefix = f"deliver-worker-{wp_id.lower()}-"
+                if label.lower().startswith(wp_prefix):
+                    tid = label[len(wp_prefix):]
+                else:  # 向后兼容旧格式（deliver-worker-{task_id}）
+                    tid = label.replace("deliver-worker-", "")
                 id_list = ids.split(",")
                 matched = [x for x in id_list if x.lower() == tid.lower()]
                 remaining = [x for x in id_list if x not in matched]
@@ -1097,8 +1253,54 @@ class DeliverOrchestrator:
                     "%s: orphan spawn_workers sweep (unconfirmed >%ds, %d dirs dropped)",
                     wp_id, ORPHAN_DISPATCH_WINDOW_SECONDS, removed,
                 )
+        # F1b: 无记录孤儿空目录清扫（budget=0 分支若清理遗漏的兜底）
+        if self._sweep_recordless_orphan_dirs():
+            swept = True
         if swept:
             self._save_progress()
+
+    def _sweep_recordless_orphan_dirs(self) -> bool:
+        """F1b: 清扫"无 task_spawned_at 记录 + 空 + 超宽限期"的孤儿目录。
+
+        结构性兜底：budget=0 分支（F1a）若清理遗漏，或未来新增否决路径忘记清理，
+        此处 5min 内自愈，防孤儿目录被 derive 误判 running 占坑 30min。
+
+        豁免规则（场景穷举已验证不会误删）：
+        - 非空目录（worker 已写产出）→ _drop_task_dir_if_empty 物理跳过
+        - 有 task_spawned_at 记录（真 spawn 过，worker 可能慢启动）→ 豁免
+        - 目录年龄 <= 5min（可能是刚创建的合法目录）→ 豁免
+        """
+        now = time.time()
+        any_swept = False
+        # 遍历所有已知 WP（不能只遍历 progress.keys()——无 progress 条目的 WP 也会有孤儿目录）
+        all_wp_ids = {wp_id for layer in self.layers for wp_id in layer}
+        for wp_id in all_wp_ids:
+            entry = self.progress.get(wp_id, {})
+            if not isinstance(entry, dict):
+                continue
+            spawned_at_map = entry.get("task_spawned_at", {})
+            worker_outputs = self._wp_dir(wp_id) / "stages" / "worker_outputs"
+            if not worker_outputs.is_dir():
+                continue
+            for task_dir in worker_outputs.iterdir():
+                if not task_dir.is_dir():
+                    continue
+                tid = task_dir.name
+                if tid in spawned_at_map:
+                    continue  # 有 spawn 记录 → 真 worker，豁免
+                try:
+                    age = now - task_dir.stat().st_mtime
+                except OSError:
+                    continue
+                if age <= RECORDLESS_ORPHAN_GRACE_SECONDS:
+                    continue  # 宽限期内 → 豁免
+                if self._drop_task_dir_if_empty(wp_id, tid):
+                    any_swept = True
+                    logger.warning(
+                        "%s/%s: recordless orphan dir swept (empty, no spawn record, age=%ds)",
+                        wp_id, tid, int(age),
+                    )
+        return any_swept
 
     def pulse(self) -> dict:
         """脉冲式调度单次 tick（V1, 2026-07-24 评审裁决 A1-A8 落地）。

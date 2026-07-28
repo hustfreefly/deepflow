@@ -190,7 +190,7 @@ class TestPrepareWorkersSpawn:
         params_list = orchestrator.prepare_workers_spawn(sample_plan, completed_tasks=set())
         assert len(params_list) == 1  # Only T-001 is ready (no deps)
         assert params_list[0]["runtime"] == "subagent"
-        assert "deliver-worker-t-001" in params_list[0]["label"]
+        assert "deliver-worker-wp-001-t-001" in params_list[0]["label"]
 
     def test_no_ready_tasks(self, orchestrator, sample_plan):
         params_list = orchestrator.prepare_workers_spawn(sample_plan, completed_tasks={"T-001", "T-002"})
@@ -213,7 +213,7 @@ class TestPrepareWorkersSpawn:
     def test_after_completed_first_wave(self, orchestrator, sample_plan):
         params_list = orchestrator.prepare_workers_spawn(sample_plan, completed_tasks={"T-001"})
         assert len(params_list) == 1
-        assert "deliver-worker-t-002" in params_list[0]["label"]
+        assert "deliver-worker-wp-001-t-002" in params_list[0]["label"]
 
 
 class TestVerifyWorkerOutput:

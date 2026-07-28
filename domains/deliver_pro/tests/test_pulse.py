@@ -99,7 +99,7 @@ def _mock_driver_for_retry(bb_root, project_name, wp_id, task_ids, timed_out=())
     }
     driver.orch._prepare_single_worker_spawn.side_effect = lambda task_node, _plan: {
         "task_id": task_node.task_id,
-        "label": f"deliver-worker-{task_node.task_id.lower()}",
+        "label": f"deliver-worker-{wp_id.lower()}-{task_node.task_id.lower()}",
         "task": f"do {task_node.task_id}",
         "mode": "run",
     }
@@ -207,8 +207,8 @@ class TestTwoPhaseDispatch:
                 "dispatch_confirmed": False,
             }
             out = orch.confirm_dispatches([
-                {"wp_id": "AAA-001", "label": "deliver-worker-t-001", "ok": True, "error": None},
-                {"wp_id": "AAA-001", "label": "deliver-worker-t-002", "ok": False, "error": "429"},
+                {"wp_id": "AAA-001", "label": "deliver-worker-aaa-001-t-001", "ok": True, "error": None},
+                {"wp_id": "AAA-001", "label": "deliver-worker-aaa-001-t-002", "ok": False, "error": "429"},
             ])
             assert out["confirmed"] == 1
             assert out["rolled_back"] == 1
@@ -248,7 +248,7 @@ class TestRetryBudget:
 
             assert report["status"] == "active"
             labels = [a["label"] for a in report["actions"]]
-            assert "deliver-worker-t-001" in labels
+            assert "deliver-worker-aaa-001-t-001" in labels
             # L2 fix: task_spawned_at 已记录（冷却窗口起点，替代旧 utime 机制）
             assert "T-001" in orch.progress["AAA-001"].get("task_spawned_at", {})
             # attempts 记账：2 → 3
@@ -276,7 +276,7 @@ class TestRetryBudget:
             assert manifest["status"] == "FAILED"
             assert "retry_budget_exceeded" in manifest["failure_reason"]
             # 不再重派
-            assert all(a["label"] != "deliver-worker-t-001" for a in report["actions"])
+            assert all(a["label"] != "deliver-worker-aaa-001-t-001" for a in report["actions"])
             assert any(a["code"] == "TASK_RETRY_EXHAUSTED" for a in report["alerts"])
 
 

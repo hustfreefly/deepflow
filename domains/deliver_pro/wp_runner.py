@@ -493,7 +493,9 @@ class DeliverWPRunner:
         prompt = self._build_worker_prompt(task, plan)
 
         _root = self.blackboard_path.parent.parent
-        _label = f"deliver-worker-{task.task_id.lower()}"
+        # F5 fix: label 加 WP ID——不同 WP 的同名 task（如各自的 T-002）在后台可区分
+        # （本次事故：CHP-001/T-002 与 DFM-001/T-002 撞名被误判为重复 spawn）
+        _label = f"deliver-worker-{self.wp.wp_id.lower()}-{task.task_id.lower()}"
         return {
             "runtime": "subagent",
             "mode": "run",
