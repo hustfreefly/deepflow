@@ -56,6 +56,7 @@ from domains.deliver_pro.contracts import (
     IntegrationReport,
 )
 from core.blackboard.context_injector import auto_bootstrap
+from core.utils.atomic_io import atomic_write_json
 from domains.deliver_pro.prompt_registry import load_prompt
 from domains.deliver_pro.failure_recovery import WorkerFailureRecovery
 
@@ -67,26 +68,6 @@ except ImportError:
     _HAS_TRACK_EXTRACTOR = False
 
 logger = logging.getLogger(__name__)
-
-
-def atomic_write_json(path: Path, data: dict) -> None:
-    """原子写入 JSON：先写 .tmp，fsync，再 rename。"""
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_path = tempfile.mkstemp(suffix=".tmp", dir=str(path.parent))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, str(path))
-    except Exception:
-        # Clean up temp file on failure
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
 
 
 # ============================================================================

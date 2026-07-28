@@ -1,25 +1,25 @@
 """
-Deliver Pro — 入口模块 (V2)
+Deliver Pro — 入口模块 (V3: Pulse 脉冲调度，唯一生产路径)
 
-架构（对齐 Solution Pro / Ship Pro）:
-  Main Agent (depth-0)
-    → run_deliver_pro(project_name) → spawn_params
-    → sessions_spawn(**spawn_params)              # 启动 Orchestrator Agent
+架构（Pulse V1.2，2026-07-24 验证 26/26 WP 零干预）:
+  cron 每 5min 点火 isolated session
+    → pulse_cli.py pulse --project X
+    → DeliverOrchestrator.pulse() 单次全量扫描
+    → 动作契约落盘 _pulse_actions.json → spawn + confirm 回执
+    → session 结束（不依赖 session 长寿 / 事件投递）
 
-  Orchestrator Agent (LLM, depth-1)              # prompts/deliver_orchestrator.md
-    → exec: DeliverOrchestrator.drive_all()       # Python 辅助 (orchestrator.py)
-    → spawn Phase Agents (并行)
-    → sessions_yield()
-    → loop 直到 all_done
-
-  Phase Agents (LLM, depth-2)
-    → Analyze / Workers / Validate / Package     # prompts/deliver_*.md
+⚠️ V2 LLM Orchestrator 模式（drive_all）已于 2026-07-28 禁用：
+  - 根因: LLM 调度绕过并发控制（17 children）+ 上下文遗忘导致重复 spawn
+  - 详见 blackboard/2.5D封装设计团队组建/GLOBAL_ANALYSIS.md
+  - 紧急回退: DEEPFLOW_ALLOW_DRIVE_ALL=1（仅测试/审计用）
 
 用法:
-    from domains.deliver_pro import run_deliver_pro
+    # 生产路径（唯一允许）
+    python3 -m domains.deliver_pro.pulse_cli pulse --project "my_project"
 
-    result = run_deliver_pro("my_project")
-    sessions_spawn(**result["spawn_params"])      # 启动 Orchestrator Agent
+    # 入口函数（返回 Pulse 启动信息，不再返回 LLM spawn_params）
+    from domains.deliver_pro import run_deliver_pro
+    result = run_deliver_pro("my_project")  # mode="pulse" 默认
 """
 
 from __future__ import annotations
@@ -31,7 +31,6 @@ from typing import Any
 
 from domains.deliver_pro.contracts import WorkPackage
 from domains.deliver_pro.wp_runner import DeliverWPRunner
-from core.blackboard.context_injector import auto_bootstrap
 
 logger = logging.getLogger(__name__)
 
@@ -179,51 +178,56 @@ def _adapt_ship_pro_wp(wp: dict, package_semantic_anchors: list | None = None) -
 
 
 # ============================================================================
-# 唯一入口（V2: 薄层 LLM Orchestrator + Python DeliverOrchestrator）
+# 唯一入口（V3: Pulse 脉冲调度，契约笼子强制）
 # ============================================================================
 
 def run_deliver_pro(
     project_name: str,
+    mode: str = "pulse",
     **kwargs,
 ) -> dict:
     """
-    Deliver Pro 唯一入口（V2: 对齐 Solution Pro / Ship Pro 架构）。
+    Deliver Pro 唯一入口（V3: Pulse 脉冲调度）。
 
-    架构:
-      Main Agent (depth-0)
-        → sessions_spawn → Orchestrator Agent (LLM, depth-1)
-          → exec: DeliverOrchestrator.drive_all() (Python)
-          → spawn Phase Agents → yield → loop
+    架构（Pulse V1.2，26/26 WP 零干预验证）:
+      cron 每 5min 点火 → pulse_cli.py pulse --project X
+        → DeliverOrchestrator.pulse() 单次扫描 → 契约落盘 → spawn+confirm
 
-    与 run_solution_pro() / run_ship_pro() 命名规则统一:
-      - 返回 spawn_params → Main Agent 直接传给 sessions_spawn
-      - Orchestrator Agent 是薄层调度器（~68 行 prompt）
-      - DeliverOrchestrator (Python) 是辅助工具
+    ⚠️ V2 LLM Orchestrator（drive_all）已于 2026-07-28 禁用。
+       根因: 17 并发失控 + 重复 spawn（详见 GLOBAL_ANALYSIS.md）。
 
     Args:
         project_name: 项目名称（blackboard 目录名）
-        **kwargs: 额外参数（预留扩展）
+        mode: 调度模式。唯一允许 "pulse"。契约笼子：非 pulse → ValueError。
+        **kwargs: 预留扩展
 
     Returns:
         {
             "project_name": str,
             "blackboard_path": str,
-            "spawn_params": dict,  # Main Agent 直接传给 sessions_spawn
+            "mode": "pulse",
+            "launch_command": str,   # Pulse CLI 启动命令
+            "cron_hint": str,        # cron 注册提示
         }
 
     Raises:
+        ValueError: mode != "pulse"（契约违例）
         FileNotFoundError: ship_package.json 不存在
     """
-    # V2: 薄层 LLM Orchestrator + Python DeliverOrchestrator
-    # 对齐 Solution Pro / Ship Pro 架构:
-    #   run_solution_pro() → spawn_params (Orchestrator Agent, LLM)
-    #   run_ship_pro()     → spawn_params (Dispatcher Agent, LLM)
-    #   run_deliver_pro()  → spawn_params (Orchestrator Agent, LLM)  ← 这里
+    # 契约笼子 Step 1: mode 硬约束（raise ValueError，不是建议性 warning）
+    if mode != "pulse":
+        raise ValueError(
+            f"mode='{mode}' 已禁用（契约违例）。唯一允许模式: 'pulse'\n"
+            f"  Pulse 调用: python3 -m domains.deliver_pro.pulse_cli pulse --project \"{project_name}\"\n"
+            f"  背景: V2 LLM Orchestrator（drive_all）于 2026-07-28 禁用\n"
+            f"        （17 并发失控 + 已完成 worker 重复 spawn）\n"
+            f"  紧急回退（仅测试）: DEEPFLOW_ALLOW_DRIVE_ALL=1"
+        )
 
     # 0. Sanitize project_name: 防止路径穿越
     project_name = project_name.replace("/", "_").replace("\\", "_").replace("..", "_")
 
-    # 1. 验证 Ship Pro 产出存在
+    # 1. 验证 Ship Pro 产出存在（契约笼子：缺前置产出 → 硬报错，不静默降级）
     blackboard_path = BLACKBOARD_ROOT / project_name
     ship_pkg = blackboard_path / "ship_pro" / "ship_package.json"
     if not ship_pkg.exists():
@@ -235,56 +239,42 @@ def run_deliver_pro(
             f"  请先确保 Ship Pro 已完成并产出 ship_package.json"
         )
 
-    # 2. 读取薄层 Orchestrator prompt
+    # 2. 返回 Pulse 启动信息（不再返回 LLM spawn_params —— 物理上消除误用可能）
     deepflow_root = str(DEEPFLOW_ROOT)
-    prompt_path = DEEPFLOW_ROOT / "domains" / "deliver_pro" / "prompts" / "deliver_orchestrator.md"
-    orchestrator_prompt = prompt_path.read_text(encoding="utf-8")
-
-    # 3. 注入运行时变量
-    orchestrator_prompt = orchestrator_prompt.replace("{deepflow_root}", deepflow_root)
-    orchestrator_prompt = orchestrator_prompt.replace("{project_name}", project_name)
-
-    # 4. Bootstrap（解决 sessions_spawn 8KB 截断）
-    from core.blackboard.context_injector import auto_bootstrap
-    deliver_pro_dir = blackboard_path / "deliver_pro"
-    deliver_pro_dir.mkdir(parents=True, exist_ok=True)
-    bootstrap_task = auto_bootstrap(
-        deepflow_root=Path(deepflow_root),
-        prompt_dir=deliver_pro_dir / "stages",
-        task_content=orchestrator_prompt,
-        label="deliver_orchestrator",
-    )
-
-    # 5. 返回 spawn_params（与 run_solution_pro / run_ship_pro 统一）
     result = {
         "project_name": project_name,
         "blackboard_path": str(blackboard_path),
-        "deliver_pro_dir": str(deliver_pro_dir),
-        "spawn_params": {
-            "runtime": "subagent",
-            "mode": "run",
-            "label": f"deliver-orchestrator-{project_name[:20]}",
-            "task": bootstrap_task,
-            "cwd": deepflow_root,
-            "lightContext": True,
-        },
+        "mode": "pulse",
+        "launch_command": (
+            f"cd {deepflow_root} && PYTHONPATH=. "
+            f"python3 -m domains.deliver_pro.pulse_cli pulse --project \"{project_name}\""
+        ),
+        "cron_hint": (
+            f"注册 cron 每 5min 点火: openclaw cron add "
+            f"--schedule '*/5 * * * *' "
+            f"--task 'cd {deepflow_root} && PYTHONPATH=. python3 -m domains.deliver_pro.pulse_cli pulse --project \"{project_name}\"'"
+        ),
     }
 
     logger.info(
-        f"run_deliver_pro: project={project_name}, "
-        f"prompt={len(orchestrator_prompt)} chars, "
-        f"spawn_params ready"
+        f"run_deliver_pro: project={project_name}, mode=pulse, "
+        f"launch_command ready"
     )
     return result
 
 
 # ============================================================================
-# 已删除的旧函数（V2 架构不再需要）
+# 已删除的旧函数（V3 Pulse 架构不再需要）
 # ============================================================================
 #
 # _build_orchestrator_prompt() — 旧的厚层 Orchestrator prompt（内嵌构建）
-#   已替换为 prompts/deliver_orchestrator.md（薄层，~68 行）
+#   已随 V2 LLM Orchestrator 模式一并废弃（2026-07-28）
 #
 # get_orchestrator() — 旧的 per-WP Orchestrator 获取函数
 #   已替换为 DeliverOrchestrator (orchestrator.py) 项目级调度
+#
+# V2 LLM Orchestrator spawn_params 返回 — 已废弃（2026-07-28）
+#   根因: 17 并发失控 + 已完成 worker 重复 spawn
+#   替代: Pulse 脉冲调度（pulse_cli.py pulse --project X）
+#   prompts/deliver_orchestrator.md 已移至 prompts/_archive/
 #

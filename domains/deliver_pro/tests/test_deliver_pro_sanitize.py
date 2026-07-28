@@ -10,30 +10,26 @@ from pathlib import Path
 def test_run_deliver_pro_sanitizes_slash_in_project_name():
     """project_name 含 / 时，sanitize 后应替换为 _"""
     # 模拟 BLACKBOARD_ROOT 和 ship_package 存在
+    # 注: V3 Pulse 模式不再调用 auto_bootstrap（2026-07-28 防呆改造）
     with patch("domains.deliver_pro.BLACKBOARD_ROOT", Path("/tmp/test_bb")) as mock_bb:
         with patch("domains.deliver_pro.DEEPFLOW_ROOT", Path("/tmp/df")):
-            with patch("domains.deliver_pro.Path.read_text", return_value="{}"):
-                # 模拟 ship_package.json 存在
-                with patch("domains.deliver_pro.Path.exists", return_value=True):
-                    with patch("domains.deliver_pro.auto_bootstrap", return_value="mock_task"):
-                        from domains.deliver_pro import run_deliver_pro
-                        result = run_deliver_pro("foo/bar")
-                        # project_name 应被 sanitize
-                        assert result["project_name"] == "foo_bar"
-                        assert "/" not in result["project_name"]
+            with patch("domains.deliver_pro.Path.exists", return_value=True):
+                from domains.deliver_pro import run_deliver_pro
+                result = run_deliver_pro("foo/bar")
+                # project_name 应被 sanitize
+                assert result["project_name"] == "foo_bar"
+                assert "/" not in result["project_name"]
 
 
 def test_run_deliver_pro_sanitizes_dotdot_in_project_name():
     """project_name 含 .. 时，sanitize 后应替换为 _"""
     with patch("domains.deliver_pro.BLACKBOARD_ROOT", Path("/tmp/test_bb")):
         with patch("domains.deliver_pro.DEEPFLOW_ROOT", Path("/tmp/df")):
-            with patch("domains.deliver_pro.Path.read_text", return_value="{}"):
-                with patch("domains.deliver_pro.Path.exists", return_value=True):
-                    with patch("domains.deliver_pro.auto_bootstrap", return_value="mock_task"):
-                        from domains.deliver_pro import run_deliver_pro
-                        result = run_deliver_pro("../etc/passwd")
-                        assert ".." not in result["project_name"]
-                        assert "/" not in result["project_name"]
+            with patch("domains.deliver_pro.Path.exists", return_value=True):
+                from domains.deliver_pro import run_deliver_pro
+                result = run_deliver_pro("../etc/passwd")
+                assert ".." not in result["project_name"]
+                assert "/" not in result["project_name"]
 
 
 def test_deliver_orchestrator_sanitizes_project_name():

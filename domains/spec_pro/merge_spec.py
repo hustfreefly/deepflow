@@ -15,8 +15,9 @@ import json
 import logging
 import os
 import sys
-import tempfile
 from datetime import datetime
+
+from core.utils.atomic_io import atomic_write_json
 from domains.spec_pro.spec_living_md import render_living_spec_md
 
 # Response Normalizer: 将任意格式的 ResponseWorker 输出转换为标准 v2 格式
@@ -118,26 +119,9 @@ def _ensure_living_spec_template(living_spec_path: str) -> dict:
     }
     # 确保目录存在
     os.makedirs(os.path.dirname(living_spec_path) or ".", exist_ok=True)
-    _atomic_write_json(living_spec_path, spec)
+    atomic_write_json(living_spec_path, spec)
     _write_md_sidecar(living_spec_path, spec)
     return spec
-
-
-def _atomic_write_json(path: str, data: dict) -> None:
-    """原子写入 JSON 文件（契约笼子）。
-    
-    使用 tempfile + os.replace 避免半写状态。
-    """
-    dir_name = os.path.dirname(path) or "."
-    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        os.replace(tmp_path, path)
-    except Exception:
-        os.unlink(tmp_path)
-        raise
-
 
 
 def _write_md_sidecar(living_spec_path: str, spec: dict) -> None:
@@ -600,7 +584,7 @@ def merge_spec_v6(base_path: str, stage_name: str) -> dict:
         logger.warning(f"LivingSpec 契约验证警告（非阻断）: {gate_errors}")
 
     # 原子写入
-    _atomic_write_json(living_spec_path, spec)
+    atomic_write_json(living_spec_path, spec)
     _write_md_sidecar(living_spec_path, spec)
 
     return {"status": "merged", "contradictions": contradictions}
@@ -685,7 +669,7 @@ def merge_spec(response_path: str, living_spec_path: str) -> dict:
         logger.warning(f"LivingSpec 契约验证警告（非阻断）: {gate_errors}")
 
     # 原子写入
-    _atomic_write_json(living_spec_path, spec)
+    atomic_write_json(living_spec_path, spec)
     _write_md_sidecar(living_spec_path, spec)
 
     return {"status": "merged", "contradictions": contradictions}
@@ -730,7 +714,7 @@ def apply_revisions(confirmation_path: str, living_spec_path: str) -> dict:
     meta["updated_at"] = datetime.now().isoformat()
 
     # 原子写入
-    _atomic_write_json(living_spec_path, spec)
+    atomic_write_json(living_spec_path, spec)
     _write_md_sidecar(living_spec_path, spec)
 
     return {"status": "revised", "revisions_applied": len(revisions)}

@@ -1,0 +1,184 @@
+{
+  "AtomicWriteJsonInput": {
+    "additionalProperties": false,
+    "description": "atomic_write_json 的输入契约",
+    "properties": {
+      "path": {
+        "description": "目标文件路径",
+        "format": "path",
+        "title": "Path",
+        "type": "string"
+      },
+      "data": {
+        "description": "要写入的数据（JSON 可序列化）",
+        "title": "Data"
+      },
+      "indent": {
+        "default": 2,
+        "description": "JSON 缩进",
+        "maximum": 8,
+        "minimum": 0,
+        "title": "Indent",
+        "type": "integer"
+      },
+      "ensure_ascii": {
+        "default": false,
+        "description": "是否转义非 ASCII 字符",
+        "title": "Ensure Ascii",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "path",
+      "data"
+    ],
+    "title": "AtomicWriteJsonInput",
+    "type": "object"
+  },
+  "AtomicWriteTextInput": {
+    "additionalProperties": false,
+    "description": "atomic_write_text 的输入契约",
+    "properties": {
+      "path": {
+        "description": "目标文件路径",
+        "format": "path",
+        "title": "Path",
+        "type": "string"
+      },
+      "text": {
+        "description": "要写入的文本内容",
+        "title": "Text",
+        "type": "string"
+      },
+      "encoding": {
+        "default": "utf-8",
+        "description": "文本编码",
+        "title": "Encoding",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "text"
+    ],
+    "title": "AtomicWriteTextInput",
+    "type": "object"
+  },
+  "SafeReadJsonInput": {
+    "additionalProperties": false,
+    "description": "safe_read_json 的输入契约",
+    "properties": {
+      "path": {
+        "description": "文件路径",
+        "format": "path",
+        "title": "Path",
+        "type": "string"
+      },
+      "default": {
+        "anyOf": [
+          {},
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "文件不存在或解析失败时的默认值",
+        "title": "Default"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "title": "SafeReadJsonInput",
+    "type": "object"
+  },
+  "AtomicWriteResult": {
+    "additionalProperties": false,
+    "description": "原子写操作的结果（用于日志/审计）",
+    "properties": {
+      "success": {
+        "description": "是否成功",
+        "title": "Success",
+        "type": "boolean"
+      },
+      "path": {
+        "description": "写入的文件路径",
+        "format": "path",
+        "title": "Path",
+        "type": "string"
+      },
+      "bytes_written": {
+        "description": "写入的字节数",
+        "minimum": 0,
+        "title": "Bytes Written",
+        "type": "integer"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "错误信息（失败时）",
+        "title": "Error"
+      }
+    },
+    "required": [
+      "success",
+      "path",
+      "bytes_written"
+    ],
+    "title": "AtomicWriteResult",
+    "type": "object"
+  },
+  "SafeReadResult": {
+    "additionalProperties": false,
+    "description": "安全读取的结果（用于日志/审计）",
+    "properties": {
+      "success": {
+        "description": "是否成功读取",
+        "title": "Success",
+        "type": "boolean"
+      },
+      "data": {
+        "anyOf": [
+          {},
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "读取的数据",
+        "title": "Data"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "错误信息（失败时）",
+        "title": "Error"
+      },
+      "used_default": {
+        "default": false,
+        "description": "是否使用了默认值",
+        "title": "Used Default",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "success"
+    ],
+    "title": "SafeReadResult",
+    "type": "object"
+  }
+}

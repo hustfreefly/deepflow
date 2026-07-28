@@ -55,6 +55,23 @@ PHASE_GENERATING = "GENERATING"
 PHASE_PENDING = "PENDING"
 
 
+def _fresh_mtime(path: Path) -> float:
+    """递归 rglob 取目录内最新文件 mtime（含目录本身）。
+
+    L0 fix（2026-07-28 重复 spawn 事故）：目录 mtime 只在目录项增删时更新，
+    Worker 改写已有文件不刷新它 → 慢 Worker 被误判超时 → 重复 spawn。
+    递归取所有文件 mtime 的最大值，慢 Worker 写文件时保持新鲜。
+    """
+    latest = path.stat().st_mtime
+    for f in path.rglob("*"):
+        if f.is_file():
+            try:
+                latest = max(latest, f.stat().st_mtime)
+            except OSError:
+                pass
+    return latest
+
+
 def _read_json(path: Path) -> dict[str, Any] | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -132,8 +149,9 @@ def derive_worker_progress(
                     completed.add(task_id)
             else:
                 # 无 MANIFEST → running 或超时
+                # L0 fix: 递归 rglob 取最新文件 mtime（慢 Worker 写文件时目录 mtime 不更新）
                 try:
-                    mtime = task_dir.stat().st_mtime
+                    mtime = _fresh_mtime(task_dir)
                 except OSError:
                     mtime = time.time()
                 if time.time() - mtime > WORKER_TIMEOUT_SECONDS:

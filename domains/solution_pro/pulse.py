@@ -28,6 +28,8 @@ import os
 import time
 from pathlib import Path
 
+from core.utils.atomic_io import atomic_write_json
+
 from .contracts.pulse_report import (
     MODULE_REQUIRED_STAGES,
     PHASES,
@@ -110,14 +112,6 @@ class SolutionPulse:
 
     # ── 基础设施 ──────────────────────────────────────────────
 
-    @staticmethod
-    def _atomic_write_json(path: Path, data: dict) -> None:
-        """原子写（temp + os.replace）。"""
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
-        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(tmp, path)
-
     def _acquire_lock(self):
         """单实例文件锁（fcntl.flock 非阻塞，holder 死亡自动释放）。"""
         self.session_dir.mkdir(parents=True, exist_ok=True)
@@ -164,7 +158,7 @@ class SolutionPulse:
 
     def _save_state(self, state: SolutionPulseState) -> None:
         state.updated_at = time.time()
-        self._atomic_write_json(self.state_path, state.model_dump(mode="json"))
+        atomic_write_json(self.state_path, state.model_dump(mode="json"))
 
     # ── 完成判定（确定性：文件系统是唯一真相）─────────────────
 
@@ -294,7 +288,7 @@ class SolutionPulse:
                 summary=SolutionPulseSummary(**summary),
             )
             data = report.model_dump(mode="json")
-            self._atomic_write_json(self.actions_path, data)
+            atomic_write_json(self.actions_path, data)
             return data
 
         def _summary_of(state: SolutionPulseState) -> dict:
@@ -406,7 +400,7 @@ class SolutionPulse:
                                 "code": "TERMINAL_FAILED",
                                 "message": f"模块 {module} 连续 30min×{MODULE_MAX_RETRIES} 无进展，pipeline 终败",
                             })
-                            self._atomic_write_json(self.failed_path, {
+                            atomic_write_json(self.failed_path, {
                                 "session_id": self.session_id,
                                 "failed_module": module,
                                 "failed_at": now,
@@ -462,7 +456,7 @@ class SolutionPulse:
                         "code": "POST_VALIDATION_FAILED",
                         "message": f"L0 后置验证失败: {json.dumps(detail.get('summary', detail), ensure_ascii=False)[:300]}",
                     })
-                    self._atomic_write_json(self.failed_path, {
+                    atomic_write_json(self.failed_path, {
                         "session_id": self.session_id,
                         "failed_module": "validate",
                         "failed_at": now,
@@ -547,7 +541,7 @@ class SolutionPulse:
                         "quality_notes": quality_notes,
                         "architecture_version": "v3.2-pulse",
                     }
-                    self._atomic_write_json(self.completed_path, progress)
+                    atomic_write_json(self.completed_path, progress)
                     # P1-2: MD-first 接线 — 生成 final_solution.md + solution_document.md
                     # ADR-009 统一兜底：pipeline 完成时渲染所有 MD 产物
                     try:

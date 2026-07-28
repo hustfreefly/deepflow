@@ -228,7 +228,12 @@ class TestTwoPhaseDispatch:
 
 class TestRetryBudget:
     def test_timed_out_task_retried_immediately(self, mock_blackboard):
-        """derive 判 timed_out → 无视 stale dedup 直接重派 + touch 目录 + attempts 记账。"""
+        """derive 判 timed_out → 无视 stale dedup 直接重派 + task_spawned_at 冷却 + attempts 记账。
+
+        L3 fix（2026-07-28）：不再 os.utime 刷目录 mtime 欺骗 derive，
+        防下一 pulse 重复重派改由 task_spawned_at 冷却窗口承担（职责分离：
+        derive 报事实，账本管节奏）。
+        """
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             stages = _setup_generating_wp(
                 bb_root, project, "AAA-001", ["T-001", "T-002"], timeout_task="T-001"
@@ -244,9 +249,8 @@ class TestRetryBudget:
             assert report["status"] == "active"
             labels = [a["label"] for a in report["actions"]]
             assert "deliver-worker-t-001" in labels
-            # 目录已 touch → mtime 新鲜（derive 视为 running，防重复重派）
-            mtime = (stages / "worker_outputs" / "T-001").stat().st_mtime
-            assert time.time() - mtime < 60
+            # L2 fix: task_spawned_at 已记录（冷却窗口起点，替代旧 utime 机制）
+            assert "T-001" in orch.progress["AAA-001"].get("task_spawned_at", {})
             # attempts 记账：2 → 3
             assert orch.progress["AAA-001"]["task_attempts"]["T-001"] == 3
             assert any(a["code"] == "TASK_RETRY" for a in report["alerts"])

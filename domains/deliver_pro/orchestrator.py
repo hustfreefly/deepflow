@@ -19,6 +19,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.utils.atomic_io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 # === Pulse Scheduling V1 常量（2026-07-24 评审裁决 A1-A8 落地） ===
@@ -46,6 +48,25 @@ _STALE_DISPATCH_TIMEOUTS = {
 _DEFAULT_STALE_TIMEOUT = 1800
 
 
+def _check_drive_mode_allowed(method_name: str) -> None:
+    """契约笼子：drive_all/drive_once 已禁用（2026-07-28），仅紧急回退可用。
+
+    根因：LLM 调度模式绕过并发控制（17 children 突破 MAX_IN_FLIGHT）
+          + 上下文遗忘导致已完成 worker 重复 spawn。
+    唯一生产路径：Pulse（pulse_cli.py pulse --project X，26/26 WP 零干预验证）。
+
+    紧急回退（仅测试/审计）：DEEPFLOW_ALLOW_DRIVE_ALL=1
+    """
+    if os.environ.get("DEEPFLOW_ALLOW_DRIVE_ALL") != "1":
+        raise RuntimeError(
+            f"{method_name} 已禁用（契约违例）：LLM 调度模式于 2026-07-28 废弃。\n"
+            f"  根因：LLM 调度绕过并发控制（17 并发）+ 已完成 worker 重复 spawn\n"
+            f"  唯一生产路径：Pulse\n"
+            f"    python3 -m domains.deliver_pro.pulse_cli pulse --project <name>\n"
+            f"  紧急回退（仅测试/审计）：DEEPFLOW_ALLOW_DRIVE_ALL=1"
+        )
+
+
 class PulseLocked(Exception):
     """另一个 pulse 进程持有锁。携带可选的 stale-lock 告警。"""
 
@@ -69,6 +90,10 @@ class DeliverOrchestrator:
         except FileNotFoundError:
             logger.warning("B1: ship_package.json not found, using empty package")
             self.ship_package = {"work_packages": [], "dependency_graph": {}}
+        # 能力正交：Ship Pro 输出 "id" → 兼容为 "wp_id"
+        for wp in self.ship_package.get("work_packages", []):
+            if "wp_id" not in wp and "id" in wp:
+                wp["wp_id"] = wp["id"]
         self.layers = self._compute_layers()
         self.progress_path = self.blackboard_root / project_name / "batch_progress.json"
         self.progress = self._load_progress()
@@ -169,30 +194,11 @@ class DeliverOrchestrator:
                 logger.warning(f"Failed to load progress: {e}")
         return {}
 
-    @staticmethod
-    def _atomic_write_json(path: Path, data: dict) -> None:
-        """A1: 原子写 JSON（temp + os.replace），防并发 pulse 截断对方数据。
-
-        契约笼子：写失败必须 raise，不允许静默留下半成品文件。
-        """
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, path)
-        except Exception:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
-
     def _save_progress(self) -> None:
         """保存进度到 JSON 文件（A1: 原子写 + schema version）。"""
         # _meta 只存在于文件（schema 演进标记，P2-4），不污染内存 dict
         data = {**self.progress, "_meta": {"version": 1}}
-        self._atomic_write_json(self.progress_path, data)
+        atomic_write_json(self.progress_path, data)
 
     # ------------------------------------------------------------------
     # WP 数据访问
@@ -549,21 +555,36 @@ class DeliverOrchestrator:
 
             # V3: legacy 路径搬迁已在 _check_wp_phase 中幂等处理（derive, don't sync）
 
-            # 去重：检查 progress 中是否已 spawn 同 action（含具体 task IDs）
+            # L1 fix: spawn_workers 走 per-task 最终过滤（替代 Wave 级 dedup）
             progress_entry = self.progress.get(wp_id, {})
-            last_spawned = progress_entry.get("last_spawned_action")
             current_params = action_item.get("spawn_params")
             has_real_params = bool(current_params) and (
                 not isinstance(current_params, list) or len(current_params) > 0
             )
-            # P0-3 fix: dedup key 包含具体 task IDs，不同 wave 的 spawn_workers 不互相阻塞
-            current_task_ids = ""
-            if isinstance(current_params, list):
+            if action == "spawn_workers" and isinstance(current_params, list):
+                current_params = self._filter_spawnable_tasks(wp_id, current_params)
+                action_item = dict(action_item, spawn_params=current_params)
+                has_real_params = len(current_params) > 0
+                # 更新 task_ids 用于 dedup_key 记录（L1 过滤后的准确列表）
                 current_task_ids = ",".join(sorted(
                     p.get("task_id", p.get("label", "")) for p in current_params
                     if isinstance(p, dict)
                 ))
-            dedup_key = f"{action}:{current_task_ids}" if current_task_ids else action
+                dedup_key = f"{action}:{current_task_ids}" if current_task_ids else action
+
+            # 去重：检查 progress 中是否已 spawn 同 action（含具体 task IDs）
+            # spawn_workers 已通过 L1 per-task 过滤，不再走 Wave 级 dedup 短路
+            # 非 worker action（analyze/validate/package）仍走原有 dedup 逻辑
+            last_spawned = progress_entry.get("last_spawned_action")
+            if action != "spawn_workers":
+                # P0-3 fix: dedup key 包含具体 task IDs，不同 wave 的 spawn_workers 不互相阻塞
+                current_task_ids = ""
+                if isinstance(current_params, list):
+                    current_task_ids = ",".join(sorted(
+                        p.get("task_id", p.get("label", "")) for p in current_params
+                        if isinstance(p, dict)
+                    ))
+                dedup_key = f"{action}:{current_task_ids}" if current_task_ids else action
             if last_spawned == dedup_key and has_real_params:
                 # 孤儿分发恢复：dedup 记录可能来自已死 session（agent 从未真正运行）。
                 # 过期则清除记录并继续分发；未过期才真正跳过。
@@ -678,16 +699,52 @@ class DeliverOrchestrator:
                 # A2: task 级 spawn 次数账本（重试预算的数据源）
                 if action == "spawn_workers" and isinstance(current_params, list):
                     attempts_map = progress_entry.setdefault("task_attempts", {})
+                    spawned_map = progress_entry.setdefault("task_spawned_at", {})  # L2: per-task 冷却窗口账本
                     for p in current_params:
                         tid = p.get("task_id") if isinstance(p, dict) else None
                         if tid:
                             attempts_map[tid] = attempts_map.get(tid, 0) + 1
+                            spawned_map[tid] = time.time()  # L2: 记录 spawn 时间戳
                 self.progress[wp_id] = progress_entry
                 self._save_progress()
 
             results.append(action_item)
 
         return results
+
+    def _filter_spawnable_tasks(self, wp_id: str, params: list[dict]) -> list[dict]:
+        """L1 最终防线：派发前 per-task 过滤。
+
+        无论上层逻辑如何出错，有 MANIFEST / 冷却期内 / attempts 耗尽的 task
+        物理上无法进入 spawn 列表。在 flock 锁内、派发前执行。
+
+        三道检查（全部通过才保留）：
+        1. MANIFEST 存在 → 终态（完成/失败），绝不重派
+        2. attempts >= RETRY_BUDGET → 硬上限，防无限重试
+        3. task_spawned_at 在冷却窗口内 → 防重复 spawn（替代 Wave 级 dedup）
+        """
+        from domains.deliver_pro.phase_deriver import WORKER_TIMEOUT_SECONDS
+
+        kept = []
+        entry = self.progress.get(wp_id, {})
+        attempts_map = entry.get("task_attempts", {})
+        spawned_at_map = entry.get("task_spawned_at", {})
+        wo = self._wp_dir(wp_id) / "stages" / "worker_outputs"
+        now = time.time()
+        for p in params:
+            tid = p.get("task_id") if isinstance(p, dict) else None
+            if not tid:
+                continue
+            tdir = wo / tid
+            if (tdir / "MANIFEST.json").exists():  # 终态
+                continue
+            if attempts_map.get(tid, 0) >= RETRY_BUDGET:  # 硬上限
+                continue
+            last = spawned_at_map.get(tid, 0)
+            if last and now - last < WORKER_TIMEOUT_SECONDS:  # 冷却窗口
+                continue
+            kept.append(p)
+        return kept
 
     @staticmethod
     def _is_stale_dispatch(progress_entry: dict, action: str) -> bool:
@@ -800,7 +857,7 @@ class DeliverOrchestrator:
                 # 终态：合成 MANIFEST（契约笼子：失败必须显式落盘，不允许无限重试）
                 manifest_path = driver.worker_outputs_dir / task_id / "MANIFEST.json"
                 if not manifest_path.exists():
-                    self._atomic_write_json(manifest_path, {
+                    atomic_write_json(manifest_path, {
                         "task_id": task_id,
                         "status": "FAILED",
                         "failure_reason": f"retry_budget_exceeded ({attempts} attempts, no MANIFEST)",
@@ -821,11 +878,9 @@ class DeliverOrchestrator:
             except Exception as e:
                 logger.warning("%s/%s: retry spawn prep failed: %s", wp_id, task_id, e)
                 continue
-            # touch dir → derive 视为 running（防下一 pulse 重复重派）
-            try:
-                os.utime(driver.worker_outputs_dir / task_id, None)
-            except OSError:
-                pass
+            # L3 fix: 删除 os.utime（不再需要刷 mtime 欺骗 derive）
+            # 防下一 pulse 重复重派由 L2 task_spawned_at 冷却窗口承担
+            # 职责分离：derive 报事实，账本管节奏
             params.append(new_params)
             alerts.append({
                 "severity": "INFO",
@@ -951,7 +1006,7 @@ class DeliverOrchestrator:
                     f"（{signature}），流水线疑似卡死，请人工检查"
                 ),
             }
-        self._atomic_write_json(state_path, state)
+        atomic_write_json(state_path, state)
         return state, alert
 
     def confirm_dispatches(self, results: list[dict]) -> dict:
@@ -1000,6 +1055,14 @@ class DeliverOrchestrator:
                 for k in ("last_spawned_action", "last_spawned_at", "dispatch_confirmed"):
                     entry.pop(k, None)
             entry["spawn_failures"] = entry.get("spawn_failures", 0) + 1
+            # L2/L4 fix: 回滚时清理 per-task 账本（解禁冷却窗口 + 递减 attempts）
+            if ids and matched:
+                spawned_at_map = entry.get("task_spawned_at", {})
+                attempts_map = entry.get("task_attempts", {})
+                for t in matched:
+                    spawned_at_map.pop(t, None)  # L2: 解禁冷却窗口，下次 pulse 可立即重派
+                    if t in attempts_map and attempts_map[t] > 0:
+                        attempts_map[t] -= 1  # L4: spawn 失败不算执行，递减计数
             rolled_back += 1
             failures.append({"wp_id": wp_id, "label": label, "error": r.get("error")})
             logger.warning("%s/%s: spawn rolled back — %s", wp_id, label, r.get("error"))
@@ -1079,7 +1142,7 @@ class DeliverOrchestrator:
                 summary=PulseSummary(**summary),
             )
             data = report.model_dump(mode="json")
-            self._atomic_write_json(actions_path, data)
+            atomic_write_json(actions_path, data)
             return data
 
         # A8: 完成标记快速通道（零扫描退出，不烧 token 之外的任何资源）
@@ -1203,7 +1266,7 @@ class DeliverOrchestrator:
                     wp for layer in self.layers for wp in layer
                     if self.progress.get(wp, {}).get("terminal_failed")
                 ]
-                self._atomic_write_json(completed_path, {
+                atomic_write_json(completed_path, {
                     "completed_at": time.time(),
                     "total_wps": status["total_wps"],
                     "completed": status["completed"],
@@ -1264,6 +1327,7 @@ class DeliverOrchestrator:
                 "auto_completed": [str],  # actions auto-executed (e.g., assemble)
             }
         """
+        _check_drive_mode_allowed("drive_once()")
         status = self.get_status()
         if status["all_done"]:
             return {"all_done": True, "spawn_actions": [], "status": status, "auto_completed": []}
@@ -1271,7 +1335,6 @@ class DeliverOrchestrator:
         tick_results = self.tick()
         spawn_actions = []
         auto_completed = []
-
         for item in tick_results:
             wp_id = item["wp_id"]
             action = item["action"]
@@ -1361,6 +1424,7 @@ class DeliverOrchestrator:
                 "iterations": int,  # tick() 调用次数
             }
         """
+        _check_drive_mode_allowed("drive_all()")
         all_auto_completed = []
         iterations = 0
 
