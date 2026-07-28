@@ -42,7 +42,8 @@ cd {deepflow_root} && PYTHONPATH=. python3 -m domains.deliver_pro.pulse_cli conf
 ```
 
 `<json>` 格式（单引号包裹，紧凑 JSON）：
-`[{"wp_id":"PLAT-001","label":"deliver-worker-t-001","ok":true,"error":null}, ...]`
+`[{"wp_id":"PLAT-001","label":"deliver-worker-plat-001-t-001","ok":true,"error":null}, ...]`
+（label 一律照抄 actions 报告中的原值——V3.1 起 label 含 WP 前缀，禁止手工构造）
 
 **绝不 sessions_yield。绝不等待 worker 完成。** worker 是独立后台任务，父 session 结束后继续运行；它们的状态由下次 pulse 从文件系统推导。
 

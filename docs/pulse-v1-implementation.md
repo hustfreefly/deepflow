@@ -80,8 +80,8 @@
 | K1 | 交付质量与调度完成度分离 | 认知 | 26/26 DONE ≠ 质量合格：5 COMPLETE / 8 PARTIAL / 13 FAILED。根因是前日 worker 批量死亡的历史遗留（blocked 级联 → 空 assembly → FAIL 交付）。Pulse 设计目标是"跑完"，质量修复需重置重跑（用户已决定暂缓） |
 | K2 | package agent 输出污染 | P2 | SDK-001：package agent 把 284MB 原始 worker_outputs 灌进 final_deliverable（23,610 文件）。deliver_package.md 需加"禁止复制 worker_outputs"约束 |
 | K3 | package agent 写空 DELIVERABLE.md | P2 | STORE-003：final DELIVERABLE.md = 0B（draft 有 23KB）。verify_package_output 只查 manifest 未查交付物内容长度，建议加 ≥50 字符下限（对齐 worker 的 MIN_DELIVERABLE_LENGTH） |
-| K4 | in_flight 计数保守高估 | P3 | 计数含 30min 窗口内"新鲜但已结束"的目录，瞬时可达 11 > MAX_IN_FLIGHT=8。方向保守（高估→少派活），不影响安全 |
-| K5 | blocked 级联 → 空 assembly | 设计权衡 | 基础任务终败时，依赖它的任务全部 blocked → resolved=total → assembly 拼空内容 → FAIL 交付。这是"跑完优先"的设计选择，质量场景需人工重置 |
+| K4 | in_flight 计数保守高估 | ~~P3~~ ✅ 已修 | ~~计数含 30min 窗口内“新鲜但已结束”的目录~~ → 2026-07-29 F2 证据化计数：完成证据文件存在即释放名额，时间推断仅兜底（fix-plan-deliver-pro-ghost-slots.md） |
+| K5 | blocked 级联 → 空 assembly | ~~设计权衡~~ ✅ 已修 | ~~基础任务终败时依赖任务全部 blocked → assembly 拼空内容~~ → 2026-07-29 F3 三道守卫：GENERATING/ASSEMBLING/终态写入前拦截零证据任务，回退重跑而非硬拼（fix-plan-deliver-pro-ghost-slots.md） |
 | K6 | IN_FLIGHT_CAP 曾误标 WARN | 已修 | 首轮刷屏 15 条。已降级 INFO（飞书只发 WARN/CRITICAL） |
 
 ## 5. 文件清单
