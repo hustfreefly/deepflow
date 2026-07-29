@@ -124,3 +124,4 @@ sdk/*/node_modules/
 sdk/*/dist/
 # SDK node_modules (2026-07-30 GitHub 清理)
 sdk/*/build/
+.deepflow/
