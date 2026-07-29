@@ -38,30 +38,30 @@ DeepFlow 不是一个 Agent，而是 **Agent 的编排框架**。它在 OpenClaw
   │
   ▼
 ┌─────────────────────────────────────┐
-│  Spec Pro (V2.2.0)                  │
+│  Spec Pro (V2.3.0)                  │
 │  苏格拉底式对话 → Living Spec (MD)  │
 │  Semantic REQ-ID + Anchors          │
 └──────────────┬──────────────────────┘
                │ living_spec.md + requirement_index
                ▼
 ┌─────────────────────────────────────┐
-│  Solution Pro (V3.1.0)              │
+│  Solution Pro (V4.1.0)              │
 │  纯 Agent Orchestrator              │
 │  Planning / Research / Summary      │
 │  + 对抗质量审查 + 一致性检查        │
 └──────────────┬──────────────────────┘
-               │ solution_design.md
+               │ final_solution.md + solution_track.json
                ▼
 ┌─────────────────────────────────────┐
-│  Ship Pro (V8.2)                    │
+│  Ship Pro (V2.1.0)                  │
 │  PipelineDesigner → Orchestrator    │
 │  → Workers(并行) → Consolidator     │
 │  → ShipPackage (MD)                 │
 └──────────────┬──────────────────────┘
-               │ ship_package.md (WPs + 依赖图)
+               │ ship_package.md + ship_track.json
                ▼
 ┌─────────────────────────────────────┐
-│  Deliver Pro (V1.0.0)               │
+│  Deliver Pro (V3.1.0)               │
 │  Analyze → Generate → **Assemble**  │
 │  Code-First Assembly (零 LLM)       │
 │  → Validate → Package               │
@@ -188,11 +188,11 @@ deepflow/
 │   └── unified_entry.py         # 统一入口
 │
 ├── domains/                     # 五域
-│   ├── spec_pro/                # Spec Pro V2.2.0
-│   ├── solution_pro/            # Solution Pro V3.1.0
-│   ├── ship_pro/                # Ship Pro V8.2
-│   ├── deliver_pro/             # Deliver Pro V1.0.0
-│   ├── research_pro/            # Research Pro V1.0
+│   ├── spec_pro/                # Spec Pro V2.3.0
+│   ├── solution_pro/            # Solution Pro V4.1.0
+│   ├── ship_pro/                # Ship Pro V2.1.0
+│   ├── deliver_pro/             # Deliver Pro V3.1.0
+│   ├── research_pro/            # Research Pro V2.0.0
 │   └── loop_engine/             # 内部调度引擎
 │
 ├── contracts/                   # 全局契约
