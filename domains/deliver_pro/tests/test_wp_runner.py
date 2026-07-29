@@ -752,7 +752,7 @@ created: "2026-07-11T20:30:00Z"
 
             # Verify content
             track_data = json.loads(track_path.read_text(encoding="utf-8"))
-            assert track_data["schema_version"] == "3.0.0"
+            assert track_data["schema_version"] == "3.1.0"
             assert track_data["domain"] == "deliver_pro"
             assert "REQ-001" in track_data["metrics"]["req_ids"]
             assert "REQ-002" in track_data["metrics"]["req_ids"]

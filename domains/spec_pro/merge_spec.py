@@ -391,7 +391,13 @@ def merge_semantic_anchors(existing: list, new_anchors: list) -> list:
         if isinstance(anchor, dict):
             name = anchor.get("name", "")
             if name and len(anchor.get("constraint", "")) >= 5:
-                anchors_map[name] = anchor
+                if name not in anchors_map:  # ✅ 已存在则跳过（不可变性原则）
+                    anchors_map[name] = anchor
+                else:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        f"SemanticAnchor '{name}' 已存在，跳过（不可变性原则）"
+                    )
 
     return list(anchors_map.values())
 

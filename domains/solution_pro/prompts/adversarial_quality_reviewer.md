@@ -40,7 +40,7 @@ bb = BlackboardManager('{session_id}')
 
 # 读取模块输出
 output = bb.read_stage('{module_output_file}')
-living_spec = bb.read_json('data/living_spec.json')
+living_spec = bb.read_stage('living_spec')
 
 print(json.dumps({
     'output_summary': str(output)[:2000],

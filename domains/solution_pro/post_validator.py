@@ -173,12 +173,31 @@ def _validate_requirement_coverage(bb) -> List[Dict[str, str]]:
     """验证 requirement_index 中的需求是否在输出中被覆盖（V4: 调用 quality_utils）"""
     failures = []
 
-    # 从 living_spec 或 frozen_spec 读取 requirement_index
-    living_spec = bb.read_json("data/living_spec.json") or {}
+    # 从 living_spec 读取 requirement_index（ADR-009: 纯 MD 流转，删除 JSON fallback）
+    living_spec_content = bb.read_stage("living_spec")
+    living_spec = {}
+    if isinstance(living_spec_content, str):
+        try:
+            from domains.spec_pro.spec_living_md import parse_living_spec_md
+            living_spec = parse_living_spec_md(living_spec_content) or {}
+        except Exception:
+            living_spec = {}
+    elif isinstance(living_spec_content, dict):
+        living_spec = living_spec_content
     requirement_index = living_spec.get("requirement_index", [])
 
     if not requirement_index:
-        frozen_spec = bb.read_json("data/frozen_spec.json") or {}
+        # fallback: 从 frozen_spec 读取
+        frozen_spec_content = bb.read_stage("data/frozen_spec")
+        frozen_spec = {}
+        if isinstance(frozen_spec_content, str):
+            try:
+                from domains.solution_pro.frozen_living_md import parse_frozen_spec_md
+                frozen_spec = parse_frozen_spec_md(frozen_spec_content) or {}
+            except Exception:
+                frozen_spec = {}
+        elif isinstance(frozen_spec_content, dict):
+            frozen_spec = frozen_spec_content
         requirement_index = frozen_spec.get("requirement_index", [])
 
     if not requirement_index:
@@ -228,12 +247,31 @@ def _validate_information_conservation(bb) -> List[Dict[str, str]]:
     """验证 semantic_anchors 是否保留在输出中（V4: 调用 quality_utils）"""
     failures = []
 
-    # 从 living_spec 读取 semantic_anchors
-    living_spec = bb.read_json("data/living_spec.json") or {}
+    # 从 living_spec 读取 semantic_anchors（ADR-009: 纯 MD 流转，删除 JSON fallback）
+    living_spec_content = bb.read_stage("living_spec")
+    living_spec = {}
+    if isinstance(living_spec_content, str):
+        try:
+            from domains.spec_pro.spec_living_md import parse_living_spec_md
+            living_spec = parse_living_spec_md(living_spec_content) or {}
+        except Exception:
+            living_spec = {}
+    elif isinstance(living_spec_content, dict):
+        living_spec = living_spec_content
     semantic_anchors = living_spec.get("semantic_anchors", [])
 
     if not semantic_anchors:
-        frozen_spec = bb.read_json("data/frozen_spec.json") or {}
+        # fallback: 从 frozen_spec 读取
+        frozen_spec_content = bb.read_stage("data/frozen_spec")
+        frozen_spec = {}
+        if isinstance(frozen_spec_content, str):
+            try:
+                from domains.solution_pro.frozen_living_md import parse_frozen_spec_md
+                frozen_spec = parse_frozen_spec_md(frozen_spec_content) or {}
+            except Exception:
+                frozen_spec = {}
+        elif isinstance(frozen_spec_content, dict):
+            frozen_spec = frozen_spec_content
         semantic_anchors = frozen_spec.get("semantic_anchors", [])
 
     if not semantic_anchors:

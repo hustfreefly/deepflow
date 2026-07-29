@@ -56,8 +56,8 @@ bb.session_id    # → str
 
 ⚠️ 常见错误（禁止）：
 - ❌ `bb._load()` → 不存在！用 `bb.read_stage()` 或 `bb.read()`
-- ❌ `bb.write_stage('name', markdown_string)` → write_stage 接收 dict，不接收 str！写文本用 `bb.write()`
-- ❌ `bb.read_stage('name')` 读文本 → read_stage 返回 dict！读文本用 `bb.read()` 或 `bb.read_stage_raw()`
+- ✅ `bb.write_stage('name', markdown_string)` → ADR-009 后接受 `Union[Dict[str, Any], str]`（str 写 .md 文件，dict 写 .json 文件）
+- ✅ `bb.read_stage('name')` → ADR-009 后优先读 .md 返回 str，fallback .json 返回 dict。可用 `as_text=True` 强制返回原始文本
 
 ### Python 代码规范
 - **注释和 docstring 必须用英文** — 中文全角字符（，/（/）/—）会导致 SyntaxError

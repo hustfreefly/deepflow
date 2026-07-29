@@ -11,7 +11,7 @@ exec: cat {wp_data_path}
 ```
 
 执行后：
-1. 你已获得 WP 完整内容（objective / acceptance_criteria / constraints / ship_context）
+1. 你已获得 WP 完整内容（objective / acceptance_criteria / constraints）
 2. **立即在内存中规划 Task Graph**（不要先输出纯文本分析）
 3. **用 write 工具将 execution_plan.json 写入绝对路径**：`{output_path}`
    （如目录不存在，先 `exec: mkdir -p {stages_dir}`）

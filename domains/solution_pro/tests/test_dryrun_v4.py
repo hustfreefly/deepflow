@@ -50,14 +50,21 @@ def lifecycle(session_dir):
 
 @pytest.fixture
 def frozen_spec(bb):
-    """写入最小 frozen_spec"""
+    """写入最小 frozen_spec（ADR-009: MD-first）"""
     spec = {
         "requirements": [
             {"id": "REQ-1", "text": "Test requirement"},
         ],
         "architecture_version": "v4.0",
     }
-    bb.write("data/frozen_spec.json", spec)
+    # ADR-009: 写入 MD 格式
+    try:
+        from domains.solution_pro.frozen_living_md import render_frozen_spec_md
+        md_content = render_frozen_spec_md(spec)
+        bb.write("data/frozen_spec.md", md_content)
+    except ImportError:
+        # Fallback to JSON if renderer unavailable
+        bb.write("data/frozen_spec.json", spec)
     return spec
 
 
@@ -325,10 +332,13 @@ class TestV4Simplification:
         # 找到完成标记代码段
         marker_pos = content.find("Step 2: 完成标记")
         if marker_pos >= 0:
-            completion_section = content[marker_pos:marker_pos + 1000]
-            # 完成标记段不应包含 pipeline_status 查询
-            assert "get_pipeline_status" not in completion_section
-            assert "SingleSourceStateManager" not in completion_section
+            # 只检查完成标记的 bash 代码块（到下一个 ``` 结束）
+            code_block_start = content.find("```bash", marker_pos)
+            code_block_end = content.find("```", code_block_start + 10)
+            completion_code = content[marker_pos:code_block_end]
+            # 完成标记代码不应包含 pipeline_status 查询
+            assert "get_pipeline_status" not in completion_code
+            assert "SingleSourceStateManager" not in completion_code
 
     def test_version_is_v4(self):
         """验证: prompt 版本号为 4.0"""

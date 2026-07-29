@@ -234,23 +234,30 @@ class TestRoundTrip:
         assert rate >= 0.90, f"Round-trip rate {rate:.0%} < 90% ({preserved}/{total})"
 
     def test_real_data_round_trip(self):
-        """用真实 final_solution.json 做 round-trip"""
-        real_path = Path(__file__).resolve().parent.parent.parent.parent / "blackboard" / "ai_loop_solution_e591f8b1" / "stages" / "final_solution.json"
-        if not real_path.exists():
-            pytest.skip(f"Real data not found: {real_path}")
+        """用真实 final_solution 做 round-trip（ADR-009: MD-first）"""
+        base = Path(__file__).resolve().parent.parent.parent.parent / "blackboard" / "ai_loop_solution_e591f8b1" / "stages"
+        # ADR-009: 优先读 .md，fallback 到 .json
+        md_path = base / "final_solution.md"
+        json_path = base / "final_solution.json"
 
-        with open(real_path) as f:
-            raw = json.load(f)
-        # Handle double-encoded
-        if isinstance(raw, str):
-            data = json.loads(raw)
+        if md_path.exists():
+            md = md_path.read_text(encoding="utf-8")
+            passed, errors = validate_final_solution_md(md)
+            assert passed, f"Validation failed: {errors}"
+            parsed = parse_final_solution_md(md)
+            assert parsed.get("key_decisions") is not None
+        elif json_path.exists():
+            with open(json_path) as f:
+                raw = json.load(f)
+            if isinstance(raw, str):
+                data = json.loads(raw)
+            else:
+                data = raw
+            md = render_final_solution_md(data)
+            passed, errors = validate_final_solution_md(md)
+            assert passed, f"Validation failed: {errors}"
+            parsed = parse_final_solution_md(md)
+            assert parsed.get("schema_version") == data.get("schema_version")
+            assert len(parsed.get("key_decisions", [])) >= len(data.get("key_decisions", [])) * 0.8
         else:
-            data = raw
-
-        md = render_final_solution_md(data)
-        passed, errors = validate_final_solution_md(md)
-        assert passed, f"Validation failed: {errors}"
-
-        parsed = parse_final_solution_md(md)
-        assert parsed.get("schema_version") == data.get("schema_version")
-        assert len(parsed.get("key_decisions", [])) >= len(data.get("key_decisions", [])) * 0.8
+            pytest.skip(f"Real data not found: {base}/final_solution.md or .json")

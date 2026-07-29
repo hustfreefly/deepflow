@@ -20,7 +20,7 @@ Ship Pro 2.0.0 - 入口模块
 
 统一 blackboard 结构:
   .deepflow/blackboard/{project_name}/
-  ├── data/frozen_spec.json         ← Solution Pro 产出
+  ├── data/frozen_spec.md           ← Solution Pro 产出
   ├── stages/solution_document.json ← Solution Pro 产出
   ├── ship_pro/                     ← Ship Pro 写入
   │   ├── solution_pro_input.json   ← 合并后的输入
@@ -28,7 +28,7 @@ Ship Pro 2.0.0 - 入口模块
   │   │   ├── pipeline_plan.json
   │   │   ├── context_*.json
   │   │   ├── worker_*.json
-  │   │   └── ship_package.json
+  │   │   └── ship_package.md (JSON 衍生同目录)
   │   └── ...
   └── ...
 """
@@ -60,36 +60,46 @@ def _find_solution_pro_output(project_blackboard: Path) -> dict:
     """
     从统一 blackboard 读取 Solution Pro 输出。
 
-    AI Native 架构 (2026-07-15):
+    ADR-009 MD-only (2026-07-29):
+      final_solution.md 是唯一真相源（JSON fallback 已删除）。
+
+    Track 增强 (2026-07-29):
+      优先读取 solution_track.json 获取跨域元数据（semantic_anchors, req_ids）。
+      如果 track 不存在，fallback 到 extract_track_json() 动态生成。
+
+    AI Native 架构:
       代码只做 I/O + Schema 验证。语义提取由 Agent 层（Orchestrator）完成。
-      final_solution.json 是唯一数据源（Agent 层保证产出）。
-      MD 是人类可读副本，不做数据传递。不降级、不 fallback。
 
     Returns:
-        final_solution.json 的内容 dict
+        final_solution 的内容 dict，包含 _track 字段（跨域元数据）
 
     Raises:
-        ValueError: JSON 不存在或 Schema 验证失败
+        ValueError: final_solution.md 不存在或 Schema 验证失败
     """
     import json as _json
     import logging as _logging
     _logger = _logging.getLogger(__name__)
 
-    final_json = project_blackboard / "stages" / "final_solution.json"
+    final_md = project_blackboard / "stages" / "final_solution.md"
 
-    if not final_json.exists():
+    data = None
+    md_content = None
+
+    # ADR-009 MD-first（纯 MD 流转，删除 JSON fallback）
+    if final_md.exists():
+        from domains.solution_pro.solution_living_md import parse_final_solution_md
+        md_content = final_md.read_text(encoding="utf-8")
+        data = parse_final_solution_md(md_content)
+        data["_solution_source"] = "final_solution_md"
+        _logger.info(f"Loaded final_solution from MD: {final_md}")
+
+    else:
         raise ValueError(
-            f"Solution Pro 契约违反: final_solution.json 不存在\n"
-            f"  期望路径: {final_json}\n"
-            f"  根因: Solution Pro 未产出结构化 JSON，或 Orchestrator Step 0 未执行语义提取。\n"
-            f"  修复: 确保 Orchestrator Step 0（语义提取）已运行，或重新执行 Solution Pro。"
+            f"Solution Pro 契约违反: final_solution.md 不存在\n"
+            f"  期望路径: {final_md}\n"
+            f"  根因: Solution Pro 未产出最终方案。\n"
+            f"  修复: 重新执行 Solution Pro。"
         )
-
-    data = _json.loads(final_json.read_text(encoding="utf-8"))
-
-    # 修复：双编码 JSON 防护（Agent 层可能将 dict 序列化为字符串后再次写入）
-    if isinstance(data, str):
-        data = _json.loads(data)
 
     # Schema 验证: 必需字段存在且非空（确定性检查，代码做代码该做的事）
     _REQUIRED_FIELDS = [
@@ -99,18 +109,46 @@ def _find_solution_pro_output(project_blackboard: Path) -> dict:
     missing = [f for f in _REQUIRED_FIELDS if not data.get(f)]
     if missing:
         raise ValueError(
-            f"Solution Pro 契约违反: final_solution.json 缺少必需字段: {missing}\n"
-            f"  文件存在但内容不完整。Agent 层语义提取可能失败。"
+            f"Solution Pro 契约违反: final_solution 缺少必需字段: {missing}\n"
+            f"  文件存在但内容不完整。"
         )
+
+    # Track 增强: 读取 solution_track.json 获取跨域元数据
+    track_path = project_blackboard / "stages" / "solution_track.json"
+    track_data = None
+    if track_path.exists():
+        # 主路: 读取已生成的 track
+        track_data = _json.loads(track_path.read_text(encoding="utf-8"))
+        _logger.info(f"Loaded solution_track from: {track_path}")
+    elif md_content:
+        # Fallback: 动态生成 track
+        try:
+            from core.md_track_extractor import extract_track_json
+            track_data = extract_track_json(md_content, "solution_pro")
+            _logger.info("Dynamically generated solution_track via extract_track_json()")
+        except Exception as e:
+            _logger.warning(f"Failed to generate track: {e}")
+
+    # 从 track 提取跨域元数据
+    if track_data:
+        data["_track"] = track_data
+        # 增强 semantic_anchors（如果 track 有更丰富的数据）
+        track_anchors = track_data.get("semantic_anchors", [])
+        if track_anchors and not data.get("semantic_anchors"):
+            data["semantic_anchors"] = track_anchors
+            _logger.info(f"Enhanced semantic_anchors from track: {len(track_anchors)} anchors")
+        # 提取 req_ids
+        track_req_ids = track_data.get("metrics", {}).get("req_ids", [])
+        if track_req_ids:
+            data["_track_req_ids"] = track_req_ids
+            _logger.info(f"Extracted {len(track_req_ids)} req_ids from track")
 
     _logger.info(
         f"Solution Pro output loaded: {len(data.get('key_decisions', []))} decisions, "
         f"{len(data.get('covered_req_ids', []))} reqs, "
-        f"{len(data.get('risk_summary', []))} risks, "
-        f"{data.get('constraint_coverage', {}).get('covered', 0)}/{data.get('constraint_coverage', {}).get('total', 0)} constraints"
+        f"{len(data.get('risk_summary', []))} risks"
     )
 
-    data["_solution_source"] = "final_solution_json"
     return data
 
 
@@ -149,6 +187,13 @@ def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
             "spawn_params": dict,  # Main Agent 直接传给 sessions_spawn
         }
     """
+    # 契约笼子：project_name 入口校验（P0-6）
+    if not project_name or not str(project_name).strip():
+        raise ValueError(
+            f"project_name 不能为空（收到: {project_name!r}）。"
+            f" 要求: 非空字符串，纯空白也不行。"
+        )
+
     # 全链路追踪:继承或新建 trace_id,记录 Ship Pro 入口 span
     _trace_id = start_trace(trace_id)
     span("ship_pro_entry", domain="ship_pro", project_name=project_name, trace_id=_trace_id)
@@ -225,7 +270,7 @@ def _run_ship_pro_locked(
         _logger.info(f"Ship Pro Orchestrator 已完成 (run_id: {completed_run_id}), 跳过 spawn")
         # run_id 隔离：从已完成 run 的独立目录查找 ship_package
         completed_ship_dir = project_bb / f"ship_pro_{completed_run_id}" if completed_run_id else ship_dir
-        ship_package_path = completed_ship_dir / "stages" / "ship_package.json"
+        ship_package_path = completed_ship_dir / "stages" / "ship_package.md"
         return {
             "project_name": project_name,
             "project_blackboard": str(project_bb),
@@ -540,7 +585,7 @@ def _build_orchestrator_prompt(
 
 **读取文件:**
 ```
-thinking: "我需要验证 final_solution.json"
+thinking: "我需要验证 final_solution.md"
 → 产出 tool call: exec(command="python3 -c \"...\"")
 ```
 
@@ -592,23 +637,23 @@ Turn 2: Layer 1 完成事件到达，你被唤醒
 
 ### Step 0: 数据契约验证 + 语义提取（AI Native 架构）
 
-**设计原则**: 代码只做 I/O + Schema 验证，LLM 做语义理解。final_solution.json 是唯一数据源，MD 是人类可读副本。
+**设计原则**: 代码只做 I/O + Schema 验证，LLM 做语义理解。final_solution.md 是真相源（ADR-009 MD-first）。
 
-**检查**: exec 验证 final_solution.json 是否存在且包含必需字段:
+**检查**: exec 验证 final_solution.md 是否存在且包含关键 section:
 
 ```python
 exec: python3 -c "
-import json, sys
 from pathlib import Path
-p = Path('{project_blackboard}/stages/final_solution.json')
+p = Path('{project_blackboard}/stages/final_solution.md')
 if not p.exists():
-    print('MISSING'); sys.exit(1)
-d = json.loads(p.read_text())
-required = ['key_decisions', 'implementation_phases', 'covered_req_ids', 'constraint_coverage', 'semantic_anchors']
-missing = [f for f in required if not d.get(f)]
+    print('MISSING'); exit(1)
+content = p.read_text()
+# 简单检查 MD 是否包含关键 section
+required_sections = ['## key_decisions', '## implementation_phases']
+missing = [s for s in required_sections if s not in content]
 if missing:
-    print(f'INCOMPLETE: missing {{missing}}'); sys.exit(1)
-print(f'OK: {{len(d.get("key_decisions",[]))}} decisions, {{len(d.get("covered_req_ids",[]))}} reqs, {{len(d.get("risk_summary",[]))}} risks')
+    print(f'INCOMPLETE: missing sections {missing}'); exit(1)
+print(f'OK: MD contains required sections')
 "
 ```
 
@@ -617,8 +662,8 @@ print(f'OK: {{len(d.get("key_decisions",[]))}} decisions, {{len(d.get("covered_r
 **如果 MISSING 或 INCOMPLETE** → 执行语义提取：
 
 1. read {project_blackboard}/stages/final_solution.md
-2. read {project_blackboard}/data/frozen_spec.json
-3. **用你的语义理解能力**，从 MD + frozen_spec 中提取结构化数据，写入 final_solution.json
+2. read {project_blackboard}/data/frozen_spec.md
+3. **用你的语义理解能力**，从 MD + frozen_spec 中提取结构化数据
 4. 必须产出的字段（字段名固定，不能自创）：
    - `key_decisions`: list of {{"decision": str, "rationale": str}}
    - `implementation_phases`: list of {{"phase": str, "description": str, "duration": str}}
@@ -627,8 +672,8 @@ print(f'OK: {{len(d.get("key_decisions",[]))}} decisions, {{len(d.get("covered_r
    - `covered_req_ids`: list of REQ-ID strings
    - `semantic_anchors`: list of {{"name": str, "category": str, "constraint": str}}
    - `full_solution`: MD 文本（完整方案文档内容）
-5. write 到 {project_blackboard}/stages/final_solution.json
-6. 重新执行上面的验证脚本，确认 OK
+5. write 到 {project_blackboard}/stages/final_solution.md（MD 格式）
+6. 重新执行验证脚本，确认 OK
 
 **禁止**：
 - ❌ 用正则/字符串匹配提取字段（这是代码的活，不是你的）
@@ -736,7 +781,7 @@ print(json.dumps({{'total': len(judge_results), 'passed': len(judge_results) - l
 
 ### Step 5: Consolidator
 
-**前置条件检查**: exec python3 -c "from pathlib import Path; p=Path('{ship_pro_dir}/stages/ship_package.json'); print('ALREADY_EXISTS' if p.exists() else 'NEED_CONSOLIDATOR')"
+**前置条件检查**: exec python3 -c "from pathlib import Path; p=Path('{ship_pro_dir}/stages/ship_package.md'); print('ALREADY_EXISTS' if p.exists() else 'NEED_CONSOLIDATOR')"
 
 exec: python3 -c "
 import sys; sys.path.insert(0, '{deepflow_root}')
@@ -759,13 +804,14 @@ import sys, json, os; sys.path.insert(0, '{deepflow_root}')
 from domains.ship_pro.orchestrator.ship_orchestrator import ShipOrchestrator
 orch = ShipOrchestrator('{ship_pro_dir}')
 _sol_path = '{ship_pro_dir}/stages/solution_pro_input.json'
-_sp_path = '{ship_pro_dir}/stages/ship_package.json'
+_sp_path = '{ship_pro_dir}/stages/ship_package.md'
 if not os.path.exists(_sol_path):
     print(json.dumps({{'error': 'solution_pro_input.json not found', 'task_count': 0}})); sys.exit(0)
 if not os.path.exists(_sp_path):
-    print(json.dumps({{'error': 'ship_package.json not found', 'task_count': 0}})); sys.exit(0)
+    print(json.dumps({{'error': 'ship_package.md not found', 'task_count': 0}})); sys.exit(0)
 sol = json.loads(open(_sol_path).read())
-sp = json.loads(open(_sp_path).read())
+from domains.ship_pro.ship_living_md import parse_ship_package_md as _parse_md
+sp = _parse_md(open(_sp_path).read())
 from pathlib import Path as _Path
 _planner_path = _Path('{ship_pro_dir}/stages/pipeline_plan.json')
 planner = json.loads(_planner_path.read_text()) if _planner_path.exists() else None
@@ -800,7 +846,7 @@ Judge Agent 完成后:
 
 ### Step 6: ShipPackage 验证(L1 结构 + L2/L3 语义)
 
-**前置条件检查**: exec python3 -c "from pathlib import Path; p=Path('{ship_pro_dir}/stages/ship_package.json'); print('OK' if p.exists() else f'MISSING: {{p}}')"
+**前置条件检查**: exec python3 -c "from pathlib import Path; p=Path('{ship_pro_dir}/stages/ship_package.md'); print('OK' if p.exists() else f'MISSING: {{p}}')"
 如果 MISSING → 回退 Step 5。
 
 **Step 6a: L1 结构验证**
@@ -820,7 +866,8 @@ import sys, json; sys.path.insert(0, '{deepflow_root}')
 from domains.ship_pro.orchestrator.ship_orchestrator import ShipOrchestrator
 orch = ShipOrchestrator('{ship_pro_dir}')
 sol = json.loads(open('{ship_pro_dir}/stages/solution_pro_input.json').read())
-sp = json.loads(open('{ship_pro_dir}/stages/ship_package.json').read())
+from domains.ship_pro.ship_living_md import parse_ship_package_md as _parse_md
+sp = _parse_md(open('{ship_pro_dir}/stages/ship_package.md').read())
 from pathlib import Path as _Path
 _planner_path = _Path('{ship_pro_dir}/stages/pipeline_plan.json')
 planner = json.loads(_planner_path.read_text()) if _planner_path.exists() else None
@@ -832,7 +879,7 @@ print(json.dumps({{k: {{'passed': v.passed, 'details': str(v.details)[:200]}} fo
 ### Step 7: 最终报告
 
 输出:
-- ShipPackage 路径: {ship_pro_dir}/stages/ship_package.json
+- ShipPackage 路径: {ship_pro_dir}/stages/ship_package.md
 - WP 总数 / 总工时 / REQ 覆盖率
 - L1 验证结果(Step 6a)
 - L2/L3 语义验证结果(Step 6b):各 Gate PASS/FAIL + conservation_rate/score
@@ -911,7 +958,8 @@ def _build_single_worker_prompt(worker, ctx, ctx_path: str, output_path: str) ->
     if anchors:
         anchor_lines = []
         for a in anchors:
-            name = a.get("name", a.get("anchor_id", "?"))
+            # F3 fix (W3): Remove anchor_id fallback (not in authoritative SemanticAnchor schema)
+            name = a.get("name", "?")
             cat = a.get("category", "?")
             constraint = a.get("constraint", "无约束描述")
             anchor_lines.append(f"- **{name}** [{cat}]: {constraint}")
@@ -1061,16 +1109,39 @@ write 到 "{output_path}",**WorkerDeliverable JSON object**(不是数组!),格�
 
     tier_3 = """
 
-## 可选工具
-- **web_search**: 当你的模块涉及前沿技术、最新 API、或不确定的技术选型时,可以用 web_search 查证。不强制,但鼓励在需要时搜索。
+## 🔴 你的执行契约（由 Orchestrator 注入）
 
-## 禁止行为
+### 任务边界
+- ✅ 你只负责：{worker_role}
+- ❌ 你不负责：重试逻辑、错误恢复、降级输出
+
+### 完成条件
+- 输出写入 blackboard 且通过 Schema 校验
+- 输出文件：`{output_path}`
+- 输出格式：WorkerDeliverable JSON object（包含 work_packages 数组）
+- 每个 WP 必须满足：description ≥ 100 字、acceptance_criteria ≥ 2 条、deliverables ≥ 1 项
+
+### 错误报告
+如果无法完成，写入 `stages/.worker_failed.json`：
+```json
+{
+  "worker_role": "{worker_role}",
+  "error_type": "unrecoverable",
+  "error_message": "具体错误信息",
+  "suggestions": ["建议的后续动作"]
+}
+```
+
+### 禁止行为
 1. ❌ 产出 Python/JS/任何实际代码 - 只产出 WP JSON
 2. ❌ read() 除 context.json 以外的本地文件(web_search 不受此限制)
 3. ❌ 创建跨越模块边界的 WP
-4. ❌ 写“完成开发”这种无法验收的 AC
+4. ❌ 写"完成开发"这种无法验收的 AC
 5. ❌ 将多个独立功能合并为一个 WP
 6. ❌ 忽略上述 Semantic Anchors(每个 WP 必须有 anchored_to 字段)
+7. ❌ 不要自行重试（Orchestrator 负责重试）
+8. ❌ 不要降级输出（不要写"默认值"或"占位符"）
+9. ❌ 不要跳过 Schema 校验
 
 ## MUST 约束强制包含规则
 
@@ -1153,15 +1224,72 @@ def _build_runner_prompt(session_dir: Path, plan, context_paths: dict, deepflow_
 
 
 # ============================================================================
+# ADR-009: Track Generation
+# ============================================================================
+
+def generate_ship_track(base_path: str) -> dict | None:
+    """
+    ADR-009: 从 ship_package 生成 ship_track.json。
+
+    在 Ship Pro Orchestrator 完成后调用。
+    非阻断：任何步骤失败 → log warning，返回 None。
+
+    优先读取 ship_package.md（Consolidator 主路产出）；
+    若 MD 不存在，fallback 到 ship_package.json（向后兼容）。
+
+    Args:
+        base_path: Ship Pro session 目录（包含 stages/ship_package.{md,json}）
+
+    Returns:
+        track_data dict if successful, None if failed
+    """
+    import logging
+    from pathlib import Path as _Path
+
+    logger = logging.getLogger(__name__)
+    try:
+        from core.track_generator import generate_track_from_md, generate_track_from_json
+    except ImportError:
+        logger.info("ADR-009: track_generator not available, skipping")
+        return None
+
+    base = _Path(base_path)
+    stages_dir = base / "stages"
+    output_dir = stages_dir
+
+    # 优先 MD（Consolidator 主路产出）
+    md_path = stages_dir / "ship_package.md"
+    if md_path.exists():
+        track_path = output_dir / "ship_pro_track.json"
+        return generate_track_from_md(
+            md_path=md_path,
+            domain="ship_pro",
+            output_path=track_path,
+        )
+
+    # Fallback: JSON（向后兼容）
+    json_path = stages_dir / "ship_package.json"
+    if json_path.exists():
+        return generate_track_from_json(
+            json_path=json_path,
+            domain="ship_pro",
+            output_dir=output_dir,
+        )
+
+    logger.warning(f"ADR-009: ship_package.md/json not found in {base_path}")
+    return None
+
+
+# ============================================================================
 # Re-exports
 # ============================================================================
 
-from .orchestrator.ship_orchestrator import extract_json_from_completion, build_ship_pro_input
+from .orchestrator.ship_orchestrator import extract_json_from_completion
 
 __all__ = [
     "run_ship_pro",           # 2.0.0 唯一入口
     "design_pipeline",        # 2.0.0 兼容
     "prepare_runner_spawn",   # 2.0.0 兼容
     "extract_json_from_completion",
-    "build_ship_pro_input",
+    "generate_ship_track",    # ADR-009: Track 生成
 ]

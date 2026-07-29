@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -36,6 +37,13 @@ PULSE_ACTIONS_FILENAME = "_pulse_actions.json"
 PULSE_COMPLETED_FILENAME = ".deliver_completed.json"
 PULSE_STATE_FILENAME = "_pulse_state.json"
 PULSE_LOCK_FILENAME = "_pulse.lock"
+
+# === Final Synthesis 常量（2026-07-29 架构更新） ===
+DELIVERABLE_CONTRACT_FILENAME = "_deliverable_contract.json"
+FINAL_GATE_REPORT_FILENAME = "_final_gate_report.json"
+FINAL_DELIVERABLE_DONE_FILENAME = "_final_deliverable_done.json"
+FINAL_SYNTHESIS_DIRNAME = "final_synthesis"
+FINAL_GATE_SPAWNED_FILENAME = "_gate_action_spawned.json"  # Flag: gate action已spawn
 
 # 孤儿分发恢复：分发记录超过超时仍未产出 artifact，允许重新分发。
 # 防 session 死亡/中断导致 dedup 记录永久阻塞流水线（2026-07-23 smk_001 停摆事故）。
@@ -96,12 +104,10 @@ class DeliverOrchestrator:
         # Sanitize project_name: 防止路径穿越
         self.project_name = project_name.replace("/", "_").replace("\\", "_").replace("..", "_")
         self.blackboard_root = BLACKBOARD_ROOT
-        try:
-            ship_pkg_path = self._find_ship_package()
-            self.ship_package = json.loads(ship_pkg_path.read_text())
-        except FileNotFoundError:
-            logger.warning("B1: ship_package.json not found, using empty package")
-            self.ship_package = {"work_packages": [], "dependency_graph": {}}
+        # F1 fix (W3): ship_package 缺失 → raise（禁止静默降级）
+        # 与 run_deliver_pro 行为一致——缺失即 raise，不允许空包运行。
+        ship_pkg_path = self._find_ship_package()
+        self.ship_package = json.loads(ship_pkg_path.read_text())
         # 能力正交：Ship Pro 输出 "id" → 兼容为 "wp_id"
         for wp in self.ship_package.get("work_packages", []):
             if "wp_id" not in wp and "id" in wp:
@@ -116,16 +122,16 @@ class DeliverOrchestrator:
     # ------------------------------------------------------------------
 
     def _find_ship_package(self) -> Path:
-        """搜索 blackboard/{project}/ship_pro/ 下的 ship package JSON。
+        """搜索 blackboard/{project}/ship_pro/ 下的 ship package。
 
-        查找顺序：
-        1. ship_pro/ship_package.json（传统路径）
-        2. ship_pro/ship_track.json（多 Agent Consolidator 产出）
+        查找顺序（ADR-009 MD-first）：
+        1. ship_pro/ship_track.json（Track 衍生，跨域元数据）
+        2. ship_pro/ship_package.json（JSON 衍生，向后兼容）
         3. ship_pro/stages/ship_package.json（旧路径）
         """
         candidates = [
-            self.blackboard_root / self.project_name / "ship_pro" / "ship_package.json",
             self.blackboard_root / self.project_name / "ship_pro" / "ship_track.json",
+            self.blackboard_root / self.project_name / "ship_pro" / "ship_package.json",
             self.blackboard_root / self.project_name / "ship_pro" / "stages" / "ship_package.json",
         ]
         for path in candidates:
@@ -133,7 +139,7 @@ class DeliverOrchestrator:
                 logger.info(f"Ship package found: {path}")
                 return path
         raise FileNotFoundError(
-            f"ship_package.json not found. Searched: {[str(p) for p in candidates]}"
+            f"ship_package.json or ship_track.json not found. Searched: {[str(p) for p in candidates]}"
         )
 
     def _compute_layers(self) -> list[list[str]]:
@@ -332,7 +338,13 @@ class DeliverOrchestrator:
         # 从 ship_package 获取 WP 数据并适配
         wp_data = self._get_wp_data(wp_id)
         package_sa = self.ship_package.get("semantic_anchors", [])
-        adapted = _adapt_ship_pro_wp(wp_data, package_semantic_anchors=package_sa)
+        # W4-F4: 包级 serving_principles fallback（与 semantic_anchors 同款模式）
+        package_sp = self.ship_package.get("serving_principles", [])
+        adapted = _adapt_ship_pro_wp(
+            wp_data,
+            package_semantic_anchors=package_sa,
+            package_serving_principles=package_sp,
+        )
         wp_obj = WorkPackage.model_validate(adapted)
 
         # 创建目录结构
@@ -375,11 +387,15 @@ class DeliverOrchestrator:
             return []  # 检查失败 → fail-open，不阻塞正常流程
 
     def _has_unexecuted_tasks(self, wp_id: str, driver) -> list[str]:
-        """F3c: 检测"从未真正执行"的任务（终态写入前的最后防线）。
+        """F3c: 检测“从未真正执行”的任务（终态写入前的最后防线）。
 
-        触发条件（两类）：
-        - timed_out 且 attempts < RETRY_BUDGET（同 F3a/b，可能还有救）
-        - ready（deps 全 COMPLETE）且 attempts == 0 且无 MANIFEST（从未被派发过）
+        触发条件（三类）：
+        - 类 1：timed_out 且 attempts < RETRY_BUDGET（同 F3a/b，可能还有救）
+        - 类 2：ready 或即将 ready（deps ⊆ COMPLETE ∪ RUNNING）且 attempts == 0 且无 MANIFEST。
+          RUNNING 也算：防止打包抢跑在途 worker 波次（2026-07-29 SPI-003 实证：
+          T-003 完成前 1 分钟打包决策放行 T-004，终态写入 "never executed"）。
+        - 类 3（F-B）：failed 且 failure_class in ("contract_violation", "quality_failure")
+          且 attempts < RETRY_BUDGET（契约违规或质量验证 FAIL，还有救）
 
         blocked 任务不触发守卫：若其依赖是真失败（attempts>=1 后 MANIFEST FAILED），
         FAIL 打包是诚实结果，不该拦截。
@@ -398,19 +414,32 @@ class DeliverOrchestrator:
             for t in progress.get("timed_out", set()):
                 if attempts_map.get(t, 1) < RETRY_BUDGET:
                     result.append(t)
+            # 类 3（F-B）：failed + contract_violation + 预算未耗尽
+            wo = driver.worker_outputs_dir
+            for t in progress.get("failed", set()):
+                if attempts_map.get(t, 1) >= RETRY_BUDGET:
+                    continue
+                manifest_path = wo / t / "MANIFEST.json"
+                if not manifest_path.exists():
+                    continue
+                try:
+                    mdata = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                if mdata.get("failure_class") in ("contract_violation", "quality_failure"):
+                    result.append(t)
             # 类 2：ready 但从未派发
             completed = progress.get("completed", set())
             running = progress.get("running", set())
             failed = progress.get("failed", set())
             blocked = progress.get("blocked", set())
-            wo = driver.worker_outputs_dir
             for task_node in plan.task_graph:
                 tid = task_node.task_id
                 if tid in completed or tid in running or tid in failed or tid in blocked:
                     continue
                 deps = set(getattr(task_node, "depends_on", None) or [])
-                if deps and not deps.issubset(completed):
-                    continue  # 依赖未完成 → 不算可跑，不守卫
+                if deps and not deps.issubset(completed | running):
+                    continue  # 依赖未完成且不在途 → 不算可跑，不守卫；依赖在途 → 守卫（防打包抢跑）
                 if attempts_map.get(tid, 0) == 0 and not (wo / tid / "MANIFEST.json").exists():
                     result.append(tid)
             return sorted(result)
@@ -685,10 +714,22 @@ class DeliverOrchestrator:
         self._last_tick_truncated = False
         results = []
         next_actions = self.get_next_actions()
+        _reconciled_wps: set[str] = set()  # F3: 每 WP 每 tick 只对账一次
 
         for action_item in next_actions.get("actions", []):
             wp_id = action_item["wp_id"]
             action = action_item["action"]
+
+            # F3: 僵尸 running_tasks 对账（每 WP 每 tick 一次，在 L1 过滤之前）
+            if wp_id not in _reconciled_wps:
+                try:
+                    driver = self._get_driver(wp_id)
+                    n_cleared = self._reconcile_running_tasks(wp_id, driver)
+                    if n_cleared:
+                        logger.info("%s: reconciled %d zombie running_tasks", wp_id, n_cleared)
+                except Exception as e:
+                    logger.warning("%s: reconcile running_tasks failed: %s", wp_id, e)
+                _reconciled_wps.add(wp_id)
 
             # V3: legacy 路径搬迁已在 _check_wp_phase 中幂等处理（derive, don't sync）
 
@@ -878,8 +919,22 @@ class DeliverOrchestrator:
             if not tid:
                 continue
             tdir = wo / tid
-            if (tdir / "MANIFEST.json").exists():  # 终态
-                continue
+            manifest_file = tdir / "MANIFEST.json"
+            if manifest_file.exists():
+                # F-B Round 2 + quality_failure 豁免——
+                # MANIFEST 存在但 failure_class in (contract_violation, quality_failure) 且预算未耗尽 → 放行
+                exempt = False
+                try:
+                    mdata = json.loads(manifest_file.read_text(encoding="utf-8"))
+                    if (
+                        mdata.get("failure_class") in ("contract_violation", "quality_failure")
+                        and attempts_map.get(tid, 1) < RETRY_BUDGET
+                    ):
+                        exempt = True
+                except (OSError, json.JSONDecodeError, ValueError):
+                    pass  # MANIFEST 读不到/解析失败 → 保持原过滤行为
+                if not exempt:
+                    continue  # 终态（COMPLETE/失败/预算耗尽/非 contract_violation）
             if attempts_map.get(tid, 0) >= RETRY_BUDGET:  # 硬上限
                 continue
             last = spawned_at_map.get(tid, 0)
@@ -962,6 +1017,62 @@ class DeliverOrchestrator:
                 removed += 1
         return removed
 
+    def _reconcile_running_tasks(self, wp_id: str, driver) -> int:
+        """F3: 僵尸 running_tasks 对账清理。
+
+        对比 running_tasks 与实际文件证据 + task_spawned_at 超时：
+        - 有 MANIFEST.json → 终态（完成/失败），running 条目为僵尸 → 清除
+        - task_spawned_at 超 WORKER_TIMEOUT_SECONDS 且无 MANIFEST → 僵尸 → 清除
+        - 无 MANIFEST 且 spawn 时间未超 stale 窗口 → 保留（可能仍在运行）
+        - 无 task_spawned_at 记录但目录非空 → 保留（保守原则）
+
+        Returns:
+            清除的僵尸条目数
+        """
+        from domains.deliver_pro.phase_deriver import WORKER_TIMEOUT_SECONDS
+
+        try:
+            state = driver.orch.state
+        except AttributeError:
+            return 0
+
+        running = list(state.running_tasks)
+        if not running:
+            return 0
+
+        entry = self.progress.get(wp_id, {})
+        spawned_at_map = entry.get("task_spawned_at", {})
+        wo = self._wp_dir(wp_id) / "stages" / "worker_outputs"
+        now = time.time()
+        cleared = 0
+
+        for task_id in running:
+            manifest_path = wo / task_id / "MANIFEST.json"
+            if manifest_path.exists():
+                # 有 MANIFEST = 终态，running 条目是僵尸
+                state.running_tasks.remove(task_id)
+                cleared += 1
+                logger.warning(
+                    "%s/%s: zombie running_task cleared (MANIFEST exists)",
+                    wp_id, task_id,
+                )
+                continue
+            spawn_time = spawned_at_map.get(task_id, 0)
+            if spawn_time and now - spawn_time > WORKER_TIMEOUT_SECONDS:
+                # 超 stale 窗口且无 MANIFEST = 僵尸（worker 被杀但从未写 MANIFEST）
+                state.running_tasks.remove(task_id)
+                cleared += 1
+                logger.warning(
+                    "%s/%s: zombie running_task cleared (stale >%ds, no MANIFEST)",
+                    wp_id, task_id, WORKER_TIMEOUT_SECONDS,
+                )
+                continue
+            # 保守保留：无 MANIFEST 且未超时（或无 spawn 时间记录）
+
+        if cleared > 0:
+            driver.orch._save_state()
+        return cleared
+
     def _prepare_worker_retries(self, wp_id: str, driver) -> tuple[list[dict], list[dict]]:
         """A2/A3: derive 判 timed_out 的 task 走重试路径（无视 stale dedup 直接重派）。
 
@@ -986,48 +1097,193 @@ class DeliverOrchestrator:
 
         progress = driver.orch._derive_worker_progress(plan)
         timed_out = sorted(progress.get("timed_out", set()))
-        if not timed_out:
-            return params, alerts
 
         entry = self.progress.setdefault(wp_id, {})
         attempts_map = entry.setdefault("task_attempts", {})
         task_nodes = {t.task_id: t for t in plan.task_graph}
 
-        for task_id in timed_out:
-            attempts = attempts_map.get(task_id, 1)  # 目录存在 = 至少 spawn 过 1 次
-            if attempts >= RETRY_BUDGET:
-                # 终态：合成 MANIFEST（契约笼子：失败必须显式落盘，不允许无限重试）
-                manifest_path = driver.worker_outputs_dir / task_id / "MANIFEST.json"
-                if not manifest_path.exists():
-                    atomic_write_json(manifest_path, {
-                        "task_id": task_id,
-                        "status": "FAILED",
-                        "failure_reason": f"retry_budget_exceeded ({attempts} attempts, no MANIFEST)",
-                        "completed_at": time.time(),
-                        "synthetic": True,
+        if timed_out:
+            for task_id in timed_out:
+                attempts = attempts_map.get(task_id, 1)  # 目录存在 = 至少 spawn 过 1 次
+                if attempts >= RETRY_BUDGET:
+                    # 终态：合成 MANIFEST（契约笼子：失败必须显式落盘，不允许无限重试）
+                    manifest_path = driver.worker_outputs_dir / task_id / "MANIFEST.json"
+                    if not manifest_path.exists():
+                        atomic_write_json(manifest_path, {
+                            "task_id": task_id,
+                            "status": "FAILED",
+                            "failure_reason": f"retry_budget_exceeded ({attempts} attempts, no MANIFEST)",
+                            "completed_at": time.time(),
+                            "synthetic": True,
+                        })
+                    alerts.append({
+                        "severity": "CRITICAL",
+                        "code": "TASK_RETRY_EXHAUSTED",
+                        "message": f"{wp_id}/{task_id}: 重试 {attempts} 次仍无产出，已标记终态失败",
                     })
+                    continue
+                task_node = task_nodes.get(task_id)
+                if task_node is None:
+                    continue
+                try:
+                    new_params = driver.orch._prepare_single_worker_spawn(task_node, plan)
+                except Exception as e:
+                    logger.warning("%s/%s: retry spawn prep failed: %s", wp_id, task_id, e)
+                    continue
+                # L3 fix: 删除 os.utime（不再需要刷 mtime 欺骗 derive）
+                # 防下一 pulse 重复重派由 L2 task_spawned_at 冷却窗口承担
+                # 职责分离：derive 报事实，账本管节奏
+                params.append(new_params)
                 alerts.append({
-                    "severity": "CRITICAL",
-                    "code": "TASK_RETRY_EXHAUSTED",
-                    "message": f"{wp_id}/{task_id}: 重试 {attempts} 次仍无产出，已标记终态失败",
+                    "severity": "INFO",
+                    "code": "TASK_RETRY",
+                    "message": f"{wp_id}/{task_id}: 第 {attempts + 1} 次重派（超时未产出）",
                 })
+
+        # F-B + quality_failure: 可救失败重试循环（与 timed_out 同等地位）
+        # contract_violation: 实质产出合格但缺契约文件
+        # quality_failure: 实质产出存在但验证判质量 FAIL（人工 backfill 标记）
+        failed = sorted(progress.get("failed", set()))
+        completed_set = progress.get("completed", set())
+        wo_dir = driver.worker_outputs_dir
+        for task_id in failed:
+            manifest_path = wo_dir / task_id / "MANIFEST.json"
+            if not manifest_path.exists():
                 continue
+            try:
+                manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            failure_class = manifest_data.get("failure_class")
+            if failure_class not in ("contract_violation", "quality_failure"):
+                continue
+            # quality_failure 依赖排序约束：只派发 deps 全 COMPLETE 的任务
             task_node = task_nodes.get(task_id)
             if task_node is None:
+                continue
+            if failure_class == "quality_failure":
+                deps = set(getattr(task_node, "depends_on", None) or [])
+                if deps and not deps.issubset(completed_set):
+                    # deps 中含 failed/running 的任务留给后续 pulse
+                    continue
+            # quality_failure: quality_feedback 字段缺失时跳过（不编造反馈）
+            if failure_class == "quality_failure":
+                quality_feedback = manifest_data.get("quality_feedback")
+                if not quality_feedback:
+                    logger.warning(
+                        "%s/%s: quality_failure but no quality_feedback in MANIFEST, skipping",
+                        wp_id, task_id,
+                    )
+                    continue
+            attempts = attempts_map.get(task_id, 1)
+            if attempts >= RETRY_BUDGET:
+                exhausted_code = (
+                    "TASK_RETRY_CONTRACT_EXHAUSTED" if failure_class == "contract_violation"
+                    else "TASK_RETRY_QUALITY_EXHAUSTED"
+                )
+                class_desc = "契约违规" if failure_class == "contract_violation" else "质量验证"
+                alerts.append({
+                    "severity": "INFO",
+                    "code": exhausted_code,
+                    "message": (
+                        f"{wp_id}/{task_id}: {class_desc}重试预算耗尽 "
+                        f"({attempts} attempts)，保持终态 FAILED"
+                    ),
+                })
                 continue
             try:
                 new_params = driver.orch._prepare_single_worker_spawn(task_node, plan)
             except Exception as e:
-                logger.warning("%s/%s: retry spawn prep failed: %s", wp_id, task_id, e)
+                retry_kind = "contract" if failure_class == "contract_violation" else "quality"
+                logger.warning("%s/%s: %s retry spawn prep failed: %s", wp_id, task_id, retry_kind, e)
                 continue
-            # L3 fix: 删除 os.utime（不再需要刷 mtime 欺骗 derive）
-            # 防下一 pulse 重复重派由 L2 task_spawned_at 冷却窗口承担
-            # 职责分离：derive 报事实，账本管节奏
+            # 在 prompt 末尾追加反馈段（检查 params 结构找 prompt 字段）
+            prompt_key = "task" if "task" in new_params else None
+            if prompt_key is None:
+                logger.warning(
+                    "%s/%s: %s retry params has no 'task' field, skipping feedback append",
+                    wp_id, task_id, failure_class,
+                )
+            else:
+                # auto_bootstrap 返回的 task 是引用字符串，实际 prompt 在文件中
+                # 格式：用 `read` 工具读取: `{filepath}`
+                bootstrap_text = new_params[prompt_key]
+                path_match = re.search(r"读取:\s*`([^`]+)`", bootstrap_text)
+                if path_match:
+                    prompt_file = Path(path_match.group(1))
+                    if prompt_file.exists():
+                        # 列出 output_dir 实际文件（相对路径）
+                        task_output_dir = wo_dir / task_id
+                        existing_files: list[str] = []
+                        try:
+                            for p in task_output_dir.rglob("*"):
+                                if p.is_file():
+                                    try:
+                                        existing_files.append(
+                                            str(p.relative_to(task_output_dir))
+                                        )
+                                    except ValueError:
+                                        existing_files.append(str(p))
+                        except OSError:
+                            pass
+                        existing_files.sort()
+                        files_list = (
+                            "\n".join(f"- {f}" for f in existing_files)
+                            if existing_files
+                            else "（无）"
+                        )
+                        if failure_class == "quality_failure":
+                            # quality_failure: 从 MANIFEST quality_feedback 读取失败原因
+                            feedback = (
+                                "\n\n## 上次失败反馈（质量验证 FAIL）\n"
+                                f"前次交付验证 FAIL，失败原因：{quality_feedback}。"
+                                "请针对性修正后重新交付完整契约文件。\n"
+                            )
+                        else:
+                            # contract_violation: 按 failure_reason 区分反馈文案
+                            failure_reason = manifest_data.get("failure_reason", "")
+                            if "too short" in failure_reason:
+                                problem_desc = "你的 DELIVERABLE.md 内容过短（<50字符），请基于已有产出充实它。"
+                                action_desc = "基于已有产出充实 DELIVERABLE.md（主产物，≥50字符，整合已有报告内容）"
+                            else:
+                                problem_desc = "你缺少强制契约文件 DELIVERABLE.md，请基于已有产出补写。"
+                                action_desc = "基于已有产出补写 DELIVERABLE.md（主产物，≥50字符，整合已有报告内容）"
+                            feedback = (
+                                "\n\n## 上次失败反馈（契约违规重试）\n"
+                                f"你上次的实质产出已存在于输出目录（如下），但{problem_desc}\n"
+                                f"已有文件：\n{files_list}\n"
+                                f"本次任务：{action_desc}，"
+                                "并更新 MANIFEST.json（status/outputs/completed_at）。不要重复已完成的实质工作。\n"
+                            )
+                        try:
+                            with prompt_file.open("a", encoding="utf-8") as f:
+                                f.write(feedback)
+                        except OSError as e:
+                            logger.warning(
+                                "%s/%s: failed to append feedback to prompt file: %s",
+                                wp_id, task_id, e,
+                            )
+                    else:
+                        logger.warning(
+                            "%s/%s: prompt file %s does not exist, skipping feedback append",
+                            wp_id, task_id, prompt_file,
+                        )
+                else:
+                    logger.warning(
+                        "%s/%s: could not parse prompt file path from bootstrap string",
+                        wp_id, task_id,
+                    )
             params.append(new_params)
+            if failure_class == "quality_failure":
+                retry_code = "TASK_RETRY_QUALITY"
+                retry_desc = "质量验证 FAIL 修正"
+            else:
+                retry_code = "TASK_RETRY_CONTRACT"
+                retry_desc = "契约违规补写"
             alerts.append({
                 "severity": "INFO",
-                "code": "TASK_RETRY",
-                "message": f"{wp_id}/{task_id}: 第 {attempts + 1} 次重派（超时未产出）",
+                "code": retry_code,
+                "message": f"{wp_id}/{task_id}: 第 {attempts + 1} 次重派（{retry_desc}）",
             })
         return params, alerts
 
@@ -1196,6 +1452,9 @@ class DeliverOrchestrator:
                     tid = label[len(wp_prefix):]
                 else:  # 向后兼容旧格式（deliver-worker-{task_id}）
                     tid = label.replace("deliver-worker-", "")
+                # F2: strip 冲突 fallback 追加的时间戳后缀（_{10+ digits}）
+                # 必须在匹配 dedup_key 之前 strip，否则 tid 带后缀永远匹配不上
+                tid = re.sub(r"_\d{10,}$", "", tid)
                 id_list = ids.split(",")
                 matched = [x for x in id_list if x.lower() == tid.lower()]
                 remaining = [x for x in id_list if x not in matched]
@@ -1302,6 +1561,294 @@ class DeliverOrchestrator:
                     )
         return any_swept
 
+    # ------------------------------------------------------------------
+    # Final Synthesis 架构（2026-07-29）
+    # ------------------------------------------------------------------
+
+    def _batch_dir(self) -> Path:
+        """批次根目录（blackboard/{project}/）。"""
+        return self.blackboard_root / self.project_name
+
+    def _living_spec_path(self) -> Path:
+        """living_spec.json 路径（与 solution_pro 路径约定一致）。"""
+        return self._batch_dir() / "data" / "living_spec.json"
+
+    def _read_living_spec(self) -> dict:
+        """读取 living_spec.json。
+
+        Raises:
+            ValueError: living_spec 缺失或不可读（禁止 fallback 到 frozen_spec，禁止静默）
+        """
+        path = self._living_spec_path()
+        if not path.exists():
+            raise ValueError(
+                f"living_spec.json not found at {path}. "
+                f"Final Synthesis requires living_spec to exist. "
+                f"Please run Spec Pro first to generate living_spec before running Final Synthesis."
+            )
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception as e:
+            raise ValueError(
+                f"living_spec.json at {path} is unreadable: {e}. "
+                f"Please ensure the file is valid JSON and re-run Spec Pro if needed."
+            ) from e
+
+    def _contract_path(self) -> Path:
+        """_deliverable_contract.json 路径（批次根）。"""
+        return self._batch_dir() / DELIVERABLE_CONTRACT_FILENAME
+
+    def _final_gate_report_path(self) -> Path:
+        """_final_gate_report.json 路径（批次根）。"""
+        return self._batch_dir() / FINAL_GATE_REPORT_FILENAME
+
+    def _final_deliverable_done_path(self) -> Path:
+        """_final_deliverable_done.json 路径（批次根）。"""
+        return self._batch_dir() / FINAL_DELIVERABLE_DONE_FILENAME
+
+    def _final_synthesis_dir(self) -> Path:
+        """final_synthesis/ 目录（批次根）。"""
+        return self._batch_dir() / FINAL_SYNTHESIS_DIRNAME
+
+    def _gate_spawned_path(self) -> Path:
+        """Gate action spawned flag 文件路径。"""
+        return self._batch_dir() / FINAL_GATE_SPAWNED_FILENAME
+
+    def _should_infer_contract(self) -> bool:
+        """是否应推断交付物契约（批次启动阶段，无 contract 文件时）。
+        
+        仅在批次启动阶段（无 WP 活动）时返回 True。
+        如果 WP 已经在运行或完成，说明已过启动阶段，不再推断 contract（兼容旧批次）。
+        """
+        if self._contract_path().exists():
+            return False
+        # 检查是否有 WP 活动（任何 WP 有 progress 记录或 stages 目录）
+        for layer in self.layers:
+            for wp_id in layer:
+                # 检查 progress 记录
+                if self.progress.get(wp_id):
+                    return False
+                # 检查 stages 目录是否存在
+                wp_dir = self._wp_dir(wp_id)
+                if (wp_dir / "stages").exists():
+                    return False
+        return True
+
+    def _all_wps_derive_done(self) -> bool:
+        """检查全部 WP 的 derive phase 是否均为 DONE。"""
+        for layer in self.layers:
+            for wp_id in layer:
+                phase = self._check_wp_phase(wp_id)
+                if phase != "DONE":
+                    return False
+        return True
+
+    def _no_inflight_actions(self) -> bool:
+        """检查当前无 in-flight 动作（简化版：无 last_spawned_action 未完成的 WP）。"""
+        for layer in self.layers:
+            for wp_id in layer:
+                entry = self.progress.get(wp_id, {})
+                if entry.get("last_spawned_action") and not entry.get("terminal_failed"):
+                    # 有未确认的分发记录 → 可能有 in-flight
+                    if not self._is_stale_dispatch(entry, entry["last_spawned_action"]):
+                        return False
+        return True
+
+    def _should_trigger_final_synthesis(self) -> bool:
+        """Final Synthesis 触发条件检查。"""
+        # 条件 1: 全部 WP derive DONE
+        if not self._all_wps_derive_done():
+            return False
+        # 条件 2: 无 in-flight 动作
+        if not self._no_inflight_actions():
+            return False
+        # 条件 3: contract 存在
+        if not self._contract_path().exists():
+            return False
+        # 条件 4: 无 _final_deliverable_done.json
+        if self._final_deliverable_done_path().exists():
+            return False
+        return True
+
+    def _build_infer_contract_action(self) -> dict:
+        """构建 infer_deliverable_contract 动作。"""
+        living_spec = self._read_living_spec()  # 缺失直接 raise
+        spec_summary = json.dumps(living_spec, ensure_ascii=False)[:3000]
+        task = (
+            f"You are a Deliverable Contract Inferencer.\n"
+            f"Read the following living_spec and output a JSON contract to:\n"
+            f"{self._contract_path()}\n\n"
+            f"Output format:\n"
+            f"{{\n"
+            f'  "deliverable_type": "software|report|framework|files",\n'
+            f'  "req_elements": [\n'
+            f'    {{"element": "<requirement element>", "criticality": "MUST|SHOULD"}}\n'
+            f"  ],\n"
+            f'  "required_structure": ["<section/artifact name>", ...]\n'
+            f"}}\n\n"
+            f"living_spec (truncated):\n{spec_summary}\n\n"
+            f"Rules:\n"
+            f"- Extract requirement elements from living_spec\n"
+            f"- MUST = core requirement, SHOULD = nice-to-have\n"
+            f"- required_structure = sections/artifacts the deliverable must contain\n"
+            f"- Write the JSON to the specified path using atomic_write_json\n"
+        )
+        return {
+            "wp_id": "BATCH",
+            "action": "infer_deliverable_contract",
+            "task": task,
+            "label": f"infer-contract-{self.project_name.lower()}",
+            "mode": "run",
+            "thinking": "medium",
+        }
+
+    def _build_final_synthesis_action(self) -> dict:
+        """构建 final_synthesis 动作。"""
+        contract = json.loads(self._contract_path().read_text(encoding="utf-8"))
+        living_spec = self._read_living_spec()
+        spec_summary = json.dumps(living_spec, ensure_ascii=False)[:3000]
+        contract_summary = json.dumps(contract, ensure_ascii=False)[:2000]
+        synthesis_dir = self._final_synthesis_dir()
+        synthesis_dir.mkdir(parents=True, exist_ok=True)
+        task = (
+            f"You are a Final Synthesis Agent.\n"
+            f"Read the living_spec, deliverable contract, and each WP's final_deliverable.\n"
+            f"Generate the final deliverable according to contract.deliverable_type:\n"
+            f"- report → comprehensive report document\n"
+            f"- framework → framework doc + index\n"
+            f"- software → runnable package + README\n"
+            f"- files → organized file collection\n\n"
+            f"Output to: {synthesis_dir}/\n\n"
+            f"living_spec (truncated):\n{spec_summary}\n\n"
+            f"contract (truncated):\n{contract_summary}\n\n"
+            f"Rules:\n"
+            f"- Do NOT overwrite individual WP final_deliverables\n"
+            f"- Synthesize across all WPs into a cohesive deliverable\n"
+            f"- Ensure all MUST req_elements are addressed\n"
+        )
+        return {
+            "wp_id": "BATCH",
+            "action": "final_synthesis",
+            "task": task,
+            "label": f"final-synthesis-{self.project_name.lower()}",
+            "mode": "run",
+            "thinking": "medium",
+        }
+
+    def _build_run_final_gate_action(self) -> dict:
+        """构建 run_final_gate 动作（LLM-as-Judge 语义回溯 Gate）。
+        
+        Returns:
+            Spawn action dict for LLM to judge each req_element as COVERED/PARTIAL/MISSING
+        """
+        contract = json.loads(self._contract_path().read_text(encoding="utf-8"))
+        req_elements = contract.get("req_elements", [])
+        synthesis_dir = self._final_synthesis_dir()
+        
+        # Collect synthesis output for LLM context
+        synthesis_text = ""
+        if synthesis_dir.exists():
+            for f in synthesis_dir.rglob("*"):
+                if f.is_file() and f.stat().st_size > 0:
+                    try:
+                        synthesis_text += f.read_text(encoding="utf-8", errors="ignore")[:5000]
+                    except Exception:
+                        pass
+        
+        contract_summary = json.dumps(contract, ensure_ascii=False)[:2000]
+        
+        task = (
+            f"You are a Semantic Gate Judge (LLM-as-Judge).\n"
+            f"Read the deliverable contract and final synthesis output.\n"
+            f"For each requirement element in contract.req_elements, judge its coverage:\n"
+            f"- COVERED: Fully addressed in synthesis\n"
+            f"- PARTIAL: Partially addressed (mention but incomplete)\n"
+            f"- MISSING: Not addressed at all\n\n"
+            f"Contract (truncated):\n{contract_summary}\n\n"
+            f"Final Synthesis Output:\n{synthesis_text[:10000]}\n\n"
+            f"Output Format (write to {self._final_gate_report_path()}):\n"
+            f"{{\n"
+            f'  "gaps": [\n'
+            f'    {{"element": "<req element>", "criticality": "MUST|SHOULD", "status": "COVERED|PARTIAL|MISSING", "reason": "<brief explanation>"}}\n'
+            f"  ]\n"
+            f"}}\n\n"
+            f"Rules:\n"
+            f"- Judge SEMANTICALLY, not by keyword matching\n"
+            f"- MUST elements are critical; MISSING = HARD_BLOCK\n"
+            f"- SHOULD elements are nice-to-have; MISSING = recorded but not blocking\n"
+            f"- Write the JSON to the specified path using atomic_write_json\n"
+            f"- If you cannot determine coverage, mark as MISSING (fail-closed)\n"
+        )
+        return {
+            "wp_id": "BATCH",
+            "action": "run_final_gate",
+            "task": task,
+            "label": f"final-gate-{self.project_name.lower()}",
+            "mode": "run",
+            "thinking": "medium",
+        }
+    
+    def _process_gate_report(self) -> dict:
+        """Process the gate report written by LLM judge.
+        
+        Returns:
+            {"passed": bool, "gaps": [...], "report_path": str}
+        
+        Raises:
+            ValueError: MUST 要素 MISSING → HARD_BLOCK, or report invalid/missing (fail-closed)
+        """
+        report_path = self._final_gate_report_path()
+        
+        # Fail-closed: report must exist
+        if not report_path.exists():
+            raise ValueError(
+                f"Gate report not found at {report_path}. "
+                f"LLM judge failed to write judgment. Fail-closed: cannot proceed."
+            )
+        
+        # Fail-closed: report must be valid JSON
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            raise ValueError(
+                f"Gate report at {report_path} is invalid JSON: {e}. "
+                f"Fail-closed: cannot proceed."
+            ) from e
+        
+        # Fail-closed: report must have expected structure
+        gaps = report.get("gaps")
+        if not isinstance(gaps, list):
+            raise ValueError(
+                f"Gate report at {report_path} missing 'gaps' array. "
+                f"Fail-closed: cannot proceed."
+            )
+        
+        # Check MUST elements
+        must_missing = [g for g in gaps if g.get("criticality") == "MUST" and g.get("status") == "MISSING"]
+        report["passed"] = len(must_missing) == 0
+        report["must_missing"] = must_missing
+        report["report_path"] = str(report_path)
+        
+        # Re-write with computed fields
+        atomic_write_json(report_path, report)
+        
+        if must_missing:
+            raise ValueError(
+                f"HARD_BLOCK: MUST elements missing: {[m['element'] for m in must_missing]}. "
+                f"Final deliverable cannot be declared complete."
+            )
+        return report
+
+    def _mark_final_deliverable_done(self, gate_report: dict) -> None:
+        """标记 Final Synthesis 完成。"""
+        done_data = {
+            "completed_at": time.time(),
+            "gate_passed": gate_report.get("passed", False),
+            "gaps": gate_report.get("gaps", []),
+            "synthesis_dir": str(self._final_synthesis_dir()),
+        }
+        atomic_write_json(self._final_deliverable_done_path(), done_data)
+
     def pulse(self) -> dict:
         """脉冲式调度单次 tick（V1, 2026-07-24 评审裁决 A1-A8 落地）。
 
@@ -1394,6 +1941,29 @@ class DeliverOrchestrator:
             # A4: 孤儿 spawn_workers 清扫（记录 + 空目录）
             self._orphan_sweep()
 
+            # === Final Synthesis 前置检查（2026-07-29） ===
+            # 阶段 1: 批次启动时推断交付物契约
+            # 铁律：需求对齐是硬性要求，living_spec 缺失直接 raise，禁止静默跳过
+            if self._should_infer_contract():
+                # _build_infer_contract_action 内部调用 _read_living_spec()
+                # 若 living_spec 缺失/不可读 → ValueError 直接 propagate（不 catch）
+                contract_action = self._build_infer_contract_action()
+                # 契约推断优先于正常 tick，直接返回
+                return _build_report(
+                    status="active",
+                    actions=[contract_action],
+                    alerts=[],
+                    summary={
+                        "total_wps": sum(len(l) for l in self.layers),
+                        "completed": 0,
+                        "terminal_failed": 0,
+                        "in_progress": sum(len(l) for l in self.layers),
+                        "in_flight": 0,
+                        "zero_progress_count": 0,
+                        "truncated": False,
+                    },
+                )
+
             # A5: 并发上限 → spawn 预算（在 tick 记录 dispatch 之前拦截）
             in_flight = self._count_in_flight()
             budget = max(0, min(MAX_IN_FLIGHT - in_flight, MAX_SPAWN_PER_PULSE))
@@ -1431,18 +2001,34 @@ class DeliverOrchestrator:
                         })
                     continue
                 param_list = params if isinstance(params, list) else [params]
+                # F2: label 冲突 fallback — 若该 WP 有 spawn 失败记录（含 label already in use），
+                # 追加 _{timestamp} 后缀避免与旧 session 撞名循环。
+                # 首次 spawn 保持确定性格式（不改变 label），仅冲突后加后缀。
+                # P1-polish: 扩展到 validate/package action（生产事故 00:16:18 label 冲突）
+                _entry = self.progress.get(wp_id, {})
+                _should_add_suffix = (
+                    action in ("spawn_workers", "validate", "package")
+                    and _entry.get("spawn_failures", 0) > 0
+                )
                 for p in param_list:
                     if not isinstance(p, dict) or not p.get("task"):
                         continue
+                    _label = p.get("label", f"{action}-{wp_id.lower()}")
+                    if _should_add_suffix and not re.search(r"_\d{10,}$", _label):
+                        _label = f"{_label}_{int(time.time())}"
                     candidates.append({
                         "wp_id": wp_id,
                         "action": action if action != "spawn_workers" else "spawn_workers",
                         "task": p["task"],
-                        "label": p.get("label", f"{action}-{wp_id.lower()}"),
+                        "label": _label,
                         "model": p.get("model"),
                         "mode": p.get("mode", "run"),
                         "thinking": p.get("thinking", "medium"),
                     })
+                # P1-polish: 重置计数器移出循环，确保多 param wave 都获后缀
+                if _should_add_suffix:
+                    _entry["spawn_failures"] = 0
+                    self.progress[wp_id] = _entry
 
             if self._last_tick_truncated:
                 alerts.append({
@@ -1456,14 +2042,85 @@ class DeliverOrchestrator:
                     ),
                 })
 
+            # === Final Synthesis 触发检查（2026-07-29） ===
+            # 阶段 2: 全部 WP DONE 后触发 final_synthesis
+            if self._should_trigger_final_synthesis():
+                try:
+                    synthesis_action = self._build_final_synthesis_action()
+                    candidates.append(synthesis_action)
+                except Exception as e:
+                    alerts.append({
+                        "severity": "WARN",
+                        "code": "FINAL_SYNTHESIS_BUILD_FAILED",
+                        "message": str(e),
+                    })
+
+            # 阶段 3: final_synthesis 产出落盘后执行语义回溯 Gate（LLM-as-Judge）
+            # 铁律：语义判断必须用 LLM，禁止关键词检查
+            if (
+                self._final_synthesis_dir().exists()
+                and self._contract_path().exists()
+            ):
+                # 检查 synthesis 是否有实质产出
+                synthesis_has_content = any(
+                    f.is_file() and f.stat().st_size > 0
+                    for f in self._final_synthesis_dir().rglob("*")
+                )
+                if synthesis_has_content:
+                    gate_report_exists = self._final_gate_report_path().exists()
+                    gate_spawned = self._gate_spawned_path().exists()
+                    
+                    if gate_report_exists:
+                        # LLM 已写完 judgment → Python 侧处理
+                        try:
+                            gate_report = self._process_gate_report()
+                            if gate_report.get("passed"):
+                                self._mark_final_deliverable_done(gate_report)
+                        except ValueError as e:
+                            # MUST 要素 MISSING 或 report 非法 → HARD_BLOCK
+                            alerts.append({
+                                "severity": "CRITICAL",
+                                "code": "SEMANTIC_GATE_HARD_BLOCK",
+                                "message": str(e),
+                            })
+                    elif gate_spawned:
+                        # Gate action 已 spawn 但无 report → LLM 失败 → fail-closed
+                        alerts.append({
+                            "severity": "CRITICAL",
+                            "code": "SEMANTIC_GATE_LLM_FAILED",
+                            "message": (
+                                "Gate action was spawned but LLM judge failed to write report. "
+                                "Fail-closed: cannot proceed. Please check LLM session and re-run."
+                            ),
+                        })
+                    else:
+                        # 首次触发：spawn gate action + 写 flag
+                        try:
+                            gate_action = self._build_run_final_gate_action()
+                            candidates.append(gate_action)
+                            # 写 flag 标记已 spawn
+                            atomic_write_json(self._gate_spawned_path(), {
+                                "spawned_at": time.time(),
+                                "action": "run_final_gate",
+                            })
+                        except Exception as e:
+                            # 构建 action 失败（如 contract 不可读）→ fail-closed
+                            alerts.append({
+                                "severity": "CRITICAL",
+                                "code": "SEMANTIC_GATE_BUILD_FAILED",
+                                "message": f"Failed to build gate action: {e}. Fail-closed.",
+                            })
+
             # A7: 零进展检测
             status = self.get_status()
             pulse_state, stalled_alert = self._update_pulse_state(len(candidates), status)
             if stalled_alert:
                 alerts.append(stalled_alert)
 
-            # A2/P1-4: 终态判定 all_resolved = done + terminal_failed
-            if status["all_resolved"]:
+            # A2/P1-4: 终态判定（2026-07-29 更新：需 final_synthesis 完成）
+            # 完成条件：all_resolved + _final_deliverable_done.json 存在
+            final_done = self._final_deliverable_done_path().exists()
+            if status["all_resolved"] and final_done:
                 terminal_wps = [
                     wp for layer in self.layers for wp in layer
                     if self.progress.get(wp, {}).get("terminal_failed")
@@ -1474,10 +2131,28 @@ class DeliverOrchestrator:
                     "completed": status["completed"],
                     "terminal_failed": status["terminal_failed"],
                     "terminal_failed_wps": terminal_wps,
+                    "final_synthesis_done": True,
                 })
                 pulse_status = "completed"
+            elif status["all_resolved"] and not final_done:
+                # 全部 WP DONE 但 final_synthesis 未完成 → 保持 active
+                pulse_status = "active"
             else:
                 pulse_status = "active" if candidates else "idle"
+
+            # F1: 刷新 batch_progress 中每个 WP 的 phase（与 derive_phase 对齐）
+            # V3 Pulse 路径写完 PACKAGING 后再无代码更新 phase，导致监控说谎。
+            # delivery_state.json 由 wp_runner 管理（orchestrator 不写入），且
+            # _check_wp_phase 注释明确 "文件系统即真相"，故只刷新 batch_progress。
+            for layer in self.layers:
+                for wp_id in layer:
+                    entry = self.progress.get(wp_id)
+                    if not isinstance(entry, dict):
+                        continue
+                    derived = self._check_wp_phase(wp_id)
+                    if entry.get("phase") != derived:
+                        entry["phase"] = derived
+                        self.progress[wp_id] = entry
 
             self._save_progress()
             return _build_report(

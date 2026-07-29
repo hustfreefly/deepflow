@@ -36,11 +36,15 @@ def test_deliver_orchestrator_sanitizes_project_name():
     """DeliverOrchestrator.__init__ 也应 sanitize project_name"""
     from domains.deliver_pro.orchestrator import DeliverOrchestrator
 
+    # F1 fix (W3): ship_package 缺失 → raise（禁止静默降级）
+    # project_name sanitization happens before _find_ship_package raises
     with patch("domains.deliver_pro.orchestrator.DeliverOrchestrator._find_ship_package") as mock_find:
         mock_find.side_effect = FileNotFoundError()
-        orch = DeliverOrchestrator("foo/bar")
-        assert orch.project_name == "foo_bar"
-        assert "/" not in orch.project_name
+        import pytest
+        with pytest.raises(FileNotFoundError):
+            DeliverOrchestrator("foo/bar")
+        # Verify sanitization happened before the raise
+        mock_find.assert_called_once()
 
 
 if __name__ == "__main__":

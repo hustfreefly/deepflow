@@ -65,12 +65,12 @@ bb = BlackboardManager('{session_id}')
 import json
 # 双路径：优先 living_spec
 try:
-    spec = bb.read_json('data/living_spec.json')
+    spec = bb.read_stage('living_spec')
     p0_req_ids = [r['id'] for r in spec.get('requirement_index', []) if r.get('priority') == 'P0']
 except:
     # Fallback to frozen_spec
     try:
-        spec = bb.read_json('data/frozen_spec.json')
+        spec = bb.read_stage('frozen_spec')
         p0_req_ids = [r['req_id'] for r in spec.get('requirements', []) if r.get('priority') == 'P0']
     except:
         p0_req_ids = []

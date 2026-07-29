@@ -24,7 +24,10 @@ class PulseAction(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     wp_id: str = Field(min_length=1)
-    action: Literal["analyze", "spawn_workers", "validate", "package", "package_failed"]
+    action: Literal[
+        "analyze", "spawn_workers", "validate", "package", "package_failed",
+        "infer_deliverable_contract", "final_synthesis", "run_final_gate",
+    ]
     task: str = Field(min_length=1, description="sessions_spawn 的 task 内容")
     label: str = Field(min_length=1, description="sessions_spawn 的 label")
     model: str | None = None

@@ -617,6 +617,12 @@ class FinalSolutionSchema(V2BaseSchema):
     covered_req_ids: list[str] = Field(
         default_factory=list, description="Covered requirement IDs"
     )
+    requirements: list[dict] = Field(
+        default_factory=list,
+        description="Requirement index from living_spec (single source of truth: spec_pro requirement_index). "
+                    "Each entry: {id, description, priority, category}. "
+                    "Ship Pro pipeline_designer consumes this field directly."
+    )
     semantic_anchors: list[dict] = Field(
         default_factory=list, description="Semantic anchors from living_spec"
     )

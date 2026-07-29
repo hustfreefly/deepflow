@@ -132,8 +132,19 @@ def run_conservation_judge(
         output_json=output_json[:8000],  # 截断
     )
     
-    # 2. LLM 判断
-    raw_output = llm_call(prompt)
+    # 2. LLM 判断（契约笼子 W4-F3 fail-closed：API 任何失败 → verdict FAIL，不 pass）
+    try:
+        raw_output = llm_call(prompt)
+    except Exception as e:
+        logger.error(f"契约笼子: Conservation Judge LLM 调用失败，fail-closed 判 FAIL: {e}")
+        return {
+            "preserved": [],
+            "lost": [],
+            "alignment_rate": 0.0,
+            "verdict": "FAIL",
+            "below_threshold": True,
+            "error": f"LLM API 调用失败: {e}",
+        }
     
     # 3. 解析结果
     result = _parse_judge_output(raw_output)

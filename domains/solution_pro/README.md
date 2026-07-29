@@ -1,6 +1,6 @@
 # Solution Pro V4.0 — 领域自适应方案设计引擎
 
-> **版本**: V4.0.0 (2026-07-27)  
+> **版本**: V4.1.0 (2026-07-30)  
 > **架构**: 纯 Agent Orchestrator（V4.0 简化版）  
 > **测试**: 30 passed, 0 failures
 
@@ -37,8 +37,12 @@ Orchestrator Agent（纯 LLM 调度器，depth-1）
 │   Phase 4: Fix Judge → Fix Agent   │
 │   Phase 5a: Document Generator     │
 │   Phase 5b: JSON Extractor         │
-│   → final_solution.json            │
+│   → final_solution.md              │
 └─────────────────────────────────────┘
+    ↓
+final_solution.md（MD source of truth）
+    ↓ 自动生成
+solution_track.json（Track 衍生）
     ↓
 .completed 标记文件
 ```
@@ -157,11 +161,19 @@ spawn_params = result["spawn_params"]
 
 | 版本 | 日期 | 核心变更 |
 |:---|:---|:---|
+| **V4.1.0** | 2026-07-30 | ADR-009 MD-first：final_solution.md 为唯一真相源 + solution_track.json 衍生 |
 | **V4.0.0** | 2026-07-27 | 移除 Step 4/5 后置验证，orchestrator 简化为 3 步 |
 | **V3.1.0** | 2026-07-14 | 删除 Python orchestrator 层 + 新增对抗 Agent |
 | **V2.1.1** | 2026-07-08 | AI Native 反模式修复：Cage F6/F7 结构化、harness 去硬编码 |
 | **V2.1.0** | 2026-07-07 | DAL 领域自适应：DomainProfile 10 字段 + 4 YAML few-shot |
 | **V2.0.0** | 2026-06-29 | 三层架构（Planning + Research + Summary）+ 断点续跑 |
+
+### V4.1.0 变更详情（2026-07-30）— ADR-009 MD-first
+
+- ✅ `final_solution.md` 成为唯一真相源（删除 `final_solution.json` fallback）
+- ✅ `solution_track.json` 作为 Track 衍生（跨域元数据：semantic_anchors, req_ids）
+- ✅ `frozen_spec.md` 为唯一输入源（删除 `frozen_spec.json` fallback）
+- ✅ Ship Pro 已适配：读 `final_solution.md` + `solution_track.json`
 
 ### V4.0.0 变更详情（2026-07-27）
 

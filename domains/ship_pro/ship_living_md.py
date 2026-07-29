@@ -70,8 +70,15 @@ def render_ship_package_md(data: dict) -> str:
     lines.append("")
     lines.append("| field | value |")
     lines.append("|-------|-------|")
-    lines.append(f"| solution | {data.get('solution', '')} |")
+    # N3-FIX: output both solution_name (Pydantic canonical) and solution (backward compat)
+    solution_name = data.get("solution_name", data.get("solution", ""))
+    lines.append(f"| solution_name | {solution_name} |")
+    if data.get("solution"):
+        lines.append(f"| solution | {data['solution']} |")
     lines.append(f"| version | {data.get('ship_package_version', '1.0')} |")
+    # N3-FIX: render project_name if present
+    if data.get("project_name"):
+        lines.append(f"| project_name | {data['project_name']} |")
     stats = data.get("statistics", {})
     if stats:
         for k, v in stats.items():
@@ -235,6 +242,32 @@ def render_ship_package_md(data: dict) -> str:
                 lines.append(f"- {phase}")
             lines.append("")
 
+    # ── S7c: N3-FIX - modules (optional) ──
+    modules = data.get("modules", [])
+    if modules:
+        lines.append("## modules")
+        lines.append("")
+        if isinstance(modules, list):
+            for mod in modules:
+                if isinstance(mod, dict):
+                    mod_name = mod.get("name", mod.get("id", str(mod)))
+                    lines.append(f"- {mod_name}")
+                else:
+                    lines.append(f"- {mod}")
+        lines.append("")
+
+    # ── S7d: N3-FIX - integration_notes (optional) ──
+    integration_notes = data.get("integration_notes", "")
+    if integration_notes:
+        lines.append("## integration_notes")
+        lines.append("")
+        if isinstance(integration_notes, list):
+            for note in integration_notes:
+                lines.append(f"- {note}")
+        else:
+            lines.append(str(integration_notes))
+        lines.append("")
+
     # ── S8: gate_decisions (optional) ──
     lines.append("## gate_decisions")
     lines.append("")
@@ -283,15 +316,61 @@ def parse_ship_package_md(md: str) -> dict:
     # ── Parse Sections ──
     sections = _parse_md_sections(body)
 
+    # S1: meta_info — N3-FIX: parse all fields from meta_info table
+    meta_text = sections.get("meta_info", "")
+    if meta_text:
+        meta_fields = _parse_kv_table(meta_text)
+        # N3-FIX: solution_name is canonical (Pydantic); fallback to solution
+        if "solution_name" in meta_fields:
+            result["solution_name"] = meta_fields["solution_name"]
+        elif "solution" in meta_fields:
+            result["solution_name"] = meta_fields["solution"]
+        if "solution" in meta_fields:
+            result["solution"] = meta_fields["solution"]
+        if "project_name" in meta_fields:
+            result["project_name"] = meta_fields["project_name"]
+        # Parse statistics fields from meta_info table (total_wps, total_effort_hours, etc.)
+        for stat_key in ("total_wps", "total_effort_hours", "req_coverage_rate",
+                         "dependency_edges", "req_coverage"):
+            if stat_key in meta_fields:
+                result.setdefault("statistics", {})[stat_key] = meta_fields[stat_key]
+
     # S2: work_packages
     wp_text = sections.get("work_packages", "")
     if wp_text:
         result["work_packages"] = _parse_work_packages(wp_text)
 
-    # S3: execution_order
+    # S3: execution_order — preserve both as dependency_graph and execution_order
     eo_text = sections.get("execution_order", "")
     if eo_text:
-        result["dependency_graph"] = _parse_execution_order(eo_text)
+        exec_layers = _parse_execution_order(eo_text)
+        result["dependency_graph"] = exec_layers
+        result["execution_order"] = exec_layers.get("execution_layers", [])
+
+    # S4: req_traceability — N3-FIX: parse coverage rate
+    req_text = sections.get("req_traceability", "")
+    if req_text:
+        coverage_match = re.search(r"\*\*Coverage Rate\*\*:\s*(.+)", req_text)
+        if coverage_match:
+            result.setdefault("statistics", {})["req_coverage_rate"] = coverage_match.group(1).strip()
+        pending = [l.strip().lstrip("- ") for l in req_text.split("\n") if l.strip().startswith("- ")]
+        if pending:
+            result["pending_req_ids"] = pending
+
+    # S5: statistics section — N3-FIX: parse statistics table
+    stats_text = sections.get("statistics", "")
+    if stats_text:
+        stats_fields = _parse_kv_table(stats_text)
+        for k, v in stats_fields.items():
+            # Try to convert numeric values
+            try:
+                v = int(v)
+            except (ValueError, TypeError):
+                try:
+                    v = float(v)
+                except (ValueError, TypeError):
+                    pass
+            result.setdefault("statistics", {})[k] = v
 
     # S7: semantic_anchors (R2-FIX: always present, <!-- empty --> → [])
     sa_text = sections.get("semantic_anchors", "")
@@ -299,6 +378,62 @@ def parse_ship_package_md(md: str) -> dict:
         result["semantic_anchors"] = _parse_anchor_table(sa_text)
     else:
         result["semantic_anchors"] = []
+
+    # S7b: solution_pro_summary — N3-FIX: parse risk_summary, architecture, etc.
+    sps_text = sections.get("solution_pro_summary", "")
+    if sps_text:
+        arch_match = re.search(r"\*\*Architecture\*\*:\s*(.+)", sps_text)
+        if arch_match:
+            result["architecture"] = arch_match.group(1).strip()
+        risk_match = re.search(r"\*\*Risk Summary\*\*:\s*(.+)", sps_text)
+        if risk_match:
+            result["risk_summary"] = risk_match.group(1).strip()
+        # Parse key decisions
+        kd_lines = []
+        in_kd = False
+        for line in sps_text.split("\n"):
+            if "**Key Decisions**" in line:
+                in_kd = True
+                continue
+            if in_kd:
+                if line.startswith("- "):
+                    kd_lines.append(line[2:].strip())
+                elif line.startswith("**"):
+                    in_kd = False
+        if kd_lines:
+            result["key_decisions"] = kd_lines
+        # Parse implementation phases
+        ip_lines = []
+        in_ip = False
+        for line in sps_text.split("\n"):
+            if "**Implementation Phases**" in line:
+                in_ip = True
+                continue
+            if in_ip:
+                if line.startswith("- "):
+                    ip_lines.append(line[2:].strip())
+                elif line.startswith("**"):
+                    in_ip = False
+        if ip_lines:
+            result["implementation_phases"] = ip_lines
+
+    # S7c: modules — N3-FIX
+    mod_text = sections.get("modules", "")
+    if mod_text:
+        modules = [l.strip().lstrip("- ") for l in mod_text.split("\n") if l.strip().startswith("- ")]
+        if modules:
+            result["modules"] = modules
+
+    # S7d: integration_notes — N3-FIX
+    in_text = sections.get("integration_notes", "")
+    if in_text:
+        in_lines = [l.strip() for l in in_text.split("\n") if l.strip()]
+        if in_lines:
+            # If all lines start with "- ", treat as list; otherwise as text
+            if all(l.startswith("- ") for l in in_lines):
+                result["integration_notes"] = [l[2:].strip() for l in in_lines]
+            else:
+                result["integration_notes"] = "\n".join(in_lines)
 
     return result
 
@@ -475,6 +610,21 @@ def _parse_execution_order(text: str) -> dict:
                 wp_list = [w.strip() for w in cells[1].split(",") if w.strip()]
                 layers.append(wp_list)
     return {"execution_layers": layers}
+
+
+def _parse_kv_table(text: str) -> dict[str, str]:
+    """Parse a two-column markdown table (| key | value |) into a dict.
+
+    Handles both meta_info (| field | value |) and statistics (| metric | value |) tables.
+    """
+    result: dict[str, str] = {}
+    table_lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    # Skip header + separator (first 2 lines)
+    for line in table_lines[2:]:
+        cells = [c.strip() for c in line.split("|")[1:-1]]
+        if len(cells) >= 2 and cells[0]:
+            result[cells[0]] = cells[1]
+    return result
 
 
 def _parse_anchor_table(text: str) -> list[dict]:

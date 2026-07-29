@@ -315,46 +315,57 @@ def annotate_requirements(
 ) -> Optional[List[Dict[str, Any]]]:
     """
     LLM 标注需求
-    
+
+    契约笼子（W4-F1）：语义标注禁止脚本 fallback。
+    LLM 标注失败 → raise RuntimeError（fail-closed），不静默降级。
+
     Args:
         living_spec: living_spec.json 内容
         llm_call_fn: LLM 调用函数（输入prompt，返回response文本）
-    
+
     Returns:
-        标注列表（符合Schema），失败时返回 None
+        标注列表（符合Schema）；confirmed 为空时返回 None（无可标注内容）
+
+    Raises:
+        RuntimeError: LLM 标注失败（调用异常 / JSON 解析失败 / Schema 验证失败 / 覆盖率 <80%）
     """
     confirmed = living_spec.get("confirmed", {})
     if not confirmed:
         logger.info("No confirmed requirements, skipping annotation")
         return None
-    
+
     # 构建 prompt
     prompt = _build_annotation_prompt(confirmed)
-    
+
+    # 调用 LLM（任何异常 = 标注失败，fail-closed）
     try:
-        # 调用 LLM
         response = llm_call_fn(prompt)
-        
-        # 解析 JSON
-        annotations = json.loads(response)
-        
-        # Schema 验证
-        if not _validate_annotations(annotations):
-            logger.warning("LLM annotation schema validation failed, falling back to script")
-            return None
-        
-        # 覆盖率检查
-        coverage = _check_coverage(confirmed, annotations)
-        if coverage < 0.8:
-            logger.warning(f"LLM annotation coverage too low: {coverage:.2%}, falling back to script")
-            return None
-        
-        logger.info(f"LLM annotation successful: {len(annotations)} annotations, {coverage:.2%} coverage")
-        return annotations
-    
-    except json.JSONDecodeError as e:
-        logger.warning(f"LLM annotation JSON parse failed: {e}, falling back to script")
-        return None
     except Exception as e:
-        logger.warning(f"LLM annotation failed: {e}, falling back to script")
-        return None
+        raise RuntimeError(
+            f"契约笼子: LLM annotation 调用失败（无脚本 fallback）: {e}"
+        ) from e
+
+    # 解析 JSON
+    try:
+        annotations = json.loads(response)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"契约笼子: LLM annotation JSON 解析失败（无脚本 fallback）: {e}"
+        ) from e
+
+    # Schema 验证
+    if not _validate_annotations(annotations):
+        raise RuntimeError(
+            "契约笼子: LLM annotation Schema 验证失败（无脚本 fallback），"
+            "详见上方 warning 日志"
+        )
+
+    # 覆盖率检查
+    coverage = _check_coverage(confirmed, annotations)
+    if coverage < 0.8:
+        raise RuntimeError(
+            f"契约笼子: LLM annotation 覆盖率过低 {coverage:.2%} < 80%（无脚本 fallback）"
+        )
+
+    logger.info(f"LLM annotation successful: {len(annotations)} annotations, {coverage:.2%} coverage")
+    return annotations

@@ -138,6 +138,60 @@ def main():
             print(f"  ISSUE: {issue}")
         sys.exit(1)
 
+    # === Track B: 输入要素守恒 Gate fail-closed 校验 ===
+    # 守恒 Gate 由确认阶段 Agent（LLM）执行，结果写入 spec/input_conservation_gate.json。
+    # CLI 在此做 fail-closed 校验：文件缺失 / verdict 非 PASS / MUST 要素 MISSING → BLOCKED。
+    conservation_path = session_dir / "spec" / "input_conservation_gate.json"
+    if not conservation_path.exists():
+        print(
+            "BLOCKED — input_conservation_gate.json 不存在。\n"
+            "  守恒 Gate 未执行。确认阶段必须执行要素提取 + 判定并写入该文件。\n"
+            "  用户铁律：需求对齐是硬性要求，不存在降级或静默方案。",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    try:
+        with open(conservation_path, "r", encoding="utf-8") as f:
+            conservation_data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"BLOCKED — input_conservation_gate.json 读取失败: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    verdict = str(conservation_data.get("verdict", "")).upper()
+    if verdict != "PASS":
+        must_missing = conservation_data.get("must_missing", [])
+        print(
+            f"BLOCKED — 守恒 Gate verdict={verdict}。\n"
+            f"  MUST 要素缺失: {len(must_missing)} 个",
+            file=sys.stderr,
+        )
+        for m in must_missing:
+            elem_desc = m.get("element", m) if isinstance(m, dict) else str(m)
+            print(f"    - {elem_desc}", file=sys.stderr)
+        sys.exit(1)
+
+    # 二次校验：即使 verdict=PASS，也检查 elements 中是否存在 MUST+MISSING
+    elements = conservation_data.get("elements", [])
+    must_missing_elements = [
+        e for e in elements
+        if isinstance(e, dict)
+        and str(e.get("criticality", "")).upper() == "MUST"
+        and str(e.get("status", "")).upper() == "MISSING"
+    ]
+    if must_missing_elements:
+        print(
+            f"BLOCKED — 守恒 Gate verdict=PASS 但存在 MUST 要素 MISSING（数据不一致）:\n"
+            f"  {len(must_missing_elements)} 个 MUST 要素 MISSING",
+            file=sys.stderr,
+        )
+        for e in must_missing_elements:
+            print(f"    - {e.get('element', '?')}", file=sys.stderr)
+        sys.exit(1)
+
+    conservation_rate = conservation_data.get("conservation_rate", 0.0)
+    print(f"CONSERVATION_GATE_PASS: verdict=PASS, rate={conservation_rate:.2f}")
+
     # Fix 1: Semantic Anchor 格式验证（程序化集成 extract_semantic_anchors 的验证路径）
     # 语义提取由主 Agent 在确认阶段 Step 4 完成（需要 LLM）；
     # CLI 环境无 LLM，此步只做 Pydantic 格式验证，确保下游消费到合法数据。

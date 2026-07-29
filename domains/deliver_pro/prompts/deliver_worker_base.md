@@ -32,7 +32,7 @@ exec: mkdir -p {deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subd
 
 ```
 {deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subdir}}/stages/worker_outputs/{task_id}/  <!-- FixFlow P1-1: 路径变量改必需(fail-fast) -->
-├── DELIVERABLE.md   # 主产物
+├── DELIVERABLE.md   # 主产物（唯一强制主产物，不可被任何其他文件替代）
 ├── EVIDENCE.md      # 验证证据
 ├── ISSUES.md        # 阻塞/风险（没有写"无"）
 └── MANIFEST.json    # 元数据
@@ -97,7 +97,7 @@ exec: mkdir -p {deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subd
 
 ## 自检
 
-- [ ] 所有 AC 已覆盖 [ ] 证据充分 [ ] 4 文件齐全 [ ] 无 ISSUES 遗漏 [ ] MANIFEST 完整
+- [ ] 所有 AC 已覆盖 [ ] 证据充分 [ ] DELIVERABLE.md 存在且 ≥50 字符（reports/ 等附加产物不算）[ ] 无 ISSUES 遗漏 [ ] MANIFEST 完整
 
 ## 最终输出纪律（Pulse V1）
 
@@ -113,11 +113,10 @@ exec: mkdir -p {deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subd
 ### 验收标准
 {acceptance_criteria}
 
-### 期望输出
+### 期望输出（附加产物，不替代 DELIVERABLE.md）
 {expected_outputs}
 
-### ShipPackage 上下文
-{ship_context}
+> ⚠️ 以上文件是**附加产物**：写入对应子目录（如 reports/、data/）作为补充材料。主报告/主交付内容必须写入 **DELIVERABLE.md**——缺少 DELIVERABLE.md = FAILED，即使上述文件全部存在。
 
 ### 依赖
 {dependencies}

@@ -49,6 +49,20 @@ def mock_blackboard(tmp_path, ship_package_data):
     (ship_dir / "ship_package.json").write_text(json.dumps(ship_package_data))
     return bb_root, project_name
 
+def _setup_living_spec(bb_root, project_name):
+    """Create living_spec.json for tests."""
+    data_dir = bb_root / project_name / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    spec = {
+        "requirements": [
+            {"id": "R1", "text": "Test requirement", "priority": "MUST"},
+        ],
+        "sections": ["Introduction"],
+    }
+    (data_dir / "living_spec.json").write_text(json.dumps(spec, ensure_ascii=False))
+    return data_dir / "living_spec.json"
+
+
 
 @contextmanager
 def _make_orchestrator(mock_blackboard):
@@ -288,6 +302,9 @@ class TestInFlightCap:
     def test_budget_truncation(self, mock_blackboard):
         """in_flight=7 → 预算 1 → 2 个候选只派 1 个 + truncated + 告警。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
+            _setup_living_spec(bb_root, project)
+            # Create contract to skip inference
+            (bb_root / project / "_deliverable_contract.json").write_text('{}')
             driver = MagicMock()
             driver.step1_analyze.side_effect = lambda: {
                 "task": "analyze", "label": f"analyze-{id(driver)}", "mode": "run",
@@ -317,13 +334,16 @@ class TestInFlightCap:
         with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
             from domains.deliver_pro.orchestrator import DeliverOrchestrator
             orch = DeliverOrchestrator(project_name)
-            driver = MagicMock()
-            driver.step1_analyze.side_effect = lambda: {
-                "task": "analyze", "label": "analyze-x", "mode": "run",
-            }
-            with patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_count_in_flight", return_value=0):
-                report = orch.pulse()
+        _setup_living_spec(bb_root, project_name)
+        # Create contract to skip inference
+        (bb_root / project_name / "_deliverable_contract.json").write_text('{}')
+        driver = MagicMock()
+        driver.step1_analyze.side_effect = lambda: {
+            "task": "analyze", "label": "analyze-x", "mode": "run",
+        }
+        with patch.object(orch, "_get_driver", return_value=driver), \
+             patch.object(orch, "_count_in_flight", return_value=0):
+            report = orch.pulse()
             assert len(report["actions"]) == MAX_SPAWN_PER_PULSE == 5
             assert report["summary"]["truncated"] is True
 
@@ -334,7 +354,7 @@ class TestInFlightCap:
 
 class TestAllResolved:
     def test_completed_marker_written(self, mock_blackboard):
-        """1 DONE + 1 terminal_failed → all_resolved → .deliver_completed.json。"""
+        """1 DONE + 1 terminal_failed + final_synthesis done → all_resolved → .deliver_completed.json。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             # AAA-001 → DONE（Pulse V1.1 K3: 交付物必须 ≥50B）
             stages = _wp_dir(bb_root, project, "AAA-001") / "stages"
@@ -343,6 +363,11 @@ class TestAllResolved:
             (stages / "delivery_manifest.json").write_text("{}")
             # BBB-001 → terminal_failed
             orch.progress["BBB-001"] = {"terminal_failed": True}
+            # Final Synthesis done (2026-07-29 新完成条件)
+            (bb_root / project / "_final_deliverable_done.json").write_text(json.dumps({
+                "completed_at": time.time(),
+                "gate_passed": True,
+            }))
             with patch.object(orch, "_count_in_flight", return_value=0):
                 report = orch.pulse()
 
@@ -353,6 +378,7 @@ class TestAllResolved:
             assert completed["completed"] == 1
             assert completed["terminal_failed"] == 1
             assert completed["terminal_failed_wps"] == ["BBB-001"]
+            assert completed["final_synthesis_done"] is True
 
     def test_completed_fast_path(self, mock_blackboard):
         """完成标记存在 → 快速通道，零扫描。"""
@@ -445,6 +471,7 @@ class TestContractCage:
         from domains.deliver_pro.contracts.pulse_report import PulseReport
 
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
+            _setup_living_spec(bb_root, project)
             with patch.object(orch, "_count_in_flight", return_value=0):
                 orch.pulse()
             data = json.loads((bb_root / project / "_pulse_actions.json").read_text())
@@ -528,6 +555,9 @@ class TestAssemblyEmptyGuard:
     def test_assembly_empty_maps_terminal_failed(self, mock_blackboard):
         """tick assemble 分支：ASSEMBLY_EMPTY → terminal_failed + CRITICAL 告警。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
+            _setup_living_spec(bb_root, project)
+            # Create contract to skip inference
+            (bb_root / project / "_deliverable_contract.json").write_text('{}')
             driver = MagicMock()
             driver.step5_integrate.return_value = {
                 "status": "ASSEMBLY_EMPTY", "workers_integrated": 0,

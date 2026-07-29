@@ -124,7 +124,7 @@ tags: [solution, prompt, dedup, requirements, design]
 | `requirement_evidence[]` 长度 | 71 | ~42 | ✅ Architect 读取更快，信噪比提升 |
 | `covered_req_ids[]` 长度 | 71 | 71（不变） | ✅ 追溯性完整，不丢失任何 REQ-ID |
 | 证据质量 | 同一需求多条碎片 | 一条完整描述 | ✅ Architect 获得更完整的上下文 |
-| REQ-ID 稳定性 | — | 保留最低 ID | ✅ 与 frozen_spec.json 的映射不断裂 |
+| REQ-ID 稳定性 | — | 保留最低 ID | ✅ 与 frozen_spec.md 的映射不断裂 |
 
 ### 3.3 边界情况处理
 
@@ -183,7 +183,7 @@ print("✅ 验证通过")
 对比去重前后的 evidence 内容，确认：
 - 每个语义簇的合并条目包含簇内所有独特信息点
 - `covered_req_ids` 长度不变（71 → 71）
-- frozen_spec.json 中的每个 REQ-ID 仍可追溯到 evidence
+- frozen_spec.md 中的每个 REQ-ID 仍可追溯到 evidence
 
 ### 4.4 A/B 对比验证
 

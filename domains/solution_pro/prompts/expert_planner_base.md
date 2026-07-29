@@ -16,7 +16,7 @@
 ### 读取 Spec 数据（living_spec 优先）
 ```python
 # 读取 spec 数据（living_spec 优先）
-spec = bb.read_json('data/living_spec.json', default={}) or bb.read_json('data/frozen_spec.json', default={})
+spec = bb.read_stage('living_spec', default={}) or bb.read_stage('frozen_spec', default={})
 ```
 
 ## 输出格式

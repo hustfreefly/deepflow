@@ -105,6 +105,32 @@ from ..contracts import (
 logger = logging.getLogger(__name__)
 
 
+def _derive_serving_principles(sol_input: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """W4-F4: 从 solution_pro_input 确定性派生 serving_principles。
+
+    优先级:
+    1. 上游显式产出 serving_principles（未来 Solution Pro 可直接提供）→ 原样透传
+    2. guardrails.always_do → obligation；guardrails.never_do → anti_pattern
+
+    纯格式化组装（字段映射），不做语义提取，无 LLM 依赖。
+    """
+    explicit = sol_input.get("serving_principles")
+    if isinstance(explicit, list) and explicit:
+        return explicit
+
+    principles: List[Dict[str, Any]] = []
+    guardrails = sol_input.get("guardrails")
+    if isinstance(guardrails, dict):
+        for item in guardrails.get("always_do", []) or []:
+            principles.append({"obligation": str(item), "source": "guardrails.always_do"})
+        for item in guardrails.get("never_do", []) or []:
+            principles.append({"anti_pattern": str(item), "source": "guardrails.never_do"})
+    elif isinstance(guardrails, list):
+        for item in guardrails:
+            principles.append({"obligation": str(item), "source": "guardrails"})
+    return principles
+
+
 class ShipOrchestrator:
     """
     Ship Pro Orchestrator(纯工具库)
@@ -438,7 +464,21 @@ class ShipOrchestrator:
                 if match:
                     task_name, verdict = match
 
-            if verdict and isinstance(verdict, dict) and not verdict.get("passed", True):
+            # 契约笼子（W4-F3 fail-closed）：有 MUST 约束但 Judge 结果缺失
+            # （LLM API 失败 / Judge 未执行）= 无法验证 = 判 FAIL，不静默跳过
+            if verdict is None:
+                if worker_spec.get("must_constraints"):
+                    failures.append({
+                        "role": role,
+                        "worker_spec": worker_spec,
+                        "issues": [f"契约笼子: Judge 结果缺失（{task_name}），无法验证 MUST 约束，fail-closed 判 FAIL"],
+                        "task_name": task_name,
+                    })
+                continue
+
+            # 契约笼子（W4-F3 fail-closed）：verdict 缺失 passed 字段时默认 False，
+            # 防止 LLM API 错误残骸（如 {"error": "timeout"}）被当作 PASS
+            if isinstance(verdict, dict) and not verdict.get("passed", False):
                 failures.append({
                     "role": role,
                     "worker_spec": worker_spec,
@@ -1244,7 +1284,7 @@ Planner → **【你(Worker)】** → Consolidator → 用户
         _sol_stages = bp / "stages" / "solution_pro_input.json"
         _sol_root = bp / "solution_pro_input.json"
         solution_pro_input_path = str(_sol_stages if _sol_stages.exists() else _sol_root)
-        output_path = str(stages_dir / "ship_package.json")
+        output_path = str(stages_dir / "ship_package.md")
 
         # 读取 consolidator prompt 模板
         prompt_template_path = Path(__file__).parent.parent / "prompts" / "consolidator.md"
@@ -1301,18 +1341,30 @@ Planner → **【你(Worker)】** → Consolidator → 用户
         """ShipPackage L1 验证
 
         契约笼子:
-        - ship_package.json 不存在 → raise ValueError
+        - ship_package.md 不存在 → raise ValueError
         - work_packages 为空 → raise ValueError
         - WP 缺少必需字段 → raise ValueError
         """
         bp = Path(blackboard_path) if blackboard_path else self.blackboard_path
         stages_dir = bp / "stages"
 
-        sp_path = stages_dir / "ship_package.json"
-        if not sp_path.exists():
-            raise ValueError(f"契约笼子: ship_package.json 不存在 ({sp_path})")
-
-        ship_package = json.loads(sp_path.read_text(encoding="utf-8"))
+        # N3-FIX: prefer ship_package.md (parse_ship_package_md), fallback to .json
+        md_path = stages_dir / "ship_package.md"
+        json_path = stages_dir / "ship_package.json"
+        sp_path = md_path  # canonical path for error messages
+        if md_path.exists():
+            from ..ship_living_md import parse_ship_package_md
+            ship_package = parse_ship_package_md(md_path.read_text(encoding="utf-8"))
+        elif json_path.exists():
+            ship_package = json.loads(json_path.read_text(encoding="utf-8"))
+            # Render MD sidecar for future reads
+            try:
+                from ..ship_living_md import render_ship_package_md
+                md_path.write_text(render_ship_package_md(ship_package), encoding="utf-8")
+            except Exception as e:
+                logger.warning(f"ship_package.md sidecar generation failed: {e}")
+        else:
+            raise ValueError(f"契约笼子: ship_package.md 不存在 ({md_path})")
 
         # 契约笼子 (K2): ShipPackage Pydantic 验证
         from ..contracts.ship_package import ShipPackage
@@ -1326,7 +1378,7 @@ Planner → **【你(Worker)】** → Consolidator → 用户
         wps = ship_package.get("work_packages", [])
 
         if not wps:
-            raise ValueError("契约笼子: ship_package.json 中 work_packages 为空")
+            raise ValueError("契约笼子: ship_package.md 中 work_packages 为空")
 
         # 契约笼子:字段名自动映射 + 必需字段检查
         required_fields = ["id", "title", "description", "acceptance_criteria", "deliverables"]
@@ -1405,7 +1457,7 @@ Planner → **【你(Worker)】** → Consolidator → 用户
                 # 契约笼子:如果上游有 anchors 但 ship_package 完全没有保留 → raise
                 if not ship_anchors:
                     logger.warning(
-                        f"契约笼子 WARNING: ship_package.json 缺少 semantic_anchors 字段。"
+                        f"契约笼子 WARNING: ship_package.md 缺少 semantic_anchors 字段。"
                         f"上游有 {len(upstream_names)} 个 anchors,但 Consolidator 未透传。"
                     )
 
@@ -1423,6 +1475,34 @@ Planner → **【你(Worker)】** → Consolidator → 用户
                         f"{len(anchor_check['uncovered'])}/{len(upstream_names)} 个 anchors 未被任何 WP 引用 "
                         f"(要求 80% 覆盖率): {anchor_check['uncovered']}"
                     )
+
+        # ── W4-F4: serving_principles 信息守恒（生产方补建）──
+        # Solution Pro 产出中没有 serving_principles 显式字段，从 solution_pro_input
+        # 的 guardrails 确定性派生（always_do→obligation，never_do→anti_pattern），
+        # 注入包级字段，Deliver Pro 按 semantic_anchors 同款 fallback 模式消费。
+        serving_principles_derived: List[Dict[str, Any]] = []
+        if sol_input_path.exists():
+            try:
+                _sol_for_sp = json.loads(sol_input_path.read_text(encoding="utf-8"))
+                serving_principles_derived = _derive_serving_principles(_sol_for_sp)
+                if serving_principles_derived and not ship_package.get("serving_principles"):
+                    ship_package["serving_principles"] = serving_principles_derived
+                    # N3-FIX: write JSON to json_path, re-render MD sidecar
+                    json_path.write_text(
+                        json.dumps(ship_package, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+                    try:
+                        from ..ship_living_md import render_ship_package_md
+                        md_path.write_text(render_ship_package_md(ship_package), encoding="utf-8")
+                    except Exception:
+                        pass
+                    logger.info(
+                        f"W4-F4: serving_principles 已注入 ship_package "
+                        f"({len(serving_principles_derived)} 条)"
+                    )
+            except Exception as e:
+                logger.warning(f"W4-F4: serving_principles 派生失败（non-blocking）: {e}")
 
         # ── P2 契约笼子: anchored_to ↔ dependencies 一致性检查 ──
         # 检测范围: dependencies 为空但 anchored_to 引用了其他 WP 实现的 anchor
@@ -1489,82 +1569,9 @@ Planner → **【你(Worker)】** → Consolidator → 用户
             "total_effort": sum(wp.get("effort_hours", 0) for wp in wps),
             "anchor_check": anchor_check,
             "dep_inconsistencies": dep_inconsistencies,
+            "serving_principles_count": len(
+                ship_package.get("serving_principles", []) or []
+            ),
         }
 
 
-def build_ship_pro_input(
-    frozen_spec_path: str,
-    supplemental_path: str = None,
-    output_path: str = None
-) -> Dict[str, Any]:
-    """自动构建 Ship Pro 输入 - 信息守恒提取
-
-    从 Solution Pro 的 frozen_spec.json 提取完整 requirements/guardrails,
-    合并人工补充的 key_decisions/architecture/risk_mitigations。
-
-    解决信息流断裂:frozen_spec (28KB) → solution_pro_input (8KB) 的 71% 丢失。
-
-    Args:
-        frozen_spec_path: Solution Pro 的 frozen_spec.json 路径
-        supplemental_path: 可选的人工补充字段文件(key_decisions, architecture 等)
-        output_path: 可选的输出路径(保存合并后的 JSON)
-
-    Returns:
-        合并后的 Ship Pro 输入字典
-    """
-    from pathlib import Path
-
-    # 1. 加载 frozen_spec(Solution Pro 完整输出)
-    frozen_path = Path(frozen_spec_path)
-    if not frozen_path.exists():
-        raise FileNotFoundError(f"frozen_spec not found: {frozen_spec_path}")
-
-    with open(frozen_path) as f:
-        frozen = json.load(f)
-
-    merged = {}
-
-    # 2. 保留 frozen_spec 全部字段(requirements, guardrails, requirement_groups 等)
-    for k, v in frozen.items():
-        merged[k] = v
-
-    # 3. 合并人工补充字段(如果有)
-    if supplemental_path:
-        supp_path = Path(supplemental_path)
-        if supp_path.exists():
-            with open(supp_path) as f:
-                supplemental = json.load(f)
-
-            supplement_keys = [
-                'key_decisions', 'must_constraints', 'architecture',
-                'risk_mitigations', 'implementation_plan', 'constraints_satisfied',
-                'solution_name', 'covered_req_ids', 'pending_req_ids'
-            ]
-            for k in supplement_keys:
-                if k in supplemental and k not in merged:
-                    merged[k] = supplemental[k]
-
-    # 4. 验证信息守恒
-    req_count = len(merged.get('requirements', []))
-    has_guardrails = 'guardrails' in merged and merged['guardrails']
-    has_key_decisions = 'key_decisions' in merged and len(merged.get('key_decisions', [])) > 0
-
-    if req_count == 0:
-        raise ValueError(f"信息守恒违规: requirements 为空 (frozen_spec 应包含 REQ 列表)")
-
-    logging.info(
-        f"build_ship_pro_input: {req_count} REQs, "
-        f"guardrails={'✅' if has_guardrails else '❌'}, "
-        f"key_decisions={'✅' if has_key_decisions else '❌'}, "
-        f"total={len(json.dumps(merged, ensure_ascii=False))} chars"
-    )
-
-    # 5. 保存(如果指定了输出路径)
-    if output_path:
-        out = Path(output_path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        with open(out, 'w') as f:
-            json.dump(merged, f, indent=2, ensure_ascii=False)
-        logging.info(f"Saved merged Ship Pro input to: {output_path}")
-
-    return merged

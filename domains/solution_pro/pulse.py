@@ -581,11 +581,16 @@ class SolutionPulse:
                             logger.info("ADR-009: solution_document.md written to %s", doc_path)
                     except Exception as e:
                         logger.error("ADR-009: MD rendering failed (non-blocking): %s", e)
-                    try:
-                        from . import generate_solution_track
-                        generate_solution_track(str(self.session_dir))
-                    except Exception as e:
-                        logger.warning("track 生成失败（非阻断）: %s", e)
+                    # FixFlow Phase 3: Track 自动生成（失败 → raise ValueError，架构违反）
+                    from . import generate_solution_track
+                    track_result = generate_solution_track(str(self.session_dir))
+                    if track_result is None:
+                        raise ValueError(
+                            f"FixFlow Phase 3 契约违反: Track 自动生成失败。"
+                            f"session_dir={self.session_dir}，"
+                            f"final_solution.md 缺失或 extract_track_json() 返回 None。"
+                            f"根因: MD 产物不完整或 track_extractor 无法解析。"
+                        )
                     state.phase = "completed"
                     progress_made = True
                     break

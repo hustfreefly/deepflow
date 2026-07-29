@@ -88,6 +88,56 @@ spawn Worker → exec: pm.wait_for()（阻塞等待）→ exec 验证 → spawn 
 
 ---
 
+## 🔴 Worker 执行契约（V3.4 新增 — 由 Module Agent 统一注入）
+
+**所有 Workers 在 spawn 时都会收到以下执行契约**：
+
+```python
+WORKER_CONTRACT = """
+## 你的执行契约（由 Module Agent 注入）
+
+### 任务边界
+- ✅ 你只负责：{worker_role}
+- ❌ 你不负责：重试逻辑、错误恢复、降级输出
+
+### 完成条件
+- 输出写入 blackboard 且通过 Schema 校验
+- 输出文件大小 >= {min_size} bytes
+
+### 错误报告
+如果无法完成，写入 stages/.worker_failed.json：
+```json
+{
+  "worker_role": "{worker_role}",
+  "error_type": "unrecoverable",
+  "error_message": "具体错误信息",
+  "suggestions": ["建议的后续动作"]
+}
+```
+
+### 禁止行为
+- ❌ 不要自行重试（Module Agent 负责重试）
+- ❌ 不要降级输出（不要写"默认值"或"占位符"）
+- ❌ 不要跳过 Schema 校验
+"""
+```
+
+**spawn task 模板**：
+```python
+task=f"""cd {_deepflow_root} && PYTHONPATH=.
+你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。
+
+## 你的完整指令
+用 read 工具读取: {_prompt_path}
+
+读取后按指令执行。
+
+{WORKER_CONTRACT.format(worker_role='{worker_role}', min_size={min_size})}
+"""
+```
+
+---
+
 ## 执行流程
 
 ### Phase 0: 初始化模块状态
@@ -130,7 +180,7 @@ else:
 
 | # | 角色 | Prompt 文件 | 输入 stage | 输出 stage |
 |---|------|-----------|-----------|----------|
-| 1 | Meta Planner | `domains/solution_pro/prompts/meta_planner.md` | `data/frozen_spec.json` | `stages/meta_planning.json` |
+| 1 | Meta Planner | `domains/solution_pro/prompts/meta_planner.md` | `data/frozen_spec.md` | `stages/meta_planning.json` |
 | 2 | Planning Planner | `domains/solution_pro/prompts/planning_planner.md` | `stages/meta_planning.json` | `stages/planning_tasks.json` |
 | 3 | Expert Planners ×N | `domains/solution_pro/prompts/expert_planner_base.md` | `stages/planning_tasks.json`（含 experts 列表） | `stages/expert_plans/{name}.json`（每个 expert 一个文件） |
 | 4 | Convergence Planner | `domains/solution_pro/prompts/convergence_planner.md` | `stages/meta_planning.json` + `stages/expert_plans/*.json` | `stages/planning_convergence.json` |
@@ -177,7 +227,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="planning_worker_meta_planner",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责分析需求、设计专家面板、定义质量标准。你不负责执行分析、不负责重试、不负责降级输出。\n- **完成条件**：输出写入 blackboard 的 stages/meta_planning.json，且通过 ExpertManifestSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
     cwd=_deepflow_root,
     lightContext=True,
 )
@@ -210,7 +260,7 @@ else:
 ```
 
 - `META_PLANNING_OK` → 写入 checkpoint，继续 Step 2
-- `META_PLANNING_MISSING` → Fail Fast
+- `META_PLANNING_MISSING` → **触发智能重试**（等待 30 秒后重新 spawn，最多重试 3 次）
 
 ✅ Step 1 验证通过后，立即写入 checkpoint：
 ```python
@@ -269,7 +319,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="planning_worker_planning_planner",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责分析需求特征、动态规划专家面板、定义质量标准。你不负责执行分析、不负责重试、不负责降级输出。\n- **完成条件**：输出写入 blackboard 的 stages/planning_tasks.json，且通过 PlanningTasksSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
     cwd=_deepflow_root,
     lightContext=True,
 )
@@ -302,7 +352,7 @@ else:
 ```
 
 - `PLANNING_TASKS_OK` → 写入 checkpoint，继续 Step 3
-- `PLANNING_TASKS_MISSING` → Fail Fast
+- `PLANNING_TASKS_MISSING` → **触发智能重试**（等待 30 秒后重新 spawn，最多重试 3 次）
 
 ✅ Step 2 验证通过后，立即写入 checkpoint：
 ```python
@@ -374,7 +424,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label=f"planning_worker_expert_{name}",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责从你的专业视角分析需求，生成约束、风险、验收标准。你不负责执行分析、不负责重试、不负责降级输出。\n- **完成条件**：输出写入 blackboard 的 stages/expert_plans/{name}.json，且通过 ExpertPlanSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
     cwd=_deepflow_root,
     lightContext=True,
 )
@@ -446,7 +496,7 @@ else:
 ```
 
 - `ALL_EXPERTS_OK` → 写入 checkpoint，继续 Step 4
-- `SOME_EXPERTS_MISSING` → Fail Fast
+- `SOME_EXPERTS_MISSING` → **触发智能重试**（等待 30 秒后重新 spawn 缺失的 experts，最多重试 3 次）
 
 ✅ Step 3 验证通过后，立即写入 checkpoint：
 ```python
@@ -505,7 +555,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="planning_worker_convergence_planner",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。\n\n## 重要：你的输入来源\n- stages/meta_planning.json（Meta Planner 输出）\n- stages/expert_plans/*.json（所有 Expert Planner 输出）\n\n你必须读取以上所有文件作为输入。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责合并多个 Expert Plan 为统一的约束集和验证清单。你不负责执行分析、不负责重试、不负责降级输出。\n- **完成条件**：输出写入 blackboard 的 stages/planning_convergence.json，且通过 PlanningConvergenceSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。\n\n## 重要：你的输入来源\n- stages/meta_planning.json（Meta Planner 输出）\n- stages/expert_plans/*.json（所有 Expert Planner 输出）\n\n你必须读取以上所有文件作为输入。",
     cwd=_deepflow_root,
     lightContext=True,
 )
@@ -538,7 +588,7 @@ else:
 ```
 
 - `PLANNING_CONVERGENCE_OK` → 写入 checkpoint，**立即写入完成标记**（下方 4.4），然后继续 Step 5
-- `PLANNING_CONVERGENCE_MISSING` → Fail Fast
+- `PLANNING_CONVERGENCE_MISSING` → **触发智能重试**（等待 30 秒后重新 spawn，最多重试 3 次）
 
 ✅ Step 4 验证通过后，立即写入 checkpoint：
 ```python
@@ -618,22 +668,183 @@ print('PLANNING_MODULE_ALL_DONE')
 
 ---
 
-## 🔴 Fail Fast
+## 🔴 契约笼子（V3.4 新增 — 稳健性优先）
 
-任何验证失败时：
+### Worker 输出契约（Pydantic 强制校验）
+
+**每个 Worker 的输出必须满足**：
+- ✅ 文件必须存在且非空
+- ✅ 文件大小必须 >= 最小阈值（根据 Worker 类型）
+- ✅ 文件内容必须是有效 JSON
+- ✅ 必须通过对应的 Pydantic Schema 校验
+
+**最小文件大小阈值**：
+- Meta Planner: 5000 bytes
+- Planning Planner: 3000 bytes
+- Expert Planner: 2000 bytes (每个 expert)
+- Convergence Planner: 10000 bytes
+- Reviewer Meta: 2000 bytes
+- Reviewer Convergence: 3000 bytes
+
+### 错误处理契约（智能重试，不降级）
+
+**Worker 输出缺失时的恢复策略**：
+
+```
+Worker 输出 MISSING →
+  1. 检查错误类型（瞬时故障？格式错误？逻辑错误？）
+  2. 重试 1：等待 30 秒 → 重新 spawn Worker
+  3. 重试 2：等待 60 秒 → 重新 spawn Worker（附带错误信息）
+  4. 重试 3：等待 120 秒 → 重新 spawn Worker（附带详细错误信息）
+  5. 如果 3 次重试后仍 MISSING → 报告详细失败原因
+```
+
+**失败报告格式**（如果无法恢复）：
+```json
+{
+  "status": "failed",
+  "error_type": "unrecoverable",
+  "failed_worker": "meta_planner / planning_planner / expert_planner / convergence_planner",
+  "error_message": "具体错误信息",
+  "attempted_actions": [
+    "重试 1: 等待 30 秒后重新 spawn",
+    "重试 2: 等待 60 秒后重新 spawn（附带错误信息）",
+    "重试 3: 等待 120 秒后重新 spawn（附带详细错误信息）"
+  ],
+  "suggestions": [
+    "检查 Worker prompt 是否正确",
+    "检查输入文件是否存在",
+    "检查 Worker 的日志输出"
+  ]
+}
+```
+
+### 智能重试实现
+
+**Step 1.3 唤醒后验证（智能重试版）**：
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
+import time, datetime
+
 bm = BlackboardManager('{session_id}')
-import datetime
-bm.write_stage('.planning_failed', {
-    'module': 'planning',
-    'failed_at': datetime.datetime.utcnow().isoformat() + 'Z',
-    'reason': 'verification_failed',
-})
-print('PLANNING_MODULE_FAILED')
+
+# 检查重试次数
+retry_key = 'meta_planner_retry_count'
+retry_count = bm.read_stage(retry_key, default=0)
+
+result = bm.read_stage('meta_planning')
+if result:
+    print(f'META_PLANNING_OK: {len(str(result))} chars')
+    # 重置重试计数
+    bm.write_stage(retry_key, 0)
+else:
+    if retry_count < 3:
+        # 智能重试
+        wait_time = [30, 60, 120][retry_count]
+        print(f'META_PLANNING_MISSING: retry {retry_count + 1}/3, waiting {wait_time}s')
+        time.sleep(wait_time)
+        
+        # 更新重试计数
+        bm.write_stage(retry_key, retry_count + 1)
+        
+        # 重新 spawn Worker
+        print('RETRY_SPAWN: meta_planner')
+    else:
+        # 3 次重试后仍失败
+        print('META_PLANNING_FAILED_AFTER_3_RETRIES')
+        bm.write_stage('.planning_failed', {
+            'module': 'planning',
+            'failed_worker': 'meta_planner',
+            'failed_at': datetime.datetime.utcnow().isoformat() + 'Z',
+            'error_type': 'unrecoverable',
+            'attempted_actions': [
+                '重试 1: 等待 30 秒后重新 spawn',
+                '重试 2: 等待 60 秒后重新 spawn',
+                '重试 3: 等待 120 秒后重新 spawn'
+            ],
+            'suggestions': [
+                '检查 meta_planner prompt 是否正确',
+                '检查 data/frozen_spec.md 是否存在',
+                '检查 meta_planner 的日志输出'
+            ],
+        })
 "
 ```
 
-**立即结束 turn。不继续。不写假数据。**
+**Step 3.3 唤醒后验证（智能重试版 — Expert Planners）**：
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+import time, datetime
+
+bm = BlackboardManager('{session_id}')
+
+# 读取 experts 列表
+planning_tasks = bm.read_stage('planning_tasks')
+experts = planning_tasks.get('experts') or planning_tasks.get('expert_panel', [])
+
+# 检查重试次数
+retry_key = 'expert_planners_retry_count'
+retry_count = bm.read_stage(retry_key, default=0)
+
+all_ok = True
+missing_experts = []
+for expert in experts:
+    name = expert.get('name', 'unknown')
+    result = bm.read_stage(f'expert_plans/{name}')
+    if result:
+        print(f'EXPERT_PLAN_OK: {name} ({len(str(result))} chars)')
+    else:
+        print(f'EXPERT_PLAN_MISSING: {name}')
+        all_ok = False
+        missing_experts.append(name)
+
+if all_ok:
+    print('ALL_EXPERTS_OK')
+    # 重置重试计数
+    bm.write_stage(retry_key, 0)
+else:
+    if retry_count < 3:
+        # 智能重试（只重试缺失的 experts）
+        wait_time = [30, 60, 120][retry_count]
+        print(f'SOME_EXPERTS_MISSING: retry {retry_count + 1}/3, waiting {wait_time}s')
+        print(f'MISSING_EXPERTS: {missing_experts}')
+        time.sleep(wait_time)
+        
+        # 更新重试计数
+        bm.write_stage(retry_key, retry_count + 1)
+        
+        # 重新 spawn 缺失的 experts
+        print(f'RETRY_SPAWN: {missing_experts}')
+    else:
+        # 3 次重试后仍失败
+        print('EXPERT_PLANNERS_FAILED_AFTER_3_RETRIES')
+        bm.write_stage('.planning_failed', {
+            'module': 'planning',
+            'failed_worker': 'expert_planners',
+            'failed_at': datetime.datetime.utcnow().isoformat() + 'Z',
+            'error_type': 'unrecoverable',
+            'missing_experts': missing_experts,
+            'attempted_actions': [
+                '重试 1: 等待 30 秒后重新 spawn 缺失的 experts',
+                '重试 2: 等待 60 秒后重新 spawn 缺失的 experts',
+                '重试 3: 等待 120 秒后重新 spawn 缺失的 experts'
+            ],
+            'suggestions': [
+                '检查 expert_planner_base prompt 是否正确',
+                '检查 planning_tasks.json 中的 experts 列表是否正确',
+                '检查缺失 experts 的日志输出'
+            ],
+        })
+"
+```
+
+**智能重试原则**：
+- ✅ 重试 3 次（等待 30 秒 + 60 秒 + 120 秒）
+- ✅ 每次重试附带更详细的错误信息
+- ✅ 只重试缺失/失败的 Workers（不重试全部）
+- ✅ 报告详细失败原因（包含已尝试什么、建议什么）
+- ❌ 不降级（不跳过 Worker，不用默认值）

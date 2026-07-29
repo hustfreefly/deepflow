@@ -57,7 +57,7 @@ class WorkPackage(BaseModel):
     )
     semantic_anchors: list[dict[str, Any]] = Field(
         default_factory=list,
-        description="语义锚点列表（含 constraint + source_quote），从 Ship Pro 透传",
+        description="语义锚点列表（含 constraint），从 Ship Pro 透传",
     )
     serving_principles: list[dict[str, Any]] = Field(
         default_factory=list,

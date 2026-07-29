@@ -56,13 +56,27 @@ updated: "2026-07-07"
 - `spec/conversation_log.json`（用于问题去重）
 
 ### 输出
-- `stages/round_NN_questions.json`（action="questions"，含 2-5 个引导问题）
+- `stages/round_NN_questions.json`（action="questions"，含 **2-3 个引导问题，硬上限 4 个**）
 
 ### Phase 连接逻辑
 1. Phase 1 的 `top_missing` 和维度分数决定 Phase 2 的提问优先级
 2. 如果 ProcessGuard 输出了 `adjustment_instruction`，其建议优先级高于默认策略
-3. 问题数量硬性限制：不超过 5 个
+3. 问题数量硬性限制：**硬上限 4 个**（超过必须删除优先级最低的）
 4. 混合至少 2 种问题类型（苏格拉底六类）
+
+### 收敛信号检测（在生成问题前检查）
+
+如果满足以下任一条件，建议 `action="summary"` 而非继续提问：
+
+1. **连续 2 轮 top_missing 相同**：缺失项没有改善，继续提问收益低
+2. **用户回答信息密度持续下降**：用户回答越来越简短，可能已疲劳
+3. **用户给出元信号**：用户说"差不多了"、"就这些"、"先这样吧"、"可以结束了"
+4. **overall_score >= threshold - 10**：接近阈值，可以提前收官
+
+**收敛时的行为**：
+- 不要强行凑满维度
+- 输出当前 LivingSpec 的小结
+- 告知用户"已完成 X%，如需补充可后续继续"
 
 ---
 

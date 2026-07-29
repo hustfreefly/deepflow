@@ -2,47 +2,38 @@
 
 # 运行时生成的测试结果
 blackboard/
-
 # Python 缓存
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-
 # 系统文件
 .DS_Store
 Thumbs.db
-
 # CodeGraph 运行时文件
 .codegraph/daemon.pid
 .codegraph/daemon.sock
 .codegraph/daemon.log
-
 # 测试结果（运行时产物）
 tests/results/*.json
-
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
 # 虚拟环境
 venv/
 env/
 ENV/
-
 # 日志
 *.log
 logs/
-
 # 临时文件（发布前清理）
 *.backup
 *.bak
 *.tmp
 *~
-
 # cage 临时契约文件（保留正式契约）
 cage/*_contract.yaml
 cage/*_fix_*.md
@@ -56,7 +47,6 @@ cage/*_summary*.md
 !cage/*_requirements*.md
 !cage/DEVELOPMENT_CONTRACT.md
 !cage/prompt-output-fix.md
-
 # 前端依赖和构建产物
 frontend/web/node_modules/
 frontend/web/dist/
@@ -64,35 +54,27 @@ frontend/web/.vite/
 frontend/backend/__pycache__/
 frontend/backend/.venv/
 frontend/backend/venv/
-
 # 其他临时文件
 analysis_context.json
 tasks.json
 prompts_full_analysis.*
 prompts_inventory.*
-
 # 归档的旧代码
 ARCHIVED/
-
 # 临时文件
-*.tmp
-*.bak
 *.db
 *.sqlite
 *.sqlite3
-
 # 运行时数据
 .vector_memory_db/
 .metrics/
 .inspection/
 data/cache.db
 sector_analysis.db
-
 # 测试缓存
 .pytest_cache/
 .coverage
 htmlcov/
-
 # 敏感信息
 .env
 *.env
@@ -100,25 +82,18 @@ secrets.yaml
 credentials.yaml
 test_results/
 config.json
-
 # 生成的报告
 reports/
-
 # 上传文件目录
 frontend/backend/routers/uploads/
-
 # 任务队列测试数据
 frontend/task_queue/*.json
-
 # frontend/frontend 嵌套目录
 frontend/frontend/
-
 # 敏感凭证
 .credentials/
-
 # CodeGraph 完整目录
 .codegraph/
-
 # Cleanup 2026-07-08 additions
 _tmp_*.py
 tmp_*.py
@@ -131,31 +106,21 @@ super_loop/
 ARCHITECTURE_REVIEW/
 dryrun_reports/
 audits/
-
 # 临时脚本和参数文件（2026-07-08 清理追加）
-_tmp_*.py
-tmp_*.py
-*_params.json
-*_task.txt
-.doc_index.json
-.ruff_cache/
-src/
-super_loop/
-ARCHITECTURE_REVIEW/
-dryrun_reports/
-audits/
-
 # GitHub push cleanup (2026-07-20)
 _archive/
 frontend/
-
 # Domain-level archives
 domains/*/_archive/
 contracts/shared/_archived/
 cage/archive/
-
 # All archive directories
 **/_archive/
 **/_archived/
 **/archive/
 **/prompts_archive/
+# SDK dependencies
+sdk/*/node_modules/
+sdk/*/dist/
+# SDK node_modules (2026-07-30 GitHub 清理)
+sdk/*/build/

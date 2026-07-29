@@ -43,8 +43,8 @@ for name in ['review_layer_b', 'harness_check']:  # + 其他 Reviewer
         review_results.append(r)
 
 planning = bb.read_stage('planning_convergence')
-living_spec = bb.read_json('data/living_spec.json')
-frozen_spec = bb.read_json('data/frozen_spec.json')
+living_spec = bb.read_stage('living_spec')
+frozen_spec = bb.read_stage('frozen_spec')
 ```
 
 ## 输入（从 Blackboard 读取）

@@ -255,7 +255,7 @@ PipelineDesigner 从 23KB Solution Pro 提取每个 Worker 的 ~2KB context.json
 
 **理由**：
 - 跨域信息流靠文件路径约定，不靠手动搬运
-- `run_ship_pro()` 自动从 `data/frozen_spec.json` 发现 Solution Pro 输出
+- `run_ship_pro()` 自动从 `data/frozen_spec.md` 发现 Solution Pro 输出
 - 同一项目的所有产出在同一个目录下
 
 ### D3: sessions_yield → cron wake

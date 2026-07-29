@@ -145,7 +145,7 @@ class WorkerContext(BaseModel):
     semantic_anchors: List[Dict[str, Any]] = Field(
         default_factory=list,
         description="语义锚点（来自 Living Spec / Frozen Spec，全链路透传）。"
-                    "每条包含 name/category/constraint/source_quote，"
+                    "每条包含 name/category/constraint，"
                     "Worker 在 WP 描述中应语义引用相关锚点。"
     )
 
@@ -280,12 +280,18 @@ class PipelineDesigner:
         self.stages_dir = self.blackboard_path / "stages"
         self.stages_dir.mkdir(parents=True, exist_ok=True)
     
-    def design_pipeline(self, solution_pro_input: Dict[str, Any], auto: bool = True, plan_output_dir: str = None) -> Dict[str, Any]:
+    def design_pipeline(self, solution_pro_input: Dict[str, Any], auto: bool = True, plan_output_dir: str = None, semantic_anchors: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         主入口：分析 Solution Pro → 设计拆分 → 返回 PipelinePlan 或 prompt
         
         auto=True: 尝试内部调用 LLM 直接生成 plan（省去 Orchestrator 重复分析）
         auto=False: 只返回 prompt，由 Orchestrator 自行分析
+        
+        Args:
+            solution_pro_input: Solution Pro 输出 dict
+            auto: 是否尝试自动设计（默认 True）
+            plan_output_dir: plan 输出目录（可选）
+            semantic_anchors: 从 Track 读取的语义锚点（可选，覆盖 solution_pro_input 中的 semantic_anchors）
         
         契约笼子：
         - 输入必须通过 validate_solution_pro_input
@@ -294,10 +300,16 @@ class PipelineDesigner:
         # 1. 验证输入（契约笼子）
         validated_input = validate_solution_pro_input(solution_pro_input)
         
+        # Track 增强: 如果提供了 semantic_anchors，覆盖 solution_pro_input 中的
+        if semantic_anchors is not None:
+            validated_input["semantic_anchors"] = semantic_anchors
+            logger.info(f"Overrode semantic_anchors from Track: {len(semantic_anchors)} anchors")
+        
         input_summary = {
             "req_count": len(validated_input["requirements"]),
             "decision_count": len(validated_input.get("key_decisions", [])),
             "risk_count": len(validated_input.get("risk_mitigations", [])),
+            "anchor_count": len(validated_input.get("semantic_anchors", [])),
         }
         
         # 2. 尝试自动设计（契约笼子：确定性 LLM 调用，非 prompt 委托）

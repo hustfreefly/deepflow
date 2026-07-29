@@ -46,7 +46,7 @@ if DEEPFLOW_HOME not in sys.path:
     sys.path.insert(0, DEEPFLOW_HOME)
 
 import core.bootstrap
-from domains.solution_pro import run_solution_pro_agent
+from domains.solution_pro import run_solution_pro
 
 def main():
     parser = argparse.ArgumentParser(description='启动 Solution Pro 管线')
@@ -97,7 +97,7 @@ def main():
     # 契约笼子（2026-07-05）：调用三模块架构
     # B1-FIX: 显式使用 run_solution_pro_agent()（无 spawn_fn 场景）
     try:
-        result = run_solution_pro_agent(
+        result = run_solution_pro(
             user_input=args.topic,   # 第一参数是 user_input
             topic=args.topic,        # topic 作为 kwarg 传递
             solution_type=args.solution_type,

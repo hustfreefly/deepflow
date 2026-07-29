@@ -81,8 +81,8 @@ def cmd_check(args) -> int:
         print(f"completed: {args.project} pipeline 已终态（.deliver_completed.json 存在）")
         return 1
     ship_candidates = [
-        project_dir / "ship_pro" / "ship_package.json",
         project_dir / "ship_pro" / "ship_track.json",
+        project_dir / "ship_pro" / "ship_package.json",
         project_dir / "ship_pro" / "stages" / "ship_package.json",
     ]
     if not any(p.exists() for p in ship_candidates):

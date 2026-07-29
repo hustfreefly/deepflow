@@ -336,15 +336,19 @@ def render_living_spec_md(data: dict) -> str:
     if sa:
         lines.append("## semantic_anchors")
         lines.append("")
-        # B2-FIX: Include source_quote column for round-trip fidelity
-        lines.append("| name | category | constraint | priority | source_quote |")
-        lines.append("|------|----------|------------|----------|--------------|")
+        # F3 fix (W3): Align with authoritative SemanticAnchor schema
+        # Removed ghost column 'priority' (not in SemanticAnchor model)
+        # Added 'confidence' and 'applicable_to' (authoritative fields)
+        lines.append("| name | category | constraint | confidence | applicable_to | source_quote |")
+        lines.append("|------|----------|------------|------------|---------------|--------------|")
         for item in sa:
             if isinstance(item, dict):
                 sq = item.get('source_quote', '')
-                lines.append(f"| {item.get('name', '?')} | {item.get('category', '?')} | {item.get('constraint', '')} | {item.get('priority', '?')} | {sq} |")
+                conf = item.get('confidence', 0.9)
+                applicable = ', '.join(item.get('applicable_to', ['all']))
+                lines.append(f"| {item.get('name', '?')} | {item.get('category', '?')} | {item.get('constraint', '')} | {conf} | {applicable} | {sq} |")
             else:
-                lines.append(f"| {item} | ? | | ? | |")
+                lines.append(f"| {item} | ? | | 0.9 | all | |")
         lines.append("")
 
     # S16: conversation_summary

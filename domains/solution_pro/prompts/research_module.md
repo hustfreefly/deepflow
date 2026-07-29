@@ -173,7 +173,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="research_worker_planner",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责制定研究计划、分配专家任务。你不负责执行研究、不负责重试、不负责降级输出。\n- **完成条件**：输出写入 blackboard 的 stages/research_plan.json，且通过 ResearchPlanSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
     cwd=_deepflow_root,
     lightContext=True,
 )
@@ -269,7 +269,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label=f"research_worker_expert_{safe}",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {bb.resolve_path(f'stages/research_expert_{safe}_prompt.md')}\n\n读取后按指令执行。你的输出必须写入 blackboard 的 stages/research_experts/{safe}.json。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责从你的专业视角执行研究、收集证据。你不负责制定计划、不负责重试、不负责降级输出。\n- **完成条件**：输出写入 blackboard 的 stages/research_experts/{safe}.json，且通过 ResearchExpertSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {bb.resolve_path(f'stages/research_expert_{safe}_prompt.md')}\n\n读取后按指令执行。你的输出必须写入 blackboard 的 stages/research_experts/{safe}.json。",
     cwd=_deepflow_root,
     lightContext=True,
 )
@@ -417,7 +417,7 @@ sessions_spawn(
     runtime="subagent",
     mode="run",
     label="research_worker_consolidator",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {_deepflow_root} && PYTHONPATH=.` 开头。\n\nsession_id: `{session_id}`\nblackboard: `{str(bb.session_dir)}`\n\n读取文件 `{_prompt_path}` 并严格按照其中的指令执行。\n如果文件不存在 → 写入 `{_failed_path}` 并立即结束。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 `cd {_deepflow_root} && PYTHONPATH=.` 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责合并所有 Research Expert 的输出为统一的 research_digest。你不负责执行研究、不负责重试、不负责降级输出。\n- **完成条件**：输出写入 blackboard 的 stages/research_digest.json，且通过 ResearchDigestSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\nsession_id: `{session_id}`\nblackboard: `{str(bb.session_dir)}`\n\n读取文件 `{_prompt_path}` 并严格按照其中的指令执行。\n如果文件不存在 → 写入 `{_failed_path}` 并立即结束。",
     cwd=_deepflow_root,
     lightContext=True,
 )
@@ -491,25 +491,240 @@ print('LIFECYCLE_MARK_COMPLETED_CALLED')
 
 ---
 
-## 🔴 Fail Fast
+## 🔴 契约笼子（V3.4 新增 — 稳健性优先）
 
-验证失败 / 重试超预算时：
+### Worker 输出契约（Pydantic 强制校验）
+
+**每个 Worker 的输出必须满足**：
+- ✅ 文件必须存在且非空
+- ✅ 文件大小必须 >= 最小阈值（根据 Worker 类型）
+- ✅ 文件内容必须是有效 JSON
+- ✅ 必须通过对应的 Pydantic Schema 校验
+
+**最小文件大小阈值**：
+- Research Planner: 3000 bytes
+- Research Expert: 2000 bytes (每个 expert)
+- Consolidator: 10000 bytes
+
+### 错误处理契约（智能重试，不降级）
+
+**Worker 输出缺失时的恢复策略**：
+
+```
+Worker 输出 MISSING →
+  1. 检查错误类型（瞬时故障？格式错误？逻辑错误？）
+  2. 重试 1：等待 30 秒 → 重新 spawn Worker
+  3. 重试 2：等待 60 秒 → 重新 spawn Worker（附带错误信息）
+  4. 重试 3：等待 120 秒 → 重新 spawn Worker（附带详细错误信息）
+  5. 如果 3 次重试后仍 MISSING → 报告详细失败原因
+```
+
+**失败报告格式**（如果无法恢复）：
+```json
+{
+  "status": "failed",
+  "error_type": "unrecoverable",
+  "failed_worker": "research_planner / research_expert / consolidator",
+  "error_message": "具体错误信息",
+  "attempted_actions": [
+    "重试 1: 等待 30 秒后重新 spawn",
+    "重试 2: 等待 60 秒后重新 spawn（附带错误信息）",
+    "重试 3: 等待 120 秒后重新 spawn（附带详细错误信息）"
+  ],
+  "suggestions": [
+    "检查 Worker prompt 是否正确",
+    "检查输入文件是否存在",
+    "检查 Worker 的日志输出"
+  ]
+}
+```
+
+### 智能重试实现
+
+**Step 1.3 验证输出（智能重试版）**：
 
 ```bash
 cd {deepflow_root} && PYTHONPATH=. python3 -c "
 from core.blackboard.blackboard_manager import BlackboardManager
-import datetime
+import time, datetime
+
 bm = BlackboardManager('{session_id}')
-bm.write_stage('.research_failed', {
-    'module': 'research',
-    'failed_at': datetime.datetime.utcnow().isoformat() + 'Z',
-    'reason': 'verification_failed'
-})
-print('RESEARCH_MODULE_FAILED')
+
+# 检查重试次数
+retry_key = 'research_planner_retry_count'
+retry_count = bm.read_stage(retry_key, default=0)
+
+plan = bm.read_stage('research_plan', default=None)
+if plan is None:
+    error_msg = 'RESEARCH_PLAN_MISSING'
+elif isinstance(plan, str):
+    error_msg = 'RESEARCH_PLAN_FORMAT_ERROR: got string instead of dict'
+elif isinstance(plan, dict):
+    experts = plan.get('experts', [])
+    constraints = plan.get('constraint_coverage', {})
+    print(f'RESEARCH_PLAN_OK: {len(experts)} experts, {len(constraints)} constraints covered')
+    # 重置重试计数
+    bm.write_stage(retry_key, 0)
+else:
+    error_msg = f'RESEARCH_PLAN_FORMAT_ERROR: unexpected type {type(plan).__name__}'
+
+if 'error_msg' in locals():
+    if retry_count < 3:
+        # 智能重试
+        wait_time = [30, 60, 120][retry_count]
+        print(f'{error_msg}: retry {retry_count + 1}/3, waiting {wait_time}s')
+        time.sleep(wait_time)
+        
+        # 更新重试计数
+        bm.write_stage(retry_key, retry_count + 1)
+        
+        # 重新 spawn Worker
+        print('RETRY_SPAWN: research_planner')
+    else:
+        # 3 次重试后仍失败
+        print('RESEARCH_PLANNER_FAILED_AFTER_3_RETRIES')
+        bm.write_stage('.research_failed', {
+            'module': 'research',
+            'failed_worker': 'research_planner',
+            'failed_at': datetime.datetime.utcnow().isoformat() + 'Z',
+            'error_type': 'unrecoverable',
+            'error_message': error_msg,
+            'attempted_actions': [
+                '重试 1: 等待 30 秒后重新 spawn',
+                '重试 2: 等待 60 秒后重新 spawn',
+                '重试 3: 等待 120 秒后重新 spawn'
+            ],
+            'suggestions': [
+                '检查 research_planner prompt 是否正确',
+                '检查 planning_convergence 是否存在',
+                '检查 research_planner 的日志输出'
+            ],
+        })
 "
 ```
 
-输出失败原因，任务结束。
+**Step 2.3 验证输出（智能重试版 — Research Experts）**：
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+import json
+from core.blackboard.blackboard_manager import BlackboardManager
+import time, datetime
+
+bm = BlackboardManager('{session_id}')
+session_dir = bm.get_session_dir()
+experts = json.loads((session_dir / 'research_experts_list.json').read_text())
+
+# 检查重试次数
+retry_key = 'research_experts_retry_count'
+retry_count = bm.read_stage(retry_key, default=0)
+
+experts_dir = session_dir / 'stages' / 'research_experts'
+done = {f.stem for f in experts_dir.glob('*.json')} if experts_dir.exists() else set()
+missing = []
+for i, e in enumerate(experts):
+    name = e.get('name', f'expert_{i+1}') if isinstance(e, dict) else str(e)
+    safe = name.replace('/', '_').replace(' ', '_')
+    if safe not in done:
+        missing.append(safe)
+
+if not missing:
+    print(f'EXPERTS_ALL_DONE ({len(experts)} experts)')
+    # 重置重试计数
+    bm.write_stage(retry_key, 0)
+else:
+    if retry_count < 3:
+        # 智能重试（只重试缺失的 experts）
+        wait_time = [30, 60, 120][retry_count]
+        print(f'EXPERTS_MISSING: {missing}, retry {retry_count + 1}/3, waiting {wait_time}s')
+        time.sleep(wait_time)
+        
+        # 更新重试计数
+        bm.write_stage(retry_key, retry_count + 1)
+        
+        # 重新 spawn 缺失的 experts
+        print(f'RETRY_SPAWN: {missing}')
+    else:
+        # 3 次重试后仍失败
+        print('RESEARCH_EXPERTS_FAILED_AFTER_3_RETRIES')
+        bm.write_stage('.research_failed', {
+            'module': 'research',
+            'failed_worker': 'research_experts',
+            'failed_at': datetime.datetime.utcnow().isoformat() + 'Z',
+            'error_type': 'unrecoverable',
+            'missing_experts': missing,
+            'attempted_actions': [
+                '重试 1: 等待 30 秒后重新 spawn 缺失的 experts',
+                '重试 2: 等待 60 秒后重新 spawn 缺失的 experts',
+                '重试 3: 等待 120 秒后重新 spawn 缺失的 experts'
+            ],
+            'suggestions': [
+                '检查 research_expert_base prompt 是否正确',
+                '检查 research_plan 中的 experts 列表是否正确',
+                '检查缺失 experts 的日志输出'
+            ],
+        })
+"
+```
+
+**Step 3.2 验证输出（智能重试版 — Consolidator）**：
+
+```bash
+cd {deepflow_root} && PYTHONPATH=. python3 -c "
+from core.blackboard.blackboard_manager import BlackboardManager
+import time, datetime
+
+bm = BlackboardManager('{session_id}')
+
+# 检查重试次数
+retry_key = 'consolidator_retry_count'
+retry_count = bm.read_stage(retry_key, default=0)
+
+digest = bm.read_stage('research_digest', default=None)
+if digest:
+    print(f'RESEARCH_DIGEST_OK findings={len(digest.get(\"findings\", []))} conflicts={len(digest.get(\"conflicts\", []))} coverage={len(digest.get(\"coverage_map\", {}))}')
+    # 重置重试计数
+    bm.write_stage(retry_key, 0)
+else:
+    if retry_count < 3:
+        # 智能重试
+        wait_time = [30, 60, 120][retry_count]
+        print(f'RESEARCH_DIGEST_MISSING: retry {retry_count + 1}/3, waiting {wait_time}s')
+        time.sleep(wait_time)
+        
+        # 更新重试计数
+        bm.write_stage(retry_key, retry_count + 1)
+        
+        # 重新 spawn Worker
+        print('RETRY_SPAWN: consolidator')
+    else:
+        # 3 次重试后仍失败
+        print('CONSOLIDATOR_FAILED_AFTER_3_RETRIES')
+        bm.write_stage('.research_failed', {
+            'module': 'research',
+            'failed_worker': 'consolidator',
+            'failed_at': datetime.datetime.utcnow().isoformat() + 'Z',
+            'error_type': 'unrecoverable',
+            'attempted_actions': [
+                '重试 1: 等待 30 秒后重新 spawn',
+                '重试 2: 等待 60 秒后重新 spawn',
+                '重试 3: 等待 120 秒后重新 spawn'
+            ],
+            'suggestions': [
+                '检查 consolidator task 是否正确',
+                '检查 research_experts/*.json 是否存在',
+                '检查 consolidator 的日志输出'
+            ],
+        })
+"
+```
+
+**智能重试原则**：
+- ✅ 重试 3 次（等待 30 秒 + 60 秒 + 120 秒）
+- ✅ 每次重试附带更详细的错误信息
+- ✅ 只重试缺失/失败的 Workers（不重试全部）
+- ✅ 报告详细失败原因（包含已尝试什么、建议什么）
+- ❌ 不降级（不跳过 Worker，不用默认值）
 
 ---
 

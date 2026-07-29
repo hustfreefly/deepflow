@@ -56,7 +56,7 @@ cd {deepflow_root} && PYTHONPATH=. python3 -m domains.solution_pro.pulse_cli con
 ### Step 5: 完成/终败处理（status=completed 或 failed）
 
 1. message 发送终态报告到 `{alert_target}`：
-   - completed：含 summary 统计（completed_modules / in_flight）、最终交付物路径（`blackboard/{session_id}/stages/final_solution.json`，由 summary 模块 write_stage('final_solution') 写入）
+   - completed：含 summary 统计（completed_modules / in_flight）、最终交付物路径（`blackboard/{session_id}/stages/final_solution.md`，由 summary 模块 write_stage('final_solution') 写入）
    - failed：含 fail_reason、failed_module
 2. 尝试自我删除本 cron job：`cron(action="list")` 找到名称含 `solution-pulse` 的 job → `cron(action="remove", jobId=<id>)`。若 cron tool 不可用或删除失败，忽略（完成标记已使后续 pulse 走快速通道）。
 

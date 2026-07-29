@@ -41,8 +41,10 @@ def _sp(name: str) -> str:
 STAGE_PATH_REGISTRY_V1 = {
     "data_collection": "data/collection.json",
     "structured_requirements": "data/structured_requirements.json",
-    "frozen_spec": "data/frozen_spec.json",
+    "frozen_spec": "data/frozen_spec.md",  # ADR-009: JSON→MD
+    "final_solution": "stages/final_solution.md",  # ADR-009: JSON→MD
     "final_solution_md": "stages/final_solution.md",
+    "solution_document": "stages/solution_document.md",  # ADR-009: JSON→MD
     "requirements_traceability_matrix": "requirements_traceability_matrix.json",
     "planning": _sp("planning"),
     "reviewer_technical": _sp("reviewer_technical"),

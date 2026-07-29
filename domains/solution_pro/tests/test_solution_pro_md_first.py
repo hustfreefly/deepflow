@@ -16,7 +16,7 @@ def test_finalize_writes_final_solution_md():
         stages_dir = session_dir / "stages"
         stages_dir.mkdir()
 
-        # 写入 final_solution.json
+        # ADR-009: final_solution 是 MD-first，不再写入 .json
         final_solution = {
             "architecture_overview": "Test architecture",
             "module_design": {"modules": []},
@@ -25,7 +25,6 @@ def test_finalize_writes_final_solution_md():
             "technology_stack": {"choices": []},
             "non_functional_requirements": {"items": []},
         }
-        (stages_dir / "final_solution.json").write_text(json.dumps(final_solution))
 
         # 模拟 bb.read_stage 返回 final_solution dict
         mock_bb = MagicMock()

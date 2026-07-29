@@ -6,8 +6,8 @@ version: "V4.0.0"
 
 # Solution Pro — Agent 执行指南
 
-> **版本**: V4.0.0 | **最后更新**: 2026-07-27  
-> **架构**: 纯 Agent Orchestrator（V4.0 简化版）  
+> **版本**: V4.1.0 | **最后更新**: 2026-07-30  
+> **架构**: 纯 Agent Orchestrator（V4.0 简化版 + ADR-009 MD-first）  
 > **V4.0 变更**: 移除 Step 4/5 后置验证，orchestrator 简化为 3 步（初始化→模块执行→完成标记）  
 > **质量保证**: Module 内置 Harness + post_validator.py（独立调用，非 orchestrator 步骤）  
 > **2.1.0 新增**: Domain Adaptation Layer — domain_analysis.py (DomainProfile 10字段) + 16+ Prompt 泛化 + Schema 开放枚举
@@ -61,7 +61,7 @@ Orchestrator Agent（纯 LLM 调度器，depth-1）
   │   ├── Stage 2: Expert Config → 从 planning_output.risk_areas 动态确定
   │   ├── Stage 3: Research Experts ×M（并行 + 迭代）→ 各自研究成果
   │   ├── Stage 4: Consolidation → 批量去重 + 冲突检测 + 分层分类
-  │   └── Stage 5: Convergence → research_convergence.json
+  │   └── Stage 5: Convergence → research_digest.json
   │
   └── Module 3: Summary（5+1 Phase 收敛，由 Module Agent 直接 spawn Workers）
       ├── Phase 1: Base Synthesis → 基础方案
@@ -69,7 +69,7 @@ Orchestrator Agent（纯 LLM 调度器，depth-1）
       ├── Phase 3: Parallel Analysis ×N → 多角度审查
       ├── Phase 4: Fix Judge → Fix Agent → Harness Check
       ├── Phase 5a: Document Generator → 方案文档
-      └── Phase 5b: JSON Extractor → final_solution.json
+      └── Phase 5b: JSON Extractor → final_solution.md
 ```
 
 > **Note**: V4.0 中 post_validator.py 和对抗 Agent 不再是 orchestrator 管线的内置步骤。
@@ -306,7 +306,7 @@ Step 2.4: Consolidation
   └── 输出: stages/research_consolidator.json
 
 Step 2.5: Research Convergence
-  └── 输出: research_convergence.json
+  └── 输出: research_digest.json
 ```
 
 ### Module 3: Summary（5+1 Phase 收敛）
@@ -375,8 +375,11 @@ blackboard/<session_id>/
 │   └── pipeline_metrics.json         # Pipeline 指标
 │
 ├── planning_convergence.json         # Planning 收敛点
-├── research_convergence.json         # Research 收敛点
+├── research_digest.json              # Research 收敛点
 ├── final_convergence.json            # 最终收敛点
+│
+├── final_solution.md                 # 最终方案（MD source of truth，ADR-009）
+├── solution_track.json               # Track 衍生（跨域元数据，ADR-009）
 │
 ├── .completed                        # 完成标记
 ├── .stage_progress.json              # 阶段进度追踪（断点续接）
@@ -552,6 +555,12 @@ except:
 | Fix 3 | 独立 Verification Module | 新增 | 📋 |
 
 *2.0.0 | 2026-07-01 | 2.0.0 三层架构 + 2.0.0 改进（研究追踪 + Finding Ledger + 确定性检查）*
+
+### V4.1.0 变更（2026-07-30）— ADR-009 MD-first
+- ✅ `final_solution.md` 成为唯一真相源（删除 `final_solution.json` fallback）
+- ✅ `solution_track.json` 作为 Track 衍生（跨域元数据：semantic_anchors, req_ids）
+- ✅ `frozen_spec.md` 为唯一输入源（删除 `frozen_spec.json` fallback）
+- ✅ Ship Pro 已适配：读 `final_solution.md` + `solution_track.json`
 
 ### V2.1.1 变更（2026-07-08）
 - **DAL 架构**: Domain Adaptation Layer — domain_analysis 前置步骤 + DomainProfile Pydantic schema + 全链路透传

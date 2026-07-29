@@ -268,7 +268,7 @@ python3 domains/solution_pro/eval/propagation_checker.py <blackboard_path>
 ```
 
 检查项:
-- final_solution.json 存在性
+- final_solution.md 存在性
 - covered_req_ids 字段完整性
 - requirement_evidence 传播
 

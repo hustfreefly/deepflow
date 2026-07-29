@@ -40,7 +40,7 @@
             "prompt": "prompts/meta_planner.md",
             "schema": "ExpertManifestSchema",
             "input": [
-              "frozen_spec.json",
+              "frozen_spec.md",
               "structured_requirements.json",
               "data/living_spec.json"
             ],
@@ -55,7 +55,7 @@
             "prompt": "prompts/reviewer_meta.md",
             "input": [
               "stages/meta_planning.json",
-              "frozen_spec.json"
+              "frozen_spec.md"
             ],
             "output": "stages/reviewer_meta.json",
             "contract": "Validate Meta-Planner. FAIL->raise ValueError, pipeline aborts."
@@ -67,7 +67,7 @@
             "prompt": "prompts/expert_planner_base.md",
             "schema": "ExpertPlanSchema",
             "input": [
-              "frozen_spec.json",
+              "frozen_spec.md",
               "structured_requirements.json",
               "stages/p0_constraints.json"
             ],
@@ -85,7 +85,7 @@
             "prompt": "prompts/convergence_planner.md",
             "schema": "UnifiedConstraintsSchema+VerificationChecklistSchema",
             "input": [
-              "frozen_spec.json",
+              "frozen_spec.md",
               "stages/meta_planning.json",
               "stages/expert_plans/*.json"
             ],
@@ -102,7 +102,7 @@
             "agent": "Reviewer_Convergence",
             "prompt": "prompts/reviewer_convergence.md",
             "input": [
-              "frozen_spec.json",
+              "frozen_spec.md",
               "meta_planning.json",
               "expert_plans/*.json",
               "unified_constraints.json",
@@ -152,7 +152,7 @@
             "name": "knowledge_freshness",
             "agent": "Knowledge Freshness(LLM+web_search+compress)",
             "input": [
-              "frozen_spec.json",
+              "frozen_spec.md",
               "planning_convergence.json"
             ],
             "output": "stages/knowledge_freshness.json",
@@ -165,7 +165,7 @@
             "agent": "Code(deterministic)",
             "input": [
               "planning_convergence.json",
-              "frozen_spec.json"
+              "frozen_spec.md"
             ],
             "output": "stages/expert_config_determination.json",
             "contract": "Dynamic configs from risk_areas+1 generalist"
@@ -177,7 +177,7 @@
             "prompt": "prompts/research_expert_base.md",
             "schema": "ResearchExpertSchema",
             "input": [
-              "frozen_spec.json",
+              "frozen_spec.md",
               "knowledge_freshness.json",
               "planning_convergence.json",
               "constraint brief"

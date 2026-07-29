@@ -1,0 +1,77 @@
+{
+  "schema_version": "3.1.0",
+  "domain": "solution_pro",
+  "source_file": "solution_pro_output.md",
+  "frontmatter": {
+    "version": "1.0.0",
+    "session": "test_fixture_session",
+    "created": "unknown"
+  },
+  "gate_summary": {
+    "L1 (structure)": "PASS",
+    "L3 (合并)": "PASS"
+  },
+  "metrics": {
+    "req_ids": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003"
+    ],
+    "req_count": 3,
+    "section_count": 6,
+    "content_length": 994
+  },
+  "summary": {
+    "key_decisions_count": 0,
+    "implementation_phases_count": 0,
+    "risk_count": 0,
+    "constraint_coverage": {
+      "covered": 3,
+      "total": 3,
+      "ratio": 1.0
+    }
+  },
+  "semantic_anchors": [
+    {
+      "category": "architecture",
+      "name": "Redis Broker",
+      "constraint": "轻量级消息中间件"
+    },
+    {
+      "category": "pattern",
+      "name": "Producer-Consumer",
+      "constraint": "解耦任务发布与消费"
+    },
+    {
+      "category": "constraint",
+      "name": "单机部署",
+      "constraint": "不使用 K8s"
+    }
+  ],
+  "anchors": {
+    "meta_info": {
+      "line": 9,
+      "section": "meta_info"
+    },
+    "solution_structure": {
+      "line": 17,
+      "section": "solution_structure"
+    },
+    "requirement_coverage": {
+      "line": 25,
+      "section": "requirement_coverage"
+    },
+    "implementation_plan": {
+      "line": 33,
+      "section": "implementation_plan"
+    },
+    "semantic_anchors": {
+      "line": 41,
+      "section": "semantic_anchors"
+    },
+    "gate_decisions": {
+      "line": 47,
+      "section": "gate_decisions"
+    }
+  }
+}

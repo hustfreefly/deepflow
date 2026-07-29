@@ -105,7 +105,7 @@
         "id": "PR-3",
         "severity": "🟡",
         "agent": "Meta Planner",
-        "prompt_declares": ["data/living_spec.json (优先) 或 data/frozen_spec.json", "data/structured_requirements.json"],
+        "prompt_declares": ["data/living_spec.json (优先) 或 data/frozen_spec.md", "data/structured_requirements.json"],
         "runner_provides": ["frozen_spec (含 living_spec_prompt 字段)", "structured_requirements", "(task_builder 格式)"],
         "gap": "Prompt 说 '你会收到以下文件' 暗示文件级读取，但 runner 实际通过 build_meta_planner_task() 构建 task prompt 直接注入数据。Prompt 的文件路径声明与实际数据注入方式不一致。",
         "risk": "低风险 — task_builder 会正确组装数据"

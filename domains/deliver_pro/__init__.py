@@ -119,7 +119,8 @@ def _infer_scenario(wp: dict) -> str:
         return "code"
 
 
-def _adapt_ship_pro_wp(wp: dict, package_semantic_anchors: list | None = None) -> dict:
+def _adapt_ship_pro_wp(wp: dict, package_semantic_anchors: list | None = None,
+                       package_serving_principles: list | None = None) -> dict:
     """Ship Pro WorkPackage dict → Deliver Pro WorkPackage 适配层
     
     Ship Pro 的 WorkPackage 使用 description/acceptance_criteria List[str] 等字段，
@@ -151,7 +152,10 @@ def _adapt_ship_pro_wp(wp: dict, package_semantic_anchors: list | None = None) -
         ]
 
     # 透传 serving_principles（含 obligation + anti_patterns）
+    # W4-F4: WP-level 优先，包级 fallback（与 semantic_anchors 同款模式）
     serving_principles = wp.get("serving_principles", [])
+    if not serving_principles and package_serving_principles:
+        serving_principles = package_serving_principles
 
     adapted = {
         'wp_id': wp.get('wp_id') or wp.get('id', ''),
@@ -214,6 +218,13 @@ def run_deliver_pro(
         ValueError: mode != "pulse"（契约违例）
         FileNotFoundError: ship_package.json 不存在
     """
+    # 契约笼子：project_name 入口校验（P0-7）
+    if not project_name or not str(project_name).strip():
+        raise ValueError(
+            f"project_name 不能为空（收到: {project_name!r}）。"
+            f" 要求: 非空字符串，纯空白也不行。"
+        )
+
     # 契约笼子 Step 1: mode 硬约束（raise ValueError，不是建议性 warning）
     if mode != "pulse":
         raise ValueError(
@@ -229,14 +240,14 @@ def run_deliver_pro(
 
     # 1. 验证 Ship Pro 产出存在（契约笼子：缺前置产出 → 硬报错，不静默降级）
     blackboard_path = BLACKBOARD_ROOT / project_name
-    ship_pkg = blackboard_path / "ship_pro" / "ship_package.json"
+    ship_pkg = blackboard_path / "ship_pro" / "ship_track.json"
     if not ship_pkg.exists():
-        ship_pkg = blackboard_path / "ship_pro" / "ship_track.json"
+        ship_pkg = blackboard_path / "ship_pro" / "ship_package.json"
     if not ship_pkg.exists():
         raise FileNotFoundError(
-            f"Deliver Pro 无法启动: ship_package.json 不存在\n"
+            f"Deliver Pro 无法启动: ship_package.md 或 ship_track.json 不存在\n"
             f"  搜索路径: {blackboard_path}/ship_pro/\n"
-            f"  请先确保 Ship Pro 已完成并产出 ship_package.json"
+            f"  请先确保 Ship Pro 已完成并产出 ship_package.md（ADR-009 MD-first）"
         )
 
     # 2. 返回 Pulse 启动信息（不再返回 LLM spawn_params —— 物理上消除误用可能）

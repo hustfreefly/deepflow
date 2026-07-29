@@ -105,17 +105,26 @@ class BlackboardManager:
 
     # ── Stage API（直接操作 stages/ 目录，不依赖 Registry）──
 
-    def _stage_path(self, stage_name: str) -> Path:
-        """获取 stage 文件路径（内部方法）"""
-        return self._stages_dir / f"{stage_name}.json"
+    def _stage_path(self, stage_name: str, suffix: str = ".json") -> Path:
+        """获取 stage 文件路径（内部方法）
+        
+        Args:
+            stage_name: stage 名称
+            suffix: 文件后缀（默认 ".json"，MD-first 用 ".md"）
+        """
+        return self._stages_dir / f"{stage_name}{suffix}"
 
-    def write_stage(self, stage_name: str, data: Dict[str, Any]) -> bool:
+    def write_stage(self, stage_name: str, data: Union[Dict[str, Any], str]) -> bool:
         """
         写入 stage 文件（覆盖写入，原子性）
 
+        ADR-009 Phase 2: MD-first 支持
+        - str → 写入 .md 文件（MD-first 真相源）
+        - dict → 写入 .json 文件（向后兼容）
+
         Args:
             stage_name: stage 名称，如 "planning", "research_expert_1"
-            data: 要写入的数据（dict）
+            data: 要写入的数据（str for MD, dict for JSON）
 
         Returns:
             bool: 写入是否成功
@@ -127,13 +136,23 @@ class BlackboardManager:
         """
         try:
             self._stages_dir.mkdir(parents=True, exist_ok=True)
-            file_path = self._stage_path(stage_name)
+            
+            # ADR-009: 根据数据类型自动选择后缀
+            if isinstance(data, str):
+                suffix = ".md"
+            else:
+                suffix = ".json"
+            
+            file_path = self._stage_path(stage_name, suffix)
 
             with tempfile.NamedTemporaryFile(
                 mode='w', encoding='utf-8',
                 dir=self._stages_dir, delete=False, suffix='.tmp'
             ) as tmp:
-                json.dump(data, tmp, ensure_ascii=False, indent=2)
+                if isinstance(data, str):
+                    tmp.write(data)
+                else:
+                    json.dump(data, tmp, ensure_ascii=False, indent=2)
                 tmp.flush()
                 os.fsync(tmp.fileno())
                 tmp_path = tmp.name
@@ -149,23 +168,35 @@ class BlackboardManager:
                 logger.debug(f"write_stage cleanup failed: {e}")
             return False
 
-    def read_stage(self, stage_name: str, default: Optional[Dict] = None) -> Optional[Dict]:
+    def read_stage(self, stage_name: str, default: Optional[Any] = None, as_text: bool = False) -> Optional[Any]:
         """
         读取 stage 文件
+
+        ADR-009 Phase 2: MD-first 支持
+        - 优先读 .md 文件（MD-first 真相源）
+        - Fallback 到 .json 文件（向后兼容）
+        - as_text=True 时返回原始文本（不解析 JSON）
 
         Args:
             stage_name: stage 名称
             default: 文件不存在或读取失败时的默认值
+            as_text: 是否返回原始文本（默认 False，解析 JSON）
 
         Returns:
-            dict | None: 文件内容，或 default 参数，或 None
+            dict | str | None: 文件内容，或 default 参数，或 None
         """
         try:
-            file_path = self._stage_path(stage_name)
-            if not file_path.exists():
-                return default
-            with open(file_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+            # ADR-009: 优先读 .md，fallback 到 .json
+            for suffix in [".md", ".json"]:
+                file_path = self._stage_path(stage_name, suffix)
+                if file_path.exists():
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    if suffix == ".md" or as_text:
+                        return content
+                    else:
+                        return json.loads(content)
+            return default
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"read_stage failed for '{stage_name}': {e}")
             return default
@@ -189,17 +220,24 @@ class BlackboardManager:
         """
         检查 stage 文件是否存在
 
+        ADR-009 Phase 2: 检查 .md 和 .json 两种后缀
+
         Args:
             stage_name: stage 名称
 
         Returns:
-            bool: 文件是否存在
+            bool: 文件是否存在（.md 或 .json）
         """
-        return self._stage_path(stage_name).exists()
+        for suffix in [".md", ".json"]:
+            if self._stage_path(stage_name, suffix).exists():
+                return True
+        return False
 
     def list_stages(self) -> List[str]:
         """
         列出所有已存在的 stage 名称
+
+        ADR-009 Phase 2: 包含 .md 和 .json 文件
 
         Returns:
             list[str]: stage 名称列表（仅已存在的）
@@ -210,14 +248,14 @@ class BlackboardManager:
         """
         if not self._stages_dir.exists():
             return []
-        return sorted([
+        return sorted(set(
             f.stem for f in self._stages_dir.iterdir()
-            if f.is_file() and f.suffix == ".json"
-        ])
+            if f.is_file() and f.suffix in (".json", ".md")
+        ))
 
     def delete_stage(self, stage_name: str) -> bool:
         """
-        删除 stage 文件
+        删除 stage 文件（.md 和 .json 都删除）
 
         Args:
             stage_name: stage 名称
@@ -226,9 +264,10 @@ class BlackboardManager:
             bool: 删除是否成功（文件不存在也返回 True）
         """
         try:
-            file_path = self._stage_path(stage_name)
-            if file_path.exists():
-                file_path.unlink()
+            for suffix in [".md", ".json"]:
+                file_path = self._stage_path(stage_name, suffix)
+                if file_path.exists():
+                    file_path.unlink()
             return True
         except OSError as e:
             logger.warning(f"delete_stage failed for '{stage_name}': {e}")
@@ -237,6 +276,8 @@ class BlackboardManager:
     def append_stage(self, stage_name: str, updates: Dict[str, Any]) -> bool:
         """
         增量更新 stage（read-modify-write 的原子操作）
+
+        ADR-009 Phase 2: 仅支持 JSON stage（dict），MD stage 不支持 append
 
         Args:
             stage_name: stage 名称
@@ -247,6 +288,13 @@ class BlackboardManager:
         """
         try:
             existing = self.read_stage(stage_name, default={})
+            if not isinstance(existing, dict):
+                logger.warning(
+                    f"append_stage failed for '{stage_name}': "
+                    f"expected dict, got {type(existing).__name__} "
+                    f"(MD stages don't support append)"
+                )
+                return False
             existing.update(updates)
             return self.write_stage(stage_name, existing)
         except (OSError, TypeError, ValueError) as e:
@@ -308,7 +356,9 @@ class BlackboardManager:
 
     def copy_stage(self, from_name: str, to_name: str) -> bool:
         """
-        复制 stage 文件（用于快照）
+        复制 stage 文件（用于快照，保留原始后缀）
+
+        ADR-009 Phase 2: 自动检测源文件后缀（.md 或 .json）
 
         Args:
             from_name: 源 stage 名称
@@ -320,11 +370,18 @@ class BlackboardManager:
         try:
             import shutil
 
-            src_path = self._stage_path(from_name)
-            dst_path = self._stage_path(to_name)
-
-            if not src_path.exists():
+            # ADR-009: 自动检测源文件后缀
+            src_path = None
+            for suffix in [".md", ".json"]:
+                candidate = self._stage_path(from_name, suffix)
+                if candidate.exists():
+                    src_path = candidate
+                    break
+            
+            if src_path is None:
                 return False
+
+            dst_path = self._stage_path(to_name, src_path.suffix)
 
             self._stages_dir.mkdir(parents=True, exist_ok=True)
 

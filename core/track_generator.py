@@ -43,6 +43,21 @@ def generate_track_from_md(
         if warnings:
             logger.info(f"ADR-009: [{domain}] validation warnings: {warnings}")
         track_data = extract_track_json(md_content, domain)
+
+        # ── 完整性检查（FixFlow Phase 3: Track 自动生成）──
+        # 验证 summary 和 semantic_anchors 字段存在且非空
+        missing_fields = []
+        if "summary" not in track_data or not track_data["summary"]:
+            missing_fields.append("summary")
+        if "semantic_anchors" not in track_data:
+            missing_fields.append("semantic_anchors")
+        if missing_fields:
+            raise ValueError(
+                f"ADR-009: [{domain}] track.json 完整性检查失败: "
+                f"缺少字段 {missing_fields}。"
+                f"extract_track_json() 输出不完整。"
+            )
+
         if output_path is None:
             output_path = md_path.parent / f"{domain}_track.json"
         output_path.write_text(

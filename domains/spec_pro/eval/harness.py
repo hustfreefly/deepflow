@@ -221,8 +221,12 @@ class HarnessReport:
         }
 
 
-class SemanticGate:
-    """语义门禁 - 评估 Living Spec 的语义完整性"""
+class StructuralGate:
+    """Layer 1: 确定性结构检查（关键词计数、字段存在性）
+    
+    注意: 原名 SemanticGate，实际逻辑基于关键词计数和字段存在性检测，
+    不涉及语义分析，故重命名为 StructuralGate 以准确反映职责。
+    """
     
     def __init__(self):
         self.decisions = []
@@ -595,16 +599,16 @@ def evaluate_living_spec(
     report = HarnessReport()
     
     # 创建评估器
-    semantic_gate = SemanticGate()
+    structural_gate = StructuralGate()
     inference_gate = InferenceAuditGate()
     trajectory_gate = TrajectoryAuditGate()
     
     # 5维度评估
-    report.clarity = semantic_gate.check_clarity(living_spec)
-    report.completeness = semantic_gate.check_completeness(quality_report)
-    report.executability = semantic_gate.check_executability(living_spec)
-    report.consistency = semantic_gate.check_consistency(living_spec)
-    report.fitness = semantic_gate.check_fitness(living_spec)
+    report.clarity = structural_gate.check_clarity(living_spec)
+    report.completeness = structural_gate.check_completeness(quality_report)
+    report.executability = structural_gate.check_executability(living_spec)
+    report.consistency = structural_gate.check_consistency(living_spec)
+    report.fitness = structural_gate.check_fitness(living_spec)
     
     # 计算总分
     report.calculate_overall_score()
@@ -661,7 +665,7 @@ def run_harness(living_spec: dict, quality_report: dict = None) -> HarnessReport
     """Run harness on a living spec dict. Auto-generates quality_report if missing."""
     if quality_report is None:
         # Auto-generate quality report with dimensions structure
-        gate = SemanticGate()
+        gate = StructuralGate()
         clarity = gate.check_clarity(living_spec)
         executability = gate.check_executability(living_spec)
         consistency = gate.check_consistency(living_spec)

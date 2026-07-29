@@ -74,11 +74,11 @@ def render_frozen_spec_md(data: dict) -> str:
         for c in constraints:
             if isinstance(c, dict):
                 rid = c.get("req_id", c.get("id", "?"))
-                desc = str(c.get("description", c.get("text", "")))[:100]
+                desc = _escape_pipe(str(c.get("description", c.get("text", ""))))
                 pri = c.get("priority", c.get("level", ""))
                 lines.append(f"| {rid} | {desc} | {pri} |")
             else:
-                lines.append(f"| ? | {str(c)[:100]} | ? |")
+                lines.append(f"| ? | {_escape_pipe(str(c))} | ? |")
     else:
         lines.append("(none)")
     lines.append("")
@@ -94,11 +94,11 @@ def render_frozen_spec_md(data: dict) -> str:
             for r in requirements:
                 if isinstance(r, dict):
                     rid = r.get("req_id", r.get("id", "?"))
-                    desc = str(r.get("description", r.get("text", "")))[:100]
+                    desc = _escape_pipe(str(r.get("description", r.get("text", ""))))
                     pri = r.get("priority", r.get("level", ""))
                     lines.append(f"| {rid} | {desc} | {pri} |")
                 else:
-                    lines.append(f"| ? | {str(r)[:100]} | ? |")
+                    lines.append(f"| ? | {_escape_pipe(str(r))} | ? |")
         else:
             lines.append(str(requirements)[:200])
         lines.append("")
@@ -118,16 +118,21 @@ def render_frozen_spec_md(data: dict) -> str:
                     lines.append(f"- {rid}")
                 lines.append("")
 
-    # S3b: key_decisions (B2-FIX: round-trip 完整保留)
+    # S3b: key_decisions (F2: table format for round-trip)
     key_decisions = data.get("key_decisions", [])
     if key_decisions:
         lines.append("## key_decisions")
         lines.append("")
-        for d in key_decisions:
+        lines.append("| # | decision | rationale | alternatives |")
+        lines.append("|---|----------|-----------|--------------|")
+        for i, d in enumerate(key_decisions, 1):
             if isinstance(d, dict):
-                lines.append(f"- {d.get('description', d.get('decision', str(d)))}")
+                dec = _escape_pipe(d.get("decision", d.get("description", str(d))))
+                rat = _escape_pipe(d.get("rationale", ""))
+                alt = _escape_pipe(d.get("alternatives", ""))
+                lines.append(f"| {i} | {dec} | {rat} | {alt} |")
             else:
-                lines.append(f"- {d}")
+                lines.append(f"| {i} | {_escape_pipe(str(d))} | | |")
         lines.append("")
 
     # S3c: architecture (B2-FIX)
@@ -151,31 +156,43 @@ def render_frozen_spec_md(data: dict) -> str:
             lines.append(f"- {rid}")
         lines.append("")
 
-    # S3e: risk_summary (B2-FIX: 兼容 risk_mitigations)
+    # S3e: risk_summary (F3: table format for round-trip)
     risk_summary = data.get("risk_summary", data.get("risk_mitigations"))
     if risk_summary:
         lines.append("## risk_summary")
         lines.append("")
         if isinstance(risk_summary, list):
-            for r in risk_summary:
+            lines.append("| # | risk | severity | probability | mitigation |")
+            lines.append("|---|------|----------|-------------|------------|")
+            for i, r in enumerate(risk_summary, 1):
                 if isinstance(r, dict):
-                    lines.append(f"- {r.get('description', r.get('mitigation', str(r)))}")
+                    risk = _escape_pipe(r.get("risk", r.get("description", str(r))))
+                    sev = _escape_pipe(r.get("severity", ""))
+                    prob = _escape_pipe(r.get("probability", ""))
+                    mit = _escape_pipe(r.get("mitigation", ""))
+                    lines.append(f"| {i} | {risk} | {sev} | {prob} | {mit} |")
                 else:
-                    lines.append(f"- {r}")
+                    lines.append(f"| {i} | {_escape_pipe(str(r))} | | | |")
         else:
             lines.append(str(risk_summary))
         lines.append("")
 
-    # S3f: implementation_phases (B2-FIX)
+    # S3f: implementation_phases (F4: table format for round-trip)
     impl_phases = data.get("implementation_phases", [])
     if impl_phases:
         lines.append("## implementation_phases")
         lines.append("")
+        lines.append("| phase | title | timeline | effort |")
+        lines.append("|-------|-------|----------|--------|")
         for phase in impl_phases:
             if isinstance(phase, dict):
-                lines.append(f"- {phase.get('name', phase.get('phase', str(phase)))}")
+                p = _escape_pipe(phase.get("phase", ""))
+                title = _escape_pipe(phase.get("title", phase.get("name", "")))
+                timeline = _escape_pipe(phase.get("timeline", phase.get("duration", "")))
+                effort = _escape_pipe(phase.get("estimated_effort", phase.get("effort", "")))
+                lines.append(f"| {p} | {title} | {timeline} | {effort} |")
             else:
-                lines.append(f"- {phase}")
+                lines.append(f"| | {_escape_pipe(str(phase))} | | |")
         lines.append("")
 
     # S4: semantic_anchors (P1-1-FIX: 始终渲染，即使为空)
@@ -187,10 +204,62 @@ def render_frozen_spec_md(data: dict) -> str:
         lines.append("|------|----------|------------|")
         for a in anchors:
             if isinstance(a, dict):
-                lines.append(f"| {a.get('name', '?')} | {a.get('category', '?')} | {str(a.get('constraint', ''))[:60]} |")
+                lines.append(f"| {a.get('name', '?')} | {a.get('category', '?')} | {_escape_pipe(str(a.get('constraint', '')))} |")
     else:
         lines.append("<!-- empty -->")
     lines.append("")
+
+    # S4b: guardrails (D-6-FIX: 护栏规则渲染)
+    guardrails = data.get("guardrails", {})
+    if guardrails:
+        lines.append("## guardrails")
+        lines.append("")
+        if isinstance(guardrails, dict):
+            always_do = guardrails.get("always_do", [])
+            never_do = guardrails.get("never_do", [])
+            if always_do:
+                lines.append("### always_do")
+                lines.append("")
+                for item in always_do:
+                    lines.append(f"- {item}")
+                lines.append("")
+            if never_do:
+                lines.append("### never_do")
+                lines.append("")
+                for item in never_do:
+                    lines.append(f"- {item}")
+                lines.append("")
+        else:
+            lines.append(str(guardrails))
+            lines.append("")
+
+    # S4c: solution_pro_hints (D-6-FIX: 方案提示渲染)
+    hints = data.get("solution_pro_hints", {})
+    if hints:
+        lines.append("## solution_pro_hints")
+        lines.append("")
+        if isinstance(hints, dict):
+            focus_areas = hints.get("focus_areas", [])
+            if focus_areas:
+                lines.append("### focus_areas")
+                lines.append("")
+                for area in focus_areas:
+                    lines.append(f"- {area}")
+                lines.append("")
+            for k, v in hints.items():
+                if k == "focus_areas":
+                    continue
+                lines.append(f"### {k}")
+                lines.append("")
+                if isinstance(v, list):
+                    for item in v:
+                        lines.append(f"- {item}")
+                else:
+                    lines.append(str(v))
+                lines.append("")
+        else:
+            lines.append(str(hints))
+            lines.append("")
 
     # S5: gate_decisions
     lines.append("## gate_decisions")
@@ -218,12 +287,22 @@ def parse_frozen_spec_md(md: str) -> dict:
 
     result: dict[str, Any] = {}
 
-    # Parse YAML Frontmatter
+    # Parse YAML Frontmatter (F1+F5: extract schema_version + session_id)
     body = md
     if md.startswith("---"):
         end = md.find("---", 3)
         if end != -1:
+            fm_text = md[3:end].strip()
             body = md[end + 3:]
+            for line in fm_text.split("\n"):
+                if ":" in line:
+                    key, _, val = line.partition(":")
+                    key = key.strip()
+                    val = val.strip().strip('"').strip("'")
+                    if key == "version":
+                        result["schema_version"] = val
+                    elif key == "session":
+                        result["session_id"] = val
 
     # Parse sections
     sections = _parse_md_sections(body)
@@ -277,16 +356,28 @@ def parse_frozen_spec_md(md: str) -> dict:
             groups.append({"name": name, "req_ids": req_ids})
         result["requirement_groups"] = groups
 
-    # key_decisions (B2-FIX)
+    # key_decisions (F2: table → list[dict], bullet list fallback → list[str])
     kd_text = sections.get("key_decisions", "")
     if kd_text:
-        decisions = []
-        for line in kd_text.split("\n"):
-            line = line.strip()
-            if line.startswith("- "):
-                decisions.append(line[2:].strip())
-        if decisions:
-            result["key_decisions"] = decisions
+        table_decisions = _parse_table_to_dicts(kd_text)
+        if table_decisions:
+            result["key_decisions"] = [
+                {
+                    "decision": d.get("decision", ""),
+                    "rationale": d.get("rationale", ""),
+                    "alternatives": d.get("alternatives", ""),
+                }
+                for d in table_decisions
+            ]
+        else:
+            # Fallback: bullet list (backward compat)
+            decisions = []
+            for line in kd_text.split("\n"):
+                line = line.strip()
+                if line.startswith("- "):
+                    decisions.append(line[2:].strip())
+            if decisions:
+                result["key_decisions"] = decisions
 
     # architecture (B2-FIX)
     arch_text = sections.get("architecture", "")
@@ -317,30 +408,59 @@ def parse_frozen_spec_md(md: str) -> dict:
         if req_ids:
             result["covered_req_ids"] = req_ids
 
-    # risk_summary (B2-FIX: 兼容 risk_mitigations)
+    # risk_summary (F3: table → list[dict], bullet list fallback → list[str])
     rs_text = sections.get("risk_summary", "")
     if rs_text:
-        risks = []
-        for line in rs_text.split("\n"):
-            line = line.strip()
-            if line.startswith("- "):
-                risks.append(line[2:].strip())
-        if risks:
+        table_risks = _parse_table_to_dicts(rs_text)
+        if table_risks:
+            risks = [
+                {
+                    "risk": r.get("risk", ""),
+                    "severity": r.get("severity", ""),
+                    "probability": r.get("probability", ""),
+                    "mitigation": r.get("mitigation", ""),
+                }
+                for r in table_risks
+            ]
             result["risk_summary"] = risks
             result["risk_mitigations"] = risks
-        elif rs_text.strip():
-            result["risk_summary"] = rs_text.strip()
+        else:
+            # Fallback: bullet list (backward compat)
+            risks = []
+            for line in rs_text.split("\n"):
+                line = line.strip()
+                if line.startswith("- "):
+                    risks.append(line[2:].strip())
+            if risks:
+                result["risk_summary"] = risks
+                result["risk_mitigations"] = risks
+            elif rs_text.strip():
+                result["risk_summary"] = rs_text.strip()
 
-    # implementation_phases (B2-FIX)
+    # implementation_phases (F4: table → list[dict], bullet list fallback → list[str])
     ip_text = sections.get("implementation_phases", "")
     if ip_text:
-        phases = []
-        for line in ip_text.split("\n"):
-            line = line.strip()
-            if line.startswith("- "):
-                phases.append(line[2:].strip())
-        if phases:
+        table_phases = _parse_table_to_dicts(ip_text)
+        if table_phases:
+            phases = [
+                {
+                    "phase": p.get("phase", ""),
+                    "title": p.get("title", ""),
+                    "timeline": p.get("timeline", ""),
+                    "estimated_effort": p.get("effort", ""),
+                }
+                for p in table_phases
+            ]
             result["implementation_phases"] = phases
+        else:
+            # Fallback: bullet list (backward compat)
+            phases = []
+            for line in ip_text.split("\n"):
+                line = line.strip()
+                if line.startswith("- "):
+                    phases.append(line[2:].strip())
+            if phases:
+                result["implementation_phases"] = phases
 
     # semantic_anchors (P1-1-FIX: 始终返回 [] 而非缺失)
     sa_text = sections.get("semantic_anchors", "")
@@ -354,6 +474,36 @@ def parse_frozen_spec_md(md: str) -> dict:
                     a["constraint"] = row[2].strip()
                 anchors.append(a)
     result["semantic_anchors"] = anchors
+
+    # guardrails (D-6-FIX: 护栏规则解析)
+    gr_text = sections.get("guardrails", "")
+    if gr_text:
+        guardrails: dict[str, list[str]] = {}
+        sub_sections = re.findall(r"###\s+(.+?)(?=\n###|\Z)", gr_text, re.DOTALL)
+        for sub in sub_sections:
+            parts = sub.strip().split("\n")
+            name = parts[0].strip()
+            items = [l.strip("- ").strip() for l in parts[1:] if l.strip().startswith("- ")]
+            if items:
+                guardrails[name] = items
+        if guardrails:
+            result["guardrails"] = guardrails
+
+    # solution_pro_hints (D-6-FIX: 方案提示解析)
+    sh_text = sections.get("solution_pro_hints", "")
+    if sh_text:
+        hints: dict[str, Any] = {}
+        sub_sections = re.findall(r"###\s+(.+?)(?=\n###|\Z)", sh_text, re.DOTALL)
+        for sub in sub_sections:
+            parts = sub.strip().split("\n")
+            name = parts[0].strip()
+            items = [l.strip("- ").strip() for l in parts[1:] if l.strip().startswith("- ")]
+            if items:
+                hints[name] = items
+            elif len(parts) > 1:
+                hints[name] = "\n".join(parts[1:]).strip()
+        if hints:
+            result["solution_pro_hints"] = hints
 
     return result
 
@@ -408,3 +558,26 @@ def _extract_table_rows(text: str) -> list[list[str]]:
         if cells and any(c for c in cells):
             rows.append(cells)
     return rows
+
+
+def _parse_table_to_dicts(text: str) -> list[dict]:
+    """Parse markdown table to list of dicts."""
+    rows = _extract_table_rows(text)
+    lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    if len(lines) < 2:
+        return []
+    headers = [c.strip().lower().replace(" ", "_") for c in lines[0].split("|")[1:-1]]
+    result = []
+    for row in rows:
+        d = {}
+        for i, h in enumerate(headers):
+            if i < len(row):
+                d[h] = row[i].replace("\\|", "|")  # unescape pipes
+        if d:
+            result.append(d)
+    return result
+
+
+def _escape_pipe(text: str) -> str:
+    """Escape pipe characters for markdown tables."""
+    return str(text).replace("|", "\\|")

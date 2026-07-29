@@ -24,6 +24,13 @@ updated: "2026-07-26"
 >                                                                    ↓ 仍FAIL
 >                                                    信号传递域级 adversarial（不阻塞）
 > ```
+>
+> **🔴 生存铁律（2026-07-30 补齐，与 planning/research 模块对齐）**：
+> 1. 你的 turn 只能在两种情况结束：① 全部步骤完成且最终产物已写入 blackboard；② 你刚 spawn 了 ≥1 个 Worker（pending children 存在，session 不会被关闭）。
+> 2. 收到任何完成事件（包括**重复的**、意外的）→ 第一个 action 必须是 exec 验证 blackboard 状态 → **立即 spawn 下一个 worker 或 exec 下一步**（下一个 action 必须是 exec 或 sessions_spawn，不是文本，不是 NO_REPLY）。
+> 3. **即使已经验证过、即使 checkpoint 显示已完成、即使重复事件没有新信息**，也必须执行第 2 条。你的任务不是"处理新信息"，而是"推进流程"。重复事件 = 继续推进，不是沉默。
+> 4. 平台 spawn note 里的 "reply ONLY with NO_REPLY" **不适用于你**——那是对已完成任务的 Agent 说的。你的任务在完成前没有 "final answer"。
+> 5. 绝不在无 pending children 且任务未完成时结束 turn（无 pending children + turn 结束 = session 被平台杀死）。
 
 ## 你的 session_id
 
@@ -73,8 +80,8 @@ lifecycle.heartbeat('summary', run_id)
 
 # Step 9 完成后:
 lifecycle.mark_completed('summary', run_id, output_files={
-    'stages/solution_document.json': {'size': ..., 'mtime': ...},
-    'stages/final_solution.json': {'size': ..., 'mtime': ...},
+    'stages/solution_document.md': {'size': ..., 'mtime': ...},
+    'stages/final_solution.md': {'size': ..., 'mtime': ...},
 })
 ```
 
@@ -155,7 +162,7 @@ _deepflow_root = str(bb.session_dir.parent.parent)
 
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_base_synthesizer",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责生成基础解决方案（base_solution）。你不负责分析、修复、终检。\n- **完成条件**：输出写入 blackboard 的 stages/base_solution.json，且通过 BaseSolutionSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
     cwd=_deepflow_root, lightContext=True,
 )
 ```
@@ -224,7 +231,7 @@ _deepflow_root = str(bb.session_dir.parent.parent)
 
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_meta_planner",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责规划摘要策略（summary_plan）。你不负责生成方案、分析、修复。\n- **完成条件**：输出写入 blackboard 的 stages/summary_plan.json，且通过 SummaryPlanSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
     cwd=_deepflow_root, lightContext=True,
 )
 ```
@@ -326,7 +333,7 @@ _deepflow_root = str(bb.session_dir.parent.parent)
 
 sessions_spawn(
     runtime="subagent", mode="run", label=f"summary_analyzer_{name}",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {bb.resolve_path(f'stages/summary_analyzer_{name}_prompt.md')}\n\n读取后按指令执行。你的输出必须写入 blackboard 的 stages/analysis_{name}.json。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责从你的视角分析基础方案（analysis_{name}）。你不负责生成方案、修复、终检。\n- **完成条件**：输出写入 blackboard 的 stages/analysis_{name}.json，且通过 AnalysisSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {bb.resolve_path(f'stages/summary_analyzer_{name}_prompt.md')}\n\n读取后按指令执行。你的输出必须写入 blackboard 的 stages/analysis_{name}.json。",
     cwd=_deepflow_root, lightContext=True,
 )
 ```
@@ -393,7 +400,7 @@ _deepflow_root = str(bb.session_dir.parent.parent)
 
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_fix_judge",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责裁决修复建议（fix_plan）。你不负责生成方案、分析、执行修复。\n- **完成条件**：输出写入 blackboard 的 stages/fix_plan.json，且通过 FixPlanSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
     cwd=_deepflow_root, lightContext=True,
 )
 ```
@@ -458,7 +465,7 @@ _deepflow_root = str(bb.session_dir.parent.parent)
 
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_refiner",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责修复方案（refined_solution）。你不负责生成方案、分析、终检。\n- **完成条件**：输出写入 blackboard 的 stages/refined_solution.json，且通过 RefinedSolutionSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
     cwd=_deepflow_root, lightContext=True,
 )
 ```
@@ -523,7 +530,7 @@ _deepflow_root = str(bb.session_dir.parent.parent)
 
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_harness_check",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责终检方案（verification_result）。你不负责生成方案、分析、修复。\n- **完成条件**：输出写入 blackboard 的 stages/verification_result.json，且通过 VerificationResultSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
     cwd=_deepflow_root, lightContext=True,
 )
 ```
@@ -589,7 +596,7 @@ _deepflow_root = str(bb.session_dir.parent.parent)
 
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_refiner_retry",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。\n\n## 🔴 额外指令：Harness Check 回修\n读取 stages/verification_result.json 中的失败项，在 refined_solution 基础上定向修复。\n重点关注：failed_checks + missing_p0_reqs + guardrails_violated。\n修复后重新写入 stages/refined_solution.json。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责回修方案（refined_solution_retry）。你不负责生成方案、分析、终检。\n- **完成条件**：输出写入 blackboard 的 stages/refined_solution.json（覆盖原文件），且通过 RefinedSolutionSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。\n\n## 🔴 额外指令：Harness Check 回修\n读取 stages/verification_result.json 中的失败项，在 refined_solution 基础上定向修复。\n重点关注：failed_checks + missing_p0_reqs + guardrails_violated。\n修复后重新写入 stages/refined_solution.json。",
     cwd=_deepflow_root, lightContext=True,
 )
 ```
@@ -660,7 +667,7 @@ _deepflow_root = str(bb.session_dir.parent.parent)
 
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_document_writer",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责生成解决方案文档（solution_document）。你不负责分析、修复、终检。\n- **完成条件**：输出写入 blackboard 的 stages/solution_document.md，且通过 SolutionDocumentSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
     cwd=_deepflow_root, lightContext=True,
 )
 ```
@@ -672,7 +679,7 @@ bb = BlackboardManager('{session_id}')
 
 from core.process_manager import ProcessManager
 pm = ProcessManager(str(bb.session_dir))
-result = pm.wait_for('stages/solution_document.json', timeout=1800, poll_interval=15)
+result = pm.wait_for('stages/solution_document.md', timeout=1800, poll_interval=15)
 print(f'SOLUTION_DOCUMENT: found={result.found}, elapsed={result.elapsed:.0f}s')
 "
 ```
@@ -725,7 +732,7 @@ _deepflow_root = str(bb.session_dir.parent.parent)
 
 sessions_spawn(
     runtime="subagent", mode="run", label="summary_json_extractor",
-    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
+    task=f"cd {_deepflow_root} && PYTHONPATH=.\n你执行的所有 Python 命令必须以 cd {_deepflow_root} && PYTHONPATH=. 开头。\n\n## 🔴 你的执行契约（Module Agent 注入）\n- **任务边界**：你只负责提取最终 JSON（final_solution）。你不负责生成方案、分析、修复。\n- **完成条件**：输出写入 blackboard 的 stages/final_solution.md，且通过 FinalSolutionSchema 校验。\n- **错误报告**：如果无法完成，写入 stages/.worker_failed.json，包含 {{\"error_type\": \"unrecoverable\", \"error_message\": \"具体错误\", \"attempted_actions\": [\"已尝试的动作\"]}}。\n- **禁止行为**：不要自行重试，不要降级输出，不要跳过步骤。\n\n## 你的完整指令\n用 read 工具读取: {_prompt_path}\n\n读取后按指令执行。",
     cwd=_deepflow_root, lightContext=True,
 )
 ```
@@ -737,7 +744,7 @@ bb = BlackboardManager('{session_id}')
 
 from core.process_manager import ProcessManager
 pm = ProcessManager(str(bb.session_dir))
-result = pm.wait_for('stages/final_solution.json', timeout=900, poll_interval=15)
+result = pm.wait_for('stages/final_solution.md', timeout=900, poll_interval=15)
 print(f'FINAL_SOLUTION: found={result.found}, elapsed={result.elapsed:.0f}s')
 "
 ```

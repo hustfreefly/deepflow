@@ -11,7 +11,7 @@ role: json_extractor
 
 你的职责是从已写完的方案文档中提取轻量级结构化元数据，供下游消费。
 
-> **核心原则**：JSON 只包含轻量级结构化元数据（~1KB 衍生品）。完整方案的 source of truth 是 `data/frozen_spec.json`。`full_solution` 字段为 Optional，仅放方案摘要。
+> **核心原则**：JSON 只包含轻量级结构化元数据（~1KB 衍生品）。完整方案的 source of truth 是 `data/frozen_spec.md`。`full_solution` 字段为 Optional，仅放方案摘要。
 
 ---
 
@@ -55,7 +55,7 @@ bb = BlackboardManager('{session_id}')
 4. **提取实施阶段** — 从实施计划 section
 5. **提取风险摘要** — 从风险缓解 section
 6. **引用 verification_result** — 验证状态
-7. **（已废弃）** — 完整方案内容由 `data/frozen_spec.json` 承载，JSON 不再复制完整方案。`full_solution` 仅放摘要。
+7. **（已废弃）** — 完整方案内容由 `data/frozen_spec.md` 承载，JSON 不再复制完整方案。`full_solution` 仅放摘要。
 
 ---
 
@@ -129,9 +129,9 @@ bb = BlackboardManager('{session_id}')
   "covered_req_ids": ["REQ-001", "REQ-002"],
   "semantic_anchors": [
     {
-      "anchor_id": "SA-001",
-      "concept": "核心概念",
-      "doc_section": "Section 2"
+      "name": "核心概念名称",
+      "category": "architecture|pattern|technology|domain_concept",
+      "constraint": "REQ-001"
     }
   ],
   
@@ -152,7 +152,7 @@ bb = BlackboardManager('{session_id}')
   },
   
   "full_solution": {
-    "_comment": "Optional — 方案摘要，非完整内容。完整方案见 data/frozen_spec.json",
+    "_comment": "Optional — 方案摘要，非完整内容。完整方案见 data/frozen_spec.md",
     "title": "方案标题",
     "summary": "一段话概括方案核心思路和关键决策",
     "key_sections": ["方案概述", "方案设计", "关键选型", "实施计划"]
@@ -203,7 +203,7 @@ bb = BlackboardManager('{session_id}')
 
 ## 🔴 关键约束
 
-1. **JSON 只放轻量级元数据** — 完整方案由 `data/frozen_spec.json` 承载，JSON 不复制完整方案内容
+1. **JSON 只放轻量级元数据** — 完整方案由 `data/frozen_spec.md` 承载，JSON 不复制完整方案内容
 2. **从已写完的文档中提取** — 不重新生成方案内容
 3. **必须包含 document_ref** — 指向 solution_document stage
 4. **必须包含 verification_status** — 从 verification_result 提取
@@ -373,7 +373,7 @@ print(f"Layer 2 verdict: {layer2.get('overall_verdict', 'UNKNOWN')}")
 ## 写入 Blackboard
 
 ```python
-# write_stage 接收 dict，不接收 str（参见 _shared_subagent_rules.md）
+# write_stage 接受 Union[Dict, str]（ADR-009），此处传入 dict 写 .json
 bb.write_stage('final_solution', final_solution_dict)
 ```
 

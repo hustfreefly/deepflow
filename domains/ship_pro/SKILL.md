@@ -50,14 +50,15 @@ Orchestrator (depth-1, 全权调度)
 ```
 .deepflow/blackboard/{project_name}/
 ├── data/frozen_spec.md             ← Solution Pro 产出（MD source of truth）
-├── stages/solution_document.json   ← Solution Pro 产出（markdown）
+├── stages/solution_document.md     ← Solution Pro 产出（MD source of truth）
 ├── ship_pro/                       ← Ship Pro 写入
 │   ├── solution_pro_input.json     ← 合并后的输入
 │   ├── stages/
 │   │   ├── pipeline_plan.json      ← Designer 输出
 │   │   ├── context_*.json          ← Worker 上下文
 │   │   ├── worker_*.json           ← Worker 输出
-│   │   └── ship_package.json       ← 最终交付包
+│   │   ├── ship_package.md         ← 最终交付包（唯一真相源）
+│   │   └── ship_package.json       ← JSON 衍生（向后兼容）
 │   └── ...
 ```
 
@@ -76,7 +77,7 @@ result = run_ship_pro("项目名称")
 sessions_spawn(**result["spawn_params"])
 
 # Step 3: 等待完成事件 → 读取 ShipPackage
-# ship_package.json 在 result["ship_pro_dir"]/stages/ 下
+# ship_package.md 在 result["ship_pro_dir"]/stages/ 下（JSON 衍生同步生成）
 ```
 
 ### run_ship_pro() 做什么
@@ -148,17 +149,10 @@ result = design_pipeline("path/to/solution_pro_input.json", blackboard_base_dir=
 4. **依赖图** — 跨模块 WP 依赖（基于接口契约）
 5. **组装** — 生成 ShipPackage JSON
 
-**ShipPackage 输出**：
-```json
-{
-  "ship_package_version": "2.0.0",
-  "work_packages": [...],
-  "dependency_graph": {"nodes": [...], "edges": [...]},
-  "statistics": {"total_wps", "total_effort_hours", "req_coverage_rate", "dependency_edges"},
-  "issues": [...],
-  "pending_req_ids": [...]
-}
-```
+**ShipPackage 输出**（MD-first）：
+- 主输出：`ship_package.md`（唯一真相源）
+- 衍生输出：`ship_package.json`（向后兼容，自动生成）
+- 格式：YAML frontmatter + Markdown sections（meta_info, work_packages, execution_order）
 
 **L1 验证**: `validate_ship_package_v8()` — 检查 WP 完整性、非摘要化
 
@@ -211,10 +205,12 @@ domains/ship_pro/
 │   ├── ship_package.py      # ShipPackage 模型
 │   └── worker_deliverable.py # WorkPackage 模型
 ├── orchestrator/            # 编排引擎
-│   ├── ship_orchestrator.py # L1/L2/L3 验证 + build_ship_pro_input
+│   ├── ship_orchestrator.py # L1/L2/L3 验证
 │   └── state_manager.py     # 状态管理（宽松模式）
 ├── prompts/
-│   └── consolidator.md      # Consolidator 模板
+│   ├── consolidator.md      # Consolidator 模板
+│   ├── designer_module.md   # Designer 模块模板
+│   └── worker_module.md     # Worker 模块模板
 ├── tests/
 │   ├── test_ship_pro.py     # 19 个单元测试
 │   └── dry_run_v8.py        # 2.0.0 集成测试（已被 AgentDryRun Skill 替代）
@@ -233,11 +229,10 @@ domains/ship_pro/
 - `design_pipeline(solution_pro_output_path)` — 只执行 Phase 1
 - `prepare_runner_spawn(base_path, designer_output, solution_pro_input)` — 只准备 Worker params
 - `extract_json_from_completion(text)` — 从 LLM 输出提取 JSON
-- `build_ship_pro_input(frozen_spec_path, supplemental_path)` — 构建输入（frozen_spec_path 指向 .md 文件）
 
 ---
 
-*最后更新: 2026-07-08 2.0.0*
+*最后更新: 2026-07-30 2.0.0 (MD-first)*
 
 ---
 

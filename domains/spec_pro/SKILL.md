@@ -1,13 +1,13 @@
 ---
 name: spec-pro
 description: "DeepFlow Spec Pro — 需求梳理引擎。触发：梳理需求、需求分析、Living Spec。"
-version: "V2.2.0"
+version: "V2.3.0"
 ---
 
 # Spec Pro - Agent 执行指南
 
-> **版本**: V2.2.0 | **最后更新**: 2026-07-08  
-> **架构**: 多轮对话 → LivingSpec 构建 → Harness 2.0.0 评估 → Solution Pro 上下文注入  
+> **版本**: V2.3.0 | **最后更新**: 2026-07-30  
+> **架构**: 多轮对话 → LivingSpec 构建 → Harness 2.0.0 评估 → Solution Pro 上下文注入（MD-first，ADR-009）  
 > **核心理念**: 通过结构化对话提取需求，生成可执行的 LivingSpec
 
 ---
@@ -263,10 +263,7 @@ exec(
     {
       "name": "sessions_spawn",
       "category": "platform_api",
-      "constraint": "必须用 sessions_spawn 调度子 Agent，禁止 Python import",
-      "source_quote": "对话中用户提到的原文",
-      "confidence": 0.9,
-      "applicable_to": ["all"]
+      "constraint": "必须用 sessions_spawn 调度子 Agent，禁止 Python import"
     }
   ],
   "solution_pro_hints": {
@@ -278,11 +275,11 @@ exec(
 
 > **重要**：`conversation_digest` 已废弃，不再使用。对话日志存储在 `spec/conversation_log.json`。
 > 
-> **下游读取策略**（Solution Pro / Ship Pro）：
-> 1. 先读 `core_summary`（快速理解全貌）
-> 2. 按需深入读 `narrative` 的特定段落
-> 3. `requirement_index` 用于 REQ-ID 追溯
-> 4. `semantic_anchors` 全链路透传（不可变实体）
+> **下游读取策略**（Solution Pro / Ship Pro，ADR-009 MD-first）：
+> 1. Solution Pro 读取 `frozen_spec.md`（MD source of truth）+ `solution_track.json`（跨域元数据）
+> 2. Ship Pro 读取 `final_solution.md`（来自 Solution Pro）+ `ship_track.json`
+> 3. `semantic_anchors` 全链路透传（不可变实体，3 字段：name/category/constraint）
+> 4. `requirement_index` 用于 REQ-ID 追溯
 
 ### Harness 2.0.0 评估
 

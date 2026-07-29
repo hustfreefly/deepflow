@@ -61,8 +61,8 @@ class HandoffPackage(BaseModel):
     @field_validator("semantic_anchors")
     @classmethod
     def validate_semantic_anchor_dicts(cls, v: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """契约铁律：每个 semantic anchor dict 必须有 name/category/constraint/source_quote 字段"""
-        required_keys = {"name", "category", "constraint", "source_quote"}
+        """契约铁律：每个 semantic anchor dict 必须有 name/category/constraint 字段"""
+        required_keys = {"name", "category", "constraint"}
         for i, anchor in enumerate(v):
             if not isinstance(anchor, dict):
                 raise ValueError(f"semantic_anchors[{i}] 必须是 dict，实际类型: {type(anchor).__name__}")

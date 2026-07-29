@@ -59,7 +59,7 @@ class DeliveryManifest(BaseModel):
     # N6: Information conservation fields
     semantic_anchors: list[str] = Field(
         default_factory=list,
-        description="语义锚点列表（来自 ship_context.json，必须在最终交付物中被引用）",
+        description="语义锚点列表（来自 Ship Pro ship_package 透传，必须在最终交付物中被引用）",
     )
     requirement_traceability: dict = Field(
         default_factory=lambda: {

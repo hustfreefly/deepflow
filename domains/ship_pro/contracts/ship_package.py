@@ -44,7 +44,7 @@ class ShipPackage(BaseModel):
     semantic_anchors: List[Dict[str, Any]] = Field(
         default_factory=list,
         description="从 Solution Pro 透传的语义锚点（契约笼子：必须保留，不可丢弃）。"
-                    "每条包含 name/category/constraint/source_quote。"
+                    "每条包含 name/category/constraint。"
                     "Consolidator 必须从 solution_pro_input 中原样复制到此处。"
     )
     anchor_coverage: Dict[str, Any] = Field(
@@ -58,6 +58,14 @@ class ShipPackage(BaseModel):
     key_decisions: Optional[List[str]] = Field(
         default_factory=list,
         description="Solution Pro 产出的关键决策列表（N1-FIX：保留最终 artifact 关键信息）"
+    )
+    # W4-F4: serving_principles 包级透传（生产方补建）
+    # Solution Pro 无显式产出，由 Ship Pro 从 guardrails 确定性派生
+    # （always_do→obligation，never_do→anti_pattern），Deliver Pro 按
+    # semantic_anchors 同款包级 fallback 模式消费。
+    serving_principles: Optional[List[Dict[str, Any]]] = Field(
+        default_factory=list,
+        description="服务原则列表（含 obligation / anti_pattern），包级透传到 Deliver Pro"
     )
     architecture: Optional[str] = Field(
         default=None,

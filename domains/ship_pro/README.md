@@ -39,14 +39,14 @@ Orchestrator (depth-1, 全权调度)
   │   └─ 5 步法：收集 → 语义整合 → 冲突检测 → 依赖图 → 组装
   │   └─ L1 + L2 + L3 三层验证
   │
-  └─ 输出: ShipPackage (ship_package.json)
+  └─ 输出: ShipPackage (ship_package.md + JSON 衍生)
 ```
 
 ### 统一 Blackboard
 
 ```
 .deepflow/blackboard/{project_name}/
-├── data/frozen_spec.json           ← Solution Pro 产出
+├── data/frozen_spec.md             ← Solution Pro 产出
 ├── stages/solution_document.json   ← Solution Pro 产出（markdown）
 ├── ship_pro/                       ← Ship Pro 写入
 │   ├── solution_pro_input.json     ← 合并后的输入
@@ -54,7 +54,8 @@ Orchestrator (depth-1, 全权调度)
 │       ├── pipeline_plan.json
 │       ├── context_*.json
 │       ├── worker_*.json
-│       └── ship_package.json       ← 最终交付包
+│       ├── ship_package.md         ← 最终交付包（唯一真相源）
+│       └── ship_package.json       ← JSON 衍生（向后兼容）
 ```
 
 ---
@@ -67,12 +68,12 @@ from domains.ship_pro import run_ship_pro
 
 result = run_ship_pro("OpenClaw AI Native Loop Engineering Framework")
 sessions_spawn(**result["spawn_params"])
-# 等待完成事件 → ShipPackage 在 result["ship_pro_dir"]/stages/ship_package.json
+# 等待完成事件 → ShipPackage 在 result["ship_pro_dir"]/stages/ship_package.md
 ```
 
 ### 前置条件
 
-- Solution Pro 已完成，输出在 `.deepflow/blackboard/{project_name}/data/frozen_spec.json`
+- Solution Pro 已完成，输出在 `.deepflow/blackboard/{project_name}/data/frozen_spec.md`
 - 项目目录存在于 `.deepflow/blackboard/` 下
 
 ---
@@ -151,10 +152,12 @@ domains/ship_pro/
 │   ├── ship_package.py      # ShipPackage 模型
 │   └── worker_deliverable.py # WorkPackage 模型
 ├── orchestrator/            # 编排引擎
-│   ├── ship_orchestrator.py # L1/L2/L3 验证 + build_ship_pro_input
+│   ├── ship_orchestrator.py # L1/L2/L3 验证
 │   └── state_manager.py     # 状态管理（宽松模式）
 ├── prompts/
-│   └── consolidator.md      # Consolidator 模板
+│   ├── consolidator.md      # Consolidator 模板
+│   ├── designer_module.md   # Designer 模块模板
+│   └── worker_module.md     # Worker 模块模板
 ├── tests/
 │   ├── test_ship_pro.py     # 19 个单元测试
 │   └── dry_run_v8.py        # 2.0.0 集成测试

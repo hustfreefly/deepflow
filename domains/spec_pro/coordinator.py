@@ -26,7 +26,7 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ from domains.spec_pro.models import (
     Scenario,
 )
 from domains.spec_pro.contracts.gate import gate_living_spec_density, gate_quality_report, gate_harness_decision
+from domains.spec_pro.contracts.gate_input_conservation import gate_input_conservation
 from domains.spec_pro.handoff import build_handoff_package, save_handoff_package
 from core.trace import start_trace, span  # 全链路追踪：跨域 trace_id
 from domains.spec_pro.spec_living_md import render_living_spec_md, parse_living_spec_md
@@ -331,6 +332,9 @@ class SpecProCoordinator:
         # Write user input
         self._bb.write("input.md", user_input)
 
+        # B3: raw_user_input 持久化（生产路径，从死代码 build_handoff_on_done 迁移至此）
+        self._bb.write("data/raw_user_input.txt", user_input)
+
         # Initialize execution log
         self._write_execution_log("init", {
             "user_input_length": len(user_input),
@@ -387,9 +391,17 @@ class SpecProCoordinator:
 
         Raises:
             RuntimeError: session 未初始化
+            ValueError: user_response 为空/纯空白
         """
         if not self.session_id or self._bb is None:
             raise RuntimeError("Session not initialized. Call init_session() first.")
+
+        # 契约笼子：user_response 入口校验（P0-5）
+        if user_response is None or not str(user_response).strip():
+            raise ValueError(
+                f"user_response 不能为空（收到: {user_response!r}）。"
+                f" 要求: 非空字符串，纯空白也不行，不得写入 blackboard。"
+            )
 
         # F-safety: 阻止 safety_stop 后继续调用
         if self.state == DialogState.KILLED:
@@ -542,7 +554,7 @@ class SpecProCoordinator:
 1. 使用 read 读取 living_spec.md 的 confirmed 层
 2. 调用 annotate_requirements(confirmed) 进行 LLM 标注
 3. 如果标注成功，将结果写入 living_spec.confirmed.requirement_annotations
-4. 如果标注失败（JSON解析错误、Schema验证失败、覆盖率<80%），不写入 requirement_annotations，保持 living_spec 不变
+4. 如果标注失败（annotate_requirements raise RuntimeError），任务失败：将错误信息写入执行日志并报告失败，**不要**静默继续——语义标注没有脚本 fallback
 
 ## 输出
 更新 spec/living_spec.md，在 confirmed 层新增 requirement_annotations 字段（如果标注成功）
@@ -572,7 +584,8 @@ class SpecProCoordinator:
 ```
 
 ## 失败处理
-如果标注失败，不写入 requirement_annotations，下游 frozen_spec.py 会自动 fallback 到纯脚本方案。
+契约笼子（W4-F1）：语义标注禁止脚本 fallback。annotate_requirements 失败会 raise RuntimeError，
+此时任务必须失败并报告原因，不允许降级到纯脚本方案。
 
 ## 超时
 180秒
@@ -714,12 +727,19 @@ class SpecProCoordinator:
         self._write_execution_log("harness_decision", decision)
         return decision
 
-    def build_handoff_on_done(self) -> Optional[Path]:
+    def build_handoff_on_done(self, llm_call: Optional[Callable] = None) -> Optional[Path]:
         """
         在 density gate 通过后构建 handoff package。
 
+        Args:
+            llm_call: LLM 调用函数 (prompt: str) -> str，用于输入要素守恒 Gate。
+                      如果为 None，跳过守恒 Gate（仅在显式跳过时允许）。
+
         Returns:
             handoff package 文件路径，如果 gate 未通过则返回 None
+
+        Raises:
+            ValueError: 输入要素守恒 Gate 检测到 MUST 要素缺失时
         """
         if self._bb is None:
             return None
@@ -751,6 +771,43 @@ class SpecProCoordinator:
                     f"B3: handoff blocked by harness decision: {harness_decision}"
                 )
                 return None
+
+        # === Track B: 输入要素守恒 Gate（用户铁律：需求对齐硬性要求） ===
+        # 位置：gate_living_spec_density() 之后、save_handoff_package() 之前
+        # 机制：两层 LLM（提取 + Judge），fail-closed
+        # 注意：此方法（build_handoff_on_done）当前为死代码（全库零生产调用方），
+        #       生产 handoff 路径是 build_handoff_cli.py。
+        #       守恒 Gate 已迁移至确认阶段 prompt + CLI fail-closed 校验。
+        #       保留此方法内的 Gate 逻辑仅供参考，不再维护。
+        if llm_call is not None:
+            original_input = self._bb.read("input.md")
+            if not original_input:
+                raise ValueError(
+                    "gate_input_conservation: input.md 不存在，无法执行守恒 Gate。"
+                    "用户铁律：不存在降级或静默方案。"
+                )
+            conservation_result = gate_input_conservation(
+                user_input=str(original_input),
+                living_spec=living_spec_data,
+                llm_call=llm_call,
+            )
+            # 写入守恒 Gate 结果供审计
+            self._bb.write("spec/input_conservation_gate.json", {
+                "passed": conservation_result["passed"],
+                "conservation_rate": conservation_result["conservation_rate"],
+                "declared_gaps": conservation_result["declared_gaps"],
+                "element_count": len(conservation_result["elements"]),
+            })
+            # declared_gaps 写入 handoff metadata（显式记录，非静默）
+            if conservation_result["declared_gaps"]:
+                living_spec_data.setdefault("metadata", {})["declared_gaps"] = (
+                    conservation_result["declared_gaps"]
+                )
+        else:
+            raise ValueError(
+                "gate_input_conservation: llm_call 未提供，无法执行守恒 Gate。"
+                "用户铁律：不存在降级或静默方案。"
+            )
 
         package = build_handoff_package(
             living_spec=living_spec_data,
@@ -880,18 +937,50 @@ class SpecProCoordinator:
    - 如果没有不可抽象化的引用，写入空数组 []
    - 使用 write 更新 spec/living_spec.md（加入 semantic_anchors 字段）
 
-5. **🔴 Density Gate 检查（契约笼子，不可跳过）**：
+5. **🔴 输入要素守恒 Gate（用户铁律，不可跳过）**：
+   你是 LLM，需要亲自执行要素提取 + 守恒判定：
+
+   a) 使用 read 读取 input.md（用户原始输入）
+   b) 从原始输入中提取所有语义要素，每个要素标注：
+      - id: E1, E2, ...
+      - element: 要素描述
+      - category: technology / organization_principle / timeline_constraint / domain / deliverable_type / quality_attribute / scope / 其他
+      - criticality: MUST（用户显式提及的硬约束）或 SHOULD（隐含期望）
+   c) 逐要素判断 living_spec 是否覆盖：COVERED / PARTIAL / MISSING
+   d) 计算 conservation_rate = COVERED 数 / 总数（PARTIAL 算 0.5，MISSING 算 0）
+   e) 判定 verdict：
+      - 任何 MUST 要素 MISSING → verdict = "FAIL"
+      - 否则 → verdict = "PASS"
+   f) 使用 write 将结果写入 spec/input_conservation_gate.json：
+   ```json
+   {{
+     "verdict": "PASS",
+     "conservation_rate": 0.85,
+     "elements": [
+       {{"id": "E1", "element": "要素描述", "criticality": "MUST", "status": "COVERED"}}
+     ],
+     "must_missing": [],
+     "declared_gaps": []
+   }}
+   ```
+   - 如果 verdict = "FAIL"：**不进入 done**，改为 action="questions"：
+     - 将缺失的 MUST 要素追加到 questions 列表
+     - 写 round_result.json (action="questions")
+     - 结束本轮
+   - 如果 verdict = "PASS"：继续步骤 6
+
+6. **🔴 Density Gate 检查（契约笼子，不可跳过）**：
    执行以下命令检查 Living Spec 密度：
    ```
    python3 .deepflow/domains/spec_pro/check_density_cli.py "{session_dir}"
    ```
-   - 如果输出 `PASSED`：继续步骤 6
+   - 如果输出 `PASSED`：继续步骤 7
    - 如果输出 `FAILED`：**不进入 done**，改为 action="questions"：
      - 将密度问题追加到 questions 列表
      - 写 round_result.json (action="questions")，包含密度问题
      - 结束本轮
 
-6. **构建 Handoff Package + 写 round_result.json**：
+7. **构建 Handoff Package + 写 round_result.json**：
    执行以下命令构建 handoff package（`--extract-anchors` 强制 Pydantic 验证 semantic anchors 格式）：
    ```
    python3 .deepflow/domains/spec_pro/build_handoff_cli.py "{session_dir}" --extract-anchors
@@ -919,8 +1008,9 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
 ```
 2. 对更新后的 living_spec 进行 7 维度评分
 3. 如果 overall_score >= {threshold}：
-   - 执行 Density Gate 检查（同上步骤 5）
-   - 如果 Density Gate PASSED → 构建 Handoff Package（同上步骤 6）→ 写 round_result.json (action="done")
+   - 执行输入要素守恒 Gate（同上步骤 5）
+   - 执行 Density Gate 检查（同上步骤 6）
+   - 如果 Density Gate PASSED → 构建 Handoff Package（同上步骤 7）→ 写 round_result.json (action="done")
    - 如果 Density Gate FAILED → 写 round_result.json (action="questions")，包含密度问题
 4. 如果 overall_score < {threshold}：
    - 生成 2-4 个补充问题
@@ -1059,7 +1149,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
 
 1. ParseWorker（子 Agent）已完成 → 使用 read_stage 读取 round_{round_num:02d}_parse
 2. 你（主 Agent）直接做 7 维度质量评估
-3. 你（主 Agent）直接生成 3-5 个引导问题
+3. 你（主 Agent）直接生成 **2-3 个引导问题**（硬上限 4 个）
 4. 写 round_result.json
 5. 展示给用户
 
@@ -1113,7 +1203,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
    - constraints (15%): platform/tech_stack/data_source
    - integration (10%): 外部系统、接口
    - risks (10%): 风险、假设（deliberately_omitted 维度给 50 分）
-3. 生成 3-5 个引导问题，聚焦最低分维度
+3. 生成 **2-3 个引导问题**（硬上限 4 个），聚焦最低分维度
    - 每个问题标注 boundary_check: demand 或 design
    - 禁止出现技术词汇
    - 禁止问"如何实现"
@@ -1143,7 +1233,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
 
 1. 使用 read 读取 living_spec.md（已由 merge_spec.py 合并更新）
 2. 对 living_spec 进行 7 维度评分（0-100）
-3. 生成 3-5 个引导问题，聚焦最低分维度
+3. 生成 **2-3 个引导问题**（硬上限 4 个），聚焦最低分维度
    - 已问过且已回答的问题不再重复
    - deliberately_omitted 维度不提问
    - 每个问题标注 boundary_check
@@ -1268,13 +1358,12 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
             raise TypeError(f"data must be dict, got {type(data).__name__}")
         
         # ADR-009 Phase 3: 自动生成语义化 requirement_index
-        # 契约笼子: 仅在 requirement_index 为空或不存在时生成
-        if not data.get("requirement_index"):
-            try:
-                data["requirement_index"] = generate_requirement_index_semantic(data)
-            except Exception as e:
-                logger.warning(f"requirement_index generation failed: {e}")
-                data["requirement_index"] = []
+        # ✅ 每轮强制重新生成（多轮对话后可能过时）
+        try:
+            data["requirement_index"] = generate_requirement_index_semantic(data)
+        except Exception as e:
+            logger.warning(f"requirement_index generation failed: {e}")
+            data["requirement_index"] = []
         
         # Render dict → MD
         md_content = render_living_spec_md(data)

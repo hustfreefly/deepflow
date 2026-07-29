@@ -39,58 +39,9 @@ from .blackboard import BlackboardManager
 
 
 
-def _extract_requirements_from_input(user_input: str) -> list:
-    """从 user_input 文本确定性提取需求列表（Fallback 路径）。
-
-    适用场景: 用户未经 Spec Pro 直接调用 Solution Pro 时，
-    从 Markdown 编号列表中提取需求。
-
-    格式提取（确定性，不做语义判断）:
-      - 查找 '## Requirements' 段
-      - 提取编号列表（1. 2. 3. 或 - ）
-      - 分配 REQ-INPUT-NNN 前缀
-
-    Returns:
-        requirement_index 列表（可能为空）
-    """
-    import re
-    lines = user_input.split('\n')
-
-    # 1. 尝试找 '## Requirements' 段落
-    req_section_lines: list[str] = []
-    in_req_section = False
-    for line in lines:
-        stripped = line.strip()
-        if re.match(r'^##\s+[Rr]equirements?', stripped):
-            in_req_section = True
-            continue
-        if in_req_section and stripped.startswith('## '):
-            break  # 下一个 section
-        if in_req_section:
-            req_section_lines.append(stripped)
-
-    # 如果没找到 Requirements section，用全文
-    search_lines = req_section_lines if req_section_lines else [l.strip() for l in lines]
-
-    # 2. 提取编号列表项
-    requirements = []
-    counter = 0
-    for line in search_lines:
-        # 匹配: 1. xxx, - xxx, * xxx
-        match = re.match(r'^(?:\d+[.)\s]|[-*]\s+)(.+)', line)
-        if match:
-            text = match.group(1).strip()
-            if len(text) >= 10:  # 过滤过短的项
-                counter += 1
-                requirements.append({
-                    'id': f'REQ-INPUT-{counter:03d}',
-                    'description': text,
-                    'priority': 'MUST',
-                    'source_section': 'user_input',
-                    'category': 'FUNC',
-                })
-
-    return requirements
+# Track B（2026-07-29）: _extract_requirements_from_input() 已物理删除。
+# 根因：纯正则语义提取，丢失标题要素（CoWoS-L/PDK驱动型/两年路线图）。
+# AI Native 铁律：语义提取禁止正则。需求必须来自 Spec Pro living_spec。
 
 
 def _try_load_handoff_package(bm: BlackboardManager) -> Optional[dict]:
@@ -189,13 +140,31 @@ def run_solution_pro(user_input: str, **kwargs):
 
     Returns:
         {"session_id": str, "base_path": str, "spawn_params": dict}
+
+    Raises:
+        ValueError: user_input 为空/None/纯空白；living_spec 缺失；requirement_index 为空
     """
-    # 1. 初始化 Blackboard session
+    # ── P0-2a: 输入校验（必须在任何副作用之前） ──
+    # 用户铁律：缺输入必须 raise，禁止静默降级
+    if user_input is None:
+        raise ValueError(
+            "user_input 为 None。Solution Pro 需要非空的需求描述作为输入。"
+        )
+    if not isinstance(user_input, str):
+        raise ValueError(
+            f"user_input 必须是 str，实际类型: {type(user_input).__name__}"
+        )
+    if not user_input.strip():
+        raise ValueError(
+            "user_input 为空字符串或纯空白。Solution Pro 需要非空的需求描述作为输入。"
+        )
+
+    # 1. 初始化 Blackboard session（仅设置路径，不创建目录）
     topic = kwargs.get("topic", user_input[:50])
     # 契约笼子（2026-07-05）：统一 blackboard 路径，走默认 .deepflow/blackboard/
     # 确保 Ship Pro 能从统一路径读取 Solution Pro 输出
     bm = BlackboardManager(topic)  # 删掉 base_dir= → 走 PathConfig 默认路径
-    bm.init_session()
+    # P0-2b: init_session()（mkdir）延迟到所有校验完成后
     session_id = bm.session_id
     session_dir = str(bm.session_dir)
 
@@ -211,88 +180,68 @@ def run_solution_pro(user_input: str, **kwargs):
     # ADR-009 Phase 3: requirement_index 已在 living_spec 中（由 spec_pro 生成）
     # 契约笼子: living_spec 必须包含 requirement_index，否则 raise
     requirement_index = living_spec.get("requirement_index", []) if isinstance(living_spec, dict) else []
+    # Track B 契约铁律（2026-07-29）：living_spec 缺失或 requirement_index 为空 → raise
+    # 用户铁律：需求对齐是硬性要求，不存在降级或静默方案
     if not requirement_index:
-        import logging
-        _logger = logging.getLogger(__name__)
-        _logger.warning(
-            "ADR-009 Phase 3: living_spec.requirement_index 为空。"
-            "尝试 fallback 生成..."
-        )
-        # Fallback 1: 从 living_spec 的 narrative/confirmed 提取
+        # 尝试从 living_spec 的 narrative/confirmed 结构化提取（非正则，是结构化数据提取）
         try:
             from domains.solution_pro.living_spec import generate_requirement_index
             requirement_index = generate_requirement_index(living_spec or {})
         except Exception:
             requirement_index = []
 
-        # Fallback 2 (L2): 从 user_input 文本确定性提取（Markdown 编号列表格式）
-        if not requirement_index and user_input:
-            requirement_index = _extract_requirements_from_input(user_input)
+    if not requirement_index:
+        raise ValueError(
+            "Track B 契约铁律: living_spec.requirement_index 为空。\n"
+            "禁止静默降级 — 需求对齐是硬性要求。\n"
+            "根因: living_spec 未包含 requirement_index，且 generate_requirement_index() 未提取到需求。\n"
+            "修复: 先运行 Spec Pro 生成 living_spec.md（含 requirement_index），"
+            "或显式传递 living_spec 参数。\n"
+            "注意: _extract_requirements_from_input() 已物理删除（纯正则语义提取，"
+            "丢失标题要素）。禁止用正则从原始输入提取需求。"
+        )
 
-        # 契约铁律: 0 requirements = raise ValueError（不静默降级）
-        if not requirement_index:
-            raise ValueError(
-                "ADR-009 契约违反: requirement_index 为空。\n"
-                "根因: 以下三种路径均未产出需求:\n"
-                "  1. living_spec.requirement_index 为空（Spec Pro 未生成）\n"
-                "  2. generate_requirement_index(living_spec) 未提取到需求\n"
-                "  3. _extract_requirements_from_input(user_input) 未提取到需求\n"
-                "修复: 先运行 Spec Pro 生成 living_spec.md，或确保 user_input 包含编号需求列表。"
-            )
+    # ── P0-2b: 所有校验通过，现在才创建目录 ──
+    # mkdir 副作用必须在决策/校验完成后（历史教训：决策被拒绝时不得留下空目录）
+    bm.init_session()
 
-    # 写入简化的 frozen_spec（含 requirement_index + requirements 兼容层）
-    # CRITICAL #2: Ship Pro 期望 requirements 字段，同时保留 requirement_index 用于内部追踪
+    # ── ADR-009 Phase 3: MD 主写入（frozen_spec）──
+    # MD 是真相源，JSON 衍生品已删除（双写 → 单写）
     # B1-FIX: semantic_anchors 从 living_spec 透传（pipeline_designer.py:169 契约笼子要求）
     _semantic_anchors = (
         living_spec.get("semantic_anchors", [])
         if isinstance(living_spec, dict) else []
     )
+    # D-6-FIX: guardrails 和 solution_pro_hints 从 living_spec 透传
+    _guardrails = (
+        living_spec.get("guardrails", {})
+        if isinstance(living_spec, dict) else {}
+    )
+    _solution_pro_hints = (
+        living_spec.get("solution_pro_hints", {})
+        if isinstance(living_spec, dict) else {}
+    )
     frozen_spec = {
         "topic": topic,
         "requirement_index": requirement_index,
-        "requirements": requirement_index,  # CRITICAL #2: Ship Pro 兼容层
+        "requirements": requirement_index,  # Ship Pro 兼容层
         "semantic_anchors": _semantic_anchors,  # B1-FIX: Ship Pro 契约笼子要求
+        "guardrails": _guardrails,  # D-6-FIX: 护栏规则透传
+        "solution_pro_hints": _solution_pro_hints,  # D-6-FIX: 方案提示透传
         "metadata": {
             "source": "spec_pro",
             "adr009_phase": 3,
             "generated_at": datetime.now().isoformat(),
         },
     }
-    bm.write("data/frozen_spec.json", frozen_spec)
 
-    # B2-FIX: Write FULL living_spec to blackboard (preserve narrative/confirmed/stakeholders/guardrails)
-    # Previously only simplified frozen_spec was written, losing critical context.
-    if isinstance(living_spec, dict) and living_spec:
-        try:
-            bm.write("data/living_spec.json", living_spec)
-        except Exception as e:
-            import logging as _logging
-            _logging.getLogger(__name__).warning(
-                f"B2: Failed to write full living_spec.json: {e}"
-            )
+    # MD 主写入：render → write（失败 raise，不捕获）
+    # Ship Pro 期望 data/frozen_spec.md（MD source of truth）
+    from domains.solution_pro.frozen_living_md import render_frozen_spec_md
+    frozen_spec_md = render_frozen_spec_md(frozen_spec)  # raise on failure
+    bm.write("data/frozen_spec.md", frozen_spec_md)
 
-    # CRITICAL: Render frozen_spec.md for Ship Pro cross-domain consumption (ADR-009)
-    # Ship Pro expects data/frozen_spec.md (MD source of truth), not JSON
-    try:
-        from domains.solution_pro.frozen_living_md import render_frozen_spec_md
-        frozen_spec_md = render_frozen_spec_md(frozen_spec)
-        bm.write("data/frozen_spec.md", frozen_spec_md)
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(
-            f"Failed to render frozen_spec.md (Ship Pro will fail): {e}"
-        )
-
-    # 3. 初始化 master_state
-    bm.write("master_state.json", {
-        "session_id": session_id,
-        "status": "initialized",
-        "current_module": None,
-        "completed_modules": [],
-        "failed_modules": [],
-    })
-
-    # 4. 清理旧文件（断点续跑时防止误判）
+    # 3. 清理旧文件（断点续跑时防止误判）
     for old_file in [".completed"]:
         old_path = bm.session_dir / old_file
         if old_path.exists():
@@ -402,10 +351,10 @@ def generate_solution_track(base_path: str) -> dict | None:
 
 def render_solution_md(session_id: str, base_dir: str = None) -> dict:
     """
-    ADR-009 统一兜底：渲染 Solution Pro 的所有 MD 产物。
+    ADR-009 Phase 3: MD 主写入 — 渲染 Solution Pro 的所有 MD 产物。
 
     在 pipeline 完成后调用（pulse.py 自动调用，也可手动调用）。
-    非阻断：任何步骤失败 → log ERROR，继续其他产物。
+    Phase 3 翻转：MD render 失败 → raise ValueError（不再静默跳过）。
 
     Args:
         session_id: Solution Pro session ID
@@ -413,34 +362,42 @@ def render_solution_md(session_id: str, base_dir: str = None) -> dict:
 
     Returns:
         {"final_solution_md": bool, "solution_document_md": bool} 渲染结果
+
+    Raises:
+        ValueError: MD 渲染失败（ADR-009 契约违反）
     """
-    import logging
-    logger = logging.getLogger(__name__)
+    from domains.solution_pro.solution_living_md import render_final_solution_md
+    from domains.solution_pro.blackboard import BlackboardManager
+
+    bm = BlackboardManager(session_id, base_dir=base_dir)
     results = {"final_solution_md": False, "solution_document_md": False}
 
-    try:
-        from domains.solution_pro.solution_living_md import render_final_solution_md
-        from domains.solution_pro.blackboard import BlackboardManager
+    # 1. final_solution.md — MD 主写入
+    final_solution_data = bm.read_stage('final_solution')
+    if final_solution_data:
+        if isinstance(final_solution_data, str):
+            # 已经是 MD（Phase 4+ Agent 直接写 MD）
+            final_solution_md = final_solution_data
+        else:
+            # dict → MD 渲染（render 失败 → raise，不捕获）
+            final_solution_md = render_final_solution_md(final_solution_data)
+        bm.write_stage('final_solution', final_solution_md)  # MD 真相源
+        results['final_solution_md'] = True
 
-        bm = BlackboardManager(session_id, base_dir=base_dir)
-
-        # 1. 渲染 final_solution.md
-        final_solution_json = bm.read_stage('final_solution')
-        if final_solution_json:
-            final_solution_md = render_final_solution_md(final_solution_json)
-            bm.write('final_solution.md', final_solution_md, subdir='stages')
-            results['final_solution_md'] = True
-            print('✅ final_solution.md generated')
-
-        # 2. 提取 solution_document.md
-        solution_document_json = bm.read_stage('solution_document')
-        if solution_document_json and isinstance(solution_document_json, str):
-            bm.write('solution_document.md', solution_document_json, subdir='stages')
-            results['solution_document_md'] = True
-            print('✅ solution_document.md generated')
-    except Exception as e:
-        logger.error(f'ADR-009 MD rendering failed: {e}')
-        # 保持 non-blocking，但记录 ERROR 级别日志
+    # 2. solution_document.md — MD 主写入
+    solution_document_data = bm.read_stage('solution_document')
+    if solution_document_data:
+        if isinstance(solution_document_data, str):
+            # 已经是 MD（Agent 直接写 MD）
+            solution_document_md = solution_document_data
+        else:
+            # dict → 不静默降级，raise 明确错误
+            raise ValueError(
+                "ADR-009 契约违反: solution_document 是 dict，缺少 MD renderer。"
+                "Phase 4+ Agent 应直接写 MD（str），不应写 dict。"
+            )
+        bm.write_stage('solution_document', solution_document_md)  # MD 真相源
+        results['solution_document_md'] = True
 
     return results
 

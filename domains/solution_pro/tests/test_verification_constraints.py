@@ -33,6 +33,16 @@ def load_stage(filename: str) -> dict:
     return json.loads(path.read_text())
 
 
+def load_stage_text(filename: str) -> str:
+    """加载 blackboard stage 文件为文本（用于 MD 文件）"""
+    path = SESSION_DIR / "stages" / filename
+    if not path.exists():
+        path = SESSION_DIR / filename
+    if not path.exists():
+        pytest.skip(f"Stage file not found: {path}")
+    return path.read_text(encoding="utf-8")
+
+
 def load_json(filename: str) -> dict:
     """加载任意 JSON 文件"""
     path = SESSION_DIR / filename
@@ -146,8 +156,22 @@ class TestInformationConservation:
             )
 
     def test_final_solution_references_constraints(self):
-        """final_solution 必须显式引用 unified constraints"""
-        final = load_stage("final_solution.json")
+        """final_solution 必须显式引用 unified constraints（ADR-009: MD-first）"""
+        # ADR-009: 优先读 .md，fallback 到 .json
+        final_text = None
+        for fname in ["final_solution.md", "final_solution.json"]:
+            try:
+                content = load_stage_text(fname)
+                if fname.endswith(".json"):
+                    final_text = json.dumps(json.loads(content), ensure_ascii=False)
+                else:
+                    final_text = content
+                break
+            except Exception:
+                continue
+        if final_text is None:
+            pytest.skip("final_solution not found (neither .md nor .json)")
+
         unified = load_stage("unified_constraints.json")
 
         unified_ids = {c["id"] for c in unified.get("unified_constraints", []) if "id" in c}
@@ -155,7 +179,6 @@ class TestInformationConservation:
             pytest.skip("No unified constraint IDs found")
 
         # 在 final_solution 全文中搜索 constraint ID 引用
-        final_text = json.dumps(final, ensure_ascii=False)
         referenced = sum(1 for uid in unified_ids if uid in final_text)
 
         coverage = referenced / len(unified_ids) if unified_ids else 0

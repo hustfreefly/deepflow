@@ -86,7 +86,7 @@ def render_final_solution_md(data: dict) -> str:
     if metadata:
         for k, v in metadata.items():
             if isinstance(v, dict):
-                v_str = json.dumps(v, ensure_ascii=False)[:80]
+                v_str = json.dumps(v, ensure_ascii=False)
             else:
                 v_str = str(v)
             lines.append(f"| {k} | {v_str} |")
@@ -211,7 +211,7 @@ def render_final_solution_md(data: dict) -> str:
         lines.append("|---|------|----------|-------------|------------|")
         for i, r in enumerate(risks, 1):
             if isinstance(r, dict):
-                lines.append(f"| {i} | {r.get('risk', '')[:40]} | {r.get('severity', '')} | {r.get('probability', '')} | {r.get('mitigation', '')[:60]} |")
+                lines.append(f"| {i} | {r.get('risk', '')} | {r.get('severity', '')} | {r.get('probability', '')} | {r.get('mitigation', '')} |")
             else:
                 lines.append(f"| {i} | {str(r)[:40]} | | | |")
         lines.append("")
@@ -257,14 +257,17 @@ def render_final_solution_md(data: dict) -> str:
     if semantic_anchors:
         lines.append("## semantic_anchors")
         lines.append("")
-        lines.append("| anchor_id | concept | doc_section |")
-        lines.append("|-----------|---------|-------------|")
+        # F3 fix (W3): Align with authoritative SemanticAnchor schema
+        # Was: anchor_id | concept | doc_section (all wrong field names)
+        # Now: name | category | constraint (authoritative fields)
+        lines.append("| name | category | constraint |")
+        lines.append("|------|----------|------------|")
         for sa in semantic_anchors:
             if isinstance(sa, dict):
-                aid = sa.get("anchor_id", sa.get("anchor", "N/A"))
-                concept = sa.get("concept", sa.get("description", ""))
-                section = sa.get("doc_section", "")
-                lines.append(f"| {aid} | {concept} | {section} |")
+                name = sa.get("name", "N/A")
+                category = sa.get("category", "")
+                constraint = sa.get("constraint", "")
+                lines.append(f"| {name} | {category} | {constraint} |")
             else:
                 lines.append(f"| {sa} | | |")
         lines.append("")
@@ -436,6 +439,11 @@ def parse_final_solution_md(md: str) -> dict:
     if rc_text:
         result["constraint_coverage"] = _parse_constraint_coverage(rc_text)
 
+    # S8: gate_decisions (S2: parse gate decisions table)
+    gd_text = sections.get("gate_decisions", "")
+    if gd_text:
+        result["gate_decisions"] = _parse_table_to_dicts(gd_text)
+
     # S9: covered_req_ids
     cri_text = sections.get("covered_req_ids", "")
     if cri_text:
@@ -451,10 +459,25 @@ def parse_final_solution_md(md: str) -> dict:
     if arch_text:
         result["architecture"] = _parse_architecture(arch_text)
 
-    # S12: full_solution
+    # S12: full_solution (S1: structured parse — detect **Title**: / **Summary**: pattern)
     fs_text = sections.get("full_solution", "")
     if fs_text:
-        result["full_solution"] = fs_text.strip()
+        # Try structured parse: **Title**: xxx / **Summary**: xxx
+        title_m = re.search(r"\*\*Title\*\*:\s*(.+)", fs_text)
+        summary_m = re.search(r"\*\*Summary\*\*:\s*(.+)", fs_text)
+        if title_m or summary_m:
+            fs_dict: dict[str, Any] = {}
+            if title_m:
+                fs_dict["title"] = title_m.group(1).strip()
+            if summary_m:
+                fs_dict["summary"] = summary_m.group(1).strip()
+            # Key sections
+            ks_items = re.findall(r"^- (.+)$", fs_text, re.MULTILINE)
+            if ks_items:
+                fs_dict["key_sections"] = ks_items
+            result["full_solution"] = fs_dict
+        else:
+            result["full_solution"] = fs_text.strip()
 
     # S13: conflict_resolutions
     cr_text = sections.get("conflict_resolutions", "")

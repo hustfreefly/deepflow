@@ -73,7 +73,7 @@ session: test_001
         result = generate_track_from_md(md_path, "deliver_pro", track_path)
 
         assert result is not None
-        assert result["schema_version"] == "3.0.0"
+        assert result["schema_version"] == "3.1.0"
         assert result["domain"] == "deliver_pro"
         assert track_path.exists()
 

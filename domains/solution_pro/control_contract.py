@@ -142,12 +142,16 @@ def _normalize_acceptance_criteria(planning: Dict[str, Any]) -> List[Dict[str, s
     return criteria
 
 
-def _acceptance_from_frozen_spec(bm: BlackboardManager) -> List[Dict[str, str]]:
+def _acceptance_from_living_spec(bm: BlackboardManager) -> List[Dict[str, str]]:
     """
-    从 living_spec 或 frozen_spec 生成 acceptance_criteria。
+    从 living_spec 生成 acceptance_criteria。
 
-    ADR-009 Phase 3: 优先读 living_spec（requirement_index），
-    fallback 到 frozen_spec.json（旧路径兼容）。
+    Track B 契约铁律（2026-07-29）：
+      living_spec 缺失 → raise ValueError（禁止静默 fallback 到 frozen_spec）。
+      用户铁律：需求对齐是硬性要求，不存在降级或静默方案。
+
+    ADR-009 Phase 3: 从 living_spec 读取 requirement_index。
+    三个路径全部为空 → raise ValueError。
     """
     # ADR-009 Phase 3: 优先从 living_spec 读取 requirement_index
     # P1-6 FIX: 同时检查 spec/ 和 data/ 路径（data/ 是 __init__.py 写入路径）
@@ -164,6 +168,15 @@ def _acceptance_from_frozen_spec(bm: BlackboardManager) -> List[Dict[str, str]]:
             except Exception:
                 living_spec = {}
 
+    # Track B 契约铁律：living_spec 缺失 → raise（禁止静默 fallback）
+    if not living_spec:
+        raise ValueError(
+            "Track B 契约铁律: living_spec 完全缺失（spec/living_spec.json + "
+            "data/living_spec.json + spec/living_spec.md 均不存在或为空）。\n"
+            "禁止静默 fallback 到 frozen_spec — 需求对齐是硬性要求。\n"
+            "修复: 先运行 Spec Pro 生成 living_spec，或显式传递 living_spec 参数。"
+        )
+
     if isinstance(living_spec, dict) and living_spec.get("requirement_index"):
         req_index = living_spec["requirement_index"]
         if isinstance(req_index, list) and req_index:
@@ -179,52 +192,12 @@ def _acceptance_from_frozen_spec(bm: BlackboardManager) -> List[Dict[str, str]]:
             if criteria:
                 return criteria
 
-    # Fallback: frozen_spec.json（旧路径兼容）
-    frozen = bm.read_json("frozen_spec.json", subdir="data") or {}
-    if not isinstance(frozen, dict):
-        return []
-
-    # 尝试按 requirement_groups 组织
-    groups = frozen.get("requirement_groups", {})
-    if groups and isinstance(groups, dict):
-        criteria = []
-        for group_name, group_data in groups.items():
-            if not isinstance(group_data, dict):
-                continue
-            req_ids = group_data.get("req_ids", [])
-            group_description = group_data.get("description", "")
-
-            # 为每个 REQ-ID 找到对应的 requirement
-            for req_id in req_ids:
-                req = _find_requirement_by_id(frozen.get("requirements", []), req_id)
-                if req and isinstance(req, dict):
-                    criteria.append({
-                        "id": str(req.get("id", req_id)),
-                        "text": str(req.get("description", "")),
-                        "priority": str(req.get("priority", "P1")),
-                        "category": str(req.get("category", "requirement")),
-                        "group": group_name,
-                        "group_description": group_description,
-                    })
-
-        if criteria:
-            return criteria
-
-    # Fallback: 扁平列表
-    criteria = []
-    for item in frozen.get("requirements", []) or []:
-        if not isinstance(item, dict):
-            continue
-        req_id = item.get("id")
-        text = item.get("description")
-        if req_id and text:
-            criteria.append({
-                "id": str(req_id),
-                "text": str(text),
-                "priority": str(item.get("priority", "P1")),
-                "category": str(item.get("category", "requirement")),
-            })
-    return criteria
+    # living_spec 存在但无 requirement_index → 也 raise（不静默降级到 frozen_spec）
+    raise ValueError(
+        "Track B 契约铁律: living_spec 存在但 requirement_index 为空。\n"
+        "禁止静默 fallback 到 frozen_spec — 需求对齐是硬性要求。\n"
+        f"living_spec keys: {list(living_spec.keys()) if isinstance(living_spec, dict) else type(living_spec).__name__}"
+    )
 
 
 def _find_requirement_by_id(requirements: List[Dict], req_id: str) -> Dict | None:
@@ -257,9 +230,9 @@ def build_control_contract(base_path: str) -> Dict[str, Any]:
         "research_workers": research_workers,
         "layer2_constraints": layer2_constraints,
         "audit_strategy": audit_strategy,
-        "frozen_spec_path": "data/frozen_spec.json",
+        "frozen_spec_path": "data/frozen_spec.md",
         "traceability_matrix_path": "requirements_traceability_matrix.json",
-        "acceptance_criteria": _acceptance_from_frozen_spec(bm) or _normalize_acceptance_criteria(planning),
+        "acceptance_criteria": _acceptance_from_living_spec(bm) or _normalize_acceptance_criteria(planning),
         "warnings": [] if planning else ["planning.json missing or invalid; using fallback control contract"],
     }
 

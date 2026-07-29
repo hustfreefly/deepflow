@@ -228,7 +228,7 @@ class HarnessReport:
 
 MODE_CONFIG: Dict[str, Dict[str, Any]] = {
     "quick": {"max_rounds": 5, "threshold": 60},
-    "standard": {"max_rounds": 10, "threshold": 75},
+    "standard": {"max_rounds": 6, "threshold": 75},
     "deep": {"max_rounds": 15, "threshold": 85},
 }
 

@@ -504,7 +504,7 @@ version: "1.0.0"
     def test_8_track_json_schema_valid(self):
         track = extract_track_json(VALID_SPEC_MD, "spec_pro")
         # Schema validation
-        assert track["schema_version"] == "3.0.0"
+        assert track["schema_version"] == "3.1.0"
         assert track["domain"] == "spec_pro"
         assert "frontmatter" in track
         assert "gate_summary" in track
@@ -541,6 +541,6 @@ version: "1.0.0"
         for md, domain in fixtures:
             track = extract_track_json(md, domain)
             assert track["domain"] == domain
-            assert track["schema_version"] == "3.0.0"
+            assert track["schema_version"] == "3.1.0"
             assert len(track["gate_summary"]) > 0, f"{domain}: gate_summary 为空"
             assert len(track["anchors"]) > 0, f"{domain}: anchors 为空"

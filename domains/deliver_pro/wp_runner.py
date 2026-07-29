@@ -190,49 +190,19 @@ class DeliverWPRunner:
             )
             logger.info(f"WP written to {wp_path}")
 
-    def _load_ship_context(self) -> None:
-        """P1-1: 读取 ship_context.json 并缓存到 self._ship_context。"""
-        if hasattr(self, '_ship_context'):
-            return  # 已加载，不重复读取
-        ship_context_path = self.data_dir / "ship_context.json"
-        if ship_context_path.exists():
-            try:
-                self._ship_context = json.loads(
-                    ship_context_path.read_text(encoding="utf-8")
-                )
-                logger.info(
-                    f"Loaded ship_context.json (fields: {list(self._ship_context.keys())})"
-                )
-            except (json.JSONDecodeError, OSError) as e:
-                logger.warning(f"Failed to load ship_context.json: {e}")
-                self._ship_context = {}
-        else:
-            self._ship_context = {}
-
-    def _format_ship_context(self) -> str:
-        """P1-1: 将 ship_context 格式化为可读文本，用于注入 Worker/Analyze prompt。"""
-        ctx = getattr(self, '_ship_context', {})
-        if not ctx:
-            return ""
-        parts = []
-        if ctx.get("key_decisions"):
-            parts.append(f"**Key Decisions:** {ctx['key_decisions']}")
-        if ctx.get("architecture"):
-            parts.append(f"**Architecture:** {ctx['architecture']}")
-        if ctx.get("risk_summary"):
-            parts.append(f"**Risk Summary:** {ctx['risk_summary']}")
-        if ctx.get("implementation_phases"):
-            parts.append(f"**Implementation Phases:** {ctx['implementation_phases']}")
-        if ctx.get("dependency_graph"):
-            parts.append(f"**Dependency Graph:** {ctx['dependency_graph']}")
-        if ctx.get("anchor_coverage"):
-            parts.append(f"**Anchor Coverage:** {ctx['anchor_coverage']}")
-        return "\n".join(parts) if parts else ""
-
     def _save_state(self) -> None:
-        """保存流水线状态到 delivery_state.json。"""
+        """保存流水线状态到 delivery_state.json。
+
+        P1-polish: 添加 deprecation 标记，指明 phase 显示以 batch_progress.json / derive_phase 为准。
+        V3 架构不读 delivery_state.json 做决策（文件系统即真相），但直接读者会被滞留 phase 误导。
+        """
         state_path = self.deliver_pro_dir / "delivery_state.json"
-        atomic_write_json(state_path, self.state.model_dump())
+        state_data = self.state.model_dump()
+        state_data["_deprecation_note"] = (
+            "DEPRECATED: phase 显示以 batch_progress.json / derive_phase 为准。"
+            "本文件仅作 append-only 日志，不作为决策门禁。"
+        )
+        atomic_write_json(state_path, state_data)
 
     # ========================================================================
     # Phase 1: Analyze
@@ -250,10 +220,6 @@ class DeliverWPRunner:
         self.state.transition_to(PipelinePhase.ANALYZING)
         self._save_state()
 
-        # P1-1: 读取 ship_context.json（若存在）
-        self._load_ship_context()
-        ship_context_text = self._format_ship_context()
-
         # 尝试加载 prompt 模板，fallback 到内嵌 prompt
         try:
             prompt = load_prompt(
@@ -262,7 +228,6 @@ class DeliverWPRunner:
                 wp_summary=self.wp.objective,
                 workspace=str(self.blackboard_path),
                 lib_path=str(self.blackboard_path.parent.parent / "domains"),
-                ship_context=ship_context_text if ship_context_text else "（无 ShipPackage 上下文）",
                 deepflow_root=str(self.blackboard_path.parent.parent),
                 wp_data_path=str(self.data_dir / "wp.json"),
                 output_path=str(self.stages_dir / "execution_plan.json"),
@@ -343,13 +308,6 @@ class DeliverWPRunner:
 
     def _build_analyze_prompt(self) -> str:
         """内嵌 Analyze Agent prompt（fallback）。"""
-        ship_context_text = self._format_ship_context()
-        ship_section = ""
-        if ship_context_text:
-            ship_section = f"""
-## ShipPackage 上下文（来自上游）
-{ship_context_text}
-"""
         return f"""你是 Deliver Pro 的 Analyze Agent。
 
 ## 任务
@@ -357,7 +315,6 @@ class DeliverWPRunner:
 
 ## 输入
 - WP 文件: {self.data_dir / "wp.json"}
-{ship_section}
 ## 输出
 写入: {self.stages_dir / "execution_plan.json"}
 
@@ -486,9 +443,6 @@ class DeliverWPRunner:
         plan: ExecutionPlan,
     ) -> dict[str, Any]:
         """准备单个 Worker 的 spawn 参数。"""
-        # P1-1: 读取 ship_context.json（若存在）
-        self._load_ship_context()
-
         # 构建 Worker prompt
         prompt = self._build_worker_prompt(task, plan)
 
@@ -528,9 +482,6 @@ class DeliverWPRunner:
             for o in task.expected_outputs
         ) if task.expected_outputs else "（无）"
 
-        # P1-1: 格式化 ShipPackage 上下文
-        ship_context_text = self._format_ship_context()
-
         # P0-1 fix: use project_name (not wp_id_lower) for absolute path construction
         project_name = self.project_name
         # Fix(commit 3489118): 必须传递 wp_subdir 给 prompt 模板，
@@ -550,7 +501,6 @@ class DeliverWPRunner:
                 description=task.description or task.title,
                 acceptance_criteria=ac_text,
                 expected_outputs=outputs_text,
-                ship_context=ship_context_text if ship_context_text else "（无 ShipPackage 上下文）",
                 deepflow_root=str(self.blackboard_path.parent.parent),
             )
             return prompt
@@ -560,13 +510,6 @@ class DeliverWPRunner:
         # Fallback: 内嵌 prompt
         scenario = task.scenario_type or plan.scenario
         forced_actions = self._get_forced_actions(scenario)
-
-        ship_section = ""
-        if ship_context_text:
-            ship_section = f"""
-## ShipPackage 上下文（来自上游）
-{ship_context_text}
-"""
 
         return f"""你是 Deliver Pro 的 Worker。
 
@@ -579,14 +522,15 @@ class DeliverWPRunner:
 ## 验收标准
 {ac_text}
 
-## 期望输出
+## 期望输出（附加产物，不替代 DELIVERABLE.md）
 {outputs_text}
+
+> ⚠️ 期望输出是附加产物（写入对应子目录作为补充），不能替代 DELIVERABLE.md（缺失 = FAILED）。
 
 ## WP 上下文
 - WP ID: {self.wp.wp_id}
 - 目标: {self.wp.objective}
 - 文件: {self.data_dir / "wp.json"}
-{ship_section}
 ## 依赖（上游 Worker 输出）
 {chr(10).join(f'- {p}' for p in dep_paths) if dep_paths else '无依赖'}
 
@@ -629,6 +573,32 @@ cd {self.blackboard_path.parent.parent}
         else:
             return "- 根据任务需求合理使用工具"
 
+    def _detect_substance(self, output_dir: Path) -> bool:
+        """检测 output_dir 是否存在实质产出文件。
+
+        实质产出 = 存在任一文件，满足：
+        - 文件名不属于契约元数据集合 {MANIFEST.json, EVIDENCE.md, ISSUES.md}
+        - 文件名不是 DELIVERABLE.md（始终排除，避免 missing_blocking/too short 误判）
+        - 文件大小 > 100 字节
+        """
+        metadata_files = {"MANIFEST.json", "EVIDENCE.md", "ISSUES.md"}
+        try:
+            for path in output_dir.rglob("*"):
+                if not path.is_file():
+                    continue
+                if path.name in metadata_files:
+                    continue
+                if path.name == "DELIVERABLE.md":
+                    continue
+                try:
+                    if path.stat().st_size > 100:
+                        return True
+                except OSError:
+                    continue
+        except OSError:
+            return False
+        return False
+
     def verify_worker_output(
         self,
         task_id: str,
@@ -649,8 +619,15 @@ cd {self.blackboard_path.parent.parent}
         blocking_files = ["DELIVERABLE.md", "MANIFEST.json"]
         missing_blocking = [f for f in blocking_files if not (output_dir / f).exists()]
         if missing_blocking:
+            # F-B: 区分“有实质产出但缺契约文件” vs “实质失败”
+            substance = self._detect_substance(output_dir)
+            failure_class = "contract_violation" if substance else "substance_failure"
             # V3: 验证失败事实写入 MANIFEST（若 MANIFEST 本身缺失则创建）
-            self.mark_worker_failed(task_id, f"Missing required files: {missing_blocking}")
+            self.mark_worker_failed(
+                task_id,
+                f"Missing required files: {missing_blocking}",
+                failure_class=failure_class,
+            )
             return False, f"Missing required files: {missing_blocking}", None
 
         # Non-blocking: EVIDENCE.md + ISSUES.md (PARTIAL if missing, not FAILED)
@@ -671,11 +648,16 @@ cd {self.blackboard_path.parent.parent}
                 f"Worker {task_id} DELIVERABLE.md too short: "
                 f"{len(content)} chars (min {MIN_DELIVERABLE_LENGTH})"
             )
+            # F-B: DELIVERABLE.md 过短也区分“有实质产出” vs “实质失败”
+            # （_detect_substance 默认已排除 DELIVERABLE.md 自身）
+            substance = self._detect_substance(output_dir)
+            failure_class = "contract_violation" if substance else "substance_failure"
             # V3: 验证失败事实写入 MANIFEST（文件系统即真相）
             self.mark_worker_failed(
                 task_id,
                 f"DELIVERABLE.md content too short ({len(content)} chars, "
                 f"minimum {MIN_DELIVERABLE_LENGTH})",
+                failure_class=failure_class,
             )
             return (
                 False,
@@ -1114,28 +1096,6 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
                 except Exception as e:
                     logger.warning(f"N6: Could not read integration report for AC check: {e}")
 
-            # N6: Check ship_context.json semantic anchors preservation
-            ship_context_path = self.data_dir / "ship_context.json"
-            if ship_context_path.exists():
-                try:
-                    ship_ctx = json.loads(ship_context_path.read_text(encoding="utf-8"))
-                    semantic_anchors = ship_ctx.get("semantic_anchors", [])
-                    # Check if anchors are referenced in integrated draft
-                    draft_path = self.stages_dir / "integrated_draft" / "DELIVERABLE.md"
-                    if draft_path.exists() and semantic_anchors:
-                        draft_content = draft_path.read_text(encoding="utf-8")
-                        missing_anchors = [
-                            a for a in semantic_anchors if a not in draft_content
-                        ]
-                        if missing_anchors:
-                            logger.warning(
-                                f"N6: {len(missing_anchors)} semantic anchors missing from final deliverable: "
-                                f"{missing_anchors[:3]}..."
-                            )
-                            # Don't auto-fail for missing anchors, but log warning
-                except Exception as e:
-                    logger.warning(f"N6: Could not check ship_context anchors: {e}")
-
             # 写入修正后的验证结果（不是原始 verdict_data）
             verdict_path = self.stages_dir / "validation_result.json"
             verdict_path.write_text(
@@ -1568,11 +1528,22 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         """判断是否应该重试 Worker。"""
         return attempts < MAX_WORKER_RECOVERY_ATTEMPTS
 
-    def mark_worker_failed(self, task_id: str, reason: str) -> None:
+    def mark_worker_failed(
+        self,
+        task_id: str,
+        reason: str,
+        failure_class: str | None = None,
+    ) -> None:
         """标记 Worker 为失败状态。
 
         V3: 失败事实写入 MANIFEST.json（文件系统即真相），
         state 仅作日志记录。
+
+        Args:
+            task_id: 任务 ID
+            reason: 失败原因
+            failure_class: 可选失败分类（如 "contract_violation" / "substance_failure"）。
+                未提供时不写入该字段（向后兼容：无该字段 = 未分类 = 不可重试）。
         """
         # 写入 MANIFEST（推导层的数据源）
         manifest_path = self.worker_outputs_dir / task_id / "MANIFEST.json"
@@ -1584,6 +1555,8 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
                 data = {"task_id": task_id}
             data["status"] = "FAILED"
             data["failure_reason"] = reason
+            if failure_class is not None:
+                data["failure_class"] = failure_class
             atomic_write_json(manifest_path, data)
         except Exception as e:
             logger.error(f"Failed to write FAILED MANIFEST for {task_id}: {e}")

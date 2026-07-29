@@ -87,13 +87,20 @@ def check_inference_integrity(trajectory: list) -> list:
     return anomalies
 
 
-def check_conversation_balance(trajectory: list) -> list:
+def check_conversation_balance(trajectory: list, deliberately_omitted_dims: set = None) -> list:
     anomalies = []
     if not trajectory:
         return anomalies
 
     latest = trajectory[-1]
     dim_scores = latest.get("dimension_scores", {})
+
+    if len(dim_scores) < 2:
+        return anomalies
+
+    # ✅ 排除 deliberately_omitted 维度
+    if deliberately_omitted_dims:
+        dim_scores = {k: v for k, v in dim_scores.items() if k not in deliberately_omitted_dims}
 
     if len(dim_scores) < 2:
         return anomalies
@@ -144,7 +151,20 @@ def main():
     anomalies = []
     anomalies.extend(check_progress_rate(trajectory, current_round, mode))
     anomalies.extend(check_inference_integrity(trajectory))
-    anomalies.extend(check_conversation_balance(trajectory))
+    # 从 living_spec 读取 deliberately_omitted 维度
+    deliberately_omitted = set()
+    living_spec_path = os.path.join(base_path, "spec", "living_spec.json")
+    if os.path.exists(living_spec_path):
+        try:
+            with open(living_spec_path, "r", encoding="utf-8") as f:
+                ls = json.load(f)
+            for dim_name, dim_data in ls.get("dimensions", {}).items():
+                if isinstance(dim_data, dict) and dim_data.get("deliberately_omitted"):
+                    deliberately_omitted.add(dim_name)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"process guard: could not read deliberately_omitted: {e}")
+
+    anomalies.extend(check_conversation_balance(trajectory, deliberately_omitted))
 
     if anomalies:
         adjustment = (
