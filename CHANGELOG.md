@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## V3.1.0 (2026-07-30) — ADR-009 全域完成 + GitHub 清理
+
+### 🎯 ADR-009 MD-First 全域对齐
+- **Solution Pro V4.1.0**: `final_solution.md` 为唯一真相源，`solution_track.json` 跨域衍生
+- **Ship Pro V2.1.0**: `ship_package.md` 为唯一真相源，`ship_track.json` 跨域衍生
+- **Spec Pro V2.3.0**: `semantic_anchors` 统一为 3 字段 `{name, category, constraint}`
+- **Deliver Pro V3.1.0**: 读取 `ship_track.json` 优先，新建 README.md + SKILL.md
+
+### 🔧 代码修复
+- `domains/deliver_pro/__init__.py`: 读取顺序改为 `ship_track.json` 优先
+- `domains/deliver_pro/orchestrator.py`: 搜索路径更新 + 注释对齐 ADR-009
+- `domains/deliver_pro/pulse_cli.py`: 候选路径顺序调整
+- `core/md_track_extractor.py`: Track 提取逻辑优化
+- `core/track_generator.py`: Track 生成逻辑优化
+
+### 📚 文档更新
+- 四域 SKILL.md 全部对齐 ADR-009（Spec/Solution/Ship/Deliver）
+- 四域 README.md 全部更新（Solution/Ship/Deliver 新建或更新）
+- `semantic_anchors` 契约全域统一为 3 字段
+
+### 🧹 GitHub 清理
+- 从 git 移除 SDK node_modules（5680 文件，151MB）
+- 清理 __pycache__（33 目录）+ .pyc（181 文件）
+- .gitignore 添加 `sdk/*/node_modules/` 规则
+- 去重 .gitignore 条目
+
+### 📊 测试状态
+- Spec Pro: 96 passed
+- Solution Pro: 161 passed
+- Ship Pro: 427 passed
+- Deliver Pro: 347 passed
+- **总计: 1031+ passed**
+
 ## V3.0.0 (2026-07-20) — 五域架构 + MD-First + GitHub 首发
 
 ### 🆕 Deliver Pro V1.0.0 — 执行引擎
