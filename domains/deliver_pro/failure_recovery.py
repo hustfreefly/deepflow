@@ -8,10 +8,7 @@ LLM 端到端诊断：输入错误信息 + WP 上下文 + 已尝试策略 → �
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Optional
-
-from .contracts.recovery_action import RecoveryAction, RecoveryStrategy, WorkerError
+from .contracts.recovery_action import WorkerError
 
 
 class WorkerFailureRecovery:
