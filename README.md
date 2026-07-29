@@ -21,11 +21,11 @@ DeepFlow 不是一个 Agent，而是 **Agent 的编排框架**。它在 OpenClaw
 
 | 域 | 版本 | 职责 | 入口 |
 |:---|:---:|:---|:---|
-| **Spec Pro** | V2.2.0 | 需求梳理引擎 — 苏格拉底式对话，输出 Living Spec (MD) | `SpecProCoordinator` |
-| **Solution Pro** | V3.1.0 | 方案设计引擎 — 纯 Agent Orchestrator + 对抗审查 | `run_solution_pro()` |
-| **Ship Pro** | V8.2 | 交付包生成引擎 — PipelineDesigner + Workers + Consolidator | `run_ship_pro()` |
-| **Deliver Pro** | V1.0.0 | 执行引擎 — Code-First Assembly，确定性拼接零 LLM | `run_deliver_pro()` |
-| **Research Pro** | V1.0 | 多专家并行研究 — DDGS 搜索 + 来源分级 + 引用验证 | `run_research_pro()` |
+| **Spec Pro** | V2.3.0 | 需求梳理引擎 — 苏格拉底式对话，输出 Living Spec (MD) | `SpecProCoordinator` |
+| **Solution Pro** | V4.1.0 | 方案设计引擎 — 纯 Agent Orchestrator + 对抗审查 | `run_solution_pro()` |
+| **Ship Pro** | V2.1.0 | 交付包生成引擎 — PipelineDesigner + Workers + Consolidator | `run_ship_pro()` |
+| **Deliver Pro** | V3.1.0 | 执行引擎 — Code-First Assembly，确定性拼接零 LLM | `run_deliver_pro()` |
+| **Research Pro** | V2.0.0 | 多专家并行研究 — DDGS 搜索 + 来源分级 + 引用验证 | `run_research_pro()` |
 
 > Loop Engine 为内部调度引擎，非独立域。
 
