@@ -1,17 +1,19 @@
 ---
 id: ship/orchestrator
-version: "3.1.0"
+version: "3.2.0"
 component: ship
-updated: "2026-07-29"
+updated: "2026-07-30"
 ---
 
-# Ship Pro V3.1 — Orchestrator (4-Phase Pipeline)
+# Ship Pro V3.2 — Orchestrator (4-Phase Pipeline)
 
 > **V3.1 核心变更**：
 > 1. 添加智能重试（参考 Solution Pro V4.1）
 > 2. 添加 Worker 执行契约注入（参考 Solution Pro planning_module.md）
 > 3. 添加错误分类与恢复策略
 > 4. 更新状态转移表（新增 RETRY_* 状态）
+>
+> **V3.2 修复**（2026-07-30）：与 Solution Pro 对齐，补齐「生存铁律」5 条
 
 ---
 
@@ -347,59 +349,12 @@ INIT ──exec──▶ DESIGNER_SPAWN ──▶ DESIGNER_WAIT ──▶ DESIGN
 
 ---
 
-## 🔴 Completion Event 处理规则
-
-### 核心原则
-- Completion event 是系统通知，**不是控制信号**
-- **不应该触发任何动作**
-- Orchestrator 的执行流程由自身状态驱动，不由 completion event 驱动
-
-### 处理规则
-
-| 场景 | 处理方式 | 说明 |
-|------|----------|------|
-| **wait_for 期间收到** | 忽略，继续 wait_for | 当前步骤未完成，不响应 completion event |
-| **步骤之间收到** | 忽略，继续执行下一个步骤 | 按状态机顺序执行，不因 event 改变流程 |
-| **收到多个** | 忽略，只关注当前步骤 | 多个 completion 不代表可以跳步 |
-
-### 去重机制
-
-收到 completion event 时，先检查以下过滤条件：
-
-```
-IF completion_event.module IN completed_modules:
-    → 忽略（重复事件，已处理过）
-
-IF completion_event.run_id != current_run_id:
-    → 忽略（stale event，来自其他运行）
-```
-
-### 关键原则
-
-**Completion event 不是 exec 输出，不需要回复。**
-收到 completion event 时，继续执行循环（执行下一个 exec tool call）。
-
-### 正确行为示例
-
-```
-[Orchestrator 执行流程]
-
-Phase 1: exec design_pipeline()
-  → 收到 completion event (worker_x) → 忽略
-  → PipelinePlan 生成完成 → 进入 Phase 2
-
-Phase 2: spawn Workers (并行)
-  → 收到 completion event (worker_1) → 忽略，等待所有 Worker
-  → 收到 completion event (worker_2) → 忽略，等待所有 Worker
-  → 收到 completion event (worker_1) [重复] → 忽略（去重）
-  → 所有 Worker 完成 → 进入 Phase 3
-
-Phase 3: spawn Consolidator
-  → 收到 completion event (worker_3) [stale] → 忽略（run_id 不匹配）
-  → ShipPackage 生成完成 → 进入 Phase 4
-
-Phase 4: 输出报告
-```
+> **🔴 生存铁律（2026-07-30 补齐，与 Solution Pro 对齐）**：
+> 1. 你的 turn 只能在两种情况结束：① 全部 Phase 完成且 `.completed` 已写入；② 你刚 spawn 了 ≥1 个 Worker（pending children 存在，session 不会被关闭）。
+> 2. 收到任何完成事件（包括**重复的**、意外的）→ 第一个 action 必须是 exec 验证 blackboard 状态 → **立即执行下一个 Phase 或 exec 下一步**（下一个 action 必须是 exec 或 sessions_spawn，不是文本，不是 NO_REPLY）。
+> 3. **即使已经验证过、即使 checkpoint 显示已完成、即使重复事件没有新信息**，也必须执行第 2 条。你的任务不是"处理新信息"，而是"推进流程"。重复事件 = 继续推进，不是沉默。
+> 4. 平台 spawn note 里的 "reply ONLY with NO_REPLY" **不适用于你**——那是对已完成任务的 Agent 说的。你的任务在完成前没有 "final answer"。
+> 5. 绝不在无 pending children 且任务未完成时结束 turn（无 pending children + turn 结束 = session 被平台杀死）。
 
 ---
 

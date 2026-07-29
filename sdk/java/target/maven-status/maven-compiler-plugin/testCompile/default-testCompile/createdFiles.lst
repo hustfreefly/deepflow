@@ -1,8 +1,0 @@
-com/observability/sdk/ObservabilitySdkTest$ConfigurationLoading.class
-com/observability/sdk/ObservabilitySdkTest$SdkLifecycle.class
-com/observability/sdk/ObservabilitySdkTest$TlsConfiguration.class
-com/observability/sdk/ObservabilitySdkTest$BuildVerification.class
-com/observability/sdk/ObservabilitySdkTest.class
-com/observability/sdk/ObservabilitySdkTest$ConfigurationLoading$EnvironmentVariableConfig.class
-com/observability/sdk/ObservabilitySdkTest$ConfigurationLoading$ProgrammaticConfig.class
-com/observability/sdk/ObservabilitySdkTest$VaultTokenInjection.class
