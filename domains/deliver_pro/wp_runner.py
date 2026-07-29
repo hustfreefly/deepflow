@@ -482,6 +482,28 @@ class DeliverWPRunner:
             for o in task.expected_outputs
         ) if task.expected_outputs else "（无）"
 
+        # B3 fix (DryRun 2026-07-30): 透传 semantic_anchors 和 serving_principles
+        # Ship Pro 的语义锚点和服务原则通过 _adapt_ship_pro_wp() 存入 WP.context，
+        # 必须注入到 Worker prompt 中，否则信息守恒在 WP→Worker 环节断裂。
+        if self.wp.semantic_anchors:
+            anchors_text = "\n".join(
+                f"- {a.get('name', a.get('constraint', str(a)))}"
+                for a in self.wp.semantic_anchors
+            )
+        else:
+            anchors_text = "（无）"
+        if self.wp.serving_principles:
+            principles_text = "\n".join(
+                f"- {p.get('obligation', str(p))}"
+                for p in self.wp.serving_principles
+            )
+        else:
+            principles_text = "（无）"
+        semantic_context_section = (
+            f"\n\n## 语义锚点（必须遵守的约束）\n{anchors_text}"
+            f"\n\n## 服务原则（必须满足的义务）\n{principles_text}"
+        )
+
         # P0-1 fix: use project_name (not wp_id_lower) for absolute path construction
         project_name = self.project_name
         # Fix(commit 3489118): 必须传递 wp_subdir 给 prompt 模板，
@@ -503,7 +525,8 @@ class DeliverWPRunner:
                 expected_outputs=outputs_text,
                 deepflow_root=str(self.blackboard_path.parent.parent),
             )
-            return prompt
+            # B3 fix: 追加语义上下文到 template prompt
+            return prompt + semantic_context_section
         except FileNotFoundError:
             pass
 
@@ -531,6 +554,13 @@ class DeliverWPRunner:
 - WP ID: {self.wp.wp_id}
 - 目标: {self.wp.objective}
 - 文件: {self.data_dir / "wp.json"}
+
+## 语义锚点（必须遵守的约束）
+{anchors_text}
+
+## 服务原则（必须满足的义务）
+{principles_text}
+
 ## 依赖（上游 Worker 输出）
 {chr(10).join(f'- {p}' for p in dep_paths) if dep_paths else '无依赖'}
 
@@ -764,6 +794,8 @@ cd {self.blackboard_path.parent.parent}
             prompt = load_prompt(
                 "deliver_integrate",
                 wp_id=self.wp.wp_id,
+                project_name=self.project_name,
+                wp_subdir=self.wp_subdir,
                 worker_count=str(len(worker_dirs)),
                 failed_workers=", ".join(failed_workers) if failed_workers else "无",
                 fix_directives=json.dumps([d.model_dump() for d in fix_directives], ensure_ascii=False) if fix_directives else "无",

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -52,7 +54,7 @@ class ValidationVerdict(BaseModel):
     """
 
     round: int = Field(ge=1, description="当前轮次")
-    verdict: str = Field(
+    verdict: Literal["PASS", "CONDITIONAL", "FAIL"] = Field(
         description="PASS | CONDITIONAL | FAIL",
     )
     scores: dict[str, ScoreDimension] = Field(

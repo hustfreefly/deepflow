@@ -87,7 +87,7 @@ exec: cat {wp_data_path}
 
 ## 禁止
 
-- ❌ `exec`（不能执行代码）
+- ❌ 执行代码（python/npm install/go build 等 — 你的产出是 JSON，不是代码）
 - ❌ spawn 子 Agent
 - ❌ 修改 wp.json
 - ❌ 跳过 DAG 验证

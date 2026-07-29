@@ -8,16 +8,16 @@
 - **目标**：组装 Worker 输出为统一交付物草稿
 - **原则**：只组装不改写语义；接口对齐；术语一致
 
-## 输入
+## 输入（绝对路径）
 
-- `execution_plan.json` — 任务关系
-- `stages/worker_outputs/` — 所有 Worker 输出（4 文件）
-- `validation_result.json` — Loop 修复指令（如有）
+- `{deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subdir}}/stages/execution_plan.json` — 任务关系
+- `{deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subdir}}/stages/worker_outputs/` — 所有 Worker 输出（4 文件）
+- `{deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subdir}}/stages/validation_result.json` — Loop 修复指令（如有）
 
-## 输出
+## 输出（绝对路径）
 
-- `integrated_draft/` — 组装后的交付物
-- `integrated_draft/integration_report.json` — 组装报告
+- `{deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subdir}}/stages/integrated_draft/` — 组装后的交付物
+- `{deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subdir}}/stages/integrated_draft/integration_report.json` — 组装报告
 
 ## 组装前检查
 

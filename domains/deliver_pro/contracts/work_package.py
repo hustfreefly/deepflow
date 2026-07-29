@@ -6,7 +6,7 @@ Deliver Pro 的输入：消费 Ship Pro 产出的 WP，生成最终交付物。
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -31,7 +31,7 @@ class WorkPackage(BaseModel):
     wp_id: str = Field(min_length=1, description="WP ID, e.g. 'WP-001'")
     title: str = Field(description="WP 标题")
     objective: str = Field(description="WP 目标描述")
-    scenario: str = Field(
+    scenario: Literal["code", "report", "mixed"] = Field(
         default="code",
         description="场景类型: code | report | mixed",
     )

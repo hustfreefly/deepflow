@@ -115,77 +115,9 @@ class WorkerFailureRecovery:
 """
         return prompt
 
-    def should_retry(self, attempts: int) -> bool:
-        """
-        判断是否应该重试。
-
-        Args:
-            attempts: 已尝试次数
-
-        Returns:
-            True 如果应该继续重试
-        """
-        return attempts < self.max_attempts
-
-    def record_attempt(
-        self,
-        error: WorkerError,
-        action: RecoveryAction,
-        result: str,
-    ) -> None:
-        """
-        记录恢复尝试。
-
-        Args:
-            error: Worker 错误（会被更新）
-            action: 恢复动作
-            result: 恢复结果（"success" / "failed" / "partial"）
-        """
-        attempt_record = {
-            "round": len(error.recovery_history) + 1,
-            "action": action.recovery_action.value,
-            "specific_changes": action.specific_changes,
-            "confidence": action.confidence,
-            "result": result,
-            "timestamp": datetime.now().isoformat(),
-        }
-        error.recovery_history.append(attempt_record)
-
-    def get_next_strategy(self, error: WorkerError) -> Optional[RecoveryStrategy]:
-        """
-        根据历史记录推荐下一个策略。
-
-        注意：这是辅助方法，实际决策由 LLM 做出。
-
-        Args:
-            error: Worker 错误
-
-        Returns:
-            推荐的策略（如果有的话）
-        """
-        if not error.recovery_history:
-            return RecoveryStrategy.RETRY
-
-        # 提取已尝试的策略
-        tried_strategies = {
-            attempt.get("action")
-            for attempt in error.recovery_history
-        }
-
-        # 简单启发式：如果 retry 失败，尝试 add_context
-        if "retry" in tried_strategies and "add_context" not in tried_strategies:
-            return RecoveryStrategy.ADD_CONTEXT
-
-        # 如果 add_context 也失败，尝试 simplify
-        if "add_context" in tried_strategies and "simplify" not in tried_strategies:
-            return RecoveryStrategy.SIMPLIFY
-
-        # 如果 simplify 也失败，尝试 split_wp
-        if "simplify" in tried_strategies and "split_wp" not in tried_strategies:
-            return RecoveryStrategy.SPLIT_WP
-
-        # 多种策略都失败，建议 skip
-        return RecoveryStrategy.SKIP
+    # should_retry / record_attempt / get_next_strategy 已移除（2026-07-30 DryRun 审计）
+    # 根因：三个方法零调用方（死代码）。重试逻辑已由 orchestrator._prepare_worker_retries
+    # 和 wp_runner.should_retry_worker 独立实现，不依赖 WorkerFailureRecovery。
 
 
 __all__ = ["WorkerFailureRecovery"]
