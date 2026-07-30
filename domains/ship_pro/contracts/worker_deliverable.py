@@ -46,6 +46,29 @@ class WorkPackage(BaseModel):
                 stacklevel=2,
             )
         return self
+    
+    @model_validator(mode='before')
+    @classmethod
+    def _coerce_effort_hours(cls, data):
+        """扩展接受：字符串数字自动转换为整数（AI Native 原则：代码适应 LLM 输出）。
+        
+        支持：
+        - "40" → 40
+        - "40.0" → 40
+        - 40.0 → 40
+        """
+        if isinstance(data, dict) and 'effort_hours' in data:
+            val = data['effort_hours']
+            if isinstance(val, str):
+                try:
+                    # 尝试转换为整数（支持 "40" 或 "40.0"）
+                    data['effort_hours'] = int(float(val))
+                except (ValueError, TypeError):
+                    pass  # 保持原值，让 Pydantic 报错
+            elif isinstance(val, float) and val.is_integer():
+                # 支持 40.0 → 40
+                data['effort_hours'] = int(val)
+        return data
     title: str = Field(..., description="工作包标题")
     description: str = Field(
         ..., min_length=100,
@@ -64,7 +87,7 @@ class WorkPackage(BaseModel):
     
     effort_hours: Optional[int] = Field(
         default=None,
-        description="预估工时（小时）。Workers 输出 effort_hours 整数。"
+        description="预估工时（小时）。必须是整数（如 40，不是 '40' 或 40.5）。"
     )
     
     covered_req_ids: List[str] = Field(

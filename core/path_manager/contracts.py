@@ -46,7 +46,7 @@ class SessionIdInput(BaseModel):
         # 替换危险字符
         sanitized = v.replace('/', '_').replace('\\', '_')
         sanitized = sanitized.replace('..', '_').replace(':', '_')
-        sanitized = sanitized.replace(' ', '_')
+        sanitized = sanitized.replace(' ', '_').replace('.', '_')
         
         # 检查是否以 .. 开头/结尾（防止路径遍历）
         if sanitized.startswith('..') or sanitized.endswith('..'):
