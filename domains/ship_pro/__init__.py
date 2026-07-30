@@ -12,7 +12,7 @@ Ship Pro 2.0.0 - 入口模块
     → exec: design_pipeline() → Designer prompt
     → spawn: Designer LLM → PipelinePlan
     → exec: prepare_runner_spawn() → Worker prompts
-    → spawn: Workers (并行/分层, spawn 后结束当前 turn，cron 会自动唤醒继续)
+    → spawn: Workers (并行/分层, spawn 后 exec wait_for_module() 阻塞等待)
     → exec: L1 validation
     → spawn: Consolidator
     → exec: ShipPackage validation
@@ -568,16 +568,17 @@ def _build_orchestrator_prompt(
 
 **✅ 正确模式（你必须做的）：**
 - thinking: "我需要读取文件" → 产出 `read(path=...)` tool call
-- spawn Workers 后 → 结束当前 turn（cron 会自动唤醒继续）
+- spawn Workers 后 → 立即 exec `wait_for_module()` 阻塞等待 → 检查输出 → 下一步
 
 ## 🔴🔴🔴 铁律（违反 = 管线中断）
 
 1. **每次 assistant turn 必须产出至少一个 tool call** — thinking + text 但没有 tool call = session 终止。
-2. **spawn 子 Agent 后，结束当前 turn（cron 会自动唤醒继续）。**
+2. **spawn 子 Agent 后，立即 exec `wait_for_module()` 阻塞等待**（不要 yield，不要等 completion event）。
 3. **禁止在 thinking 中描述操作而不调用工具。**
 4. **禁止只输出"waiting for..."而不结束当前 turn。**
 5. 被唤醒后，必须输出可见文字。
 6. 不要 read() Worker task 文件。
+7. **绝不在无 pending children 且任务未完成时结束 turn**（无 pending children + turn 结束 = session 被平台杀死）。
 
 ## 工具调用格式示例
 
@@ -595,33 +596,27 @@ thinking: "spawn Workers"
 → 产出 tool call: sessions_spawn(runtime="subagent", mode="run", task="...")
 ```
 
-**等待子 Agent 完成:**
+**等待子 Agent 完成（阻塞式，不 yield）:**
 ```
 thinking: "等待 Workers 完成"
-→ 结束当前 turn（cron 会自动唤醒继续）
+→ 产出 tool call: exec(command="python3 -c \"...wait_for_module()...\"")
+→ 检查输出 → 立即下一步
 ```
 
-## 示例：spawn Workers + 结束 turn 的正确流程
+## 示例：spawn Workers + 阻塞等待的正确流程
 
 以下是你在 Step 3 中必须执行的正确流程：
 
 ```
-Turn 1: spawn Layer 1 Workers
-  → tool call: sessions_spawn(task=..., label="worker_core_scanner", ...)
-  → tool call: sessions_spawn(task=..., label="worker_models", ...)
-  → 结束当前 turn（cron 会自动唤醒继续）
-
-[平台休眠，等待 Workers 完成]
-
-Turn 2: Layer 1 完成事件到达，你被唤醒
-  → text: "Layer 1 完成。继续 Layer 2。"
-  → tool call: sessions_spawn(task=..., label="worker_validation_engine", ...)
-  → 结束当前 turn（cron 会自动唤醒继续）
-
-[继续直到所有 Layers 完成]
+Turn 1: spawn 所有 Workers + 阻塞等待
+  → tool call: sessions_spawn(task=..., label="worker_team_builder", ...)
+  → tool call: sessions_spawn(task=..., label="worker_eda_pdk_engineer", ...)
+  → tool call: sessions_spawn(task=..., label="worker_design_flow_engineer", ...)
+  → tool call: exec(command="python3 -c \"...wait_for_module('workers', timeout=3600)...\"")
+  → 检查输出 → 立即进入 Step 4
 ```
 
-注意：spawn 后结束 turn，cron 会自动唤醒继续。
+**关键**：spawn 后立即 exec `wait_for_module()` 阻塞等待，不要 yield，不要等 completion event。
 
 ## 执行步骤
 
@@ -707,7 +702,7 @@ result = prepare_runner_spawn('{ship_pro_dir}', plan, sol, deepflow_root='{deepf
 print(json.dumps(result['plan_summary']))
 "
 
-### Step 3: spawn Workers(分层并行)
+### Step 3: spawn Workers(分层并行 + 阻塞等待)
 
 **前置条件检查**: exec python3 -c "from pathlib import Path; p=Path('{ship_pro_dir}/stages/_worker_spawn_params.json'); print('OK' if p.exists() else f'MISSING: {{p}}')"
 如果 MISSING → 回退 Step 2。
@@ -720,8 +715,23 @@ for p in params:
 "
 
 2. 按 execution_order 分层 spawn Workers(每层内并行)
-3. **spawn 后结束当前 turn** 等待每层完成（cron 会自动唤醒继续）
-4. 检查 Worker 输出文件存在
+3. **spawn 后立即 exec `wait_for_module()` 阻塞等待**（不要 yield，不要等 completion event）：
+
+```python
+exec: python3 -c "
+import sys; sys.path.insert(0, '{deepflow_root}')
+from core.process_manager import ModuleLifecycleManager
+lifecycle = ModuleLifecycleManager('{ship_pro_dir}')
+result = lifecycle.wait_for_module(
+    'workers',
+    expected_files=[f'stages/worker_outputs/worker_{{role.replace(\" \", \"_\")}}.json' for role in {{worker_roles}}],
+    timeout=3600,
+)
+print(f'WORKERS_{{\"OK\" if result.found else result.reason.upper()}}')
+"
+```
+
+4. 检查输出 → OK 则立即进入 Step 4，TIMEOUT 则报告失败
 
 ### Step 4: L1 验证
 
@@ -757,7 +767,25 @@ Path('{ship_pro_dir}/stages/_worker_judge_tasks.json').write_text(json.dumps(tas
 print(json.dumps({{'task_count': len(tasks), 'names': [t['name'] for t in tasks]}}))
 "
 
-如果 task_count > 0，并行 spawn 所有 Worker Judge Agent。**spawn 后结束当前 turn** 等待完成（cron 会自动唤醒继续）。
+如果 task_count > 0，并行 spawn 所有 Worker Judge Agent。**spawn 后立即 exec `wait_for_module()` 阻塞等待**（不要 yield，不要等 completion event）：
+
+```python
+exec: python3 -c "
+import sys, time; sys.path.insert(0, '{deepflow_root}')
+from pathlib import Path
+# 阻塞等待 judge 结果文件出现
+judge_results_path = Path('{ship_pro_dir}/stages/worker_judge_results.json')
+timeout = 1800
+start = time.time()
+while not judge_results_path.exists() and time.time() - start < timeout:
+    time.sleep(15)
+    print(f'WAIT_FOR_PROGRESS: worker_judge elapsed={{time.time()-start:.0f}}s', flush=True)
+if judge_results_path.exists():
+    print('JUDGE_OK')
+else:
+    print('JUDGE_TIMEOUT')
+"
+```
 
 **Phase B: 检查结果**
 
@@ -791,7 +819,25 @@ params = orch.prepare_consolidator_spawn_v8('{ship_pro_dir}')
 import json; print(json.dumps({{'task_len': len(params['task'])}}))
 "
 
-spawn Consolidator → **结束当前 turn** 等待完成（cron 会自动唤醒继续）。
+spawn Consolidator → **spawn 后立即 exec `wait_for_module()` 阻塞等待**（不要 yield，不要等 completion event）：
+
+```python
+exec: python3 -c "
+import sys, time; sys.path.insert(0, '{deepflow_root}')
+from pathlib import Path
+# 阻塞等待 ship_package.md 出现
+sp_path = Path('{ship_pro_dir}/stages/ship_package.md')
+timeout = 1800
+start = time.time()
+while not sp_path.exists() and time.time() - start < timeout:
+    time.sleep(15)
+    print(f'WAIT_FOR_PROGRESS: consolidator elapsed={{time.time()-start:.0f}}s', flush=True)
+if sp_path.exists() and sp_path.stat().st_size > 10000:
+    print('CONSOLIDATOR_OK')
+else:
+    print('CONSOLIDATOR_TIMEOUT')
+"
+```
 
 ### Step 5.5: L2/L3 语义验证(契约笼子强制)
 
@@ -831,7 +877,25 @@ print(json.dumps({{'task_count': len(tasks), 'names': [t['name'] for t in tasks]
 {{"info_conservation": {{"passed": true/false, ...}}, "completeness": {{...}}, "harness_v3": {{...}}}}
 ```
 
-spawn 后 **结束当前 turn** 等待完成（cron 会自动唤醒继续）。
+spawn 后 **立即 exec `wait_for_module()` 阻塞等待**（不要 yield，不要等 completion event）：
+
+```python
+exec: python3 -c "
+import sys, time; sys.path.insert(0, '{deepflow_root}')
+from pathlib import Path
+# 阻塞等待 gate_judge_results.json 出现
+judge_path = Path('{ship_pro_dir}/stages/gate_judge_results.json')
+timeout = 1800
+start = time.time()
+while not judge_path.exists() and time.time() - start < timeout:
+    time.sleep(15)
+    print(f'WAIT_FOR_PROGRESS: gate_judge elapsed={{time.time()-start:.0f}}s', flush=True)
+if judge_path.exists():
+    print('GATE_JUDGE_OK')
+else:
+    print('GATE_JUDGE_TIMEOUT')
+"
+```
 
 **Phase C: 检查结果 + 重试**
 
@@ -887,8 +951,18 @@ print(json.dumps({{k: {{'passed': v.passed, 'details': str(v.details)[:200]}} fo
 - Issues
 - Pending REQs
 
+## 🔴 生存铁律（2026-07-30 补齐，与 Solution Pro 对齐）
+
+1. 你的 turn 只能在两种情况结束：① 全部 Step 完成且 `.completed` 已写入；② 你刚 spawn 了 ≥1 个子 Agent（pending children 存在，session 不会被关闭）。
+2. 收到任何完成事件（包括**重复的**、意外的）→ 第一个 action 必须是 exec 验证 blackboard 状态 → **立即执行下一个 Step 或 exec 下一步**（下一个 action 必须是 exec 或 sessions_spawn，不是文本，不是 NO_REPLY）。
+3. **即使已经验证过、即使 checkpoint 显示已完成、即使重复事件没有新信息**，也必须执行第 2 条。你的任务不是"处理新信息"，而是"推进流程"。重复事件 = 继续推进，不是沉默。
+4. 平台 spawn note 里的 "reply ONLY with NO_REPLY" **不适用于你**——那是对已完成任务的 Agent 说的。你的任务在完成前没有 "final answer"。
+5. 绝不在无 pending children 且任务未完成时结束 turn（无 pending children + turn 结束 = session 被平台杀死）。
+
+---
+
 ## 禁止行为
-- ❌ spawn 子 Agent 后不结束当前 turn — 这会导致 session 终止，管线中断
+- ❌ **spawn 子 Agent 后 yield 等待 completion event** — 这是导致管线卡死的根因。必须用 `wait_for_module()` 阻塞等待。
 - ❌ `exec sleep` + `process poll` 轮询等待
 - ❌ read() Worker task 文件
 - ❌ 跳过 validate 步骤
@@ -1204,19 +1278,19 @@ def _build_runner_prompt(session_dir: Path, plan, context_paths: dict, deepflow_
 ### Phase 2: Build
 1. exec: 读取 spawn params
 2. 按层级 spawn Workers(每层内并行)
-3. **结束当前 turn** 等待当前层全部完成（cron 会自动唤醒继续）
+3. **spawn 后立即 exec `wait_for_module()` 阻塞等待**（不要 yield，不要等 completion event）
 4. exec L1 验证
 5. PASS → 下一层或 Phase 3; FAIL → 输出详情
 
 ### Phase 3: Consolidate
 1. exec: prepare_consolidator_spawn_v8
 2. spawn Consolidator
-3. **结束当前 turn** 等待完成（cron 会自动唤醒继续）
+3. **spawn 后立即 exec `wait_for_module()` 阻塞等待**（不要 yield，不要等 completion event）
 4. exec: validate_ship_package
 5. 输出 ShipPackage 路径
 
 ## 禁止行为
-- ❌ spawn 后不结束当前 turn
+- ❌ **spawn 后 yield 等待 completion event** — 这是导致管线卡死的根因。必须用 `wait_for_module()` 阻塞等待。
 - ❌ read() Worker task 文件
 - ❌ 跳过 validate
 - ❌ 自行 retry/degrade
