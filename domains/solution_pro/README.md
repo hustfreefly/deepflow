@@ -172,7 +172,7 @@ spawn_params = result["spawn_params"]
 
 - ✅ `final_solution.md` 成为唯一真相源（删除 `final_solution.json` fallback）
 - ✅ `solution_track.json` 作为 Track 衍生（跨域元数据：semantic_anchors, req_ids）
-- ✅ `frozen_spec.md` 为唯一输入源（删除 `frozen_spec.json` fallback）
+- ✅ `living_spec.md` 为唯一输入源（删除 `frozen_spec.json` fallback）
 - ✅ Ship Pro 已适配：读 `final_solution.md` + `solution_track.json`
 
 ### V4.0.0 变更详情（2026-07-27）

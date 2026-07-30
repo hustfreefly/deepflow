@@ -217,29 +217,31 @@ def run_solution_pro(user_input: str, **kwargs):
         living_spec.get("guardrails", {})
         if isinstance(living_spec, dict) else {}
     )
+    # Phase 3 迁移完成：删除 frozen_spec 生成，Ship Pro 直接读 living_spec.md
+    # frozen_spec 是中间产物，living_spec 已包含所有必需信息
+    # 契约笼子：Ship Pro 验证 living_spec 必需字段（requirement_index, semantic_anchors, guardrails）
+    
     _solution_pro_hints = (
         living_spec.get("solution_pro_hints", {})
         if isinstance(living_spec, dict) else {}
     )
-    frozen_spec = {
-        "topic": topic,
-        "requirement_index": requirement_index,
-        "requirements": requirement_index,  # Ship Pro 兼容层
-        "semantic_anchors": _semantic_anchors,  # B1-FIX: Ship Pro 契约笼子要求
-        "guardrails": _guardrails,  # D-6-FIX: 护栏规则透传
-        "solution_pro_hints": _solution_pro_hints,  # D-6-FIX: 方案提示透传
-        "metadata": {
-            "source": "spec_pro",
-            "adr009_phase": 3,
-            "generated_at": datetime.now().isoformat(),
-        },
-    }
-
-    # MD 主写入：render → write（失败 raise，不捕获）
-    # Ship Pro 期望 data/frozen_spec.md（MD source of truth）
-    from domains.solution_pro.frozen_living_md import render_frozen_spec_md
-    frozen_spec_md = render_frozen_spec_md(frozen_spec)  # raise on failure
-    bm.write("data/frozen_spec.md", frozen_spec_md)
+    
+    # 确保 living_spec 包含 Ship Pro 必需的字段
+    if isinstance(living_spec, dict):
+        # 注入 semantic_anchors（如果缺失）
+        if "semantic_anchors" not in living_spec:
+            living_spec["semantic_anchors"] = _semantic_anchors
+        # 注入 guardrails（如果缺失）
+        if "guardrails" not in living_spec:
+            living_spec["guardrails"] = _guardrails
+        # 注入 solution_pro_hints（如果缺失）
+        if "solution_pro_hints" not in living_spec:
+            living_spec["solution_pro_hints"] = _solution_pro_hints
+    
+    # MD 主写入：living_spec.md 是 Ship Pro 的唯一输入
+    from domains.spec_pro.spec_living_md import render_living_spec_md
+    living_spec_md = render_living_spec_md(living_spec)  # raise on failure
+    bm.write("data/living_spec.md", living_spec_md)
 
     # 3. 清理旧文件（断点续跑时防止误判）
     for old_file in [".completed"]:

@@ -92,7 +92,11 @@ class TestP03FrozenSpecMdRenderRaise:
     """P0-3: frozen_spec.md 渲染失败 → raise"""
 
     def test_render_failure_raises(self, tmp_path):
-        """render_frozen_spec_md 抛异常时，run_solution_pro 必须 raise（不能只 warning）"""
+        """render_living_spec_md 抛异常时，run_solution_pro 必须 raise（不能只 warning）
+    
+    Phase 3 迁移完成：Ship Pro 直接消费 living_spec.md，不再消费 frozen_spec。
+    契约笼子：living_spec.md 渲染失败必须 raise，禁止静默降级。
+    """
         from domains.solution_pro import run_solution_pro
 
         with patch(
@@ -106,13 +110,14 @@ class TestP03FrozenSpecMdRenderRaise:
 
             # 提供合法的 living_spec
             living_spec = {
-                "requirement_index": ["REQ-1"],
-                "semantic_anchors": ["anchor1"],
+                "requirement_index": [{"id": "REQ-1", "description": "test"}],
+                "semantic_anchors": [{"name": "anchor1", "category": "test", "constraint": "test"}],
+                "guardrails": {"always_do": [], "never_do": []},
             }
 
-            # mock render_frozen_spec_md 抛异常
+            # mock render_living_spec_md 抛异常
             with patch(
-                "domains.solution_pro.frozen_living_md.render_frozen_spec_md",
+                "domains.spec_pro.spec_living_md.render_living_spec_md",
                 side_effect=RuntimeError("render boom"),
             ):
                 with pytest.raises(RuntimeError, match="render boom"):

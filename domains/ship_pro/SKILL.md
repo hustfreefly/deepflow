@@ -49,7 +49,7 @@ Orchestrator (depth-1, 全权调度)
 
 ```
 .deepflow/blackboard/{project_name}/
-├── data/frozen_spec.md             ← Solution Pro 产出（MD source of truth）
+├── data/living_spec.md             ← Solution Pro 产出（MD source of truth）
 ├── stages/solution_document.md     ← Solution Pro 产出（MD source of truth）
 ├── ship_pro/                       ← Ship Pro 写入
 │   ├── solution_pro_input.json     ← 合并后的输入
@@ -83,8 +83,8 @@ sessions_spawn(**result["spawn_params"])
 ### run_ship_pro() 做什么
 
 1. 定位统一 blackboard：`.deepflow/blackboard/{project_name}/`
-2. 自动发现 Solution Pro 输出（`data/frozen_spec.md`，MD-first）
-3. 合并输入（frozen_spec.md + 可选 supplemental）
+2. 自动发现 Solution Pro 输出（`data/living_spec.md`，MD-first）
+3. 合并输入（living_spec.md + 可选 supplemental）
 4. 构建 Orchestrator prompt（含完整执行指令）
 5. 返回 `spawn_params`
 

@@ -134,7 +134,7 @@ result = run_solution_pro(
     mode="standard",
     domain="backend_api",
     constraints=[...],
-    living_spec=frozen_spec,  # Step 0 准备的 spec
+    living_spec=living_spec,  # Step 0 准备的 spec
 )
 
 # 2. 启动 Orchestrator 子 Agent（Agent 级 spawn，无桥接问题）
@@ -342,7 +342,7 @@ Step 3.4: Final Convergence
 ```
 blackboard/<session_id>/
 ├── data/
-│   ├── frozen_spec.md                # MD source of truth（语义化 REQ-ID）
+│   ├── living_spec.md                # MD source of truth（语义化 REQ-ID）
 │   └── structured_requirements.json  # 结构化需求清单
 │
 ├── stages/
@@ -559,7 +559,7 @@ except:
 ### V4.1.0 变更（2026-07-30）— ADR-009 MD-first
 - ✅ `final_solution.md` 成为唯一真相源（删除 `final_solution.json` fallback）
 - ✅ `solution_track.json` 作为 Track 衍生（跨域元数据：semantic_anchors, req_ids）
-- ✅ `frozen_spec.md` 为唯一输入源（删除 `frozen_spec.json` fallback）
+- ✅ `living_spec.md` 为唯一输入源（删除 `frozen_spec.json` fallback）
 - ✅ Ship Pro 已适配：读 `final_solution.md` + `solution_track.json`
 
 ### V2.1.1 变更（2026-07-08）

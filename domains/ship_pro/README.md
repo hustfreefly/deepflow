@@ -46,7 +46,7 @@ Orchestrator (depth-1, 全权调度)
 
 ```
 .deepflow/blackboard/{project_name}/
-├── data/frozen_spec.md             ← Solution Pro 产出
+├── data/living_spec.md             ← Solution Pro 产出
 ├── stages/solution_document.json   ← Solution Pro 产出（markdown）
 ├── ship_pro/                       ← Ship Pro 写入
 │   ├── solution_pro_input.json     ← 合并后的输入
@@ -73,7 +73,7 @@ sessions_spawn(**result["spawn_params"])
 
 ### 前置条件
 
-- Solution Pro 已完成，输出在 `.deepflow/blackboard/{project_name}/data/frozen_spec.md`
+- Solution Pro 已完成，输出在 `.deepflow/blackboard/{project_name}/data/living_spec.md`
 - 项目目录存在于 `.deepflow/blackboard/` 下
 
 ---

@@ -155,29 +155,28 @@ class WorkerContext(BaseModel):
 # ============================================================================
 
 def validate_solution_pro_input(data: Dict[str, Any]) -> Dict[str, Any]:
-    """验证 Solution Pro 输入，缺失关键字段时 raise ValueError"""
-    required_fields = ["requirements"]
-    for field in required_fields:
-        if field not in data or not data[field]:
-            raise ValueError(f"契约笼子: Solution Pro 输入缺少必需字段 '{field}'")
+    """验证 Solution Pro 输入（living_spec），缺失关键字段时 raise ValueError
     
-    # requirements 必须是列表且非空
-    reqs = data["requirements"]
+    Phase 3 迁移完成：Ship Pro 直接消费 living_spec，不再消费 frozen_spec。
+    契约笼子：验证 living_spec 必需字段（requirement_index, semantic_anchors, guardrails）。
+    """
+    # 契约笼子：living_spec 必需字段验证
+    required_fields = ["requirement_index", "semantic_anchors", "guardrails"]
+    for field in required_fields:
+        if field not in data:
+            raise ValueError(f"契约笼子: living_spec 缺少必需字段 '{field}'")
+    
+    # requirement_index 必须是列表且非空
+    reqs = data["requirement_index"]
     if not isinstance(reqs, list) or len(reqs) == 0:
-        raise ValueError(f"契约笼子: requirements 必须是非空列表，实际: {type(reqs).__name__}, len={len(reqs) if isinstance(reqs, list) else 'N/A'}")
+        raise ValueError(f"契约笼子: requirement_index 必须是非空列表，实际: {type(reqs).__name__}, len={len(reqs) if isinstance(reqs, list) else 'N/A'}")
     
     # 每个 requirement 必须有 id
     for i, req in enumerate(reqs):
         if not isinstance(req, dict) or "id" not in req:
-            raise ValueError(f"契约笼子: requirements[{i}] 缺少 'id' 字段")
+            raise ValueError(f"契约笼子: requirement_index[{i}] 缺少 'id' 字段")
     
-    # 契约笼子（2026-07-05 升级）：semantic_anchors 必须存在且类型正确
-    if "semantic_anchors" not in data:
-        raise ValueError(
-            f"契约笼子: frozen_spec 缺少 'semantic_anchors' 字段。\n"
-            f"  semantic_anchors 必须由 Solution Pro 从 living_spec 透传。\n"
-            f"  请确认 Solution Pro 的 build_frozen_spec() 已包含透传逻辑。"
-        )
+    # semantic_anchors 必须是 list
     if not isinstance(data["semantic_anchors"], list):
         raise ValueError(
             f"契约笼子: semantic_anchors 必须是 list，实际: {type(data['semantic_anchors']).__name__}"
@@ -195,6 +194,12 @@ def validate_solution_pro_input(data: Dict[str, Any]) -> Dict[str, Any]:
         data["_degradation_reason"] = "semantic_anchors 为空列表"
     else:
         data["_info_conservation_degraded"] = False
+    
+    # guardrails 必须是 dict
+    if not isinstance(data["guardrails"], dict):
+        raise ValueError(
+            f"契约笼子: guardrails 必须是 dict，实际: {type(data['guardrails']).__name__}"
+        )
     
     return data
 

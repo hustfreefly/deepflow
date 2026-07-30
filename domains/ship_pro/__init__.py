@@ -20,7 +20,7 @@ Ship Pro 2.0.0 - 入口模块
 
 统一 blackboard 结构:
   .deepflow/blackboard/{project_name}/
-  ├── data/frozen_spec.md           ← Solution Pro 产出
+  ├── data/living_spec.md           ← Solution Pro 产出（Ship Pro 直接消费）
   ├── stages/solution_document.json ← Solution Pro 产出
   ├── ship_pro/                     ← Ship Pro 写入
   │   ├── solution_pro_input.json   ← 合并后的输入
@@ -652,7 +652,7 @@ content = p.read_text()
 required_sections = ['## key_decisions', '## implementation_phases']
 missing = [s for s in required_sections if s not in content]
 if missing:
-    print(f'INCOMPLETE: missing sections {missing}'); exit(1)
+    print(f'INCOMPLETE: missing sections {{missing}}'); exit(1)
 print(f'OK: MD contains required sections')
 "
 ```
@@ -662,8 +662,8 @@ print(f'OK: MD contains required sections')
 **如果 MISSING 或 INCOMPLETE** → 执行语义提取：
 
 1. read {project_blackboard}/stages/final_solution.md
-2. read {project_blackboard}/data/frozen_spec.md
-3. **用你的语义理解能力**，从 MD + frozen_spec 中提取结构化数据
+2. read {project_blackboard}/data/living_spec.md
+3. **用你的语义理解能力**，从 MD + living_spec 中提取结构化数据
 4. 必须产出的字段（字段名固定，不能自创）：
    - `key_decisions`: list of {{"decision": str, "rationale": str}}
    - `implementation_phases`: list of {{"phase": str, "description": str, "duration": str}}

@@ -191,16 +191,20 @@ def render_final_solution_md(data: dict) -> str:
     if cc:
         lines.append("## requirement_coverage")
         lines.append("")
+        # 输出可解析的 key-value 表格（round-trip 兼容）
+        lines.append("| field | value |")
+        lines.append("|-------|-------|")
+        for k in ("total", "covered", "ratio"):
+            if k in cc:
+                lines.append(f"| {k} | {cc[k]} |")
         uncovered = cc.get("uncovered", [])
         if uncovered:
+            lines.append("")
             lines.append("### Uncovered Constraints")
             lines.append("")
             for item in uncovered:
                 lines.append(f"- {item}")
-            lines.append("")
-        else:
-            lines.append("All constraints covered.")
-            lines.append("")
+        lines.append("")
 
     # ── S6: risk_summary (optional) ──
     risks = data.get("risk_summary", [])
