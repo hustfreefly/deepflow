@@ -64,7 +64,7 @@ def _setup_done_wp(bb_root, project_name, wp_id):
     stages.mkdir(parents=True)
     (stages / "final_deliverable").mkdir(exist_ok=True)
     (stages / "final_deliverable" / "out.md").write_text("x" * 60)
-    (stages / "delivery_manifest.json").write_text("{}")
+    (stages / "delivery_manifest.json").write_text('{"wp_id": "TEST-001"}')
     return stages
 
 
@@ -112,7 +112,7 @@ class TestInferDeliverableContract:
     def test_living_spec_missing_raises(self, mock_blackboard):
         """living_spec 缺失时 _read_living_spec 应 raise ValueError。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            with pytest.raises(ValueError, match="living_spec.json not found"):
+            with pytest.raises(ValueError, match="living_spec not found"):
                 orch._read_living_spec()
 
     def test_pulse_triggers_infer_contract(self, mock_blackboard):
@@ -130,7 +130,7 @@ class TestInferDeliverableContract:
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             # 不创建 living_spec
             with patch.object(orch, "_count_in_flight", return_value=0):
-                with pytest.raises(ValueError, match="living_spec.json not found"):
+                with pytest.raises(ValueError, match="living_spec not found"):
                     orch.pulse()
 
 

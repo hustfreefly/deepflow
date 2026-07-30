@@ -546,7 +546,7 @@ class TestDiagnosisSpawn:
         task = TaskNode(task_id="T-001", title="Test task", scenario_type="code")
         params = orchestrator.prepare_diagnosis_spawn(error, task)
         assert params["runtime"] == "subagent"
-        assert "deliver_diagnosis_T-001" in params["label"]
+        assert "deliver_diagnosis_WP-001_T-001" in params["label"]
         # Bootstrap pattern: task is a reference, content is in the bootstrap file
         import re
         bootstrap_match = re.search(r'`read` 工具读取: `([^`]+)`', params["task"])

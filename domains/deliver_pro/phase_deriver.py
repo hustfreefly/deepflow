@@ -196,6 +196,34 @@ def derive_worker_progress(
     }
 
 
+def _validate_delivery_manifest(manifest_path: Path) -> bool:
+    """校验 delivery_manifest.json 是否为有效 JSON 且符合 DeliveryManifest schema。
+
+    B1 fix（2026-07-30）：畸形 manifest 不应让 derive_phase 返回 DONE。
+    Package Agent 输出损坏时，应回退到 PACKAGING 让 package 重试。
+
+    Returns:
+        True: manifest 有效或不存在（不存在时由调用方处理）
+        False: manifest 存在但损坏（JSON 无效或 schema 验证失败）
+    """
+    if not manifest_path.exists():
+        return True  # 不存在不是损坏，由调用方判断
+
+    data = _read_json(manifest_path)
+    if data is None:
+        logger.warning(f"delivery_manifest.json is invalid JSON: {manifest_path}")
+        return False
+
+    # Schema 验证：尝试用 DeliveryManifest 解析
+    try:
+        from domains.deliver_pro.contracts.delivery_manifest import DeliveryManifest
+        DeliveryManifest.model_validate(data)
+        return True
+    except Exception as e:
+        logger.warning(f"delivery_manifest.json failed schema validation: {manifest_path}: {e}")
+        return False
+
+
 def derive_phase(wp_dir: Path) -> str:
     """从文件系统推导 WP 当前 phase（最高 artifact 胜出）。
 
@@ -209,26 +237,42 @@ def derive_phase(wp_dir: Path) -> str:
     if not stages_dir.exists():
         return PHASE_PENDING
 
-    # DONE: 交付清单 + 交付物目录非空
+    # DONE: 交付清单 + 交付物目录非空 + manifest 有效
     manifest_file = stages_dir / "delivery_manifest.json"
     final_dir = stages_dir / "final_deliverable"
     if manifest_file.exists() and final_dir.exists():
         if _has_substantial_file(final_dir):
-            return PHASE_DONE
+            # B1 fix: 校验 manifest 是否为有效 JSON 且符合 schema
+            if _validate_delivery_manifest(manifest_file):
+                return PHASE_DONE
+            # manifest 损坏，回退到 PACKAGING 让 package agent 重试
+            logger.warning(
+                f"{wp_dir.name}: delivery_manifest.json is corrupted, "
+                f"falling back to PACKAGING for retry"
+            )
+            return PHASE_PACKAGING
     # Legacy 兼容（2026-07-23 prompt 路径歧义事故）：package prompt 曾漏写
     # stages/ 前缀，导致 package agent 把交付物写到 WP 根目录 final_deliverable/。
     # prompt 已修复（deliver_package.md 路径铁律），此处接受旧位置但发出警告。
     legacy_final_dir = wp_dir / "final_deliverable"
     if manifest_file.exists() and legacy_final_dir.exists():
         if _has_substantial_file(legacy_final_dir):
-            import warnings
-            warnings.warn(
-                f"{wp_dir.name}: final_deliverable 在 WP 根目录（legacy 路径），"
-                f"应迁移到 stages/final_deliverable/",
-                DeprecationWarning,
-                stacklevel=2,
+            # B1 fix: legacy 路径也要校验 manifest
+            if _validate_delivery_manifest(manifest_file):
+                import warnings
+                warnings.warn(
+                    f"{wp_dir.name}: final_deliverable 在 WP 根目录（legacy 路径），"
+                    f"应迁移到 stages/final_deliverable/",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                return PHASE_DONE
+            # manifest 损坏，回退到 PACKAGING
+            logger.warning(
+                f"{wp_dir.name}: delivery_manifest.json is corrupted (legacy path), "
+                f"falling back to PACKAGING for retry"
             )
-            return PHASE_DONE
+            return PHASE_PACKAGING
 
     # PACKAGING: verdict 已产出（validate 完成，可以打包）
     if (stages_dir / "validation_result.json").exists():

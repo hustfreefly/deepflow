@@ -181,19 +181,19 @@ class TestTwoPhaseDispatch:
             now = time.time()
             # 未确认 + 11min → stale（orphan 窗口 10min）
             entry = {"last_spawned_at": now - 11 * 60, "dispatch_confirmed": False}
-            assert orch._is_stale_dispatch(entry, "analyze") is True
+            assert orch._is_stale_dispatch(entry, "analyze", "TEST-001") is True
             # 未确认 + 5min → 不 stale
             entry = {"last_spawned_at": now - 5 * 60, "dispatch_confirmed": False}
-            assert orch._is_stale_dispatch(entry, "analyze") is False
+            assert orch._is_stale_dispatch(entry, "analyze", "TEST-001") is False
             # 已确认 + 11min → 不 stale（analyze 窗口 30min）
             entry = {"last_spawned_at": now - 11 * 60, "dispatch_confirmed": True}
-            assert orch._is_stale_dispatch(entry, "analyze") is False
+            assert orch._is_stale_dispatch(entry, "analyze", "TEST-001") is False
             # 已确认 + 31min → stale
             entry = {"last_spawned_at": now - 31 * 60, "dispatch_confirmed": True}
-            assert orch._is_stale_dispatch(entry, "analyze") is True
+            assert orch._is_stale_dispatch(entry, "analyze", "TEST-001") is True
             # 已确认 + 31min spawn_workers → 不 stale（窗口 90min）
             entry = {"last_spawned_at": now - 31 * 60, "dispatch_confirmed": True}
-            assert orch._is_stale_dispatch(entry, "spawn_workers") is False
+            assert orch._is_stale_dispatch(entry, "spawn_workers", "TEST-001") is False
 
     def test_orphan_sweep_drops_empty_dirs(self, mock_blackboard):
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
@@ -360,7 +360,7 @@ class TestAllResolved:
             stages = _wp_dir(bb_root, project, "AAA-001") / "stages"
             (stages / "final_deliverable").mkdir(parents=True)
             (stages / "final_deliverable" / "out.md").write_text("x" * 60)
-            (stages / "delivery_manifest.json").write_text("{}")
+            (stages / "delivery_manifest.json").write_text('{"wp_id": "TEST-001"}')
             # BBB-001 → terminal_failed
             orch.progress["BBB-001"] = {"terminal_failed": True}
             # Final Synthesis done (2026-07-29 新完成条件)
@@ -491,7 +491,7 @@ class TestSubstantialFileContract:
 
         stages = tmp_path / "stages"
         (stages / "final_deliverable").mkdir(parents=True)
-        (stages / "delivery_manifest.json").write_text("{}")
+        (stages / "delivery_manifest.json").write_text('{"wp_id": "TEST-001"}')
         (stages / "validation_result.json").write_text("{}")
         (stages / "final_deliverable" / "DELIVERABLE.md").write_text("")  # 0B
         assert derive_phase(tmp_path) == "PACKAGING"  # 空交付物 → 不是 DONE
@@ -505,7 +505,7 @@ class TestSubstantialFileContract:
         stages = tmp_path / "stages"
         dump = stages / "final_deliverable" / "worker_outputs" / "T-001"
         dump.mkdir(parents=True)
-        (stages / "delivery_manifest.json").write_text("{}")
+        (stages / "delivery_manifest.json").write_text('{"wp_id": "TEST-001"}')
         (stages / "validation_result.json").write_text("{}")
         (dump / "big.bin").write_text("x" * 5000)  # 灌入的大文件不算交付物
         (stages / "final_deliverable" / "DELIVERABLE.md").write_text("")

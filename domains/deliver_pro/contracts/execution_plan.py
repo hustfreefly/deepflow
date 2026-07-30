@@ -6,7 +6,7 @@ ExecutionPlan — Phase 1 Analyze Agent 的输出。
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -17,7 +17,7 @@ class TaskNode(BaseModel):
     task_id: str = Field(description="Task ID, e.g. 'T-001'")
     title: str = Field(description="任务标题")
     description: str = Field(default="", description="任务详细描述")
-    scenario_type: str = Field(
+    scenario_type: Literal["code", "report"] = Field(
         default="code",
         description="场景类型: code | report",
     )
@@ -88,7 +88,7 @@ class ExecutionPlan(BaseModel):
 
     schema_version: str = Field(default="1.0.0")
     wp_id: str = Field(description="对应的 WP ID")
-    scenario: str = Field(
+    scenario: Literal["code", "report", "mixed"] = Field(
         description="场景类型: code | report | mixed",
     )
     task_graph: list[TaskNode] = Field(

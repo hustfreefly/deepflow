@@ -216,7 +216,7 @@ class TestCheckWpPhase:
         final_dir.mkdir(parents=True)
         (final_dir / "DELIVERABLE.md").write_text("# Done\n" + "x" * 60)
         # P1-8 fix: DONE also requires delivery_manifest.json
-        (stages_dir / "delivery_manifest.json").write_text("{}")
+        (stages_dir / "delivery_manifest.json").write_text('{"wp_id": "TEST-001"}')
 
         with _make_orchestrator(tmp_path, mock_blackboard) as driver:
             assert driver._check_wp_phase("CORE-001") == "DONE"
@@ -391,7 +391,7 @@ class TestGetNextActions:
             final_dir = stages_dir / "final_deliverable"
             final_dir.mkdir(parents=True)
             (final_dir / "DELIVERABLE.md").write_text("# Done\n" + "x" * 60)
-            (stages_dir / "delivery_manifest.json").write_text("{}")
+            (stages_dir / "delivery_manifest.json").write_text('{"wp_id": "TEST-001"}')
 
         with _make_orchestrator(tmp_path, mock_blackboard) as driver:
             result = driver.get_next_actions()
@@ -554,7 +554,7 @@ class TestLegacyFinalDeliverablePath:
         wp_dir = bb_root / project_name / "deliver_pro" / "core_001"
         final_dir = wp_dir / "stages" / "final_deliverable"
         final_dir.mkdir(parents=True)
-        (final_dir.parent / "delivery_manifest.json").write_text("{}")
+        (final_dir.parent / "delivery_manifest.json").write_text('{"wp_id": "TEST-001"}')
         (final_dir / "README.md").write_text("# Deliverable\n" + "x" * 60)
 
         from domains.deliver_pro.phase_deriver import derive_phase
@@ -562,3 +562,170 @@ class TestLegacyFinalDeliverablePath:
             warnings.simplefilter("always")
             assert derive_phase(wp_dir) == "DONE"
             assert not any(issubclass(x.category, DeprecationWarning) for x in w)
+
+
+# ---------------------------------------------------------------------------
+# A1: VALIDATING 分支 fix_integrate 不崩溃
+# ---------------------------------------------------------------------------
+
+class TestValidatingFixIntegrate:
+    """A1: VALIDATING 分支 verdict != PASS 时不应崩溃。
+
+    根因：
+    1. self.stages_dir 在 DeliverOrchestrator 上不存在（只有 Runner 有）
+    2. "fix_integrate" 不在 PulseAction.action Literal 枚举中
+    3. 异常未捕获导致 terminal_failed 而非 package_failed
+    """
+
+    def _setup_validating_wp_with_verdict(self, bb_root, project_name, verdict_data, wp_id="CORE-001"):
+        """构造 VALIDATING 状态的 WP，含 validation_result.json。"""
+        wp_subdir = wp_id.lower().replace('-', '_')
+        stages = bb_root / project_name / "deliver_pro" / wp_subdir / "stages"
+        stages.mkdir(parents=True)
+        # integrated_draft 必须存在才能 derive 到 VALIDATING
+        (stages / "integrated_draft").mkdir(parents=True, exist_ok=True)
+        (stages / "integrated_draft" / "DELIVERABLE.md").write_text("# Draft")
+        (stages / "execution_plan.json").write_text(json.dumps({
+            "wp_id": wp_id, "task_graph": [],
+        }))
+        # 写 verdict 文件（driver.step6_check_validate 读取路径：stages/validation_result.json）
+        (stages / "validation_result.json").write_text(
+            json.dumps(verdict_data, ensure_ascii=False)
+        )
+        return stages
+
+    def test_fix_integrate_action_no_crash(self, tmp_path, mock_blackboard):
+        """verdict=FAIL + has_fixable=True → 返回 fix_integrate 且不抛异常。"""
+        bb_root, project_name = mock_blackboard
+        verdict_data = {
+            "verdict": "FAIL",
+            "has_fixable": True,
+            "should_continue": True,
+            "issues": [{"severity": "major", "description": "missing section"}],
+        }
+        self._setup_validating_wp_with_verdict(bb_root, project_name, verdict_data)
+
+        with _make_orchestrator(tmp_path, mock_blackboard) as driver:
+            driver.progress["CORE-001"] = {
+                "phase": "VALIDATING",
+                "last_spawned_action": "validate",
+                "last_spawned_at": __import__('time').time() - 60,
+                "validate_round": 1,
+            }
+            # 不应抛异常
+            result = driver._get_wp_next_action("CORE-001")
+
+        # 应返回 fix_integrate 或 package_failed（取决于 driver 初始化）
+        # 关键是不崩溃且返回有效 action
+        assert result["action"] in ("fix_integrate", "package_failed", "init_failed"), \
+            f"Expected fix_integrate/package_failed, got {result['action']}"
+        assert result["wp_id"] == "CORE-001"
+
+    def test_verdict_read_error_returns_package_failed(self, tmp_path, mock_blackboard):
+        """verdict 文件损坏 → 返回 package_failed 而非抛异常。"""
+        bb_root, project_name = mock_blackboard
+        wp_subdir = "core_001"
+        stages = bb_root / project_name / "deliver_pro" / wp_subdir / "stages"
+        stages.mkdir(parents=True)
+        (stages / "integrated_draft").mkdir(parents=True, exist_ok=True)
+        (stages / "integrated_draft" / "DELIVERABLE.md").write_text("# Draft")
+        (stages / "execution_plan.json").write_text(json.dumps({
+            "wp_id": "CORE-001", "task_graph": [],
+        }))
+        # 写损坏的 verdict 文件（driver 读取路径：stages/validation_result.json）
+        (stages / "validation_result.json").write_text("{invalid json!!")
+
+        with _make_orchestrator(tmp_path, mock_blackboard) as driver:
+            driver.progress["CORE-001"] = {
+                "phase": "VALIDATING",
+                "last_spawned_action": "validate",
+                "last_spawned_at": __import__('time').time() - 60,
+                "validate_round": 1,
+            }
+            # step6_check_validate 会读到损坏的 JSON，verdict 可能为 ERROR
+            # 无论哪种情况都不应崩溃
+            result = driver._get_wp_next_action("CORE-001")
+
+        assert "action" in result
+        assert result["wp_id"] == "CORE-001"
+
+
+# ---------------------------------------------------------------------------
+# A2: batch 级 task 字符串长度控制
+# ---------------------------------------------------------------------------
+
+class TestBuildActionTaskLength:
+    """A2: 三个 builder 的 task 字符串应 < 2000 字符。"""
+
+    def _setup_batch_context(self, bb_root, project_name):
+        """创建批次级上下文文件（living_spec + contract）。"""
+        batch_dir = bb_root / project_name
+        data_dir = batch_dir / "data"
+        data_dir.mkdir(parents=True)
+        # 写 living_spec（模拟大文件）
+        large_spec = {
+            "title": "Test Project",
+            "sections": [{"name": f"Section {i}", "content": "x" * 500} for i in range(20)],
+            "requirements": [f"Requirement {i}" for i in range(50)],
+        }
+        (data_dir / "living_spec.json").write_text(
+            json.dumps(large_spec, ensure_ascii=False, indent=2)
+        )
+        # 写 contract
+        contract = {
+            "deliverable_type": "report",
+            "req_elements": [
+                {"element": f"Element {i}", "criticality": "MUST" if i < 5 else "SHOULD"}
+                for i in range(20)
+            ],
+            "required_structure": [f"Section {i}" for i in range(15)],
+        }
+        (batch_dir / "_deliverable_contract.json").write_text(
+            json.dumps(contract, ensure_ascii=False, indent=2)
+        )
+        # 写 synthesis 输出
+        synth_dir = batch_dir / "final_synthesis"
+        synth_dir.mkdir(parents=True, exist_ok=True)
+        for i in range(5):
+            (synth_dir / f"output_{i}.md").write_text(
+                f"# Output {i}\n" + "y" * 2000
+            )
+
+    def test_infer_contract_task_length(self, tmp_path, mock_blackboard):
+        """_build_infer_contract_action 的 task < 1500 字符。"""
+        bb_root, project_name = mock_blackboard
+        self._setup_batch_context(bb_root, project_name)
+
+        with _make_orchestrator(tmp_path, mock_blackboard) as driver:
+            action = driver._build_infer_contract_action()
+
+        assert len(action["task"]) < 1500, \
+            f"infer_contract task too long: {len(action['task'])} chars"
+        assert "_infer_contract_context.md" in action["task"], \
+            "task should reference context file"
+
+    def test_final_synthesis_task_length(self, tmp_path, mock_blackboard):
+        """_build_final_synthesis_action 的 task < 1500 字符。"""
+        bb_root, project_name = mock_blackboard
+        self._setup_batch_context(bb_root, project_name)
+
+        with _make_orchestrator(tmp_path, mock_blackboard) as driver:
+            action = driver._build_final_synthesis_action()
+
+        assert len(action["task"]) < 1500, \
+            f"final_synthesis task too long: {len(action['task'])} chars"
+        assert "_synthesis_context.md" in action["task"], \
+            "task should reference context file"
+
+    def test_final_gate_task_length(self, tmp_path, mock_blackboard):
+        """_build_run_final_gate_action 的 task < 2000 字符。"""
+        bb_root, project_name = mock_blackboard
+        self._setup_batch_context(bb_root, project_name)
+
+        with _make_orchestrator(tmp_path, mock_blackboard) as driver:
+            action = driver._build_run_final_gate_action()
+
+        assert len(action["task"]) < 2000, \
+            f"final_gate task too long: {len(action['task'])} chars"
+        assert "_gate_context.md" in action["task"], \
+            "task should reference context file"

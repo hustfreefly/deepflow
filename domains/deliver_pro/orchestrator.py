@@ -107,7 +107,12 @@ class DeliverOrchestrator:
         # F1 fix (W3): ship_package 缺失 → raise（禁止静默降级）
         # 与 run_deliver_pro 行为一致——缺失即 raise，不允许空包运行。
         ship_pkg_path = self._find_ship_package()
-        self.ship_package = json.loads(ship_pkg_path.read_text())
+        # ADR-009 MD-first: 根据文件扩展名选择解析方式
+        if ship_pkg_path.suffix == ".md":
+            from domains.ship_pro.ship_living_md import parse_ship_package_md
+            self.ship_package = parse_ship_package_md(ship_pkg_path.read_text())
+        else:
+            self.ship_package = json.loads(ship_pkg_path.read_text())
         # 能力正交：Ship Pro 输出 "id" → 兼容为 "wp_id"
         for wp in self.ship_package.get("work_packages", []):
             if "wp_id" not in wp and "id" in wp:
@@ -125,11 +130,13 @@ class DeliverOrchestrator:
         """搜索 blackboard/{project}/ship_pro/ 下的 ship package。
 
         查找顺序（ADR-009 MD-first）：
-        1. ship_pro/ship_track.json（Track 衍生，跨域元数据）
-        2. ship_pro/ship_package.json（JSON 衍生，向后兼容）
-        3. ship_pro/stages/ship_package.json（旧路径）
+        1. ship_pro/ship_package.md（MD 主输出，最高优先级）
+        2. ship_pro/ship_track.json（Track 衍生，跨域元数据）
+        3. ship_pro/ship_package.json（JSON 衍生，向后兼容）
+        4. ship_pro/stages/ship_package.json（旧路径）
         """
         candidates = [
+            self.blackboard_root / self.project_name / "ship_pro" / "ship_package.md",
             self.blackboard_root / self.project_name / "ship_pro" / "ship_track.json",
             self.blackboard_root / self.project_name / "ship_pro" / "ship_package.json",
             self.blackboard_root / self.project_name / "ship_pro" / "stages" / "ship_package.json",
@@ -139,7 +146,7 @@ class DeliverOrchestrator:
                 logger.info(f"Ship package found: {path}")
                 return path
         raise FileNotFoundError(
-            f"ship_package.json or ship_track.json not found. Searched: {[str(p) for p in candidates]}"
+            f"ship_package.md / ship_track.json / ship_package.json not found. Searched: {[str(p) for p in candidates]}"
         )
 
     def _compute_layers(self) -> list[list[str]]:
@@ -585,7 +592,7 @@ class DeliverOrchestrator:
                 progress_entry = self.progress.get(wp_id, {})
                 last_spawned = progress_entry.get("last_spawned_action", "")
                 validate_dispatched = last_spawned == "validate" or last_spawned.startswith("validate:")
-                if not validate_dispatched or self._is_stale_dispatch(progress_entry, "validate"):
+                if not validate_dispatched or self._is_stale_dispatch(progress_entry, "validate", wp_id):
                     try:
                         round_num = progress_entry.get("validate_round", 1)
                         params = driver.step6_validate(round_num=round_num)
@@ -609,6 +616,26 @@ class DeliverOrchestrator:
                     if retry_alerts:
                         item["alerts"] = retry_alerts
                     return item
+                # B-2 fix: wire in validate fix loop
+                if verdict != "PASS":
+                    # Load full verdict data for decide_validate_loop
+                    verdict_path = self._wp_dir(wp_id) / "stages" / "validation_result.json"
+                    if verdict_path.exists():
+                        try:
+                            verdict_data = json.loads(verdict_path.read_text(encoding="utf-8"))
+                            from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
+                            verdict_obj = ValidationVerdict.model_validate(verdict_data)
+                            loop_decision = driver.decide_validate_loop(verdict_obj)
+                            if loop_decision == "fix":
+                                # Spawn fix_integrate agent
+                                round_num = progress_entry.get("validate_round", 1)
+                                fix_params = driver.step6_5_fix_integrate(verdict_data)
+                                logger.info("%s: validate FAIL → fix loop (round=%s)", wp_id, round_num)
+                                return {"wp_id": wp_id, "action": "fix_integrate", "spawn_params": fix_params, "error": None}
+                        except Exception as e:
+                            logger.warning("%s: failed to process fix loop, falling back to package_failed: %s", wp_id, e)
+                            return {"wp_id": wp_id, "action": "package_failed", "spawn_params": None, "error": str(e)}
+                
                 params = driver.step7_package()  # P1-3 fix: auto-read verdict from validation_result.json
                 action = "package" if verdict == "PASS" else "package_failed"
                 return {"wp_id": wp_id, "action": action, "spawn_params": params, "error": None}
@@ -766,7 +793,7 @@ class DeliverOrchestrator:
             if last_spawned == dedup_key and has_real_params:
                 # 孤儿分发恢复：dedup 记录可能来自已死 session（agent 从未真正运行）。
                 # 过期则清除记录并继续分发；未过期才真正跳过。
-                if self._is_stale_dispatch(progress_entry, action):
+                if self._is_stale_dispatch(progress_entry, action, wp_id):
                     # A2: 非 worker 动作（analyze/validate/package）的 WP 级重试预算
                     if action != "spawn_workers":
                         retries = progress_entry.get("action_retries", 0) + 1
@@ -943,8 +970,7 @@ class DeliverOrchestrator:
             kept.append(p)
         return kept
 
-    @staticmethod
-    def _is_stale_dispatch(progress_entry: dict, action: str) -> bool:
+    def _is_stale_dispatch(self, progress_entry: dict, action: str, wp_id: str) -> bool:
         """判断分发记录是否为孤儿分发（agent 从未运行或所在 session 已死亡）。
 
         规则：
@@ -955,7 +981,17 @@ class DeliverOrchestrator:
           - 已确认（spawn 成功回执）→ 超过该 action 类型的超时阈值才过期
 
         已确认的超时阈值取保守上限（30/90min 两个常数，A3），避免误杀仍在正常运行的 agent。
+        
+        T-4 fix: 优先检查证据文件（_ACTION_COMPLETION_EVIDENCE），证据存在则直接判定为未过期。
         """
+        # T-4 fix: 证据优先——产出已落盘 = 阶段已完成，立即判定为未过期
+        wp_dir = self._wp_dir(wp_id)
+        base_action = action.split(":")[0]
+        evidence_rel = _ACTION_COMPLETION_EVIDENCE.get(base_action)
+        if evidence_rel and (wp_dir / evidence_rel).exists():
+            return False  # 证据存在，未过期
+        
+        # 回退到时间推断
         spawned_at = progress_entry.get("last_spawned_at")
         if spawned_at is None:
             return True
@@ -1570,11 +1606,14 @@ class DeliverOrchestrator:
         return self.blackboard_root / self.project_name
 
     def _living_spec_path(self) -> Path:
-        """living_spec.json 路径（与 solution_pro 路径约定一致）。"""
+        """living_spec 路径（优先 .md，兼容 .json）。"""
+        md_path = self._batch_dir() / "data" / "living_spec.md"
+        if md_path.exists():
+            return md_path
         return self._batch_dir() / "data" / "living_spec.json"
 
     def _read_living_spec(self) -> dict:
-        """读取 living_spec.json。
+        """读取 living_spec（支持 .md 和 .json 格式）。
 
         Raises:
             ValueError: living_spec 缺失或不可读（禁止 fallback 到 frozen_spec，禁止静默）
@@ -1582,16 +1621,21 @@ class DeliverOrchestrator:
         path = self._living_spec_path()
         if not path.exists():
             raise ValueError(
-                f"living_spec.json not found at {path}. "
+                f"living_spec not found at {path}. "
                 f"Final Synthesis requires living_spec to exist. "
                 f"Please run Spec Pro first to generate living_spec before running Final Synthesis."
             )
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            if path.suffix == ".md":
+                from domains.spec_pro.spec_living_md import parse_living_spec_md
+                content = path.read_text(encoding="utf-8")
+                return parse_living_spec_md(content)
+            else:
+                return json.loads(path.read_text(encoding="utf-8"))
         except Exception as e:
             raise ValueError(
-                f"living_spec.json at {path} is unreadable: {e}. "
-                f"Please ensure the file is valid JSON and re-run Spec Pro if needed."
+                f"living_spec at {path} is unreadable: {e}. "
+                f"Please ensure the file is valid and re-run Spec Pro if needed."
             ) from e
 
     def _contract_path(self) -> Path:
@@ -1650,7 +1694,7 @@ class DeliverOrchestrator:
                 entry = self.progress.get(wp_id, {})
                 if entry.get("last_spawned_action") and not entry.get("terminal_failed"):
                     # 有未确认的分发记录 → 可能有 in-flight
-                    if not self._is_stale_dispatch(entry, entry["last_spawned_action"]):
+                    if not self._is_stale_dispatch(entry, entry["last_spawned_action"], wp_id):
                         return False
         return True
 
@@ -1670,23 +1714,33 @@ class DeliverOrchestrator:
             return False
         return True
 
+    def _write_context_file(self, filename: str, content: str) -> Path:
+        """Write context content to a blackboard file for agent reference.
+
+        Returns the path to the written file.
+        """
+        batch_dir = self._batch_dir()
+        batch_dir.mkdir(parents=True, exist_ok=True)
+        ctx_path = batch_dir / filename
+        ctx_path.write_text(content, encoding="utf-8")
+        return ctx_path
+
     def _build_infer_contract_action(self) -> dict:
         """构建 infer_deliverable_contract 动作。"""
         living_spec = self._read_living_spec()  # 缺失直接 raise
-        spec_summary = json.dumps(living_spec, ensure_ascii=False)[:3000]
+        # Write full living_spec to context file instead of inlining
+        ctx_path = self._write_context_file(
+            "_infer_contract_context.md",
+            json.dumps(living_spec, ensure_ascii=False, indent=2),
+        )
         task = (
             f"You are a Deliverable Contract Inferencer.\n"
-            f"Read the following living_spec and output a JSON contract to:\n"
-            f"{self._contract_path()}\n\n"
+            f"Read the living_spec at: {ctx_path}\n"
+            f"Output a JSON contract to: {self._contract_path()}\n\n"
             f"Output format:\n"
-            f"{{\n"
-            f'  "deliverable_type": "software|report|framework|files",\n'
-            f'  "req_elements": [\n'
-            f'    {{"element": "<requirement element>", "criticality": "MUST|SHOULD"}}\n'
-            f"  ],\n"
-            f'  "required_structure": ["<section/artifact name>", ...]\n'
-            f"}}\n\n"
-            f"living_spec (truncated):\n{spec_summary}\n\n"
+            f'{{"deliverable_type": "software|report|framework|files", '
+            f'"req_elements": [{{"element": "...", "criticality": "MUST|SHOULD"}}], '
+            f'"required_structure": ["..."]}}\n\n'
             f"Rules:\n"
             f"- Extract requirement elements from living_spec\n"
             f"- MUST = core requirement, SHOULD = nice-to-have\n"
@@ -1704,23 +1758,28 @@ class DeliverOrchestrator:
 
     def _build_final_synthesis_action(self) -> dict:
         """构建 final_synthesis 动作。"""
-        contract = json.loads(self._contract_path().read_text(encoding="utf-8"))
+        # Write context to file instead of inlining large JSON
         living_spec = self._read_living_spec()
-        spec_summary = json.dumps(living_spec, ensure_ascii=False)[:3000]
-        contract_summary = json.dumps(contract, ensure_ascii=False)[:2000]
+        contract = json.loads(self._contract_path().read_text(encoding="utf-8"))
+        ctx_content = (
+            f"# Living Spec\n\n"
+            f"{json.dumps(living_spec, ensure_ascii=False, indent=2)}\n\n"
+            f"# Deliverable Contract\n\n"
+            f"{json.dumps(contract, ensure_ascii=False, indent=2)}\n"
+        )
+        ctx_path = self._write_context_file("_synthesis_context.md", ctx_content)
         synthesis_dir = self._final_synthesis_dir()
         synthesis_dir.mkdir(parents=True, exist_ok=True)
         task = (
             f"You are a Final Synthesis Agent.\n"
-            f"Read the living_spec, deliverable contract, and each WP's final_deliverable.\n"
+            f"Read context from: {ctx_path}\n"
+            f"Also read each WP's final_deliverable under their stages/ directories.\n"
+            f"Output to: {synthesis_dir}/\n\n"
             f"Generate the final deliverable according to contract.deliverable_type:\n"
             f"- report → comprehensive report document\n"
             f"- framework → framework doc + index\n"
             f"- software → runnable package + README\n"
             f"- files → organized file collection\n\n"
-            f"Output to: {synthesis_dir}/\n\n"
-            f"living_spec (truncated):\n{spec_summary}\n\n"
-            f"contract (truncated):\n{contract_summary}\n\n"
             f"Rules:\n"
             f"- Do NOT overwrite individual WP final_deliverables\n"
             f"- Synthesize across all WPs into a cohesive deliverable\n"
@@ -1737,15 +1796,14 @@ class DeliverOrchestrator:
 
     def _build_run_final_gate_action(self) -> dict:
         """构建 run_final_gate 动作（LLM-as-Judge 语义回溯 Gate）。
-        
+
         Returns:
             Spawn action dict for LLM to judge each req_element as COVERED/PARTIAL/MISSING
         """
         contract = json.loads(self._contract_path().read_text(encoding="utf-8"))
-        req_elements = contract.get("req_elements", [])
         synthesis_dir = self._final_synthesis_dir()
-        
-        # Collect synthesis output for LLM context
+
+        # Collect synthesis output into a context file
         synthesis_text = ""
         if synthesis_dir.exists():
             for f in synthesis_dir.rglob("*"):
@@ -1754,24 +1812,25 @@ class DeliverOrchestrator:
                         synthesis_text += f.read_text(encoding="utf-8", errors="ignore")[:5000]
                     except Exception:
                         pass
-        
-        contract_summary = json.dumps(contract, ensure_ascii=False)[:2000]
-        
+
+        ctx_content = (
+            f"# Deliverable Contract\n\n"
+            f"{json.dumps(contract, ensure_ascii=False, indent=2)}\n\n"
+            f"# Final Synthesis Output\n\n"
+            f"{synthesis_text}\n"
+        )
+        ctx_path = self._write_context_file("_gate_context.md", ctx_content)
+
         task = (
             f"You are a Semantic Gate Judge (LLM-as-Judge).\n"
-            f"Read the deliverable contract and final synthesis output.\n"
+            f"Read context from: {ctx_path}\n"
             f"For each requirement element in contract.req_elements, judge its coverage:\n"
             f"- COVERED: Fully addressed in synthesis\n"
             f"- PARTIAL: Partially addressed (mention but incomplete)\n"
             f"- MISSING: Not addressed at all\n\n"
-            f"Contract (truncated):\n{contract_summary}\n\n"
-            f"Final Synthesis Output:\n{synthesis_text[:10000]}\n\n"
             f"Output Format (write to {self._final_gate_report_path()}):\n"
-            f"{{\n"
-            f'  "gaps": [\n'
-            f'    {{"element": "<req element>", "criticality": "MUST|SHOULD", "status": "COVERED|PARTIAL|MISSING", "reason": "<brief explanation>"}}\n'
-            f"  ]\n"
-            f"}}\n\n"
+            f'{{"gaps": [{{"element": "...", "criticality": "MUST|SHOULD", '
+            f'"status": "COVERED|PARTIAL|MISSING", "reason": "..."}}]}}\n\n'
             f"Rules:\n"
             f"- Judge SEMANTICALLY, not by keyword matching\n"
             f"- MUST elements are critical; MISSING = HARD_BLOCK\n"

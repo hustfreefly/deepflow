@@ -481,8 +481,12 @@ class TestValidationVerdict:
 
     def test_compute_verdict_conditional(self):
         scores = {
-            "a": ScoreDimension(score=3, weight=0.5),
-            "b": ScoreDimension(score=2, weight=0.5),
+            "completeness": ScoreDimension(score=3, weight=0.25),
+            "correctness": ScoreDimension(score=3, weight=0.25),
+            "credibility": ScoreDimension(score=3, weight=0.20),
+            "actionability": ScoreDimension(score=3, weight=0.15),
+            "consistency": ScoreDimension(score=2, weight=0.10),
+            "professionalism": ScoreDimension(score=3, weight=0.05),
         }
         assert ValidationVerdict.compute_verdict(3.0, scores) == "CONDITIONAL"
 

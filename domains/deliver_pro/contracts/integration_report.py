@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -27,7 +29,7 @@ class IntegrationReport(BaseModel):
         default="",
         description="集成测试结果（编程场景）",
     )
-    status: str = Field(
+    status: Literal["READY_FOR_VALIDATE", "ASSEMBLY_FAILED"] = Field(
         default="READY_FOR_VALIDATE",
         description="READY_FOR_VALIDATE | ASSEMBLY_FAILED",
     )

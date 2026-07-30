@@ -26,6 +26,7 @@ class PulseAction(BaseModel):
     wp_id: str = Field(min_length=1)
     action: Literal[
         "analyze", "spawn_workers", "validate", "package", "package_failed",
+        "fix_integrate",
         "infer_deliverable_contract", "final_synthesis", "run_final_gate",
     ]
     task: str = Field(min_length=1, description="sessions_spawn 的 task 内容")

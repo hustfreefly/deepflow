@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,7 +24,7 @@ class ComponentStatus(BaseModel):
 
     task_id: str
     title: str
-    status: str = Field(description="PASS | FAILED")
+    status: Literal["PASS", "FAILED"] = Field(description="PASS | FAILED")
     artifacts: list[str] = Field(
         default_factory=list,
         description="产出文件路径列表",

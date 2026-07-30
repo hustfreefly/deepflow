@@ -40,7 +40,6 @@ from domains.deliver_pro.contracts import (
     WorkPackage,
     ExecutionPlan,
     TaskNode,
-    WorkerResult,
     WorkerOutputMeta,
     ValidationVerdict,
     ScoreDimension,
@@ -91,6 +90,15 @@ class DeliverWPRunner:
     - 提供 verify_* 方法进行 Gate 验证
     - 不直接调用 sessions_spawn（那是 Agent 层的职责）
     """
+
+    # B-3 fix: shared rules file path (inject into all prompts)
+    _SHARED_RULES_PATH = Path(__file__).parent / "prompts" / "_shared_subagent_rules.md"
+
+    def _load_shared_rules(self) -> str:
+        """Load shared subagent rules for prompt injection (B-3 fix)."""
+        if self._SHARED_RULES_PATH.exists():
+            return self._SHARED_RULES_PATH.read_text(encoding="utf-8")
+        return ""
 
     def __init__(
         self,
@@ -308,7 +316,10 @@ class DeliverWPRunner:
 
     def _build_analyze_prompt(self) -> str:
         """内嵌 Analyze Agent prompt（fallback）。"""
+        shared_rules = self._load_shared_rules()
+        rules_section = f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
         return f"""你是 Deliver Pro 的 Analyze Agent。
+{rules_section}
 
 ## 任务
 解析 Work Package，生成执行计划（任务图 + 并发计划）。
@@ -465,6 +476,8 @@ class DeliverWPRunner:
 
     def _build_worker_prompt(self, task: TaskNode, plan: ExecutionPlan) -> str:
         """构建 Worker prompt。"""
+        shared_rules = self._load_shared_rules()
+        rules_section = f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
         # 依赖路径
         dep_paths = []
         for dep_id in task.depends_on:
@@ -821,6 +834,8 @@ cd {self.blackboard_path.parent.parent}
         fix_directives: list[FixDirective] | None = None,
     ) -> str:
         """构建 Integrate Agent prompt。"""
+        shared_rules = self._load_shared_rules()
+        rules_section = f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
         output_dir = self.stages_dir / "integrated_draft"
 
         fix_section = ""
@@ -1015,6 +1030,8 @@ cd {self.blackboard_path.parent.parent}
 
     def _build_validate_prompt(self, plan: ExecutionPlan, round_num: int) -> str:
         """构建 Validate Judge prompt（fallback）。"""
+        shared_rules = self._load_shared_rules()
+        rules_section = f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
         # 收集 AC 列表
         ac_list = []
         for task in plan.task_graph:
@@ -1117,7 +1134,10 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
                 try:
                     report_data = json.loads(integration_report_path.read_text(encoding="utf-8"))
                     coverage = report_data.get("coverage", {})
-                    ac_coverage_ratio = coverage.get("ac_coverage_ratio", 0.0)
+                    # Fix B-1: compute ratio from actual fields (covered/acceptance_criteria_total)
+                    ac_total = coverage.get("acceptance_criteria_total", 0)
+                    ac_covered = coverage.get("covered", 0)
+                    ac_coverage_ratio = ac_covered / ac_total if ac_total > 0 else 0.0
                     # AC coverage < 80% → auto FAIL
                     if ac_coverage_ratio < 0.8:
                         logger.error(
@@ -1336,6 +1356,8 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         verdict: ValidationVerdict | None = None,
     ) -> str:
         """构建 Package Agent prompt（fallback）。"""
+        shared_rules = self._load_shared_rules()
+        rules_section = f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
         verdict_info = ""
         if verdict:
             verdict_info = f"""
@@ -1527,7 +1549,7 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
 """
 
         _deepflow_root = self.blackboard_path.parent.parent
-        _label = f"deliver_diagnosis_{error.task_id}"
+        _label = f"deliver_diagnosis_{self.wp.wp_id}_{error.task_id}"
         return {
             "runtime": "subagent",
             "mode": "run",
@@ -1555,6 +1577,86 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
             return True, "", action
         except Exception as e:
             return False, f"RecoveryAction validation failed: {e}", None
+
+    def verify_package_output(self, manifest_path: Path) -> tuple[bool, str, DeliveryManifest | None]:
+        """
+        B-4 fix: 验证 Package 阶段的 delivery_manifest.json。
+
+        Returns:
+            (passed, error_message, manifest)
+        """
+        if not manifest_path.exists():
+            return False, f"delivery_manifest.json not found at {manifest_path}", None
+        try:
+            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = DeliveryManifest.model_validate(manifest_data)
+            logger.info(
+                f"Package validated: status={manifest.delivery_status}, "
+                f"files={len(manifest.deliverables)}"
+            )
+            return True, "", manifest
+        except Exception as e:
+            return False, f"DeliveryManifest validation failed: {e}", None
+
+    def verify_package_output(self, manifest_path: Path) -> tuple[bool, str, DeliveryManifest | None]:
+        """
+        B-4 fix: 验证 Package 阶段的 delivery_manifest.json。
+
+        Returns:
+            (passed, error_message, manifest)
+        """
+        if not manifest_path.exists():
+            return False, f"delivery_manifest.json not found at {manifest_path}", None
+        try:
+            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = DeliveryManifest.model_validate(manifest_data)
+            logger.info(
+                f"Package validated: status={manifest.delivery_status}, "
+                f"files={len(manifest.deliverables)}"
+            )
+            return True, "", manifest
+        except Exception as e:
+            return False, f"DeliveryManifest validation failed: {e}", None
+
+    def verify_package_output(self, manifest_path: Path) -> tuple[bool, str, DeliveryManifest | None]:
+        """
+        B-4 fix: 验证 Package 阶段的 delivery_manifest.json。
+
+        Returns:
+            (passed, error_message, manifest)
+        """
+        if not manifest_path.exists():
+            return False, f"delivery_manifest.json not found at {manifest_path}", None
+        try:
+            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = DeliveryManifest.model_validate(manifest_data)
+            logger.info(
+                f"Package validated: status={manifest.delivery_status}, "
+                f"files={len(manifest.deliverables)}"
+            )
+            return True, "", manifest
+        except Exception as e:
+            return False, f"DeliveryManifest validation failed: {e}", None
+
+    def verify_package_output(self, manifest_path: Path) -> tuple[bool, str, DeliveryManifest | None]:
+        """
+        B-4 fix: 验证 Package 阶段的 delivery_manifest.json。
+
+        Returns:
+            (passed, error_message, manifest)
+        """
+        if not manifest_path.exists():
+            return False, f"delivery_manifest.json not found at {manifest_path}", None
+        try:
+            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = DeliveryManifest.model_validate(manifest_data)
+            logger.info(
+                f"Package validated: status={manifest.delivery_status}, "
+                f"files={len(manifest.deliverables)}"
+            )
+            return True, "", manifest
+        except Exception as e:
+            return False, f"DeliveryManifest validation failed: {e}", None
 
     def should_retry_worker(self, task_id: str, attempts: int) -> bool:
         """判断是否应该重试 Worker。"""

@@ -488,6 +488,7 @@ class SmartAssembler:
                 "acceptance_criteria_total": ac_total,
                 "covered": ac_covered,
                 "gaps": coverage_gaps or [],
+                "covered_req_ids": sorted(covered_req_ids),
             },
             "assembly_stats": {
                 "total_input_bytes": total_input,

@@ -28,7 +28,7 @@ class FixDirective(BaseModel):
     target: str = Field(description="目标 task_id")
     issue: str = Field(description="问题描述")
     fix_instruction: str = Field(description="修复指令")
-    priority: str = Field(
+    priority: Literal["high", "medium", "low"] = Field(
         default="medium",
         description="high | medium | low",
     )
@@ -44,6 +44,9 @@ DEFAULT_WEIGHTS = {
     "consistency": 0.10,
     "professionalism": 0.05,
 }
+
+# 六维质量门要求的完整维度集合
+REQUIRED_DIMENSIONS = frozenset(DEFAULT_WEIGHTS.keys())
 
 
 class ValidationVerdict(BaseModel):
@@ -100,7 +103,19 @@ class ValidationVerdict(BaseModel):
 
     @classmethod
     def compute_verdict(cls, weighted_score: float, scores: dict[str, ScoreDimension]) -> str:
-        """根据加权分和维度分计算门禁判定。"""
+        """根据加权分、维度分和维度完整性计算门禁判定。
+
+        六维质量门要求：scores 必须包含全部 6 个维度
+        （completeness, correctness, credibility, actionability,
+        consistency, professionalism）。缺失任意维度视为契约违反，
+        直接返回 FAIL。
+        """
+        # 维度完整性检查：缺失任意维度 → FAIL
+        present_dims = set(scores.keys())
+        missing_dims = REQUIRED_DIMENSIONS - present_dims
+        if missing_dims:
+            return "FAIL"
+
         min_score = min(s.score for s in scores.values()) if scores else 0
 
         if weighted_score >= 3.5 and min_score >= 3:
