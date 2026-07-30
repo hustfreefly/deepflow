@@ -480,7 +480,7 @@ def _parse_work_packages(text: str) -> list[dict]:
                 wps.append({
                     "id": cells[0],
                     "title": cells[1] if len(cells) > 1 else "",
-                    "effort_hours": cells[2] if len(cells) > 2 else "",
+                    "effort_hours": int(cells[2]) if len(cells) > 2 and cells[2].strip().isdigit() else 0,
                     "covered_req_ids": [r.strip() for r in cells[3].split(",") if r.strip()] if len(cells) > 3 else [],
                 })
 
