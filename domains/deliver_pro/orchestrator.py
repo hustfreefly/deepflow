@@ -2179,14 +2179,11 @@ class DeliverOrchestrator:
     def drive_once(self) -> dict:
         """Auto-loop 接口：一次调用返回当前所有可执行的 spawn 动作。
 
-        Agent 层使用模式：
-            while True:
-                result = driver.drive_once()
-                if result["all_done"]:
-                    break
-                for action in result["spawn_actions"]:
-                    sessions_spawn(task=action["task"], label=action["label"], ...)
-                sessions_yield()  # 等待所有 worker 完成
+        Pulse 模式（deliver_pulse.md）：
+            result = driver.drive_once()
+            for action in result["spawn_actions"]:
+                sessions_spawn(task=action["task"], label=action["label"], ...)
+            # 🔴 绝不 sessions_yield — spawn 后立即结束，状态由下次 pulse 推导
 
         自动处理（无需 Agent 干预）：
         - State reconcile（completed/running tasks 从 MANIFEST 同步）
@@ -2274,16 +2271,11 @@ class DeliverOrchestrator:
     def drive_all(self, max_iterations: int = 50) -> dict:
         """Blocking auto-loop: keep driving until agents need to spawn or pipeline is done.
 
-        Agent 层使用模式（极简）:
-            while True:
-                result = driver.drive_all()
-                if result["all_done"]:
-                    break  # Pipeline 完成！
-                # spawn agents
-                for action in result["spawn_actions"]:
-                    sessions_spawn(task=action["task"], label=action["label"], ...)
-                sessions_yield()  # 等待所有 worker 完成
-                # loop back to drive_all()
+        Pulse 模式（deliver_pulse.md）：
+            result = driver.drive_all()
+            for action in result["spawn_actions"]:
+                sessions_spawn(task=action["task"], label=action["label"], ...)
+            # 🔴 绝不 sessions_yield — spawn 后立即结束，状态由下次 pulse 推导
 
         内部自动处理（无需 Agent 干预）:
         - 所有确定性转换（Assembly, state reconcile, dedup）

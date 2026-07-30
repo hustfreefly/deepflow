@@ -7,13 +7,15 @@ Main Agent 逐步调 exec 驱动流水线，每步都是简单的 Python 调用�
 架构:
   Main Agent
     → exec: driver = DeliverRunner(wp_id, project_name)
-    → exec: params = driver.step1_analyze()  → sessions_spawn + yield
+    → exec: params = driver.step1_analyze()  → sessions_spawn（Pulse 模式，不等待）
     → exec: driver.step2_check_analyze()     → 验证
-    → exec: params = driver.step3_workers()  → sessions_spawn (多个) + yield
+    → exec: params = driver.step3_workers()  → sessions_spawn (多个)
     → exec: driver.step4_check_workers()     → 验证 + 循环
     → exec: driver.step5_integrate()         → Python 直接跑
-    → exec: params = driver.step6_validate() → sessions_spawn + yield
-    → exec: params = driver.step7_package()  → sessions_spawn + yield
+    → exec: params = driver.step6_validate() → sessions_spawn
+    → exec: params = driver.step7_package()  → sessions_spawn
+
+🔴 绝不 sessions_yield — spawn 后立即结束，状态由下次 pulse 推导
 """
 
 from __future__ import annotations
@@ -38,7 +40,7 @@ class DeliverRunner:
 
         # Step 1: Analyze
         spawn_params = driver.step1_analyze()
-        # → sessions_spawn(**spawn_params) + sessions_yield()
+        # → sessions_spawn(**spawn_params)（Pulse 模式，不等待）
 
         # Step 2: 检查 Analyze 完成
         ok, info = driver.step2_check_analyze()
@@ -46,7 +48,7 @@ class DeliverRunner:
 
         # Step 3: Workers
         spawn_params_list = driver.step3_workers()
-        # → 对每个 params 调用 sessions_spawn + sessions_yield
+        # → 对每个 params 调用 sessions_spawn
 
         # Step 4: 检查 Workers
         all_done, info = driver.step4_check_workers()
@@ -58,11 +60,13 @@ class DeliverRunner:
 
         # Step 6: Validate
         spawn_params = driver.step6_validate(round_num=1)
-        # → sessions_spawn + yield
+        # → sessions_spawn
 
         # Step 7: Package
         spawn_params = driver.step7_package(verdict_str="PASS")
-        # → sessions_spawn + yield
+        # → sessions_spawn
+
+    🔴 绝不 sessions_yield — spawn 后立即结束，状态由下次 pulse 推导
     """
 
     def __init__(self, wp_id: str, project_name: str):
