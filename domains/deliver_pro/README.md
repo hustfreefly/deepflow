@@ -137,6 +137,27 @@ result = run_deliver_pro("my_project")
 
 ---
 
+### Cron 生命周期加固（A+B，2026-08-01）
+
+**背景缺陷**: pulse CLI 退出码 `3=completed`，cron agentTurn 执行器把非零退出码当失败 →
+项目完成后每 5min 误报 `Exec failed: python3 pulse` 刷屏飞书（案例: 2.5D封装设计团队_MD_V2，14x）。
+
+**标准模板**: 新项目建 pulse cron 必须用 wrapper，不要直接调 pulse_cli：
+
+```bash
+bash scripts/pulse_cron_wrapper.sh "<project_name>"
+```
+
+**方案 A — 退出码归一化**: wrapper 把 `2=locked`、`3=completed` 归一为退出码 0（正常结束），
+只有真失败（1/10/其他）才返回非 0。
+
+**方案 B — 完成即自停**: wrapper 检测到 `completed` 时，自动查找
+`deliver_pro_pulse_<project>` 命名的 cron 并 `openclaw cron disable`，项目跑完 cron 自动消失。
+
+`run_deliver_pro()` 返回的 `cron_hint` 已使用该模板。
+
+---
+
 ## 5 Phase 流水线
 
 每个 WP 独立执行 5 Phase：

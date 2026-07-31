@@ -295,9 +295,9 @@ def run_deliver_pro(
             f"python3 -m domains.deliver_pro.pulse_cli pulse --project \"{project_name}\""
         ),
         "cron_hint": (
-            f"注册 cron 每 5min 点火: openclaw cron add "
-            f"--schedule '*/5 * * * *' "
-            f"--task 'cd {deepflow_root} && PYTHONPATH=. python3 -m domains.deliver_pro.pulse_cli pulse --project \"{project_name}\"'"
+            f"注册 cron 每 5min 点火（A+B 加固版，completed 自动禁用）: \n"
+            f"  openclaw cron add --schedule '*/5 * * * *' "
+            f"--task 'bash {deepflow_root}/scripts/pulse_cron_wrapper.sh \"{project_name}\"'"
         ),
     }
 
