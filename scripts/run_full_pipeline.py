@@ -74,17 +74,27 @@ def cmd_solution(args):
     bb_dir = find_blackboard_dir(session_id=args.session_id)
     print(f"📁 Spec Pro blackboard: {bb_dir}")
     
-    # 2. 检查 Spec Pro 是否完成
-    living_spec = bb_dir / "spec" / "living_spec.json"
+    # 2. 检查 Spec Pro 是否完成（MD-first）
+    living_spec = bb_dir / "spec" / "living_spec.md"
     quality_report = bb_dir / "spec" / "quality_report.json"
     
     if not living_spec.exists():
-        print(f"❌ living_spec.json 不存在: {living_spec}")
+        print(f"❌ living_spec.md 不存在: {living_spec}")
         sys.exit(1)
     
-    # 3. 读取 living_spec 提取关键信息
-    spec = json.loads(living_spec.read_text())
-    topic = spec.get("topic", spec.get("project_name", args.session_id))
+    # 3. 从 handoff package / session_id 提取项目 topic
+    handoff_pkg = bb_dir / "spec" / "spec_handoff_package.json"
+    topic = args.session_id or bb_dir.name
+    if handoff_pkg.exists():
+        try:
+            package = json.loads(handoff_pkg.read_text())
+            topic = (
+                package.get("living_spec", {}).get("topic")
+                or package.get("living_spec", {}).get("project_name")
+                or topic
+            )
+        except Exception:
+            pass
     
     # 4. 构建 Solution Pro 启动参数
     print(f"📋 Topic: {topic}")
@@ -94,7 +104,6 @@ def cmd_solution(args):
     # B3-FIX: Don't force --living-spec-path; let handoff gate decide
     # If handoff package exists, Solution Pro will auto-load via _try_load_handoff_package()
     # Only fallback to --living-spec-path if handoff package doesn't exist
-    handoff_pkg = bb_dir / "spec" / "handoff_package.json"
     cmd = [
         sys.executable,
         str(DEEPFLOW_ROOT / "scripts" / "start_solution_pro.py"),
@@ -131,9 +140,9 @@ def cmd_ship(args):
     
     project_name = args.project_name
     
-    # 1. 检查 Solution Pro 输出
+    # 1. 检查 Solution Pro 输出（MD-first）
     bb_dir = find_blackboard_dir(project_name=project_name)
-    final_solution = bb_dir / "stages" / "final_solution.json"
+    final_solution = bb_dir / "stages" / "final_solution.md"
     
     if not final_solution.exists():
         print(f"❌ Solution Pro 未完成: {final_solution} 不存在")
@@ -164,8 +173,33 @@ def cmd_ship(args):
     return result
 
 
+def cmd_deliver(args):
+    """Phase 4: Ship Pro → Deliver Pro handoff"""
+    from domains.deliver_pro import run_deliver_pro
+
+    bb_dir = find_blackboard_dir(project_name=args.project_name)
+    project_name = bb_dir.name
+
+    try:
+        result = run_deliver_pro(project_name)
+    except Exception as e:
+        print(f"❌ Deliver Pro 无法启动: {e}")
+        sys.exit(1)
+
+    print(f"🚀 Deliver Pro Pulse ready:")
+    print(f"   project: {result['project_name']}")
+    print(f"   blackboard: {result['blackboard_path']}")
+    print(f"   ship_package: {result['ship_package_path']}")
+    print(f"\n📦 执行一次 Pulse:")
+    print(f"   {result['launch_command']}")
+    print(f"\n🕒 注册 cron:")
+    print(f"   {result['cron_hint']}")
+
+    return result
+
+
 def cmd_status(args):
-    """全管线状态检查"""
+    """全管线状态检查（MD-first + run_id 目录兼容）"""
     project_name = args.project_name
     
     try:
@@ -176,55 +210,71 @@ def cmd_status(args):
     
     print(f"📁 Blackboard: {bb_dir}")
     
-    # Spec Pro — 搜索多个可能路径
-    living_spec = None
-    quality_report = None
-    for sub in ["spec", "stages", ""]:
-        candidate = bb_dir / sub / "living_spec.json" if sub else bb_dir / "living_spec.json"
-        if candidate.exists():
-            living_spec = candidate
-            qr_candidate = bb_dir / sub / "quality_report.json" if sub else bb_dir / "quality_report.json"
-            if qr_candidate.exists():
-                quality_report = qr_candidate
-            break
+    # Spec Pro
+    living_spec = bb_dir / "spec" / "living_spec.md"
+    handoff_pkg = bb_dir / "spec" / "spec_handoff_package.json"
+    quality_report = bb_dir / "spec" / "quality_report.json"
+    spec_done = living_spec.exists() and handoff_pkg.exists()
     
-    spec_done = False
-    for marker in ["stages/.completed.json", "spec/.done", ".completed.json"]:
-        if (bb_dir / marker).exists():
-            spec_done = True
-            break
-    
-    print(f"\n{'✅' if spec_done else '⏳' if living_spec else '❌'} Spec Pro: ", end="")
-    if living_spec:
-        spec = json.loads(living_spec.read_text())
+    print(f"\n{'✅' if spec_done else '⏳' if living_spec.exists() else '❌'} Spec Pro: ", end="")
+    if living_spec.exists():
         score = "N/A"
-        if quality_report:
-            qr = json.loads(quality_report.read_text())
-            score = qr.get("weighted_score", "N/A")
-        print(f"score={score}, done={spec_done}")
+        if quality_report.exists():
+            try:
+                qr = json.loads(quality_report.read_text())
+                score = qr.get("weighted_score", "N/A")
+            except Exception:
+                pass
+        print(f"score={score}, handoff={'yes' if handoff_pkg.exists() else 'no'}")
     else:
         print("未初始化")
     
     # Solution Pro
-    final_solution = bb_dir / "stages" / "final_solution.json"
-    sol_done = (bb_dir / "stages" / ".completed.json").exists()
+    living_spec_out = bb_dir / "data" / "living_spec.md"
+    final_solution = bb_dir / "stages" / "final_solution.md"
+    sol_done = living_spec_out.exists() and final_solution.exists()
     
-    print(f"{'✅' if sol_done else '⏳' if final_solution.exists() else '❌'} Solution Pro: ", end="")
-    if final_solution.exists():
+    print(f"{'✅' if sol_done else '⏳' if living_spec_out.exists() else '❌'} Solution Pro: ", end="")
+    if sol_done:
         size_kb = final_solution.stat().st_size / 1024
-        print(f"{size_kb:.0f}KB, done={sol_done}")
+        print(f"{size_kb:.0f}KB, done=True")
+    elif living_spec_out.exists():
+        print("已启动，等待 final_solution.md")
     else:
         print("未启动")
     
     # Ship Pro
-    ship_pkg = bb_dir / "ship_pro" / "stages" / "ship_package.json"
-    ship_done = ship_pkg.exists()
+    from domains.deliver_pro import find_ship_package_path
+    try:
+        ship_pkg = find_ship_package_path(bb_dir.name)
+        ship_done = True
+    except FileNotFoundError:
+        ship_pkg = None
+        ship_done = False
     
-    print(f"{'✅' if ship_done else '⏳' if (bb_dir / 'ship_pro').exists() else '❌'} Ship Pro: ", end="")
+    print(f"{'✅' if ship_done else '❌'} Ship Pro: ", end="")
     if ship_done:
-        pkg = json.loads(ship_pkg.read_text())
-        wps = len(pkg.get("work_packages", []))
-        print(f"{wps} WPs")
+        try:
+            if ship_pkg.suffix == ".json":
+                pkg = json.loads(ship_pkg.read_text())
+            else:
+                from domains.ship_pro.ship_living_md import parse_ship_package_md
+                pkg = parse_ship_package_md(ship_pkg.read_text())
+            wps = len(pkg.get("work_packages", []))
+            print(f"{wps} WPs ({ship_pkg.relative_to(bb_dir)})")
+        except Exception:
+            print(f"package found ({ship_pkg.relative_to(bb_dir)})")
+    else:
+        print("未启动")
+
+    # Deliver Pro
+    deliver_done = (bb_dir / ".deliver_completed.json").exists()
+    deliver_outputs = list((bb_dir / "deliver_pro").rglob("DELIVERABLE.md")) if (bb_dir / "deliver_pro").exists() else []
+    print(f"{'✅' if deliver_done else '⏳' if deliver_outputs else '❌'} Deliver Pro: ", end="")
+    if deliver_done:
+        print("completed")
+    elif deliver_outputs:
+        print(f"{len(deliver_outputs)} deliverable drafts")
     else:
         print("未启动")
 
@@ -247,6 +297,10 @@ def main():
     # ship
     p_ship = sub.add_parser("ship", help="Phase 3: Solution Pro → Ship Pro")
     p_ship.add_argument("--project-name", required=True, help="项目名称")
+
+    # deliver
+    p_deliver = sub.add_parser("deliver", help="Phase 4: Ship Pro → Deliver Pro")
+    p_deliver.add_argument("--project-name", required=True, help="项目名称")
     
     # status
     p_status = sub.add_parser("status", help="全管线状态检查")
@@ -260,6 +314,8 @@ def main():
         cmd_solution(args)
     elif args.command == "ship":
         cmd_ship(args)
+    elif args.command == "deliver":
+        cmd_deliver(args)
     elif args.command == "status":
         cmd_status(args)
     else:

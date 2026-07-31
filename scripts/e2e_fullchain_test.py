@@ -59,6 +59,110 @@ USER_INPUT = """构建一个 CLI Task Manager：
 """
 
 
+LIVING_SPEC_FIXTURE = {
+    "session_id": "e2e_fullchain_fixture",
+    "meta": {
+        "spec_version": "2.0",
+        "domain_type": "software",
+        "conversation_rounds": 1,
+    },
+    "narrative": USER_INPUT,
+    "confirmed": {
+        "objective": "构建一个 Python 3.11+ CLI Task Manager，支持任务增删改查、筛选和导出。",
+        "pain_points": ["任务状态分散", "缺少统一 CLI 入口"],
+        "key_scenarios": ["添加任务", "筛选任务", "导出任务"],
+        "capabilities": {
+            "always_do": ["支持添加任务", "支持按优先级筛选", "支持导出 JSON 和 CSV"],
+            "should_do": ["提供清晰的命令行帮助"],
+            "never_do": ["依赖外部数据库服务"],
+        },
+        "constraints": {"language": "Python 3.11+", "cli": "argparse"},
+    },
+    "requirement_index": [
+        {
+            "id": "REQ-001",
+            "description": "支持添加任务，字段包括标题、优先级 P0/P1/P2、截止日期和标签。",
+            "priority": "P0",
+            "source_section": "confirmed.objective",
+        },
+        {
+            "id": "REQ-002",
+            "description": "支持按优先级、状态和标签筛选任务列表。",
+            "priority": "P0",
+            "source_section": "confirmed.key_scenarios",
+        },
+        {
+            "id": "REQ-003",
+            "description": "支持标记任务完成/未完成、按 ID 删除任务，并导出 JSON 和 CSV。",
+            "priority": "P0",
+            "source_section": "confirmed.capabilities",
+        },
+    ],
+    "semantic_anchors": [
+        {
+            "name": "CLI Task Manager",
+            "category": "TECHNICAL",
+            "constraint": "Python 3.11+ argparse CLI",
+            "source": "e2e_fixture",
+        }
+    ],
+    "guardrails": {
+        "always_do": ["保持 CLI 简单可用"],
+        "never_do": ["引入外部数据库依赖"],
+    },
+    "solution_pro_hints": {
+        "focus_areas": ["CLI UX", "任务数据模型", "导入导出"],
+        "anti_patterns": ["过度工程化"],
+    },
+}
+
+
+FINAL_SOLUTION_FIXTURE = {
+    "schema_version": "2.0.0",
+    "metadata": {"session_id": "e2e_fullchain_fixture", "status": "completed"},
+    "key_decisions": [
+        {
+            "decision": "使用 argparse 实现 CLI",
+            "rationale": "满足 Python 3.11+ 和无外部服务依赖约束",
+        }
+    ],
+    "implementation_phases": [
+        {
+            "phase": 1,
+            "title": "实现任务模型与 CLI",
+            "timeline": "1 day",
+            "estimated_effort": "4h",
+            "tasks": ["实现 Task 数据模型", "实现 add/list/done/delete/export 命令"],
+        }
+    ],
+    "constraint_coverage": {"total": 3, "covered": 3, "ratio": 1.0},
+    "covered_req_ids": ["REQ-001", "REQ-002", "REQ-003"],
+    "semantic_anchors": LIVING_SPEC_FIXTURE["semantic_anchors"],
+    "risk_summary": [],
+}
+
+
+SHIP_PACKAGE_FIXTURE = {
+    "work_packages": [
+        {
+            "wp_id": "WP-001",
+            "title": "CLI Task Manager Core",
+            "description": "实现任务 CRUD、筛选和 JSON/CSV 导出。",
+            "acceptance_criteria": [
+                "可以添加、列出、完成和删除任务",
+                "可以按优先级、状态和标签筛选",
+                "可以导出 JSON 和 CSV",
+            ],
+            "dependencies": [],
+            "effort_hours": 4,
+            "covered_req_ids": ["REQ-001", "REQ-002", "REQ-003"],
+        }
+    ],
+    "dependency_graph": {"execution_layers": [["WP-001"]]},
+    "semantic_anchors": LIVING_SPEC_FIXTURE["semantic_anchors"],
+}
+
+
 def run_setup_mode() -> dict:
     """
     Phase 1: Python 确定性 setup 验证。
@@ -124,31 +228,54 @@ def run_setup_mode() -> dict:
         print(f"  → ❌ FAIL: {e}")
         results["stages"]["spec_pro"] = {"status": "FAIL", "error": str(e)}
 
+    # setup 模式使用统一 project blackboard；补齐 Spec Pro handoff fixture，
+    # 让后续 E2E 契约验证可以在同一个项目目录下检查四段链路。
+    spec_dir = DEEPFLOW / "blackboard" / project_name / "spec"
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    from domains.spec_pro.spec_living_md import render_living_spec_md
+    (spec_dir / "living_spec.md").write_text(
+        render_living_spec_md(LIVING_SPEC_FIXTURE),
+        encoding="utf-8",
+    )
+    (spec_dir / "spec_handoff_package.json").write_text(
+        json.dumps({
+            "schema_version": "2.0.0",
+            "handoff_allowed": True,
+            "living_spec": LIVING_SPEC_FIXTURE,
+            "quality_report": {},
+            "density_gate_result": {"passed": True, "issues": []},
+            "semantic_anchors": LIVING_SPEC_FIXTURE["semantic_anchors"],
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     # ─── Stage 2: Solution Pro ───────────────────────────
-    print("\nStage 2: run_solution_pro_agent() [B1-FIX]")
+    print("\nStage 2: run_solution_pro()")
     try:
-        from domains.solution_pro import run_solution_pro_agent  # B1-FIX: explicit agent path
-        # 契约笼子：topic 必须是 project_name（控制 blackboard 目录名）
-        # run_solution_pro 用 topic 创建 blackboard 目录，Ship Pro 通过 project_name 查找
-        # 如果不传 topic，默认用 user_input[:50] → 导致 Ship Pro 找不到目录
-        sol_result = run_solution_pro_agent(USER_INPUT, topic=project_name)
+        from domains.solution_pro import run_solution_pro
+        # topic 必须是 project_name（控制统一 blackboard 目录名）
+        sol_result = run_solution_pro(
+            USER_INPUT,
+            topic=project_name,
+            living_spec=LIVING_SPEC_FIXTURE,
+        )
 
         sol_session = sol_result.get("session_id", "")
         sol_spawn = sol_result.get("spawn_params", {})
 
         # 契约笼子：spawn_params 验证
-        spawn_contract = validate_spawn_params(sol_spawn)
+        validate_spawn_params(sol_spawn)
 
-        # 契约笼子：跨域数据流
+        # 契约笼子：跨域数据流（MD-first living_spec）
         cross_domain = validate_cross_domain(sol_result.get("base_path", ""))
 
         req_count = cross_domain.requirement_count
-        frozen_spec_size = cross_domain.frozen_spec_md_size
+        living_spec_size = cross_domain.living_spec_md_size
 
         print(f"  session_id: {sol_session}")
         print(f"  task: {len(sol_spawn.get('task', '').encode('utf-8'))}B")
         print(f"  requirements: {req_count}")
-        print(f"  frozen_spec.md: {frozen_spec_size}B")
+        print(f"  living_spec.md: {living_spec_size}B")
         print(f"  → ✅ PASS (contract validated)")
 
         results["stages"]["solution_pro"] = {
@@ -156,7 +283,7 @@ def run_setup_mode() -> dict:
             "session_id": sol_session,
             "task_size": len(sol_spawn.get("task", "").encode("utf-8")),
             "requirement_count": req_count,
-            "frozen_spec_md_size": frozen_spec_size,
+            "living_spec_md_size": living_spec_size,
         }
         results["spawn_params"]["solution_pro"] = sol_spawn
 
@@ -168,8 +295,16 @@ def run_setup_mode() -> dict:
     print("\nStage 3: run_ship_pro()")
     try:
         from domains.ship_pro import run_ship_pro
+        from domains.solution_pro.solution_living_md import render_final_solution_md
 
-        # 使用 Solution Pro 的 session_id 作为 project_name
+        # setup 模式不执行 Orchestrator；用确定性 fixture 模拟 Solution Pro 完成产出
+        solution_stage_dir = DEEPFLOW / "blackboard" / project_name / "stages"
+        solution_stage_dir.mkdir(parents=True, exist_ok=True)
+        (solution_stage_dir / "final_solution.md").write_text(
+            render_final_solution_md(FINAL_SOLUTION_FIXTURE),
+            encoding="utf-8",
+        )
+
         ship_result = run_ship_pro(project_name)
 
         ship_spawn = ship_result.get("spawn_params", {})
@@ -179,10 +314,7 @@ def run_setup_mode() -> dict:
 
         # 契约笼子：跨域数据流（Ship Pro 必须读到 Solution Pro 输出）
         input_summary = ship_result.get("input_summary", {})
-        req_count = input_summary.get("req_count", 0)
 
-        # 注意：req_count=0 不一定是 bug（frozen_spec 可能没有 requirements 字段）
-        # 但如果 Solution Pro 有 7 个 requirements，Ship Pro 应该也能读到
         print(f"  project: {project_name}")
         print(f"  task: {len(ship_spawn.get('task', '').encode('utf-8'))}B")
         print(f"  input_summary: {json.dumps(input_summary)}")
@@ -203,52 +335,32 @@ def run_setup_mode() -> dict:
     print("\nStage 4: run_deliver_pro()")
     try:
         from domains.deliver_pro import run_deliver_pro
-        from domains.deliver_pro.contracts import WorkPackage, AcceptanceCriterion
 
-        # 契约笼子：mock WP 必须符合 Pydantic schema
-        mock_wp = WorkPackage(
-            wp_id="WP-001",
-            title="CLI Task Manager - Core",
-            objective="Implement CLI for task management with CRUD, filter, export",
-            scenario="code",
-            acceptance_criteria=[
-                AcceptanceCriterion(
-                    id="AC-001",
-                    description="Add/list/complete/delete tasks",
-                    priority="MUST",
-                ),
-                AcceptanceCriterion(
-                    id="AC-002",
-                    description="Export to JSON/CSV",
-                    priority="SHOULD",
-                ),
-                AcceptanceCriterion(
-                    id="AC-003",
-                    description="Filter by priority, status, or tag",
-                    priority="MUST",
-                ),
-            ],
-            constraints={"language": "Python 3.11+"},
+        # setup 模式不执行 Ship Orchestrator；写入 canonical ship_package fixture，
+        # 验证 Ship Pro → Deliver Pro 的可调度 handoff。
+        ship_dir = DEEPFLOW / "blackboard" / project_name / "ship_pro"
+        ship_dir.mkdir(parents=True, exist_ok=True)
+        (ship_dir / "ship_package.json").write_text(
+            json.dumps(SHIP_PACKAGE_FIXTURE, ensure_ascii=False, indent=2),
+            encoding="utf-8",
         )
 
-        # 验证 mock WP 通过 Pydantic
-        WorkPackage.model_validate(mock_wp.model_dump())
+        del_result = run_deliver_pro(project_name)
 
-        del_result = run_deliver_pro(mock_wp, project_name=project_name)
-        del_spawn = del_result.get("spawn_params", {})
+        assert del_result.get("mode") == "pulse", "Deliver Pro 必须返回 pulse 模式"
+        assert del_result.get("launch_command"), "Deliver Pro 必须返回 launch_command"
+        assert Path(del_result.get("ship_package_path", "")).exists(), "ship_package_path 必须存在"
 
-        # 契约笼子：spawn_params 验证
-        validate_spawn_params(del_spawn)
-
-        print(f"  wp_id: {mock_wp.wp_id}")
-        print(f"  task: {len(del_spawn.get('task', '').encode('utf-8'))}B")
-        print(f"  → ✅ PASS (WP contract + spawn_params validated)")
+        print(f"  project: {project_name}")
+        print(f"  ship_package: {del_result['ship_package_path']}")
+        print(f"  launch_command: {del_result['launch_command']}")
+        print(f"  → ✅ PASS (Pulse handoff validated)")
 
         results["stages"]["deliver_pro"] = {
             "status": "PASS",
-            "task_size": len(del_spawn.get("task", "").encode("utf-8")),
+            "mode": del_result["mode"],
+            "ship_package_path": del_result["ship_package_path"],
         }
-        results["spawn_params"]["deliver_pro"] = del_spawn
 
     except Exception as e:
         print(f"  → ❌ FAIL: {e}")
@@ -370,25 +482,26 @@ def run_verify_mode(project_name: str) -> dict:
     # Check 2: Solution Pro outputs
     print("\nCheck 2: Solution Pro outputs")
     final_solution = bb_dir / "stages" / "final_solution.md"
-    frozen_spec = bb_dir / "data" / "frozen_spec.md"
-    sol_exists = final_solution.exists() or frozen_spec.exists()
+    living_spec = bb_dir / "data" / "living_spec.md"
+    sol_exists = final_solution.exists() and living_spec.exists()
     if sol_exists:
-        print(f"  final_solution.md: {'✅' if final_solution.exists() else '❌'}")
-        print(f"  frozen_spec.md: {'✅' if frozen_spec.exists() else '❌'}")
+        print(f"  final_solution.md: ✅")
+        print(f"  living_spec.md: ✅")
         print("  → ✅ PASS")
         results["checks"]["solution_pro"] = {"status": "PASS"}
     else:
-        print("  → ❌ FAIL (no output files)")
+        print(f"  final_solution.md: {'✅' if final_solution.exists() else '❌'}")
+        print(f"  living_spec.md: {'✅' if living_spec.exists() else '❌'}")
+        print("  → ❌ FAIL (missing output files)")
         results["checks"]["solution_pro"] = {"status": "FAIL"}
 
     # Check 3: Ship Pro outputs
     print("\nCheck 3: Ship Pro outputs")
-    ship_package = bb_dir / "ship_pro" / "stages" / "ship_package.json"
-    ship_package_md = bb_dir / "ship_pro" / "stages" / "ship_package.md"
-    ship_exists = ship_package.exists() or ship_package_md.exists()
+    ship_candidates = list(bb_dir.glob("ship_pro*/stages/ship_package.md")) + list(bb_dir.glob("ship_pro*/stages/ship_package.json"))
+    ship_exists = len(ship_candidates) > 0
     if ship_exists:
-        print(f"  ship_package.json: {'✅' if ship_package.exists() else '❌'}")
-        print(f"  ship_package.md: {'✅' if ship_package_md.exists() else '❌'}")
+        for path in ship_candidates[:3]:
+            print(f"  {path.relative_to(bb_dir)}: ✅")
         print("  → ✅ PASS")
         results["checks"]["ship_pro"] = {"status": "PASS"}
     else:
@@ -398,10 +511,13 @@ def run_verify_mode(project_name: str) -> dict:
     # Check 4: Deliver Pro outputs
     print("\nCheck 4: Deliver Pro outputs")
     deliver_dir = bb_dir / "deliver_pro"
-    deliver_files = list(deliver_dir.rglob("final_*")) if deliver_dir.exists() else []
-    if deliver_files:
-        for f in deliver_files:
-            print(f"  {f.name}: ✅ ({f.stat().st_size}B)")
+    deliver_files = list(deliver_dir.rglob("DELIVERABLE.md")) if deliver_dir.exists() else []
+    deliver_done = (bb_dir / ".deliver_completed.json").exists()
+    if deliver_files or deliver_done:
+        for f in deliver_files[:5]:
+            print(f"  {f.relative_to(bb_dir)}: ✅ ({f.stat().st_size}B)")
+        if deliver_done:
+            print("  .deliver_completed.json: ✅")
         print("  → ✅ PASS")
         results["checks"]["deliver_pro"] = {"status": "PASS"}
     else:

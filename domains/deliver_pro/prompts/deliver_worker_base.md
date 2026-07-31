@@ -72,11 +72,13 @@ exec: mkdir -p {deepflow_root}/blackboard/{{project_name}}/deliver_pro/{{wp_subd
 | 启动 | read 上游 MANIFEST | 每 dep 1 次 |
 | 研究 | web_search 技术方案 | ≥ 2 |
 | 编码 | write 代码+测试 | ≥ 1 |
-| 验证 | exec 测试+lint | ≥ 2 |
+| 验证 | exec 测试+lint（必须带 timeout ≤300s）+ 每个可执行脚本 smoke test 真实执行 ≥1 次 | ≥ 2 |
 | 交付 | write MANIFEST | 1 |
 
 质量下限：代码 ≥ 50 行 + 测试 ≥ 20 行
-禁止：`pass`/`TODO` 作实现 | 不 exec 就声称完成 | 硬编码密钥
+禁止：`pass`/`TODO` 作实现 | 不 exec 就声称完成 | 硬编码密钥 | **无 timeout 执行脚本**
+
+**脚本交付附加要求**：MANIFEST outputs 中 `type: "script"` 的每个文件，必须在 EVIDENCE.md 中留下带脚本名的真实执行输出（smoke test），否则 Gate 直接判 FAILED。
 
 ### 报告（report）
 

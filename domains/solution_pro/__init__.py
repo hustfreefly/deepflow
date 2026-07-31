@@ -201,6 +201,11 @@ def run_solution_pro(user_input: str, **kwargs):
             "丢失标题要素）。禁止用正则从原始输入提取需求。"
         )
 
+    # 契约笼子：如果 requirement_index 是现场生成的，必须回写到 living_spec，
+    # 确保 data/living_spec.md 与下游 Ship Pro 看到的是同一份需求索引。
+    if isinstance(living_spec, dict) and not living_spec.get("requirement_index"):
+        living_spec["requirement_index"] = requirement_index
+
     # ── P0-2b: 所有校验通过，现在才创建目录 ──
     # mkdir 副作用必须在决策/校验完成后（历史教训：决策被拒绝时不得留下空目录）
     bm.init_session()

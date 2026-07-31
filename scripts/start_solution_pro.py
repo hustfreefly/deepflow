@@ -80,8 +80,13 @@ def main():
             print(f"❌ Living Spec 文件不存在: {living_spec_full_path}", file=sys.stderr)
             sys.exit(1)
         try:
-            with open(living_spec_full_path, 'r', encoding='utf-8') as f:
-                living_spec = json.load(f)
+            if living_spec_full_path.endswith('.md'):
+                from domains.spec_pro.spec_living_md import parse_living_spec_md
+                with open(living_spec_full_path, 'r', encoding='utf-8') as f:
+                    living_spec = parse_living_spec_md(f.read())
+            else:
+                with open(living_spec_full_path, 'r', encoding='utf-8') as f:
+                    living_spec = json.load(f)
         except Exception as e:
             print(f"❌ 读取 Living Spec 失败: {e}", file=sys.stderr)
             sys.exit(1)

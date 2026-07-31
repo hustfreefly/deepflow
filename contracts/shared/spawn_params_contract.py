@@ -78,14 +78,17 @@ class SpawnParamsContract(BaseModel):
 class CrossDomainContract(BaseModel):
     """
     跨域数据流契约 — 验证域间数据传递完整性。
+
+    ADR-009 Phase 3 后，Solution Pro 的跨域输入是 data/living_spec.md；
+    frozen_spec.* 已废弃，不再作为契约事实源。
     """
 
-    frozen_spec_md_exists: bool = Field(
-        description="data/frozen_spec.md 是否存在"
+    living_spec_md_exists: bool = Field(
+        description="data/living_spec.md 是否存在"
     )
-    frozen_spec_md_size: int = Field(
+    living_spec_md_size: int = Field(
         ge=100,
-        description="frozen_spec.md 大小（最小 100B）"
+        description="living_spec.md 大小（最小 100B）"
     )
     requirement_count: int = Field(
         ge=1,
@@ -129,23 +132,23 @@ def validate_cross_domain(blackboard_dir: str) -> CrossDomainContract:
 
     bb = Path(blackboard_dir)
 
-    frozen_spec_md = bb / "data" / "frozen_spec.md"
-    frozen_spec_exists = frozen_spec_md.exists()
-    frozen_spec_size = frozen_spec_md.stat().st_size if frozen_spec_exists else 0
+    living_spec_md = bb / "data" / "living_spec.md"
+    living_spec_exists = living_spec_md.exists()
+    living_spec_size = living_spec_md.stat().st_size if living_spec_exists else 0
 
-    # 从 frozen_spec.json 读取 requirement count
-    frozen_spec_json = bb / "data" / "frozen_spec.json"
+    # 从 living_spec.md 读取 requirement_index 数量（MD-first 契约）
     req_count = 0
-    if frozen_spec_json.exists():
-        import json
+    if living_spec_exists:
         try:
-            spec = json.loads(frozen_spec_json.read_text())
-            req_count = len(spec.get("requirements", []))
+            from domains.spec_pro.spec_living_md import parse_living_spec_md
+
+            spec = parse_living_spec_md(living_spec_md.read_text(encoding="utf-8"))
+            req_count = len(spec.get("requirement_index", []))
         except Exception:
-            pass
+            req_count = 0
 
     return CrossDomainContract.model_validate({
-        "frozen_spec_md_exists": frozen_spec_exists,
-        "frozen_spec_md_size": frozen_spec_size,
+        "living_spec_md_exists": living_spec_exists,
+        "living_spec_md_size": living_spec_size,
         "requirement_count": req_count,
     })

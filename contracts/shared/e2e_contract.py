@@ -57,7 +57,10 @@ STANDARD_PIPELINE = E2EPipelineContract(
             name="spec_pro",
             domain="spec_pro",
             entry_function="SpecProCoordinator.init_session()",
-            required_produce=["spec/living_spec.md"],
+            required_produce=[
+                "spec/living_spec.md",
+                "spec/spec_handoff_package.json",
+            ],
             required_consume=[],
             timeout_minutes=10,
         ),
@@ -66,8 +69,8 @@ STANDARD_PIPELINE = E2EPipelineContract(
             domain="solution_pro",
             entry_function="run_solution_pro()",
             required_produce=[
+                "data/living_spec.md",
                 "stages/final_solution.md",
-                "data/frozen_spec.md",
             ],
             required_consume=["spec/living_spec.md"],
             timeout_minutes=15,
@@ -77,10 +80,10 @@ STANDARD_PIPELINE = E2EPipelineContract(
             domain="ship_pro",
             entry_function="run_ship_pro()",
             required_produce=[
-                "ship_pro/stages/ship_package.json",
+                "ship_pro*/**/ship_package.*",
             ],
             required_consume=[
-                "data/frozen_spec.md",
+                "stages/final_solution.md",
             ],
             timeout_minutes=15,
         ),
@@ -89,15 +92,23 @@ STANDARD_PIPELINE = E2EPipelineContract(
             domain="deliver_pro",
             entry_function="run_deliver_pro()",
             required_produce=[
-                "deliver_pro/DELIVERABLE.md",
+                "deliver_pro/**/DELIVERABLE.md",
             ],
             required_consume=[
-                "ship_pro/stages/ship_package.json",
+                "ship_pro*/**/ship_package.*",
             ],
             timeout_minutes=15,
         ),
     ]
 )
+
+
+def _path_exists_with_content(base: Path, pattern: str) -> bool:
+    """支持普通路径和 glob 模式的产出检查。"""
+    if any(ch in pattern for ch in "*?["):
+        return any(p.is_file() and p.stat().st_size > 0 for p in base.glob(pattern))
+    full_path = base / pattern
+    return full_path.exists() and full_path.stat().st_size > 0
 
 
 # ═══════════════════════════════════════════
@@ -140,8 +151,7 @@ class E2EValidator:
         missing = []
 
         for file_path in stage.required_produce:
-            full_path = self.bb / file_path
-            if full_path.exists() and full_path.stat().st_size > 0:
+            if _path_exists_with_content(self.bb, file_path):
                 produced.append(file_path)
             else:
                 missing.append(file_path)
@@ -167,8 +177,7 @@ class E2EValidator:
         missing = []
 
         for file_path in stage.required_consume:
-            full_path = self.bb / file_path
-            if full_path.exists() and full_path.stat().st_size > 0:
+            if _path_exists_with_content(self.bb, file_path):
                 satisfied.append(file_path)
             else:
                 missing.append(file_path)

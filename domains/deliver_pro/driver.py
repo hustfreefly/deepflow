@@ -84,7 +84,12 @@ class DeliverRunner:
         if not wp_path.exists():
             raise FileNotFoundError(f"WP not found: {wp_path}")
 
-        self.wp = WorkPackage.model_validate(json.loads(wp_path.read_text()))
+        from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+        from domains.deliver_pro.contracts.work_package import WorkPackage
+        result = SafeJsonLoader.load(wp_path, WorkPackage, mtime_window=0)
+        if result.state != "ok":
+            raise ValueError(f"wp.json corrupted: {result.state}")
+        self.wp = result.parsed
         self.orch = DeliverWPRunner(
             self.wp, self.blackboard_path, project_name
         )
@@ -110,7 +115,11 @@ class DeliverRunner:
             return False, {"error": "execution_plan.json not found"}
 
         try:
-            plan_data = json.loads(plan_path.read_text())
+            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+            result = SafeJsonLoader.load_raw(plan_path, mtime_window=0)
+            if result.state != "ok":
+                return False, {"error": f"execution_plan.json corrupted: {result.state}"}
+            plan_data = result.data
             # Verify analyze output quality
             valid, msg = self.orch.verify_analyze_output(plan_data)
             if not valid:
@@ -162,7 +171,13 @@ class DeliverRunner:
         for manifest_path in manifests:
             task_id = Path(manifest_path).parent.name
             try:
-                manifest = json.loads(Path(manifest_path).read_text())
+                from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
+                result = SafeJsonLoader.load(Path(manifest_path), WorkerOutputMeta, mtime_window=0)
+                if result.state != "ok":
+                    logger.warning(f"Worker {task_id} MANIFEST load failed: {result.state}")
+                    continue
+                manifest = result.data
                 # 已判定 FAILED 的跳过（不重复验证）
                 if manifest.get("status") == "FAILED":
                     continue
@@ -292,7 +307,13 @@ class DeliverRunner:
             return "NOT_FOUND", {}
 
         try:
-            data = json.loads(verdict_path.read_text())
+            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+            from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
+            result = SafeJsonLoader.load(verdict_path, ValidationVerdict, mtime_window=0)
+            if result.state != "ok":
+                return "ERROR", {"error": f"validation_result corrupted: {result.state}"}
+            data = result.data
+            verdict_obj = result.parsed
             # Verify validate output (blocking — schema + cross-check)
             valid, msg, verdict_obj = self.orch.verify_validate_output(data)
             if not valid:
@@ -321,8 +342,13 @@ class DeliverRunner:
         verdict_obj = None
         if validation_path.exists():
             try:
-                vdata = json.loads(validation_path.read_text())
-                verdict_obj = ValidationVerdict.model_validate(vdata)
+                from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
+                result = SafeJsonLoader.load(validation_path, ValidationVerdict, mtime_window=0)
+                if result.state == "ok":
+                    verdict_obj = result.parsed
+                else:
+                    logger.warning(f"validation_result.json corrupted: {result.state}")
             except Exception as e:
                 logger.warning(f"Failed to parse validation_result.json: {e}")
 

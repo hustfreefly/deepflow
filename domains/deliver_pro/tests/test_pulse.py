@@ -278,7 +278,11 @@ class TestRetryBudget:
             driver = _mock_driver_for_retry(
                 bb_root, project, "AAA-001", ["T-001", "T-002"], timed_out=("T-001",)
             )
-            orch.progress["AAA-001"] = {"task_attempts": {"T-001": 3}}
+            # 设置 task_attempts 和 task_spawned_at，防止 orphan sweep 删除目录
+            orch.progress["AAA-001"] = {
+                "task_attempts": {"T-001": 3},
+                "task_spawned_at": {"T-001": time.time() - 60}  # 1分钟前 spawn
+            }
             with patch.object(orch, "_get_driver", return_value=driver), \
                  patch.object(orch, "_count_in_flight", return_value=0):
                 report = orch.pulse()

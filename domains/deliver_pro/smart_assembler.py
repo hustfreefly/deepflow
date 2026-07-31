@@ -193,22 +193,29 @@ class SmartAssembler:
             content = deliverable_path.read_text(encoding="utf-8")
 
             # Read MANIFEST.json (required, N4: missing/corrupted = failed)
+            # Phase 2 fix: 使用 SafeJsonLoader 替代裸 json.loads（边界强制层）
+            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
             manifest_path = task_dir / "MANIFEST.json"
             manifest = {}
-            manifest_valid = True
             if not manifest_path.exists():
                 logger.error(f"N4: MANIFEST.json missing for {task_id}, counting as failed")
                 missing_tasks.append({"task_id": task_id, "reason": "MANIFEST.json missing"})
                 continue
-            try:
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            load_result = SafeJsonLoader.load_raw(manifest_path, mtime_window=0)
+            if load_result.state == "ok":
+                manifest = load_result.data or {}
                 if not manifest:  # Empty dict
                     logger.error(f"N4: MANIFEST.json empty for {task_id}, counting as failed")
                     missing_tasks.append({"task_id": task_id, "reason": "MANIFEST.json empty"})
                     continue
-            except json.JSONDecodeError as e:
-                logger.error(f"N4: MANIFEST.json corrupted for {task_id}: {e}")
-                missing_tasks.append({"task_id": task_id, "reason": f"MANIFEST.json corrupted: {e}"})
+            elif load_result.state == "invalid_json":
+                logger.error(f"N4: MANIFEST.json corrupted for {task_id}: {load_result.error}")
+                missing_tasks.append({"task_id": task_id, "reason": f"MANIFEST.json corrupted: {load_result.error}"})
+                continue
+            else:
+                # write_in_progress / not_found → 视为缺失
+                logger.error(f"N4: MANIFEST.json not ready for {task_id}: {load_result.state}")
+                missing_tasks.append({"task_id": task_id, "reason": f"MANIFEST.json {load_result.state}"})
                 continue
 
             # Read optional files

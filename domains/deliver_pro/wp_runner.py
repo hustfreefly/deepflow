@@ -136,7 +136,16 @@ class DeliverWPRunner:
         state_path = self.deliver_pro_dir / "delivery_state.json"
         if state_path.exists():
             try:
-                state_data = json.loads(state_path.read_text(encoding="utf-8"))
+                from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                result = SafeJsonLoader.load(state_path, PipelineState, mtime_window=0)
+                if result.state == "ok":
+                    state_data = result.data
+                else:
+                    # delivery_state.json 损坏，备份后重建
+                    logger.warning(f"delivery_state.json corrupted ({result.state}), backing up and rebuilding")
+                    backup_path = state_path.with_suffix(".corrupted")
+                    state_path.rename(backup_path)
+                    state_data = {}
                 # B2 fix: Phase field recovery — map unknown phase to valid enum
                 raw_phase = state_data.get("phase", "")
                 if raw_phase and raw_phase not in {p.value for p in PipelinePhase}:
@@ -606,7 +615,9 @@ cd {self.blackboard_path.parent.parent}
         if scenario == "code":
             return """- web_search ≥ 2 次（技术方案/API 文档）
 - write 代码 + 测试
-- exec 安装依赖 + 运行测试 + lint（≥ 2 次）
+- exec 安装依赖 + 运行测试 + lint（≥ 2 次，所有 exec 必须带 timeout ≤300s）
+- exec smoke test：每个可执行脚本/程序真实执行 ≥ 1 次（必须带 timeout，如 exec timeout 参数或 gtimeout 300）
+- EVIDENCE.md 必须包含每个脚本的真实执行输出（含脚本名）
 - write MANIFEST.json"""
         elif scenario == "report":
             return """- web_search ≥ 3 次（行业数据/验证数据点）
@@ -712,8 +723,13 @@ cd {self.blackboard_path.parent.parent}
         # 读取 MANIFEST.json
         try:
             manifest_path = output_dir / "MANIFEST.json"
-            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            meta = WorkerOutputMeta.model_validate(manifest_data)
+            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+            from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
+            result = SafeJsonLoader.load(manifest_path, WorkerOutputMeta, mtime_window=0)
+            if result.state != "ok":
+                self.mark_worker_failed(task_id, f"MANIFEST.json corrupted: {result.state}")
+                return False, f"MANIFEST.json corrupted: {result.state}", None
+            meta = result.parsed
         except Exception as e:
             self.mark_worker_failed(task_id, f"MANIFEST.json validation failed: {e}")
             return False, f"MANIFEST.json validation failed: {e}", None
@@ -722,6 +738,35 @@ cd {self.blackboard_path.parent.parent}
         if missing_optional:
             meta.status = "PARTIAL"
             logger.info(f"Worker {task_id} status overridden to PARTIAL (missing: {missing_optional})")
+
+        # Smoke-test Gate (L1, 2026-07-31 git_init.sh 事故):
+        # code 场景交付可执行脚本时，EVIDENCE.md 必须包含每个脚本名的执行证据，
+        # 防止“脚本带 bug 但自评通过”（如参数解析死循环烧 15 小时 CPU）。
+        # 注: 这是 L1 快速过滤（文件名出现在证据中），语义真实性由 L2 Validate 判断。
+        if meta.scenario == "code":
+            script_names = [
+                Path(str(o.get("path", ""))).name
+                for o in (meta.outputs or [])
+                if isinstance(o, dict) and o.get("type") == "script" and o.get("path")
+            ]
+            if script_names:
+                evidence_path = output_dir / "EVIDENCE.md"
+                evidence_text = (
+                    evidence_path.read_text(encoding="utf-8", errors="replace")
+                    if evidence_path.exists()
+                    else ""
+                )
+                missing_smoke = [n for n in script_names if n not in evidence_text]
+                if missing_smoke:
+                    msg = (
+                        f"Smoke test evidence missing for script deliverables: "
+                        f"{missing_smoke}. EVIDENCE.md must contain actual execution "
+                        f"output (with timeout) for each script."
+                    )
+                    self.mark_worker_failed(
+                        task_id, msg, failure_class="contract_violation"
+                    )
+                    return False, msg, None
 
         # 更新状态
         self.state.mark_task_completed(task_id)
@@ -920,8 +965,12 @@ cd {self.blackboard_path.parent.parent}
 
         # 读取并验证 integration_report.json
         try:
-            report_data = json.loads(report.read_text(encoding="utf-8"))
-            report_obj = IntegrationReport.model_validate(report_data)
+            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+            from domains.deliver_pro.contracts.integration_report import IntegrationReport
+            result = SafeJsonLoader.load(report, IntegrationReport, mtime_window=0)
+            if result.state != "ok":
+                return False, f"integration_report.json corrupted: {result.state}"
+            report_obj = result.parsed
 
             if report_obj.status not in ("READY_FOR_VALIDATE", "PARTIAL"):
                 return False, (
@@ -1132,7 +1181,14 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
             integration_report_path = self.stages_dir / "integrated_draft" / "integration_report.json"
             if integration_report_path.exists():
                 try:
-                    report_data = json.loads(integration_report_path.read_text(encoding="utf-8"))
+                    from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                    from domains.deliver_pro.contracts.integration_report import IntegrationReport
+                    result = SafeJsonLoader.load(integration_report_path, IntegrationReport, mtime_window=0)
+                    if result.state == "ok":
+                        report_data = result.data
+                    else:
+                        logger.warning(f"integration_report.json corrupted: {result.state}, skipping AC coverage check")
+                        report_data = {}
                     coverage = report_data.get("coverage", {})
                     # Fix B-1: compute ratio from actual fields (covered/acceptance_criteria_total)
                     ac_total = coverage.get("acceptance_criteria_total", 0)
@@ -1588,68 +1644,12 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         if not manifest_path.exists():
             return False, f"delivery_manifest.json not found at {manifest_path}", None
         try:
-            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest = DeliveryManifest.model_validate(manifest_data)
-            logger.info(
-                f"Package validated: status={manifest.delivery_status}, "
-                f"files={len(manifest.deliverables)}"
-            )
-            return True, "", manifest
-        except Exception as e:
-            return False, f"DeliveryManifest validation failed: {e}", None
-
-    def verify_package_output(self, manifest_path: Path) -> tuple[bool, str, DeliveryManifest | None]:
-        """
-        B-4 fix: 验证 Package 阶段的 delivery_manifest.json。
-
-        Returns:
-            (passed, error_message, manifest)
-        """
-        if not manifest_path.exists():
-            return False, f"delivery_manifest.json not found at {manifest_path}", None
-        try:
-            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest = DeliveryManifest.model_validate(manifest_data)
-            logger.info(
-                f"Package validated: status={manifest.delivery_status}, "
-                f"files={len(manifest.deliverables)}"
-            )
-            return True, "", manifest
-        except Exception as e:
-            return False, f"DeliveryManifest validation failed: {e}", None
-
-    def verify_package_output(self, manifest_path: Path) -> tuple[bool, str, DeliveryManifest | None]:
-        """
-        B-4 fix: 验证 Package 阶段的 delivery_manifest.json。
-
-        Returns:
-            (passed, error_message, manifest)
-        """
-        if not manifest_path.exists():
-            return False, f"delivery_manifest.json not found at {manifest_path}", None
-        try:
-            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest = DeliveryManifest.model_validate(manifest_data)
-            logger.info(
-                f"Package validated: status={manifest.delivery_status}, "
-                f"files={len(manifest.deliverables)}"
-            )
-            return True, "", manifest
-        except Exception as e:
-            return False, f"DeliveryManifest validation failed: {e}", None
-
-    def verify_package_output(self, manifest_path: Path) -> tuple[bool, str, DeliveryManifest | None]:
-        """
-        B-4 fix: 验证 Package 阶段的 delivery_manifest.json。
-
-        Returns:
-            (passed, error_message, manifest)
-        """
-        if not manifest_path.exists():
-            return False, f"delivery_manifest.json not found at {manifest_path}", None
-        try:
-            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest = DeliveryManifest.model_validate(manifest_data)
+            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+            from domains.deliver_pro.contracts.delivery_manifest import DeliveryManifest
+            result = SafeJsonLoader.load(manifest_path, DeliveryManifest, mtime_window=0)
+            if result.state != "ok":
+                return False, f"delivery_manifest.json corrupted: {result.state}", None
+            manifest = result.parsed
             logger.info(
                 f"Package validated: status={manifest.delivery_status}, "
                 f"files={len(manifest.deliverables)}"
@@ -1683,7 +1683,19 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         manifest_path = self.worker_outputs_dir / task_id / "MANIFEST.json"
         try:
             if manifest_path.exists():
-                data = json.loads(manifest_path.read_text(encoding="utf-8"))
+                from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
+                result = SafeJsonLoader.load(manifest_path, WorkerOutputMeta, mtime_window=0)
+                if result.state == "ok":
+                    data = result.data
+                else:
+                    # MANIFEST 损坏，备份后重新创建
+                    # 注意：SafeJsonLoader 可能已经备份了文件，所以先检查是否还存在
+                    logger.warning(f"MANIFEST corrupted for {task_id} ({result.state}), backing up and recreating")
+                    if manifest_path.exists():
+                        backup_path = manifest_path.with_suffix(".corrupted")
+                        manifest_path.rename(backup_path)
+                    data = {"task_id": task_id}
             else:
                 manifest_path.parent.mkdir(parents=True, exist_ok=True)
                 data = {"task_id": task_id}
@@ -1727,8 +1739,13 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         if not plan_path.exists():
             return None
         try:
-            plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
-            return ExecutionPlan.model_validate(plan_data)
+            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+            from domains.deliver_pro.contracts.execution_plan import ExecutionPlan
+            result = SafeJsonLoader.load(plan_path, ExecutionPlan, mtime_window=0)
+            if result.state == "ok":
+                return result.parsed
+            logger.error(f"execution_plan.json corrupted: {result.state}")
+            return None
         except Exception as e:
             logger.error(f"Failed to load execution_plan: {e}")
             return None
@@ -1739,8 +1756,13 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         if not verdict_path.exists():
             return None
         try:
-            verdict_data = json.loads(verdict_path.read_text(encoding="utf-8"))
-            return ValidationVerdict.model_validate(verdict_data)
+            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+            from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
+            result = SafeJsonLoader.load(verdict_path, ValidationVerdict, mtime_window=0)
+            if result.state == "ok":
+                return result.parsed
+            logger.error(f"validation_result.json corrupted: {result.state}")
+            return None
         except Exception as e:
             logger.error(f"Failed to load validation_result: {e}")
             return None

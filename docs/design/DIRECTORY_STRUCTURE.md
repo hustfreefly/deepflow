@@ -329,7 +329,9 @@
 │   ├── test_frontend_e2e.py
 │   ├── e2e_solution_test.py
 │   ├── smoke_solution_pro.py
-│   ├── test_e2e_living_spec_v2.py
+│   ├── _archived/                        # Stale legacy test scripts (not collected)
+│   │   ├── test_spec_pro_full.py
+│   │   └── test_e2e_living_spec_v2.py
 │   ├── unit/                              # Unit tests
 │   │   ├── test_init_pipeline.py
 │   │   ├── test_e2e_production.py

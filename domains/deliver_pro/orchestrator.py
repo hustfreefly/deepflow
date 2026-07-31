@@ -112,7 +112,13 @@ class DeliverOrchestrator:
             from domains.ship_pro.ship_living_md import parse_ship_package_md
             self.ship_package = parse_ship_package_md(ship_pkg_path.read_text())
         else:
-            self.ship_package = json.loads(ship_pkg_path.read_text())
+            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+            result = SafeJsonLoader.load_raw(ship_pkg_path, mtime_window=0)
+            if result.state == "ok":
+                self.ship_package = result.data
+            else:
+                logger.error(f"ship_package.json corrupted: {result.state}")
+                self.ship_package = {"work_packages": []}
         # 能力正交：Ship Pro 输出 "id" → 兼容为 "wp_id"
         for wp in self.ship_package.get("work_packages", []):
             if "wp_id" not in wp and "id" in wp:
@@ -129,25 +135,14 @@ class DeliverOrchestrator:
     def _find_ship_package(self) -> Path:
         """搜索 blackboard/{project}/ship_pro/ 下的 ship package。
 
-        查找顺序（ADR-009 MD-first）：
-        1. ship_pro/ship_package.md（MD 主输出，最高优先级）
-        2. ship_pro/ship_track.json（Track 衍生，跨域元数据）
-        3. ship_pro/ship_package.json（JSON 衍生，向后兼容）
-        4. ship_pro/stages/ship_package.json（旧路径）
+        只接受包含 work_packages 的 ship_package.md/json；
+        ship_track.json 是元数据，不包含可调度 WP 列表。
         """
-        candidates = [
-            self.blackboard_root / self.project_name / "ship_pro" / "ship_package.md",
-            self.blackboard_root / self.project_name / "ship_pro" / "ship_track.json",
-            self.blackboard_root / self.project_name / "ship_pro" / "ship_package.json",
-            self.blackboard_root / self.project_name / "ship_pro" / "stages" / "ship_package.json",
-        ]
-        for path in candidates:
-            if path.exists():
-                logger.info(f"Ship package found: {path}")
-                return path
-        raise FileNotFoundError(
-            f"ship_package.md / ship_track.json / ship_package.json not found. Searched: {[str(p) for p in candidates]}"
-        )
+        from domains.deliver_pro import find_ship_package_path
+
+        path = find_ship_package_path(self.project_name)
+        logger.info(f"Ship package found: {path}")
+        return path
 
     def _compute_layers(self) -> list[list[str]]:
         """优先用 dependency_graph.execution_layers，fallback 拓扑排序。"""
@@ -209,14 +204,37 @@ class DeliverOrchestrator:
     # ------------------------------------------------------------------
 
     def _load_progress(self) -> dict:
-        """从 JSON 文件加载进度（剥离 _meta 版本字段，内存只存 WP 进度）。"""
+        """从 JSON 文件加载进度（剥离 _meta 版本字段，内存只存 WP 进度）。
+        
+        H2 fix（2026-07-31）：损坏保护 — 备份 + 从文件证据重建关键字段。
+        """
         if self.progress_path.exists():
             try:
-                data = json.loads(self.progress_path.read_text())
-                data.pop("_meta", None)
-                return data
+                from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                result = SafeJsonLoader.load_raw(self.progress_path, mtime_window=0)
+                if result.state == "ok":
+                    data = result.data
+                    data.pop("_meta", None)
+                    return data
+                else:
+                    # batch_progress.json 损坏，备份后重建
+                    logger.warning(f"batch_progress.json corrupted ({result.state}), backing up and rebuilding")
+                    backup_path = self.progress_path.with_suffix(".corrupted")
+                    self.progress_path.rename(backup_path)
+                    return {}
             except Exception as e:
-                logger.warning(f"Failed to load progress: {e}")
+                # H2 fix: 备份损坏文件 + 尝试从文件系统证据重建
+                logger.warning(f"batch_progress.json corrupted, backing up: {e}")
+                backup_path = self.progress_path.with_suffix(f".corrupted.{int(time.time())}")
+                try:
+                    self.progress_path.rename(backup_path)
+                except OSError as e:
+                    logger.debug(f"Failed to backup progress file: {e}")
+                # 从文件系统证据重建关键字段
+                recovered = self._recover_progress_from_filesystem()
+                if recovered:
+                    logger.info(f"Recovered progress for {len(recovered)} WPs from filesystem")
+                    return recovered
         return {}
 
     def _save_progress(self) -> None:
@@ -224,6 +242,89 @@ class DeliverOrchestrator:
         # _meta 只存在于文件（schema 演进标记，P2-4），不污染内存 dict
         data = {**self.progress, "_meta": {"version": 1}}
         atomic_write_json(self.progress_path, data)
+
+    def _recover_progress_from_filesystem(self) -> dict:
+        """H2 fix: 从文件系统证据重建 batch_progress。
+        
+        证据来源：
+        1. WP 目录下的 worker_outputs/*/MANIFEST.json（per-task 状态）
+        2. WP 目录下的 delivery_state.json（per-WP 状态冗余）
+        
+        Returns:
+            重建的 progress dict，如果无法重建则返回空 dict
+        """
+        recovered = {}
+        project_dir = self.blackboard_root / self.project_name
+        deliver_pro_dir = project_dir / "deliver_pro"
+        
+        if not deliver_pro_dir.exists():
+            return {}
+        
+        for wp_dir in deliver_pro_dir.iterdir():
+            if not wp_dir.is_dir():
+                continue
+            
+            wp_id = wp_dir.name.upper().replace("_", "-")
+            entry = {
+                "task_attempts": {},
+                "task_spawned_at": {},
+                "terminal_failed": False,
+                "dispatch_confirmed": {},
+            }
+            
+            # 证据 1: worker_outputs/*/MANIFEST.json
+            wo_dir = wp_dir / "stages" / "worker_outputs"
+            if wo_dir.exists():
+                for task_dir in wo_dir.iterdir():
+                    if not task_dir.is_dir():
+                        continue
+                    tid = task_dir.name
+                    manifest = task_dir / "MANIFEST.json"
+                    
+                    if manifest.exists():
+                        try:
+                            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                            from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
+                            result = SafeJsonLoader.load(manifest, WorkerOutputMeta, mtime_window=0)
+                            if result.state == "ok":
+                                mdata = result.data
+                                entry["task_attempts"][tid] = 1
+                                entry["task_spawned_at"][tid] = manifest.stat().st_mtime
+                                
+                                # 检查是否终态失败
+                                if mdata.get("status") == "FAILED":
+                                    reason = mdata.get("failure_reason", "")
+                                    if "retry_budget_exceeded" in reason:
+                                        entry["terminal_failed"] = True
+                            else:
+                                # MANIFEST 损坏，标记为已尝试但状态未知
+                                entry["task_attempts"][tid] = 1
+                                entry["task_spawned_at"][tid] = time.time()
+                        except Exception:
+                            # MANIFEST 损坏，标记为已尝试但状态未知
+                            entry["task_attempts"][tid] = 1
+                            entry["task_spawned_at"][tid] = time.time()
+            
+            # 证据 2: delivery_state.json（冗余备份）
+            ds_path = wp_dir / "delivery_state.json"
+            if ds_path.exists():
+                try:
+                    from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                    result = SafeJsonLoader.load_raw(ds_path, mtime_window=0)
+                    if result.state == "ok":
+                        ds = result.data
+                        if ds.get("phase") == "FAILED":
+                            entry["terminal_failed"] = True
+                    else:
+                        logger.warning(f"{wp_id}: delivery_state.json corrupted ({result.state})")
+                except Exception as e:
+                    logger.debug(f"Failed to read delivery_state for {wp_id}: {e}")
+            
+            # 只有有证据的 WP 才加入恢复结果
+            if entry["task_attempts"] or entry["terminal_failed"]:
+                recovered[wp_id] = entry
+        
+        return recovered
 
     # ------------------------------------------------------------------
     # WP 数据访问
@@ -430,8 +531,16 @@ class DeliverOrchestrator:
                 if not manifest_path.exists():
                     continue
                 try:
-                    mdata = json.loads(manifest_path.read_text(encoding="utf-8"))
-                except Exception:
+                    from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                    from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
+                    load_result = SafeJsonLoader.load(manifest_path, WorkerOutputMeta, mtime_window=0)
+                    # 对于守卫逻辑，我们只需要读取 failure_class，不需要完整 schema 校验
+                    # 接受 "ok" 和 "schema_validation_failed" 状态（后者仍有原始 data）
+                    if load_result.state in ("not_found", "write_in_progress", "invalid_json"):
+                        continue
+                    mdata = load_result.data or {}
+                except Exception as e:
+                    logger.debug(f"Failed to load manifest: {e}")
                     continue
                 if mdata.get("failure_class") in ("contract_violation", "quality_failure"):
                     result.append(t)
@@ -622,16 +731,22 @@ class DeliverOrchestrator:
                     verdict_path = self._wp_dir(wp_id) / "stages" / "validation_result.json"
                     if verdict_path.exists():
                         try:
-                            verdict_data = json.loads(verdict_path.read_text(encoding="utf-8"))
+                            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
                             from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
-                            verdict_obj = ValidationVerdict.model_validate(verdict_data)
-                            loop_decision = driver.decide_validate_loop(verdict_obj)
-                            if loop_decision == "fix":
-                                # Spawn fix_integrate agent
-                                round_num = progress_entry.get("validate_round", 1)
-                                fix_params = driver.step6_5_fix_integrate(verdict_data)
-                                logger.info("%s: validate FAIL → fix loop (round=%s)", wp_id, round_num)
-                                return {"wp_id": wp_id, "action": "fix_integrate", "spawn_params": fix_params, "error": None}
+                            result = SafeJsonLoader.load(verdict_path, ValidationVerdict, mtime_window=0)
+                            if result.state == "ok":
+                                verdict_data = result.data
+                                verdict_obj = result.parsed
+                                loop_decision = driver.decide_validate_loop(verdict_obj)
+                                if loop_decision == "fix":
+                                    # Spawn fix_integrate agent
+                                    round_num = progress_entry.get("validate_round", 1)
+                                    fix_params = driver.step6_5_fix_integrate(verdict_data)
+                                    logger.info("%s: validate FAIL → fix loop (round=%s)", wp_id, round_num)
+                                    return {"wp_id": wp_id, "action": "fix_integrate", "spawn_params": fix_params, "error": None}
+                            else:
+                                logger.warning("%s: verdict corrupted (%s), falling back to package_failed", wp_id, result.state)
+                                return {"wp_id": wp_id, "action": "package_failed", "spawn_params": None, "error": f"verdict corrupted: {result.error}"}
                         except Exception as e:
                             logger.warning("%s: failed to process fix loop, falling back to package_failed: %s", wp_id, e)
                             return {"wp_id": wp_id, "action": "package_failed", "spawn_params": None, "error": str(e)}
@@ -952,14 +1067,52 @@ class DeliverOrchestrator:
                 # MANIFEST 存在但 failure_class in (contract_violation, quality_failure) 且预算未耗尽 → 放行
                 exempt = False
                 try:
-                    mdata = json.loads(manifest_file.read_text(encoding="utf-8"))
-                    if (
-                        mdata.get("failure_class") in ("contract_violation", "quality_failure")
-                        and attempts_map.get(tid, 1) < RETRY_BUDGET
-                    ):
-                        exempt = True
-                except (OSError, json.JSONDecodeError, ValueError):
-                    pass  # MANIFEST 读不到/解析失败 → 保持原过滤行为
+                    from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                    from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
+                    
+                    result = SafeJsonLoader.load(manifest_file, WorkerOutputMeta, mtime_window=0)
+                    
+                    if result.state == "ok":
+                        mdata = result.data
+                        if (
+                            mdata.get("failure_class") in ("contract_violation", "quality_failure")
+                            and attempts_map.get(tid, 1) < RETRY_BUDGET
+                        ):
+                            exempt = True
+                    elif result.state == "schema_validation_failed" and result.data:
+                        # Schema 不匹配但 JSON 可读 → 尝试读取 failure_class（兼容旧逻辑）
+                        mdata = result.data
+                        if (
+                            mdata.get("failure_class") in ("contract_violation", "quality_failure")
+                            and attempts_map.get(tid, 1) < RETRY_BUDGET
+                        ):
+                            exempt = True
+                    elif result.state == "invalid_json":
+                        # H1 fix: 真正的 JSON 损坏 → 合成 FAILED + 告警（不静默跳过）
+                        logger.warning(
+                            f"{wp_id}/{tid}: MANIFEST corrupted (invalid_json), "
+                            f"synthesizing FAILED with failure_class=output_corrupted"
+                        )
+                        # 合成 FAILED MANIFEST（failure_class=output_corrupted 不在豁免列表）
+                        synthetic_manifest = {
+                            "task_id": tid,
+                            "status": "FAILED",
+                            "failure_reason": f"MANIFEST corrupted: {result.error}",
+                            "failure_class": "output_corrupted",
+                            "synthetic": True,
+                        }
+                        try:
+                            from core.utils.atomic_io import atomic_write_json
+                            atomic_write_json(manifest_file, synthetic_manifest)
+                        except Exception as write_err:
+                            logger.error(f"Failed to write synthetic MANIFEST: {write_err}")
+                        # 不设置 exempt，让 task 被过滤（终态）
+                    # write_in_progress / not_found / schema_validation_failed without data → 保持原过滤行为
+                        
+                except Exception as e:
+                    # 其他异常 → 记录日志，保持原过滤行为
+                    logger.warning(f"{wp_id}/{tid}: MANIFEST read error: {e}")
+                
                 if not exempt:
                     continue  # 终态（COMPLETE/失败/预算耗尽/非 contract_violation）
             if attempts_map.get(tid, 0) >= RETRY_BUDGET:  # 硬上限
@@ -1145,8 +1298,12 @@ class DeliverOrchestrator:
                     # 终态：合成 MANIFEST（契约笼子：失败必须显式落盘，不允许无限重试）
                     manifest_path = driver.worker_outputs_dir / task_id / "MANIFEST.json"
                     if not manifest_path.exists():
+                        # 确保目录存在（orphan sweep 可能已删除空目录）
+                        manifest_path.parent.mkdir(parents=True, exist_ok=True)
                         atomic_write_json(manifest_path, {
                             "task_id": task_id,
+                            "wp_id": wp_id,
+                            "scenario": "unknown",
                             "status": "FAILED",
                             "failure_reason": f"retry_budget_exceeded ({attempts} attempts, no MANIFEST)",
                             "completed_at": time.time(),
@@ -1187,8 +1344,16 @@ class DeliverOrchestrator:
             if not manifest_path.exists():
                 continue
             try:
-                manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            except Exception:
+                from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
+                result = SafeJsonLoader.load(manifest_path, WorkerOutputMeta, mtime_window=0)
+                # 对于重试逻辑，我们只需要读取 failure_class，不需要完整 schema 校验
+                # 接受 "ok" 和 "schema_validation_failed" 状态（后者仍有原始 data）
+                if result.state in ("not_found", "write_in_progress", "invalid_json"):
+                    continue
+                manifest_data = result.data or {}
+            except Exception as e:
+                logger.debug(f"Failed to load manifest: {e}")
                 continue
             failure_class = manifest_data.get("failure_class")
             if failure_class not in ("contract_violation", "quality_failure"):
@@ -1260,8 +1425,8 @@ class DeliverOrchestrator:
                                         )
                                     except ValueError:
                                         existing_files.append(str(p))
-                        except OSError:
-                            pass
+                        except OSError as e:
+                            logger.debug(f"Failed to list directory: {e}")
                         existing_files.sort()
                         files_list = (
                             "\n".join(f"- {f}" for f in existing_files)
@@ -1346,8 +1511,8 @@ class DeliverOrchestrator:
                         "code": "LOCK_STALE",
                         "message": f"pulse 锁已被持有 {int(age)}s（>{PULSE_LOCK_STALE_SECONDS}s），holder 疑似挂起",
                     }
-            except OSError:
-                pass
+            except OSError as e:
+                logger.debug(f"Failed to read lock file: {e}")
             fh.close()
             raise PulseLocked(alert)
         fh.seek(0)
@@ -1372,8 +1537,14 @@ class DeliverOrchestrator:
                 plan_path = wp_dir / "stages" / "execution_plan.json"
                 if plan_path.exists():
                     try:
-                        plan_data = json.loads(plan_path.read_text())
-                        task_graph = plan_data.get("task_graph", [])
+                        from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                        result = SafeJsonLoader.load_raw(plan_path, mtime_window=0)
+                        if result.state == "ok":
+                            plan_data = result.data
+                            task_graph = plan_data.get("task_graph", [])
+                        else:
+                            logger.warning(f"{wp_id}: execution_plan.json corrupted ({result.state})")
+                            task_graph = []
                         if task_graph:
                             plan_task_ids = {
                                 t.get("task_id", "") if isinstance(t, dict) else str(t)
@@ -1410,28 +1581,127 @@ class DeliverOrchestrator:
                             n += 1
         return n
 
+    def _check_new_evidence_files(self, since_timestamp: float) -> bool:
+        """检查是否有新的产出文件（MANIFEST/delivery_manifest 等）。
+        
+        INVESTIGATION-001 修复：重派不等于进展，必须有新产出文件才算进展。
+        
+        Args:
+            since_timestamp: 检查此时间戳之后修改的文件
+            
+        Returns:
+            True 如果有新产出文件，False 否则
+        """
+        project_dir = self.blackboard_root / self.project_name
+        deliver_pro_dir = project_dir / "deliver_pro"
+        
+        if not deliver_pro_dir.exists():
+            return False
+        
+        # 检查所有 WP 的关键产出文件
+        evidence_patterns = [
+            "stages/worker_outputs/*/MANIFEST.json",
+            "stages/delivery_manifest.json",
+            "stages/validation_result.json",
+            "stages/final_deliverable/*",
+        ]
+        
+        for wp_dir in deliver_pro_dir.iterdir():
+            if not wp_dir.is_dir():
+                continue
+            
+            for pattern in evidence_patterns:
+                for evidence_file in wp_dir.glob(pattern):
+                    if evidence_file.exists() and evidence_file.stat().st_mtime > since_timestamp:
+                        return True
+        
+        return False
+
     def _update_pulse_state(self, n_spawn_actions: int, status: dict) -> tuple[dict, dict | None]:
-        """A7: 零进展检测（连续 N 次无 spawn 且完成数未变 → STALLED 告警，30min 冷却）。"""
+        """A7: 零进展检测（连续 N 次无真实进展 → STALLED 告警，30min 冷却）。
+        
+        M6 fix（2026-07-31）：损坏保护 — 备份 + 重建关键字段，不丢光。
+        INVESTIGATION-001 fix（2026-07-31）：重派不等于进展，必须有新完成或新产出文件。
+        """
         state_path = self.blackboard_root / self.project_name / PULSE_STATE_FILENAME
         state: dict = {}
         if state_path.exists():
             try:
-                state = json.loads(state_path.read_text())
-            except Exception:
-                state = {}
+                from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                result = SafeJsonLoader.load_raw(state_path, mtime_window=0)
+                if result.state == "ok":
+                    state = result.data
+                else:
+                    # M6 fix: 备份损坏文件 + 尝试重建关键字段
+                    logger.warning(f"pulse_state.json corrupted ({result.state}), backing up")
+                    backup_path = state_path.with_suffix(f".corrupted.{int(time.time())}")
+                    try:
+                        state_path.rename(backup_path)
+                    except OSError as e:
+                        logger.debug(f"Failed to backup state file: {e}")
+                    # 重建关键字段：从文件系统证据恢复 last_signature
+                    # 保守策略：zero_progress_count 设为阈值-1（下次触发告警）
+                    state = {
+                        "last_signature": None,
+                        "zero_progress_count": STALLED_ALERT_THRESHOLD - 1,
+                        "_recovered": True,
+                    }
+            except Exception as e:
+                # M6 fix: 备份损坏文件 + 尝试重建关键字段
+                logger.warning(f"pulse_state.json corrupted, backing up: {e}")
+                backup_path = state_path.with_suffix(f".corrupted.{int(time.time())}")
+                try:
+                    state_path.rename(backup_path)
+                except OSError as e:
+                    logger.debug(f"Failed to backup state file: {e}")
+                # 重建关键字段：从文件系统证据恢复 last_signature
+                # 保守策略：zero_progress_count 设为阈值-1（下次触发告警）
+                state = {
+                    "last_signature": None,
+                    "zero_progress_count": STALLED_ALERT_THRESHOLD - 1,
+                    "_recovered": True,
+                }
 
+        # INVESTIGATION-001 修复：检查是否有真实进展
+        # 真实进展 = 新完成（completed + terminal_failed 变化）或 新产出文件
+        current_completed_count = status['completed'] + status.get('terminal_failed', 0)
+        last_completed_count = state.get("last_completed_count", 0)
+        has_new_completions = current_completed_count > last_completed_count
+        
+        # 检查自上次 pulse 以来是否有新产出文件
+        last_pulse_time = state.get("last_pulse_time", 0)
+        has_new_evidence = self._check_new_evidence_files(last_pulse_time)
+        
+        has_real_progress = has_new_completions or has_new_evidence
+        
         signature = f"{status['completed']}+{status.get('terminal_failed', 0)}/{status['total_wps']}"
         alert = None
         last_sig = state.get("last_signature")
-        if n_spawn_actions == 0 and signature == last_sig:
+        
+        # INVESTIGATION-001 修复：只有真实进展才归零，重派不算
+        if has_real_progress:
+            # 有真实进展（新完成或新产出）→ 归零
+            state["zero_progress_count"] = 0
+        elif n_spawn_actions == 0 and signature == last_sig:
+            # 无 spawn 动作且签名未变 → 零进展计数 +1
             state["zero_progress_count"] = state.get("zero_progress_count", 0) + 1
         elif n_spawn_actions == 0 and last_sig is None:
             # 首次 pulse 即零动作 = 第一次零进展观察（计入阈值）
             state["zero_progress_count"] = 1
+        elif n_spawn_actions > 0 and not has_real_progress:
+            # 有 spawn 动作但无真实进展（重派风暴）→ 计数 +1
+            state["zero_progress_count"] = state.get("zero_progress_count", 0) + 1
+            logger.warning(
+                f"重派风暴检测：{n_spawn_actions} 个 spawn 动作但无新产出，"
+                f"zero_progress_count={state['zero_progress_count']}"
+            )
         else:
-            # 签名变化（有进展）或有 spawn 动作（在派活）→ 归零
+            # 签名变化（有进展）→ 归零
             state["zero_progress_count"] = 0
+        
         state["last_signature"] = signature
+        state["last_completed_count"] = current_completed_count
+        state["last_pulse_time"] = time.time()
 
         now = time.time()
         if (
@@ -1585,7 +1855,8 @@ class DeliverOrchestrator:
                     continue  # 有 spawn 记录 → 真 worker，豁免
                 try:
                     age = now - task_dir.stat().st_mtime
-                except OSError:
+                except OSError as e:
+                    logger.debug(f"Failed to stat task dir: {e}")
                     continue
                 if age <= RECORDLESS_ORPHAN_GRACE_SECONDS:
                     continue  # 宽限期内 → 豁免
@@ -1631,7 +1902,11 @@ class DeliverOrchestrator:
                 content = path.read_text(encoding="utf-8")
                 return parse_living_spec_md(content)
             else:
-                return json.loads(path.read_text(encoding="utf-8"))
+                from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                result = SafeJsonLoader.load_raw(path, mtime_window=0)
+                if result.state == "ok":
+                    return result.data
+                raise ValueError(f"living_spec at {path} is corrupted: {result.state}")
         except Exception as e:
             raise ValueError(
                 f"living_spec at {path} is unreadable: {e}. "
@@ -1760,7 +2035,13 @@ class DeliverOrchestrator:
         """构建 final_synthesis 动作。"""
         # Write context to file instead of inlining large JSON
         living_spec = self._read_living_spec()
-        contract = json.loads(self._contract_path().read_text(encoding="utf-8"))
+        from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+        result = SafeJsonLoader.load_raw(self._contract_path(), mtime_window=0)
+        if result.state == "ok":
+            contract = result.data
+        else:
+            logger.error(f"contract corrupted: {result.state}, using empty contract")
+            contract = {}
         ctx_content = (
             f"# Living Spec\n\n"
             f"{json.dumps(living_spec, ensure_ascii=False, indent=2)}\n\n"
@@ -1800,7 +2081,13 @@ class DeliverOrchestrator:
         Returns:
             Spawn action dict for LLM to judge each req_element as COVERED/PARTIAL/MISSING
         """
-        contract = json.loads(self._contract_path().read_text(encoding="utf-8"))
+        from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+        result = SafeJsonLoader.load_raw(self._contract_path(), mtime_window=0)
+        if result.state == "ok":
+            contract = result.data
+        else:
+            logger.error(f"contract corrupted: {result.state}, using empty contract")
+            contract = {}
         synthesis_dir = self._final_synthesis_dir()
 
         # Collect synthesis output into a context file
@@ -1810,8 +2097,8 @@ class DeliverOrchestrator:
                 if f.is_file() and f.stat().st_size > 0:
                     try:
                         synthesis_text += f.read_text(encoding="utf-8", errors="ignore")[:5000]
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Failed to read synthesis file: {e}")
 
         ctx_content = (
             f"# Deliverable Contract\n\n"
@@ -1847,6 +2134,83 @@ class DeliverOrchestrator:
             "thinking": "medium",
         }
     
+    def _check_wp_dwell_time(self) -> list[dict]:
+        """INVESTIGATION-001: 检查每个 WP 在当前 phase 的停留时间。
+        
+        告警阈值：
+        - PACKAGING > 2h: WARN
+        - PACKAGING > 6h: CRITICAL
+        - VALIDATING > 1h: WARN
+        - VALIDATING > 3h: CRITICAL
+        
+        Returns:
+            告警列表
+        """
+        alerts = []
+        now = time.time()
+        
+        # 阈值配置（秒）
+        thresholds = {
+            "PACKAGING": {"warn": 2 * 3600, "critical": 6 * 3600},
+            "VALIDATING": {"warn": 1 * 3600, "critical": 3 * 3600},
+            "GENERATING": {"warn": 1 * 3600, "critical": 4 * 3600},
+        }
+        
+        for layer in self.layers:
+            for wp_id in layer:
+                entry = self.progress.get(wp_id, {})
+                if not isinstance(entry, dict):
+                    continue
+                
+                # 跳过已完成的 WP
+                if entry.get("terminal_failed"):
+                    continue
+                
+                # 获取当前 phase
+                phase = self._check_wp_phase(wp_id)
+                if phase == "DONE":
+                    continue
+                
+                # 获取进入当前 phase 的时间
+                # 优先使用 last_spawned_at，其次使用 task_spawned_at 中最新的
+                entered_at = entry.get("last_spawned_at")
+                if not entered_at:
+                    # 从 task_spawned_at 中找最新的
+                    spawned_at_map = entry.get("task_spawned_at", {})
+                    if spawned_at_map:
+                        entered_at = max(spawned_at_map.values())
+                
+                if not entered_at:
+                    continue
+                
+                dwell_seconds = now - entered_at
+                
+                # 检查阈值
+                if phase in thresholds:
+                    critical_threshold = thresholds[phase]["critical"]
+                    warn_threshold = thresholds[phase]["warn"]
+                    
+                    if dwell_seconds > critical_threshold:
+                        alerts.append({
+                            "severity": "CRITICAL",
+                            "code": "WP_DWELL_CRITICAL",
+                            "message": (
+                                f"{wp_id} 卡在 {phase} {dwell_seconds/3600:.1f} 小时"
+                                f"（阈值 {critical_threshold/3600:.0f}h），需立即检查"
+                            ),
+                        })
+                    elif dwell_seconds > warn_threshold:
+                        alerts.append({
+                            "severity": "WARN",
+                            "code": "WP_DWELL_WARN",
+                            "message": (
+                                f"{wp_id} 卡在 {phase} {dwell_seconds/3600:.1f} 小时"
+                                f"（阈值 {warn_threshold/3600:.0f}h）"
+                            ),
+                        })
+        
+        return alerts
+
     def _process_gate_report(self) -> dict:
         """Process the gate report written by LLM judge.
         
@@ -1867,7 +2231,15 @@ class DeliverOrchestrator:
         
         # Fail-closed: report must be valid JSON
         try:
-            report = json.loads(report_path.read_text(encoding="utf-8"))
+            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+            result = SafeJsonLoader.load_raw(report_path, mtime_window=0)
+            if result.state == "ok":
+                report = result.data
+            else:
+                raise ValueError(
+                    f"Gate report at {report_path} is corrupted: {result.state}. "
+                    f"Fail-closed: cannot proceed."
+                )
         except Exception as e:
             raise ValueError(
                 f"Gate report at {report_path} is invalid JSON: {e}. "
@@ -1956,7 +2328,13 @@ class DeliverOrchestrator:
         # A8: 完成标记快速通道（零扫描退出，不烧 token 之外的任何资源）
         if completed_path.exists():
             try:
-                completed_data = json.loads(completed_path.read_text())
+                from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                result = SafeJsonLoader.load_raw(completed_path, mtime_window=0)
+                if result.state == "ok":
+                    completed_data = result.data
+                else:
+                    logger.warning(f"completed.json corrupted: {result.state}, using empty")
+                    completed_data = {}
             except Exception:
                 completed_data = {}
             return _build_report(
@@ -2175,6 +2553,10 @@ class DeliverOrchestrator:
             pulse_state, stalled_alert = self._update_pulse_state(len(candidates), status)
             if stalled_alert:
                 alerts.append(stalled_alert)
+
+            # INVESTIGATION-001: per-WP dwell-time 监控
+            dwell_alerts = self._check_wp_dwell_time()
+            alerts.extend(dwell_alerts)
 
             # A2/P1-4: 终态判定（2026-07-29 更新：需 final_synthesis 完成）
             # 完成条件：all_resolved + _final_deliverable_done.json 存在
@@ -2427,12 +2809,18 @@ class DeliverOrchestrator:
                 score_str = ""
                 if vr.exists():
                     try:
-                        vdata = json.loads(vr.read_text())
-                        score = vdata.get("weighted_score", "?")
-                        verdict = vdata.get("verdict", "?")
-                        score_str = f" ({score}/5.0 {verdict})"
-                    except Exception:
-                        pass
+                        from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                        from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
+                        result = SafeJsonLoader.load(vr, ValidationVerdict, mtime_window=0)
+                        if result.state == "ok":
+                            vdata = result.data
+                            score = vdata.get("weighted_score", "?")
+                            verdict = vdata.get("verdict", "?")
+                            score_str = f" ({score}/5.0 {verdict})"
+                        else:
+                            score_str = f" (corrupted: {result.state})"
+                    except Exception as e:
+                        logger.debug(f"Failed to read score: {e}")
                 lines.append(f"  {wp_id}: {phase}{score_str}")
             lines.append("")
 

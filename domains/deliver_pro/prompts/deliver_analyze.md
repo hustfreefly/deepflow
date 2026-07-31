@@ -42,7 +42,7 @@ exec: cat {wp_data_path}
       "task_id": "T-001",
       "title": "任务标题",
       "description": "详细描述",
-      "scenario_type": "code | report | mixed",
+      "scenario_type": "code | report",  // 任务级只允许 code/report；mixed 仅用于顶层 scenario
       "depends_on": [],
       "estimated_complexity": "low | medium | high",
       "acceptance_criteria": ["AC-1", "AC-2"],
@@ -71,7 +71,7 @@ exec: cat {wp_data_path}
 ## 必须做
 
 1. **DAG 无环验证**：task_graph 必须是有向无环图
-2. **场景判定**：每个 task 标注 scenario_type（code/report）
+2. **场景判定**：每个 task 标注 scenario_type（**只允许 code 或 report**，禁止 mixed——mixed 仅用于顶层 scenario 字段）
 3. **并发建议**：根据依赖关系生成 waves 分波执行计划
 4. **glossary（报告场景）**：提取共享术语表，确保后续 Worker 术语一致
 5. **acceptance_criteria 分解**：每个 task 明确关联的 AC

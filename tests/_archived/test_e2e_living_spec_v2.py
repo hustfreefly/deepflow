@@ -21,7 +21,7 @@ import shutil
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 from domains.spec_pro.merge_spec import merge_conversation_digest, merge_confirmed, merge_spec
-from domains.spec_pro.eval.harness import run_harness_v2, run_harness, SemanticGate
+from domains.spec_pro.eval.harness import run_harness_v2, run_harness, StructuralGate
 from domains.solution_pro.spec_context import (
     build_living_spec_context,
     build_conversation_digest_for_prompt,

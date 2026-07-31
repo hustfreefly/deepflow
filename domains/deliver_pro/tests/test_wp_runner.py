@@ -273,6 +273,87 @@ class TestVerifyWorkerOutput:
         assert meta.status == "PARTIAL"  # But status is overridden to PARTIAL
         assert task_id in orchestrator.state.completed_tasks
 
+    def test_smoke_gate_script_without_evidence_fails(self, orchestrator, tmp_path):
+        """Smoke-test Gate: code 场景交付 script 但 EVIDENCE.md 无执行证据 → FAILED。"""
+        task_id = "T-001"
+        output_dir = tmp_path / task_id
+        output_dir.mkdir()
+        (output_dir / "DELIVERABLE.md").write_text(
+            "# Task Output\n\nThis is a valid deliverable with sufficient content "
+            "to pass the minimum length check (50 chars).\n",
+            encoding="utf-8",
+        )
+        (output_dir / "EVIDENCE.md").write_text("# Evidence\n仅文字说明，未提及脚本。\n", encoding="utf-8")
+        (output_dir / "ISSUES.md").write_text("无\n", encoding="utf-8")
+        manifest = {
+            "task_id": task_id,
+            "wp_id": "WP-001",
+            "scenario": "code",
+            "status": "COMPLETE",
+            "outputs": [{"path": "scripts/git_init.sh", "type": "script"}],
+        }
+        (output_dir / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+        orchestrator.state.running_tasks = [task_id]
+        passed, msg, meta = orchestrator.verify_worker_output(task_id, output_dir)
+        assert passed is False
+        assert "git_init.sh" in msg
+        assert meta is None
+
+    def test_smoke_gate_script_with_evidence_passes(self, orchestrator, tmp_path):
+        """Smoke-test Gate: EVIDENCE.md 含脚本名执行证据 → 通过。"""
+        task_id = "T-001"
+        output_dir = tmp_path / task_id
+        output_dir.mkdir()
+        (output_dir / "DELIVERABLE.md").write_text(
+            "# Task Output\n\nThis is a valid deliverable with sufficient content "
+            "to pass the minimum length check (50 chars).\n",
+            encoding="utf-8",
+        )
+        (output_dir / "EVIDENCE.md").write_text(
+            "# Evidence\n\n$ gtimeout 300 bash git_init.sh -n test_pdk\n[OK] done\n",
+            encoding="utf-8",
+        )
+        (output_dir / "ISSUES.md").write_text("无\n", encoding="utf-8")
+        manifest = {
+            "task_id": task_id,
+            "wp_id": "WP-001",
+            "scenario": "code",
+            "status": "COMPLETE",
+            "outputs": [{"path": "scripts/git_init.sh", "type": "script"}],
+        }
+        (output_dir / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+        orchestrator.state.running_tasks = [task_id]
+        passed, msg, meta = orchestrator.verify_worker_output(task_id, output_dir)
+        assert passed is True
+        assert meta is not None
+
+    def test_smoke_gate_non_code_scenario_skipped(self, orchestrator, tmp_path):
+        """Smoke-test Gate: report 场景交付 script 不触发检查。"""
+        task_id = "T-001"
+        output_dir = tmp_path / task_id
+        output_dir.mkdir()
+        (output_dir / "DELIVERABLE.md").write_text(
+            "# Task Output\n\nThis is a valid deliverable with sufficient content "
+            "to pass the minimum length check (50 chars).\n",
+            encoding="utf-8",
+        )
+        (output_dir / "EVIDENCE.md").write_text("# Evidence\n", encoding="utf-8")
+        (output_dir / "ISSUES.md").write_text("无\n", encoding="utf-8")
+        manifest = {
+            "task_id": task_id,
+            "wp_id": "WP-001",
+            "scenario": "report",
+            "status": "COMPLETE",
+            "outputs": [{"path": "scripts/helper.sh", "type": "script"}],
+        }
+        (output_dir / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+        orchestrator.state.running_tasks = [task_id]
+        passed, msg, meta = orchestrator.verify_worker_output(task_id, output_dir)
+        assert passed is True
+
     def test_missing_deliverable(self, orchestrator, tmp_path):
         output_dir = tmp_path / "T-001"
         output_dir.mkdir()

@@ -196,11 +196,47 @@ def derive_worker_progress(
     }
 
 
-def _validate_delivery_manifest(manifest_path: Path) -> bool:
+# H3 fix: manifest 损坏重试上限（防无限循环）
+MANIFEST_CORRUPTION_LIMIT = 3
+
+
+def _get_manifest_corruption_count(wp_dir: Path) -> int:
+    """获取 manifest 损坏次数（从 WP 目录下的计数器文件读取）。"""
+    counter_file = wp_dir / "stages" / ".manifest_corruption_count"
+    try:
+        return int(counter_file.read_text().strip()) if counter_file.exists() else 0
+    except (ValueError, OSError):
+        return 0
+
+
+def _increment_manifest_corruption_count(wp_dir: Path) -> int:
+    """递增 manifest 损坏计数器，返回新值。"""
+    counter_file = wp_dir / "stages" / ".manifest_corruption_count"
+    count = _get_manifest_corruption_count(wp_dir) + 1
+    try:
+        counter_file.parent.mkdir(parents=True, exist_ok=True)
+        counter_file.write_text(str(count))
+    except OSError as e:
+        logger.warning(f"Failed to write corruption counter: {e}")
+    return count
+
+
+def _reset_manifest_corruption_count(wp_dir: Path) -> None:
+    """重置 manifest 损坏计数器（manifest 校验通过时调用）。"""
+    counter_file = wp_dir / "stages" / ".manifest_corruption_count"
+    try:
+        if counter_file.exists():
+            counter_file.unlink()
+    except OSError:
+        pass
+
+
+def _validate_delivery_manifest(manifest_path: Path, wp_dir: Path | None = None) -> bool:
     """校验 delivery_manifest.json 是否为有效 JSON 且符合 DeliveryManifest schema。
 
     B1 fix（2026-07-30）：畸形 manifest 不应让 derive_phase 返回 DONE。
     Package Agent 输出损坏时，应回退到 PACKAGING 让 package 重试。
+    H3 fix（2026-07-31）：损坏次数超过上限则标记 terminal_failed，不再循环。
 
     Returns:
         True: manifest 有效或不存在（不存在时由调用方处理）
@@ -212,15 +248,39 @@ def _validate_delivery_manifest(manifest_path: Path) -> bool:
     data = _read_json(manifest_path)
     if data is None:
         logger.warning(f"delivery_manifest.json is invalid JSON: {manifest_path}")
+        if wp_dir:
+            count = _increment_manifest_corruption_count(wp_dir)
+            if count >= MANIFEST_CORRUPTION_LIMIT:
+                logger.error(
+                    f"{wp_dir.name}: manifest corruption count {count} >= {MANIFEST_CORRUPTION_LIMIT}, "
+                    f"marking as terminal_failed"
+                )
+                # 写入标记文件，orchestrator 检测到后终止
+                terminal_marker = wp_dir / "stages" / ".terminal_manifest_corruption"
+                terminal_marker.touch()
+                return True  # 返回 True 阻止回退循环，让 orchestrator 处理终态
         return False
 
     # Schema 验证：尝试用 DeliveryManifest 解析
     try:
         from domains.deliver_pro.contracts.delivery_manifest import DeliveryManifest
         DeliveryManifest.model_validate(data)
+        # 校验通过，重置计数器
+        if wp_dir:
+            _reset_manifest_corruption_count(wp_dir)
         return True
     except Exception as e:
         logger.warning(f"delivery_manifest.json failed schema validation: {manifest_path}: {e}")
+        if wp_dir:
+            count = _increment_manifest_corruption_count(wp_dir)
+            if count >= MANIFEST_CORRUPTION_LIMIT:
+                logger.error(
+                    f"{wp_dir.name}: manifest corruption count {count} >= {MANIFEST_CORRUPTION_LIMIT}, "
+                    f"marking as terminal_failed"
+                )
+                terminal_marker = wp_dir / "stages" / ".terminal_manifest_corruption"
+                terminal_marker.touch()
+                return True  # 返回 True 阻止回退循环
         return False
 
 

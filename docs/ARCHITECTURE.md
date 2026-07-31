@@ -1,9 +1,10 @@
-> **版本**: V2.2.0 | **最后更新**: 2026-07-12 | **MD-First 架构迁移**
+> **版本**: V2.3.0 | **最后更新**: 2026-08-01 | **AI Native 动态任务编排**
 
 # DeepFlow 架构文档
 
-> 多 Agent 管线框架，运行在 OpenClaw 之上。  
-> 将模糊需求转化为可交付工作包：**Spec Pro → Solution Pro → Ship Pro → Deliver Pro**。
+> AI Native 多 Agent 编排框架，运行在 OpenClaw 之上。  
+> 将模糊需求转化为可交付产物：**Spec Pro → Solution Pro → Ship Pro → Deliver Pro**。  
+> 管线不是写死的——AI 根据任务性质和复杂度，动态生成专属执行管线。
 
 ---
 
@@ -18,18 +19,31 @@ DeepFlow 不是一个 Agent，而是 **Agent 的编排框架**。它在 OpenClaw
 - **统一 Blackboard**：基于文件系统的跨域状态共享（`.deepflow/blackboard/{project}/`）
 - **全链路追踪**：跨域 `trace_id`，从需求到交付包可追溯
 
+### 1.1.1 V2.3 核心演进：固定管线 → 动态任务编排
+
+| 维度 | 上一代 | **V2.3** |
+|:-----|:-------|:---------|
+| 管线 | 固定流水线，所有任务走同一条路 | **动态任务编排**——AI 按任务性质和复杂度现场生成专属管线 |
+| 泛化性 | 只适合预定义场景 | 写代码、行业分析、团队组建方案……同一框架通吃 |
+| 智能 | 按规则执行 | **AI Native**：AI 负责理解和判断，代码只负责执行和记录 |
+
+**AI Native 三体现**：
+1. 不是一个 prompt 走天下——**近 200 个 AI 会话接力协作**完成一个项目（Deliver Pro 实战验证）
+2. **AI 审 AI**：双模型对抗审查，自己不当自己的裁判
+3. 语义理解归 AI，确定性执行归代码——不用 if-else 假装理解人话
+
 ### 1.2 五域架构
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                           DeepFlow V2.2.0                                    │
+│                           DeepFlow V2.3.0                                    │
 │                                                                              │
 │  ┌──────────────┐   ┌──────────────────┐   ┌──────────────────┐   ┌───────────────┐
 │  │  Spec Pro    │──▶│  Solution Pro    │──▶│   Ship Pro       │──▶│ Deliver Pro   │
-│  │  V2.2.0      │   │  V2.1.1          │   │   V2.0.0         │   │ V1.0.0        │
+│  │  V2.3.0      │   │  V4.1.0          │   │   V2.0.0         │   │ V3.0.0        │
 │  │              │   │                  │   │                  │   │               │
 │  │  需求梳理引擎 │   │  方案设计引擎     │   │   交付包生成引擎  │   │  执行交付引擎  │
-│  │  Living Spec │   │  DomainProfile   │   │   ShipPackage    │   │  Work Package │
+│  │  Living Spec │   │  DomainProfile   │   │   ShipPackage    │   │  Pulse 调度   │
 │  └──────────────┘   └──────────────────┘   └──────────────────┘   └───────────────┘
 │                                                                              │
 │  ┌──────────────────┐    ┌──────────────────────────────────────────────┐    │
@@ -267,9 +281,9 @@ class ConvergenceLayer:
 
 ## Part 4: 各域架构（当前实际）
 
-### 4.1 Spec Pro V2.2.0
+### 4.1 Spec Pro V2.3.0
 
-> 需求梳理引擎 — 苏格拉底式对话，输出 Living Spec
+> 需求梳理引擎 — 苏格拉底式对话，输出 Living Spec。Semantic Anchors 不可变实体 + 契约笼子硬校验。
 
 **入口**: `SpecProCoordinator` (`coordinator.py`, 1010 行, 22 个方法)
 
@@ -319,9 +333,11 @@ SpecProCoordinator (1010 行)
 
 ---
 
-### 4.2 Solution Pro V2.1.1
+### 4.2 Solution Pro V4.1.0
 
-> 领域自适应方案设计引擎 — 域自适应 + 三模块架构
+> 领域自适应方案设计引擎 — 纯 Agent Orchestrator + 对抗审查（双模型交叉审计）
+
+**V4.0 关键简化**（2026-07-28/30）：状态机 13→10 状态，移除 Step 4/5 后置验证，Orchestrator 精简为 3 步（初始化→模块执行→完成标记）；全量改读文件模式，根治 prompt 灌入截断问题。
 
 **入口**: `run_solution_pro()` via `master_orchestrator.py` (925 行, 29 个方法)
 
@@ -405,6 +421,8 @@ master_orchestrator.py (925 行)
 
 **入口**: `run_ship_pro(project_name)` (`__init__.py`, 877 行)
 
+**2026-07-30 关键修复**：Orchestrator 弃用不可靠的 `sessions_yield()` 等待，改为 `exec wait_for_module()` 阻塞等待（与 Solution Pro 一致，三域统一等待模式）。验证：79 tests，E2E 28 分钟完成（6 Workers / 29 WPs / 89KB ship_package.md / Gate Judge 3/3 PASSED）。
+
 #### 架构
 
 ```
@@ -464,11 +482,28 @@ run_ship_pro()
 
 ---
 
-### 4.5 Deliver Pro V1.0.0 — 执行交付域
+### 4.5 Deliver Pro V3.0.0 — 执行交付引擎 ⭐
 
 **职责**: Work Package → 可交付产物（代码/报告/分析）
 
-**5 Phase 流水线**:
+**调度架构**: Pulse 脉冲调度（V3 唯一入口，契约笼子 4 层防呆禁用旧路径）。
+
+**技术取向**: 用「无状态脉冲 + 文件系统唯一真相」，换掉对「长寿命 session 和事件投递」的一切依赖——
+- cron 每 5min 点火一次性 isolated session → `pulse()` 全量扫描 → 动作契约落盘 → spawn 执行 + confirm 回执 → session 立即结束
+- 配套机制：原子写 + fcntl 锁、重试预算（≤3）、两阶段 dispatch（10min 孤儿窗口）、MAX_IN_FLIGHT=8、零进展告警 + 30min 冷却、cron 跑完自删
+- 契约笼子防呆：`run_deliver_pro(mode≠"pulse")` → ValueError 硬报错，架构层面禁掉已验证失控的旧入口
+
+**生产验证（两个超复杂案例，零人工干预）**:
+
+| 案例 | Agent 会话数 | 执行时长 | 结果 |
+|:-----|------------:|:--------|:-----|
+| 2.5D 封装设计团队组建 | **197** | **11h55m** | 28/28 WP 完成（27 PASS + 1 CONDITIONAL，0 FAIL） |
+| 2.5D 封装设计团队_MD_V2 | **193** | **14h56m** | 全量完成 |
+| 全链路可观测性平台_E2E | — | 5.5h | 26/26 DONE，0 terminal_failed，4 次 spawn 失败自动回滚自愈 |
+
+---
+
+#### 附：WP 内 5-Phase 流水线
 1. **Analyze** — 解析 WP，生成执行计划（拓扑排序）
 2. **Generate** — 并行 Worker Agent 执行（滑动窗口，max 5 并发）
 3. **Integrate** — **Code-First Assembly (SmartAssembler)**，确定性拼接，零 LLM

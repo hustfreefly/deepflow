@@ -30,7 +30,7 @@ from domains.spec_pro.merge_spec import (
 from domains.spec_pro.eval.harness import (
     run_harness,
     run_harness_v2,
-    SemanticGate,
+    StructuralGate,
     InferenceAuditGate,
 )
 from domains.spec_pro.response_normalizer import normalize_response

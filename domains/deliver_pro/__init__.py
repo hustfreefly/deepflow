@@ -43,6 +43,47 @@ DEEPFLOW_ROOT = Path(__file__).resolve().parent.parent.parent
 BLACKBOARD_ROOT = DEEPFLOW_ROOT / "blackboard"
 
 
+def find_ship_package_path(project_name: str) -> Path:
+    """查找 Ship Pro 产出的可执行 WorkPackage 包。
+
+    只接受 ship_package.md/json（包含 work_packages），不接受 ship_track.json：
+    track 是跨域元数据，不包含可调度 WP 列表。
+
+    查找顺序：
+      1. ship_pro/ship_package.{md,json}（canonical）
+      2. ship_pro/stages/ship_package.{md,json}（旧 canonical）
+      3. ship_pro_<run_id>/stages/ship_package.{md,json}（run_id 隔离目录）
+    """
+    safe_project = project_name.replace("/", "_").replace("\\", "_").replace("..", "_")
+    project_dir = BLACKBOARD_ROOT / safe_project
+
+    candidates = [
+        project_dir / "ship_pro" / "ship_package.md",
+        project_dir / "ship_pro" / "ship_package.json",
+        project_dir / "ship_pro" / "stages" / "ship_package.md",
+        project_dir / "ship_pro" / "stages" / "ship_package.json",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+
+    run_candidates = sorted(
+        list(project_dir.glob("ship_pro_*/stages/ship_package.md"))
+        + list(project_dir.glob("ship_pro_*/stages/ship_package.json")),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for path in run_candidates:
+        if path.exists():
+            return path
+
+    searched = [str(p) for p in candidates] + [str(project_dir / "ship_pro_*/stages/ship_package.{md,json}")]
+    raise FileNotFoundError(
+        "Ship Pro package 不存在（需要包含 work_packages 的 ship_package.md/json）。\n"
+        f"  搜索路径: {searched}"
+    )
+
+
 # ============================================================================
 # Ship Pro → Deliver Pro WorkPackage 适配层
 # ============================================================================
@@ -240,21 +281,14 @@ def run_deliver_pro(
 
     # 1. 验证 Ship Pro 产出存在（契约笼子：缺前置产出 → 硬报错，不静默降级）
     blackboard_path = BLACKBOARD_ROOT / project_name
-    ship_pkg = blackboard_path / "ship_pro" / "ship_track.json"
-    if not ship_pkg.exists():
-        ship_pkg = blackboard_path / "ship_pro" / "ship_package.json"
-    if not ship_pkg.exists():
-        raise FileNotFoundError(
-            f"Deliver Pro 无法启动: ship_package.md 或 ship_track.json 不存在\n"
-            f"  搜索路径: {blackboard_path}/ship_pro/\n"
-            f"  请先确保 Ship Pro 已完成并产出 ship_package.md（ADR-009 MD-first）"
-        )
+    ship_pkg = find_ship_package_path(project_name)
 
     # 2. 返回 Pulse 启动信息（不再返回 LLM spawn_params —— 物理上消除误用可能）
     deepflow_root = str(DEEPFLOW_ROOT)
     result = {
         "project_name": project_name,
         "blackboard_path": str(blackboard_path),
+        "ship_package_path": str(ship_pkg),
         "mode": "pulse",
         "launch_command": (
             f"cd {deepflow_root} && PYTHONPATH=. "
