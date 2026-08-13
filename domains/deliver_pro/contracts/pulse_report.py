@@ -73,7 +73,9 @@ class PulseReport(BaseModel):
     pulse_id: str = Field(min_length=1)
     project_name: str = Field(min_length=1)
     generated_at: float = Field(gt=0)
-    status: Literal["active", "idle", "locked", "completed"]
+    # blocked: 前置条件缺失（如 living_spec），结构化阻塞，非崩溃（2026-08-14 P0-A）
+    # frozen: 熔断触发（连续 JSON 损坏），项目冻结待人工 unfreeze（2026-08-14 P1-C）
+    status: Literal["active", "idle", "locked", "completed", "blocked", "frozen"]
     actions: list[PulseAction] = Field(default_factory=list)
     alerts: list[PulseAlert] = Field(default_factory=list)
     summary: PulseSummary

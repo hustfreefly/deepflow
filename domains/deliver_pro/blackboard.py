@@ -139,7 +139,7 @@ class DeliverProBlackboard:
             return None
 
         try:
-            return json.loads(target.read_text(encoding="utf-8"))
+            return json.loads(target.read_text(encoding="utf-8"))  # safe-json: 通用工具方法，解析失败显式 raise ValueError 由调用方处理（当前无生产调用方）
         except (json.JSONDecodeError, OSError) as e:
             raise ValueError(f"Failed to load JSON from {target}: {e}") from e
 

@@ -105,19 +105,50 @@ else
 fi
 echo ""
 
-# 4. LLM 输出消费点裸 json.loads 检查
-echo "--- 检查 4: LLM 输出消费点裸 json.loads ---"
-# 检查 MANIFEST.json / validation_result.json / delivery_manifest.json 等 LLM 输出文件
-# 是否绕过 SafeJsonLoader
-BARE_LOADS=$(grep -rn "json.loads" --include="*.py" "$DELIVER_PRO_DIR" \
-    | grep -v "test_\|__pycache__\|safe_json_loader\|json.loads(args\|json.loads(Path\|json.loads(f\|# OK" \
-    | grep -i "manifest\|validation\|delivery_state\|batch_progress\|pulse_state" || true)
+# 4. 裸 json.loads 检查（AST 级，2026-08-14 升级）
+# 旧版按文件名字面量 grep，变量引用可绕过（生产假阴性：validation_result.json /
+# execution_plan.json / worker results 裸读未报）。现改为 AST 扫描全部
+# json.load/json.loads 调用，仅允许同行 `# safe-json: <理由>` 声明豁免。
+echo "--- 检查 4: 裸 json.loads/json.load（AST 扫描，# safe-json: 豁免）---"
+BARE_LOADS=$(python3 - <<PYEOF
+import ast, os
+
+target_dir = "$DELIVER_PRO_DIR"
+violations = []
+for root, dirs, files in os.walk(target_dir):
+    dirs[:] = [d for d in dirs if d != '__pycache__']
+    for f in files:
+        if not f.endswith('.py') or f.startswith('test_'):
+            continue
+        path = os.path.join(root, f)
+        try:
+            src = open(path).read()
+            tree = ast.parse(src)
+        except (SyntaxError, OSError):
+            continue
+        lines = src.splitlines()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr not in ('loads', 'load'):
+                continue
+            v = node.func.value
+            if not (isinstance(v, ast.Name) and v.id == 'json'):
+                continue
+            line = lines[node.lineno - 1] if node.lineno <= len(lines) else ''
+            if '# safe-json:' in line:
+                continue
+            violations.append(f'{path}:{node.lineno}: {line.strip()[:100]}')
+
+print('\n'.join(violations))
+PYEOF
+)
 if [ -n "$BARE_LOADS" ]; then
-    echo "⚠️  发现 LLM 输出文件裸 json.loads（应使用 SafeJsonLoader）:"
+    echo "❌ 发现未豁免的 json.loads/json.load（应走 SafeJsonLoader 或加 # safe-json: 理由）:"
     echo "$BARE_LOADS"
     ERRORS=$((ERRORS + 1))
 else
-    echo "✅ LLM 输出消费点已走 SafeJsonLoader"
+    echo "✅ json.loads 全部受控（SafeJsonLoader 或声明豁免）"
 fi
 echo ""
 

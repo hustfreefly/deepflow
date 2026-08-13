@@ -74,7 +74,7 @@ def _fresh_mtime(path: Path) -> float:
 
 def _read_json(path: Path) -> dict[str, Any] | None:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))  # safe-json: 防御性读取，任何异常返回 None，仅用于内部状态推导（track.json 等代码写入文件）
     except Exception:
         return None
 

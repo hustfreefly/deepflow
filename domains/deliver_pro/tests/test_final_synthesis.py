@@ -125,13 +125,23 @@ class TestInferDeliverableContract:
             assert len(report["actions"]) == 1
             assert report["actions"][0]["action"] == "infer_deliverable_contract"
 
-    def test_pulse_living_spec_missing_raises(self, mock_blackboard):
-        """pulse() 在无 contract + 无 living_spec 时应 raise ValueError（不静默跳过）。"""
+    def test_pulse_living_spec_missing_blocks(self, mock_blackboard):
+        """pulse() 在无 contract + 无 living_spec 时返回结构化 blocked（2026-08-14 P0-A）。
+
+        旧行为：raise ValueError → launchd 每 5 分钟崩溃循环。
+        新行为：状态机 — 首次 CRITICAL 告警 + 写阻塞标记，不产出动作（仍不静默推进）。
+        """
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             # 不创建 living_spec
             with patch.object(orch, "_count_in_flight", return_value=0):
-                with pytest.raises(ValueError, match="living_spec not found"):
-                    orch.pulse()
+                report = orch.pulse()
+            assert report["status"] == "blocked"
+            assert report["actions"] == []
+            assert any(
+                a["code"] == "PRECONDITION_MISSING" and a["severity"] == "CRITICAL"
+                for a in report["alerts"]
+            )
+            assert (bb_root / project / "_pulse_blocked.json").exists()
 
 
 # ---------------------------------------------------------------------------

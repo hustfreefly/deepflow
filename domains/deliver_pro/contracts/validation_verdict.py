@@ -139,12 +139,26 @@ class ValidationVerdict(BaseModel):
     def from_json(cls, path: str | Path) -> "ValidationVerdict":
         """从 validation_result.json 构造 ValidationVerdict。
 
+        损坏防护（2026-08-14 P1-D）：走 SafeJsonLoader — 损坏自动备份 + 熔断计数，
+        不可读时 raise（验证结果损坏 = 本轮验证无效，禁止静默通过）。
+        mtime_window=0：verdict 文件在 validate agent 完成后读取，不得误判"写入中"。
+
         处理常见格式差异：
         - 缺少 round → 默认 1
         - scores 为非 ScoreDimension 格式 → 自动转换
         - dimensions 代替 scores → 兼容
         """
-        data = json.loads(Path(path).read_text())
+        from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
+        result = SafeJsonLoader.load_raw(Path(path), mtime_window=0)
+        if result.state == "not_found":
+            raise FileNotFoundError(f"validation_result.json 不存在: {path}")
+        if result.state != "ok":
+            backup_note = f"（已备份到 {result.backup_path}）" if result.backup_path else ""
+            raise ValueError(
+                f"validation_result.json 不可读（{result.state}）: {result.error}{backup_note}"
+            )
+        data = result.data
         dims_raw = data.get("dimensions", data.get("scores", {}))
 
         # 转换 scores: 支持 {"dim": {"score": 5, ...}} 和 {"dim": 5} 两种格式

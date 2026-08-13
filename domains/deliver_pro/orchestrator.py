@@ -37,6 +37,9 @@ PULSE_ACTIONS_FILENAME = "_pulse_actions.json"
 PULSE_COMPLETED_FILENAME = ".deliver_completed.json"
 PULSE_STATE_FILENAME = "_pulse_state.json"
 PULSE_LOCK_FILENAME = "_pulse.lock"
+# === 2026-08-14 体检修复：结构化阻塞 + 熔断标记 ===
+PULSE_BLOCKED_FILENAME = "_pulse_blocked.json"  # P0-A: 前置条件缺失（living_spec），条件恢复后自愈
+PULSE_CIRCUIT_BREAKER_FILENAME = "_circuit_breaker.json"  # P1-C: 熔断触发，需人工 unfreeze 解除
 
 # === Final Synthesis 常量（2026-07-29 架构更新） ===
 DELIVERABLE_CONTRACT_FILENAME = "_deliverable_contract.json"
@@ -93,6 +96,49 @@ class PulseLocked(Exception):
     def __init__(self, alert: dict | None = None):
         super().__init__("pulse lock held by another process")
         self.alert = alert
+
+
+def circuit_breaker_freeze(project_name: str, exc) -> dict:
+    """熔断触发后写冻结标记 + 返回 frozen 报告（2026-08-14 P1-C）。
+
+    供 pulse_cli 的 catch 路径使用（trip 可能发生在构造器/pulse 任意加载点）。
+    后续 pulse 走 frozen 快速通道（零工作零告警），直到人工：
+        python3 -m domains.deliver_pro.pulse_cli unfreeze --project <name>
+    """
+    from domains.deliver_pro import BLACKBOARD_ROOT
+    from domains.deliver_pro.contracts.pulse_report import PulseAlert, PulseReport, PulseSummary
+
+    project_dir = Path(BLACKBOARD_ROOT) / project_name
+    marker = {
+        "frozen_at": time.time(),
+        "file": str(exc.path),
+        "consecutive_corruptions": exc.count,
+        "threshold": exc.threshold,
+        "recovery": "排查损坏源（LLM 输出/并发写入）后运行 pulse_cli unfreeze --project <name>",
+    }
+    atomic_write_json(project_dir / PULSE_CIRCUIT_BREAKER_FILENAME, marker)
+    report = PulseReport(
+        pulse_id=f"pulse-{int(time.time())}",
+        project_name=project_name,
+        generated_at=time.time(),
+        status="frozen",
+        actions=[],
+        alerts=[PulseAlert(
+            severity="CRITICAL",
+            code="CIRCUIT_BREAKER",
+            message=str(exc),
+        )],
+        summary=PulseSummary(
+            total_wps=0,
+            completed=0,
+            terminal_failed=0,
+            in_progress=0,
+            in_flight=0,
+            zero_progress_count=0,
+            truncated=False,
+        ),
+    )
+    return report.model_dump(mode="json")
 
 
 class DeliverOrchestrator:
@@ -2352,6 +2398,24 @@ class DeliverOrchestrator:
                 },
             )
 
+        # P1-C (2026-08-14): 熔断冻结快速通道 — 冻结项目零工作、零告警，
+        # 等待人工 `pulse_cli unfreeze` 解除（根除损坏-重建-再损坏循环）
+        if (project_dir / PULSE_CIRCUIT_BREAKER_FILENAME).exists():
+            return _build_report(
+                status="frozen",
+                actions=[],
+                alerts=[],
+                summary={
+                    "total_wps": 0,
+                    "completed": 0,
+                    "terminal_failed": 0,
+                    "in_progress": 0,
+                    "in_flight": 0,
+                    "zero_progress_count": 0,
+                    "truncated": False,
+                },
+            )
+
         # A1: 单实例锁
         try:
             lock_fh = self._acquire_pulse_lock()
@@ -2378,28 +2442,62 @@ class DeliverOrchestrator:
             # A4: 孤儿 spawn_workers 清扫（记录 + 空目录）
             self._orphan_sweep()
 
-            # === Final Synthesis 前置检查（2026-07-29） ===
+            # === Final Synthesis 前置检查（2026-07-29；2026-08-14 P0-A 修复） ===
             # 阶段 1: 批次启动时推断交付物契约
-            # 铁律：需求对齐是硬性要求，living_spec 缺失直接 raise，禁止静默跳过
+            # 铁律（保留）：需求对齐是硬性要求 — 前置条件缺失时绝不产出 infer 动作（不静默推进）
+            # 铁律（升级）：崩溃循环 → 带记忆的状态机。
+            #   首次阻塞 → CRITICAL 告警（飞书一次）+ 写 _pulse_blocked.json 标记
+            #   持续阻塞 → INFO 告警（不触发飞书，防 5 分钟告警风暴）
+            #   条件恢复 → 自动清除标记，正常推进（自愈）
             if self._should_infer_contract():
-                # _build_infer_contract_action 内部调用 _read_living_spec()
-                # 若 living_spec 缺失/不可读 → ValueError 直接 propagate（不 catch）
-                contract_action = self._build_infer_contract_action()
-                # 契约推断优先于正常 tick，直接返回
-                return _build_report(
-                    status="active",
-                    actions=[contract_action],
-                    alerts=[],
-                    summary={
-                        "total_wps": sum(len(l) for l in self.layers),
-                        "completed": 0,
-                        "terminal_failed": 0,
-                        "in_progress": sum(len(l) for l in self.layers),
-                        "in_flight": 0,
-                        "zero_progress_count": 0,
-                        "truncated": False,
-                    },
-                )
+                blocked_path = project_dir / PULSE_BLOCKED_FILENAME
+                try:
+                    contract_action = self._build_infer_contract_action()
+                except ValueError as e:
+                    first_block = not blocked_path.exists()
+                    if first_block:
+                        atomic_write_json(blocked_path, {
+                            "blocked_at": time.time(),
+                            "code": "PRECONDITION_MISSING",
+                            "reason": str(e),
+                        })
+                    alerts.append({
+                        "severity": "CRITICAL" if first_block else "INFO",
+                        "code": "PRECONDITION_MISSING" if first_block else "STILL_BLOCKED",
+                        "message": str(e),
+                    })
+                    return _build_report(
+                        status="blocked",
+                        actions=[],
+                        alerts=alerts,
+                        summary={
+                            "total_wps": sum(len(l) for l in self.layers),
+                            "completed": 0,
+                            "terminal_failed": 0,
+                            "in_progress": sum(len(l) for l in self.layers),
+                            "in_flight": 0,
+                            "zero_progress_count": 0,
+                            "truncated": False,
+                        },
+                    )
+                else:
+                    if blocked_path.exists():
+                        blocked_path.unlink()  # 前置条件恢复 → 清除阻塞标记（自愈）
+                    # 契约推断优先于正常 tick，直接返回
+                    return _build_report(
+                        status="active",
+                        actions=[contract_action],
+                        alerts=[],
+                        summary={
+                            "total_wps": sum(len(l) for l in self.layers),
+                            "completed": 0,
+                            "terminal_failed": 0,
+                            "in_progress": sum(len(l) for l in self.layers),
+                            "in_flight": 0,
+                            "zero_progress_count": 0,
+                            "truncated": False,
+                        },
+                    )
 
             # A5: 并发上限 → spawn 预算（在 tick 记录 dispatch 之前拦截）
             in_flight = self._count_in_flight()
@@ -2575,8 +2673,35 @@ class DeliverOrchestrator:
                     "final_synthesis_done": True,
                 })
                 pulse_status = "completed"
+            elif status["all_resolved"] and status["terminal_failed"] > 0:
+                # P0-B 修复（2026-08-14）: 终态自停 — 全部已解决但含永久失败。
+                # 有 terminal_failed WP 时成功终态不可达（final synthesis 要求全部 DONE），
+                # 不写终态标记就会被调度器无限轮询（生产事故：僵尸项目被轮询 ~3700 次）。
+                terminal_wps = [
+                    wp for layer in self.layers for wp in layer
+                    if self.progress.get(wp, {}).get("terminal_failed")
+                ]
+                atomic_write_json(completed_path, {
+                    "completed_at": time.time(),
+                    "total_wps": status["total_wps"],
+                    "completed": status["completed"],
+                    "terminal_failed": status["terminal_failed"],
+                    "terminal_failed_wps": terminal_wps,
+                    "final_synthesis_done": False,
+                    "outcome": "terminal_failed_self_stop",
+                })
+                alerts.append({
+                    "severity": "CRITICAL",
+                    "code": "TERMINAL_SELF_STOP",
+                    "message": (
+                        f"项目进入终态：{status['completed']}/{status['total_wps']} 成功，"
+                        f"{status['terminal_failed']} 永久失败（{', '.join(terminal_wps[:5])}）。"
+                        f"已写终态标记并自停调度。"
+                    ),
+                })
+                pulse_status = "completed"
             elif status["all_resolved"] and not final_done:
-                # 全部 WP DONE 但 final_synthesis 未完成 → 保持 active
+                # 全部 WP DONE（无失败）但 final_synthesis 未完成 → 保持 active
                 pulse_status = "active"
             else:
                 pulse_status = "active" if candidates else "idle"

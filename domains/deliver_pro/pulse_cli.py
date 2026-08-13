@@ -3,7 +3,8 @@
 用法:
     python3 -m domains.deliver_pro.pulse_cli pulse --project "X"
         运行一次脉冲扫描，动作落盘 _pulse_actions.json 并打印到 stdout。
-        exit code: 0=active/idle, 2=locked, 3=completed
+        exit code: 0=active/idle/blocked/frozen（blocked/frozen 是结构化已知状态，非失败）,
+                   2=locked, 3=completed
 
     python3 -m domains.deliver_pro.pulse_cli confirm --project "X" --results '<json>'
         spawn 回执（A4 两阶段 dispatch / P1-1 回滚）。
@@ -167,8 +168,18 @@ def cmd_pulse(args) -> int:
         # 心跳写入失败不阻塞 pulse 执行
         print(f"WARNING: 心跳写入失败: {e}", file=sys.stderr)
     
-    orch = _load_orchestrator(args.project)
-    report = orch.pulse()
+    # === P1-C (2026-08-14): 熔断保护 ===
+    # CircuitBreakerTripped 可能发生在构造器（ship_package 加载）或 pulse 内任意
+    # SafeJsonLoader 加载点 → 写冻结标记 + 结构化 frozen 报告（一次性 CRITICAL 告警）。
+    # 后续 pulse 走 frozen 快速通道，直到人工 `unfreeze`。
+    from domains.deliver_pro.utils.safe_json_loader import CircuitBreakerTripped
+
+    try:
+        orch = _load_orchestrator(args.project)
+        report = orch.pulse()
+    except CircuitBreakerTripped as e:
+        from domains.deliver_pro.orchestrator import circuit_breaker_freeze
+        report = circuit_breaker_freeze(args.project, e)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     
     # === INVESTIGATION-001: 告警推送 ===
@@ -182,16 +193,23 @@ def cmd_pulse(args) -> int:
         return 2
     if status == "completed":
         return 3
+    # active/idle/blocked/frozen → 0（已处理状态；2026-08-14 前前置缺失直接崩 ValueError
+    # → launchd 每 5 分钟误报失败，现为结构化状态）
     return 0
 
 
 def cmd_confirm(args) -> int:
-    if args.results_file:
-        results = json.loads(Path(args.results_file).read_text())
-    elif args.results:
-        results = json.loads(args.results)
-    else:
-        print("ERROR: --results or --results-file required", file=sys.stderr)
+    # P1-D (2026-08-14): worker 回执 JSON 显式处理解析失败（不裸 traceback）
+    try:
+        if args.results_file:
+            results = json.loads(Path(args.results_file).read_text())  # safe-json: JSONDecodeError 下方显式处理
+        elif args.results:
+            results = json.loads(args.results)  # safe-json: CLI 字符串输入，JSONDecodeError 下方显式处理
+        else:
+            print("ERROR: --results or --results-file required", file=sys.stderr)
+            return 1
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"ERROR: results JSON 解析/读取失败: {e}", file=sys.stderr)
         return 1
     if not isinstance(results, list):
         print("ERROR: results must be a JSON array", file=sys.stderr)
@@ -219,11 +237,21 @@ def cmd_confirm(args) -> int:
 
 def cmd_check(args) -> int:
     from domains.deliver_pro import BLACKBOARD_ROOT, find_ship_package_path
-    from domains.deliver_pro.orchestrator import PULSE_COMPLETED_FILENAME
+    from domains.deliver_pro.orchestrator import (
+        PULSE_BLOCKED_FILENAME,
+        PULSE_CIRCUIT_BREAKER_FILENAME,
+        PULSE_COMPLETED_FILENAME,
+    )
 
     project_dir = BLACKBOARD_ROOT / args.project
     if (project_dir / PULSE_COMPLETED_FILENAME).exists():
         print(f"completed: {args.project} pipeline 已终态（.deliver_completed.json 存在）")
+        return 1
+    if (project_dir / PULSE_CIRCUIT_BREAKER_FILENAME).exists():
+        print(f"frozen: {args.project} 已熔断冻结（_circuit_breaker.json），排查后 pulse_cli unfreeze 解除")
+        return 1
+    if (project_dir / PULSE_BLOCKED_FILENAME).exists():
+        print(f"blocked: {args.project} 前置条件缺失（_pulse_blocked.json），补齐 living_spec 后自愈")
         return 1
     try:
         find_ship_package_path(args.project)
@@ -234,22 +262,66 @@ def cmd_check(args) -> int:
     return 0
 
 
+def cmd_unfreeze(args) -> int:
+    """解除熔断冻结（2026-08-14 P1-C）：删除冻结标记 + 全部损坏计数器。
+
+    注意：不修复损坏源（LLM 持续产出坏 JSON / 并发写入）的话，
+    解冻后连续 3 次损坏会再次触发熔断。
+    """
+    from domains.deliver_pro import BLACKBOARD_ROOT
+    from domains.deliver_pro.orchestrator import (
+        PULSE_BLOCKED_FILENAME,
+        PULSE_CIRCUIT_BREAKER_FILENAME,
+    )
+
+    project_dir = BLACKBOARD_ROOT / args.project
+    if not project_dir.exists():
+        print(f"ERROR: 项目目录不存在: {project_dir}", file=sys.stderr)
+        return 1
+    marker = project_dir / PULSE_CIRCUIT_BREAKER_FILENAME
+    removed_marker = False
+    if marker.exists():
+        marker.unlink()
+        removed_marker = True
+    counters = [p for p in project_dir.rglob(".*.corrupt_count") if p.is_file()]
+    for c in counters:
+        try:
+            c.unlink()
+        except OSError:
+            pass
+    if args.clear_blocked:
+        blocked = project_dir / PULSE_BLOCKED_FILENAME
+        if blocked.exists():
+            blocked.unlink()
+            print(f"unfreeze: 同时清除了阻塞标记 _pulse_blocked.json")
+    if not removed_marker and not counters:
+        print(f"not_frozen: {args.project} 无熔断标记/损坏计数器，无需操作")
+        return 0
+    print(f"unfrozen: {args.project} 已解除冻结（标记移除={removed_marker}，清理计数器 {len(counters)} 个）")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="deliver_pulse_cli")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    for name in ("pulse", "confirm", "check"):
+    for name in ("pulse", "confirm", "check", "unfreeze"):
         p = sub.add_parser(name)
         p.add_argument("--project", required=True)
         if name == "confirm":
             p.add_argument("--results", default=None)
             p.add_argument("--results-file", default=None)
+        if name == "unfreeze":
+            p.add_argument("--clear-blocked", action="store_true",
+                           help="同时清除 _pulse_blocked.json 阻塞标记")
 
     args = parser.parse_args()
     if args.command == "pulse":
         return cmd_pulse(args)
     if args.command == "confirm":
         return cmd_confirm(args)
+    if args.command == "unfreeze":
+        return cmd_unfreeze(args)
     return cmd_check(args)
 
 

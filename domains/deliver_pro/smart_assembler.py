@@ -525,7 +525,19 @@ def assemble(
         from domains.deliver_pro.smart_assembler import assemble
         result = assemble("stages/worker_outputs", "stages/execution_plan.json", "stages/integrated_draft")
     """
-    plan = json.loads(Path(plan_path).read_text(encoding="utf-8"))
+    # P1-D (2026-08-14): execution_plan 是 LLM 产出 — 走 SafeJsonLoader（损坏自动备份 + 熔断计数）。
+    # mtime_window=0：assemble 在 analyze 完成后调用，不得误判"写入中"。
+    from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
+    result = SafeJsonLoader.load_raw(Path(plan_path), mtime_window=0)
+    if result.state == "not_found":
+        raise FileNotFoundError(f"execution_plan.json 不存在: {plan_path}")
+    if result.state != "ok":
+        backup_note = f"（已备份到 {result.backup_path}）" if result.backup_path else ""
+        raise ValueError(
+            f"execution_plan.json 不可读（{result.state}）: {result.error}{backup_note}"
+        )
+    plan = result.data
     assembler = SmartAssembler(
         worker_outputs_dir=Path(worker_outputs_dir),
         plan_data=plan,

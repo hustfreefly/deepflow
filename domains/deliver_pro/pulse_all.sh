@@ -37,6 +37,11 @@ for project_dir in "$BLACKBOARD_ROOT"/*/; do
     
     # 只处理有 ship_package 但未完成的项目
     if [ "$has_ship" = true ] && [ "$has_completed" = false ]; then
+        # P1-C (2026-08-14): 跳过熔断冻结的项目（解冻：pulse_cli unfreeze --project X）
+        if [ -f "$project_dir/_circuit_breaker.json" ]; then
+            echo "  ⏸ 跳过熔断冻结项目: $project_name"
+            continue
+        fi
         echo "  → 检查项目: $project_name"
         
         # 执行 pulse

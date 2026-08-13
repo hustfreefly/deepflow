@@ -189,8 +189,27 @@ cd .deepflow
 # 单元测试
 python3 -m pytest domains/deliver_pro/tests/ -v
 
-# 当前状态: 347 passed
+# 当前状态: 395 passed（2026-08-14 体检修复后）
 ```
+
+---
+
+## 🚦 调度器状态机（2026-08-14 体检修复）
+
+| 状态 | 含义 | 退出码 | 恢复方式 |
+|------|------|:---:|------|
+| `active` / `idle` | 正常运行 | 0 | — |
+| `locked` | 另一个 pulse 持锁 | 2 | 自动（锁释放/stale 清理） |
+| `completed` | 终态（成功或终态自停） | 3 | —（cron 自停 / pulse_all 跳过） |
+| `blocked` | 前置条件缺失（living_spec），首次 CRITICAL 告警后降级 INFO | 0 | 补齐 living_spec 后自愈 |
+| `frozen` | 熔断触发（同一 JSON 连续损坏 ≥3 次） | 0 | `pulse_cli unfreeze --project X` |
+
+**终态自停**：全部 WP 已解决但含永久失败（terminal_failed > 0）时，
+pulse 自动写 `.deliver_completed.json`（outcome=terminal_failed_self_stop）并自停，
+防止僵尸项目被无限轮询（2026-08 生产事故：两个项目被轮询 ~3700 次）。
+
+**熔断计数器**：独立隐藏文件 `.{name}.corrupt_count`（成功读取自动清零），
+冻结标记 `_circuit_breaker.json`。
 
 ---
 
