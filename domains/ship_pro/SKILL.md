@@ -22,7 +22,7 @@ Main Agent (depth-0)
   └─ 等待完成事件 → 拿到 ShipPackage
 
 Orchestrator (depth-1, 全权调度)
-  ├─ Phase 1: exec design_pipeline() → Designer prompt → spawn Designer LLM → PipelinePlan
+  ├─ Phase 1: exec PipelineDesigner.design_pipeline() → Designer prompt → spawn Designer LLM → PipelinePlan
   ├─ Phase 2: exec prepare_runner_spawn() → Worker prompts → spawn Workers (分层并行)
   │     └─ L1 确定性验证 (Schema + 内容深度)
   │     └─ L2 LLM Judge 语义验证（待实现）
@@ -97,9 +97,16 @@ sessions_spawn(**result["spawn_params"])
 **执行者**: Orchestrator 通过 `exec` 调 Python
 
 ```python
-from domains.ship_pro import design_pipeline
-result = design_pipeline("path/to/solution_pro_input.json", blackboard_base_dir="path/to/ship_pro/")
+from pathlib import Path
+from domains.ship_pro.pipeline_designer import PipelineDesigner, validate_solution_pro_input
+
+solution_pro_input = ...  # 读取 solution_pro_input.json
+validate_solution_pro_input(solution_pro_input)
+designer = PipelineDesigner(blackboard_path=Path("path/to/ship_pro/"))
+result = designer.design_pipeline(solution_pro_input, auto=True, plan_output_dir="path/to/ship_pro/stages")
 ```
+
+> 注：模块级 `design_pipeline()` 入口已废弃（2026-09-05），调用即 raise RuntimeError；唯一入口为 `run_ship_pro()`。
 
 **产出**: `pipeline_plan.json`
 - Workers 列表（role, covered_req_ids, interface_provides/requires）
@@ -197,7 +204,7 @@ result = design_pipeline("path/to/solution_pro_input.json", blackboard_base_dir=
 
 ```
 domains/ship_pro/
-├── __init__.py              # 2.0.0 入口 (run_ship_pro, design_pipeline, prepare_runner_spawn)
+├── __init__.py              # 2.0.0 入口 (run_ship_pro, prepare_runner_spawn)
 ├── pipeline_designer.py     # PipelineDesigner + 上下文裁剪
 ├── contracts/               # Pydantic Schema
 │   ├── gates.py             # Gate 验证逻辑
@@ -226,7 +233,7 @@ domains/ship_pro/
 
 以下旧 API 保留兼容，但推荐使用 `run_ship_pro()`：
 
-- `design_pipeline(solution_pro_output_path)` — 只执行 Phase 1
+- ~~`design_pipeline(solution_pro_output_path)`~~ — **已废弃（2026-09-05）**：调用即 raise RuntimeError，请用 `run_ship_pro()`
 - `prepare_runner_spawn(base_path, designer_output, solution_pro_input)` — 只准备 Worker params
 - `extract_json_from_completion(text)` — 从 LLM 输出提取 JSON
 

@@ -27,7 +27,7 @@ Main Agent (depth-0)
 
 Orchestrator (depth-1, 全权调度)
   ├─ Phase 1: PipelineDesigner
-  │   └─ exec design_pipeline() → 分析需求 → PipelinePlan (Worker 拆分 + 依赖 + 上下文裁剪)
+  │   └─ exec PipelineDesigner.design_pipeline() → 分析需求 → PipelinePlan (Worker 拆分 + 依赖 + 上下文裁剪)
   │
   ├─ Phase 2: Workers (4-6 个, 并行)
   │   └─ exec prepare_runner_spawn() → Worker prompts
@@ -144,7 +144,7 @@ sessions_spawn(**result["spawn_params"])
 
 ```
 domains/ship_pro/
-├── __init__.py              # 2.0.0 入口 (run_ship_pro, design_pipeline, prepare_runner_spawn)
+├── __init__.py              # 2.0.0 入口 (run_ship_pro, prepare_runner_spawn)
 ├── pipeline_designer.py     # PipelineDesigner + 上下文裁剪
 ├── contracts/               # Pydantic Schema
 │   ├── gates.py             # Gate 验证逻辑
