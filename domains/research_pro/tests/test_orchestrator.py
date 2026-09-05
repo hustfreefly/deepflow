@@ -10,6 +10,7 @@ import unittest
 import time
 from datetime import datetime, timedelta
 import threading
+import pytest
 
 import domains.research_pro.orchestrator as orchestrator_module
 from domains.research_pro.orchestrator import (
@@ -22,6 +23,12 @@ from domains.research_pro.orchestrator import (
     SUMMARY_MAX_LENGTH,
     ResearchProOrchestrator,
 )
+
+if os.environ.get("DEEPFLOW_RESEARCH_PRO_NETWORK") != "1":
+    pytest.skip(
+        "ResearchPro orchestrator tests hit live DDGS/Bing; set DEEPFLOW_RESEARCH_PRO_NETWORK=1 to run integration",
+        allow_module_level=True,
+    )
 
 # 向后兼容别名
 Orchestrator = ResearchProOrchestrator

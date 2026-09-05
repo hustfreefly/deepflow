@@ -17,9 +17,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SKIP = {
-    "domains/research_pro/tests/test_orchestrator.py",  # 已知挂起嫌疑，先隔离
-}
+DEFAULT_SKIP = set()
 SKIP_DIRS = {
     ".git", ".pytest_cache", "__pycache__", ".venv", "venv", "blackboard",
     "docs", "projects", "output", "test_results", "verification", "ARCHIVED", "_archived",
