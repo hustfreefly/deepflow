@@ -3,73 +3,35 @@
 DeepFlow Doctor — Causal Tracer
 
 追踪多 Agent 因果链:
-  - 从 sessions.json 构建 parent-child 关系树
+  - 从 session_store（2026.9.1 SQLite 存储）构建 parent-child 关系树
   - 跨 session 追踪: Agent A 的错误输出 → Agent B 消费 → 产生问题
   - 识别"根因 Agent"（谁的错误导致了最多的下游问题）
+
+数据源变更（2026-09-05）：sessions.json 已随 2026.9.1 存储迁移废弃，
+改由 session_store.build_tree()（session_nodes + subagent_runs）提供。
 """
 
-import json
 from pathlib import Path
 from typing import Any
 
-
-SESSIONS_JSON = Path.home() / ".openclaw" / "agents" / "main2" / "sessions" / "sessions.json"
+from session_store import build_tree as _store_build_tree
 
 
 def build_session_tree(sessions_json: str | Path | None = None) -> dict:
     """
-    从 sessions.json 构建 session 关系树。
+    构建 session 关系树（契约与旧版一致，数据源已迁移 SQLite）。
+
+    参数 sessions_json 已废弃（仅为兼容旧调用签名保留），被忽略。
 
     返回:
         {
             "roots": [root_session_keys],
             "children": {parent_key: [child_keys]},
-            "sessions": {key: {id, label, status, tokens, runtime, ...}},
+            "sessions": {key: {id, session_id, label, status, tokens, runtime_ms,
+                               started_at, parent, agent_id}},
         }
     """
-    path = Path(sessions_json) if sessions_json else SESSIONS_JSON
-    if not path.exists():
-        return {"roots": [], "children": {}, "sessions": {}}
-
-    with open(path) as f:
-        raw = json.load(f)
-
-    children = {}
-    sessions = {}
-    all_keys = set()
-
-    for key, data in raw.items():
-        session_id = data.get("sessionId", "")
-        parent = data.get("spawnedBy", data.get("parentSessionKey", ""))
-        label = data.get("label", data.get("subagentRole", data.get("displayName", "")))
-        # 清理多行 label
-        if label:
-            label = label.replace("\n", " ").strip()[:50]
-        status = data.get("status", "unknown")
-        tokens = data.get("totalTokens", 0) or (data.get("inputTokens", 0) + data.get("outputTokens", 0))
-        runtime = data.get("runtimeMs", 0)
-        started = data.get("startedAt", 0)
-        transcript = data.get("sessionFile", data.get("transcriptPath", ""))
-
-        sessions[key] = {
-            "id": session_id,
-            "parent": parent,
-            "label": label,
-            "status": status,
-            "tokens": tokens,
-            "runtime_ms": runtime,
-            "started_at": started,
-            "transcript": transcript,
-        }
-        all_keys.add(key)
-
-        if parent:
-            children.setdefault(parent, []).append(key)
-
-    # 找根节点（没有 parent 或 parent 不在已知 keys 中的）
-    roots = [k for k in all_keys if not sessions[k].get("parent") or sessions[k]["parent"] not in all_keys]
-
-    return {"roots": roots, "children": children, "sessions": sessions}
+    return _store_build_tree()
 
 
 def get_session_family(tree: dict, root_key: str, max_depth: int = 3) -> list[str]:

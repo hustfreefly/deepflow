@@ -20,51 +20,65 @@ from typing import Any
 
 
 def parse_transcript(path: str | Path) -> list[dict]:
-    """解析 .jsonl transcript 为事件列表。"""
-    events = []
+    """解析 .jsonl transcript 为事件列表（兼容旧归档文件）。"""
     path = Path(path)
     if not path.exists():
-        return events
+        return []
 
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+    def _records():
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError:
+                    continue
 
-            rtype = record.get("type")
-            ts = record.get("timestamp", 0)
+    return parse_records(_records())
 
-            if rtype == "message":
-                msg = record.get("message", {})
-                role = msg.get("role", "")
-                content = msg.get("content", "")
-                msg_is_error = msg.get("isError", False)
-                tool_name = msg.get("toolName", "")
-                tool_call_id = msg.get("toolCallId", "")
 
-                # toolResult 在 message 层级 (role=toolResult)
-                if role == "toolResult":
-                    result_text = _extract_result_text(content)
-                    error_msg = _extract_error(result_text, msg_is_error)
-                    events.append({
-                        "type": "tool_result",
-                        "role": "toolResult",
-                        "tool": tool_name,
-                        "tool_id": tool_call_id,
-                        "success": not msg_is_error and error_msg is None,
-                        "error": error_msg,
-                        "content_preview": result_text[:500],
-                        "ts": ts,
-                    })
-                else:
-                    events.extend(_parse_message(role, content, ts, msg_is_error=msg_is_error))
-            elif rtype == "session":
-                events.append({"type": "session_start", "id": record.get("id", ""), "ts": ts})
+def parse_session_events(session_id: str, agent_id: str | None = None) -> list[dict]:
+    """从 2026.9.1 SQLite transcript 存储解析事件列表（主入口）。"""
+    from session_store import iter_transcript_records
+    return parse_records(iter_transcript_records(session_id, agent_id))
+
+
+def parse_records(records) -> list[dict]:
+    """record dict 流（.jsonl 行或 transcript_events 行）→ 事件列表。"""
+    events = []
+
+    for record in records:
+        rtype = record.get("type")
+        ts = record.get("timestamp", 0)
+
+        if rtype == "message":
+            msg = record.get("message", {})
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            msg_is_error = msg.get("isError", False)
+            tool_name = msg.get("toolName", "")
+            tool_call_id = msg.get("toolCallId", "")
+
+            # toolResult 在 message 层级 (role=toolResult)
+            if role == "toolResult":
+                result_text = _extract_result_text(content)
+                error_msg = _extract_error(result_text, msg_is_error)
+                events.append({
+                    "type": "tool_result",
+                    "role": "toolResult",
+                    "tool": tool_name,
+                    "tool_id": tool_call_id,
+                    "success": not msg_is_error and error_msg is None,
+                    "error": error_msg,
+                    "content_preview": result_text[:500],
+                    "ts": ts,
+                })
+            else:
+                events.extend(_parse_message(role, content, ts, msg_is_error=msg_is_error))
+        elif rtype == "session":
+            events.append({"type": "session_start", "id": record.get("id", ""), "ts": ts})
 
     return events
 

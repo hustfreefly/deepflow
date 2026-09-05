@@ -33,7 +33,15 @@ sys.path.insert(0, str(Path(__file__).parent))
 # 确保可以 import deepflow 根目录模块
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from transcript_parser import parse_transcript
+from transcript_parser import parse_transcript, parse_session_events
+
+
+def _events_for_session(info: dict) -> list[dict]:
+    """从 2026.9.1 SQLite 存储取 session 事件流（替代旧 .jsonl 路径读取）。"""
+    session_id = info.get("session_id", "")
+    if not session_id:
+        return []
+    return parse_session_events(session_id, agent_id=info.get("agent_id"))
 from pattern_detector import detect_issues, detect_pipeline_issues
 from causal_tracer import build_session_tree, get_session_family, trace_causal_chain, find_recent_pipeline_sessions
 from pipeline_scope import discover_pipeline_runs, filter_events_by_run, get_run_summary
@@ -74,10 +82,10 @@ def main():
         _output_reports(session_reports, args)
         return
 
-    # ── Agent / time-range scope: 从 sessions.json 发现 ──
+    # ── Agent / time-range scope: 从 session store（SQLite）发现 ──
     tree = build_session_tree()
     if not tree["sessions"]:
-        print("❌ 无法加载 sessions.json")
+        print("❌ 无法加载 session store")
         return
 
     # ── Step 2: 确定要扫描的 sessions ──
@@ -141,11 +149,7 @@ def main():
 
         for session_key in cluster_keys:
             info = cluster_infos[session_key]
-            transcript = info.get("transcript", info.get("sessionFile", ""))
-            if not transcript or not Path(transcript).exists():
-                continue
-
-            events = parse_transcript(transcript)
+            events = _events_for_session(info)
             if not events:
                 continue
 
@@ -268,9 +272,9 @@ def _analyze_single_pipeline_run(run: dict, tree: dict, args) -> dict | None:
         # 检查时间重叠: subagent 启动时间在管线窗口内
         buffer = _td(minutes=5)
         if (started - buffer) <= session_start <= (completed + buffer):
-            transcript = info.get("transcript", info.get("sessionFile", ""))
-            if transcript and Path(transcript).exists():
-                matching_transcripts.append((session_key, transcript, info))
+            sid = info.get("session_id", "")
+            if sid:
+                matching_transcripts.append((session_key, sid, info))
 
     if not matching_transcripts:
         # 没有匹配的 session，仍然从 run_info 生成基本报告
@@ -279,8 +283,8 @@ def _analyze_single_pipeline_run(run: dict, tree: dict, args) -> dict | None:
     all_candidates = []
     all_events = []
 
-    for session_key, transcript, info in matching_transcripts:
-        events = parse_transcript(transcript)
+    for session_key, sid, info in matching_transcripts:
+        events = parse_session_events(sid, agent_id=info.get("agent_id"))
         if not events:
             continue
 
@@ -307,7 +311,7 @@ def _analyze_single_pipeline_run(run: dict, tree: dict, args) -> dict | None:
         "candidates": all_candidates,
         "events_count": len(all_events),
         "total_events_before_filter": sum(
-            len(parse_transcript(t)) for _, t, _ in matching_transcripts
+            len(parse_session_events(t, agent_id=info.get("agent_id"))) for _, t, info in matching_transcripts
         ),
         "scope": "pipeline",
         "run_info": {
@@ -344,7 +348,7 @@ def _analyze_single_pipeline_run(run: dict, tree: dict, args) -> dict | None:
 
 def _report_from_run_info(run: dict, label: str) -> dict:
     """
-    没有匹配 session transcript 时，从 pipeline_state.json 生成基本报告。
+    没有匹配 session transcript 时，从 run info 生成基本报告。
     只检查 gate 健康度（不需要 transcript）。
     """
     candidates = detect_pipeline_issues([], run_info=run)

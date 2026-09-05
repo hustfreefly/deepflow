@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 """
+[已废弃 2026-09-05] 本脚本扫描 sessions/ 目录 *.jsonl，该数据源已随 OpenClaw
+2026.9.1 迁移至 SQLite（agents/<agent>/agent/openclaw-agent.sqlite），glob 结果
+恒为空集（静默空跑）。主链路 /doctor（doctor_main.py）已完成存储适配，请改用：
+    python3 scripts/doctor/doctor_main.py --hours 24
+本文件仅为历史参考保留，不再维护。
+
 DeepFlow Doctor — Full Pipeline Scan
 系统性扫描 Spec Pro → Solution Pro → Ship Pro 全流程
 检测: T1 工具错误自恢复 | T2 门控失效 | T3 静默降级 | T4 范围失控 | T5 LLM困惑

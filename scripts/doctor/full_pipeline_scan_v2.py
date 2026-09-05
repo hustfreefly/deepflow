@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 """
+[已废弃 2026-09-05] 本脚本扫描 sessions/ 目录 *.jsonl，该数据源已随 OpenClaw
+2026.9.1 迁移至 SQLite（agents/<agent>/agent/openclaw-agent.sqlite），glob 结果
+恒为空集（静默空跑）。主链路 /doctor（doctor_main.py）已完成存储适配，请改用：
+    python3 scripts/doctor/doctor_main.py --hours 24
+本文件仅为历史参考保留，不再维护。
+
 DeepFlow Doctor V2 — Full Pipeline Scan (精确版)
 正确解析 OpenClaw JSONL 格式，区分真实错误 vs 内容关键词
 """
