@@ -5,7 +5,7 @@ Ship Pro - Dry Run
 四层验证：
   L1: 结构验证（Schema + Import + 契约笼子）
   L2: 单角色行为预演（PipelineDesigner + Worker prompt + Consolidator）
-  L3: 链条串联（design_pipeline → prepare_runner_spawn → Worker → Consolidator）
+  L3: 链条串联（PipelineDesigner → prepare_runner_spawn → Worker → Consolidator）
   L4: Orchestrator 预演（契约笼子 + 失败级联）
 """
 import json
@@ -182,7 +182,7 @@ def layer1_structure():
 
     # 1.1 Import 可达性
     try:
-        from domains.ship_pro import design_pipeline, prepare_runner_spawn
+        from domains.ship_pro import run_ship_pro, prepare_runner_spawn
         from domains.ship_pro.pipeline_designer import (
             PipelineDesigner, PipelinePlan, WorkerSpec, WorkerContext,
             validate_solution_pro_input
@@ -379,7 +379,7 @@ def layer3_chain():
     plan_data = create_mock_pipeline_plan()
     plan = PipelinePlan(**plan_data)
 
-    # 3.1 design_pipeline → context trimming → worker prompts
+    # 3.1 PipelineDesigner → context trimming → worker prompts
     print("\n  --- 3.1 Designer → Context → Prompts ---")
     designer = PipelineDesigner(blackboard_path=tmp)
     contexts = designer.generate_worker_contexts(plan, input_data)

@@ -1,7 +1,10 @@
 """
 Ship Pro - State Manager
 
-State manager: manages pipeline_state.json (single source of truth).
+State manager: manages pipeline state.
+状态唯一源: .runs/*.run.json（由 SingleSourceStateManager 管理）。
+本模块仅保留 StageState/PipelineState 模型 + stage 输出读写，
+pipeline_state.json 已废弃（2026-09-05）。
 Relaxed state transitions (warn instead of raise).
 """
 from pathlib import Path
@@ -92,22 +95,13 @@ class StateManager:
 
     def __init__(self, blackboard_path: Path):
         self.blackboard_path = Path(blackboard_path)
-        # P0 FIX: pipeline_state.json 已废弃，使用 .runs/*.run.json 作为唯一状态源
-        # self.state_file 保留路径但 _save_state 为 no-op，不再写入磁盘
-        self.state_file = self.blackboard_path / "pipeline_state.json"
+        # pipeline_state.json 已废弃（2026-09-05），状态唯一源: .runs/*.run.json
         self.stages_dir = self.blackboard_path / "stages"
         self.stages_dir.mkdir(parents=True, exist_ok=True)
 
-        if self.state_file.exists():
-            with open(self.state_file) as f:
-                data = json.load(f)
-                self.state = PipelineState(**data)
-            logger.info(f"Loaded existing state: {self.state.run_id}")
-        else:
-            run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            self.state = PipelineState(run_id=run_id)
-            self._save_state()
-            logger.info(f"Initialized new state: {run_id}")
+        run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.state = PipelineState(run_id=run_id)
+        logger.info(f"Initialized state manager (pipeline_state.json 已废弃): {run_id}")
 
     def update_stage(self, stage_name: str, status: str):
         """
@@ -141,7 +135,6 @@ class StateManager:
             stage.completed_at = datetime.now().isoformat()
 
         self._update_overall_status()
-        self._save_state()
         logger.info(f"Stage {stage_name}: {current_status} -> {status}")
 
     def increment_retry(self, stage_name: str):
@@ -149,7 +142,6 @@ class StateManager:
             raise ValueError(f"Unknown stage: {stage_name}")
         stage = self.state.stages[stage_name]
         stage.retry_count += 1
-        self._save_state()
 
     def write_stage(self, stage_name: str, data: Dict[str, Any]):
         output_file = self.stages_dir / f"{stage_name}.json"
@@ -186,19 +178,4 @@ class StateManager:
             self.state.status = "pending"
         self.state.updated_at = datetime.now().isoformat()
 
-    def _save_state(self):
-        # P0 FIX: no-op — pipeline_state.json 已废弃，.runs/*.run.json 是唯一状态源
-        return
-        # --- 以下代码已废弃 ---
-        with tempfile.NamedTemporaryFile(
-            mode='w', dir=self.blackboard_path, delete=False, suffix='.tmp'
-        ) as tmp:
-            json.dump(self.state.model_dump(), tmp, indent=2, ensure_ascii=False)
-            tmp_path = tmp.name
-        try:
-            os.rename(tmp_path, self.state_file)
-        except Exception as e:
-            logger.error(f"Failed to save state: {e}")
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-            raise
+    # _save_state 已移除（2026-09-05）：pipeline_state.json 废弃，状态由 .runs/*.run.json 管理

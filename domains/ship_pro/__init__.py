@@ -9,8 +9,7 @@ Ship Pro 2.0.0 - 入口模块
 
   Orchestrator (depth-1, 全权调度)
     → 读取统一 blackboard 中的 Solution Pro 输出
-    → exec: design_pipeline() → Designer prompt
-    → spawn: Designer LLM → PipelinePlan
+    → spawn: Planner LLM → PipelinePlan（via prepare_planner_spawn）
     → exec: prepare_runner_spawn() → Worker prompts
     → spawn: Workers (并行/分层, spawn 后 exec wait_for_module() 阻塞等待)
     → exec: L1 validation
@@ -383,78 +382,15 @@ def _run_ship_pro_locked(
 # ============================================================================
 
 def design_pipeline(solution_pro_output_path: str, **kwargs) -> dict:
-    """2.0.0 兼容入口 - 推荐用 run_ship_pro()
+    """已废弃 — 物理移除，不再作为入口。
 
     .. deprecated:: 2.0.0
-        Use :func:`run_ship_pro` instead. This function creates legacy
-        ship_v8_* directories and will be removed in a future release.
+        Use :func:`run_ship_pro` instead.
     """
-    import warnings
-    warnings.warn(
-        "design_pipeline() is deprecated, use run_ship_pro() instead",
-        DeprecationWarning,
-        stacklevel=2,
+    raise RuntimeError(
+        "design_pipeline() 已废弃（2026-09-05 物理移除）。"
+        "唯一入口: run_ship_pro()。"
     )
-    logging.getLogger(__name__).warning(
-        "design_pipeline() is deprecated, use run_ship_pro() instead"
-    )
-    from .pipeline_designer import PipelineDesigner, validate_solution_pro_input
-
-    input_path = Path(solution_pro_output_path)
-    if not input_path.exists():
-        raise FileNotFoundError(f"Solution Pro 输出文件不存在: {input_path}")
-
-    solution_pro_input = json.loads(input_path.read_text(encoding="utf-8"))
-    validate_solution_pro_input(solution_pro_input)
-
-    # P1 Fix #7: 统一目录结构 - 不再创建 ship_v8_* 时间戳子目录
-    # 直接使用 blackboard_base_dir 作为 session_dir（统一使用 ship_pro/stages/）
-    base_dir = kwargs.get("blackboard_base_dir", str(BLACKBOARD_ROOT))
-    session_dir = Path(base_dir)
-    session_dir.mkdir(parents=True, exist_ok=True)
-    (session_dir / "stages").mkdir(exist_ok=True)
-    session_id = session_dir.name  # 使用目录名作为 session_id
-
-    import shutil
-    dest_input = session_dir / "stages" / "solution_pro_input.json"
-    shutil.copy2(str(input_path), str(dest_input))
-
-    designer = PipelineDesigner(blackboard_path=session_dir)
-    designer_result = designer.design_pipeline(
-        solution_pro_input,
-        auto=kwargs.get("auto", False),
-        plan_output_dir=kwargs.get("plan_output_dir"),
-    )
-
-    deepflow_root = str(DEEPFLOW_ROOT)
-
-    # 双模式处理(契约笼子:确定性分支,不依赖 prompt 指令)
-    if designer_result.get("mode") == "auto":
-        # Auto mode: plan 已生成,直接保存
-        plan_path = session_dir / "stages" / "pipeline_plan.json"
-        plan_path.write_text(json.dumps(designer_result["plan"], ensure_ascii=False, indent=2), encoding="utf-8")
-        return {
-            "session_id": session_id,
-            "base_path": str(session_dir),
-            "solution_pro_input": solution_pro_input,
-            "plan": designer_result["plan"],
-            "mode": "auto",
-            "input_summary": designer_result["input_summary"],
-            "deepflow_root": deepflow_root,
-        }
-    else:
-        # Prompt mode: 返回 prompt 供 Orchestrator 分析
-        prompt_path = session_dir / "stages" / "_designer_prompt.txt"
-        prompt_path.write_text(designer_result["designer_prompt"], encoding="utf-8")
-        return {
-            "session_id": session_id,
-            "base_path": str(session_dir),
-            "solution_pro_input": solution_pro_input,
-            "designer_prompt": designer_result["designer_prompt"],
-            "mode": "prompt",
-            "input_summary": designer_result["input_summary"],
-            "deepflow_root": deepflow_root,
-        }
 
 
 def prepare_runner_spawn(
@@ -579,6 +515,7 @@ def _build_orchestrator_prompt(
 5. 被唤醒后，必须输出可见文字。
 6. 不要 read() Worker task 文件。
 7. **绝不在无 pending children 且任务未完成时结束 turn**（无 pending children + turn 结束 = session 被平台杀死）。
+8. **禁止重复 spawn 同一模块** — spawn 前必须检查 `.runs/` 目录或 lifecycle 状态，已有 running/completed 记录则跳过，不得重复启动。
 
 ## 工具调用格式示例
 
@@ -679,9 +616,13 @@ print(f'OK: MD contains required sections')
 
 exec: python3 -c "
 import sys, json; sys.path.insert(0, '{deepflow_root}')
-from domains.ship_pro import design_pipeline
-result = design_pipeline('{ship_pro_dir}/stages/solution_pro_input.json', blackboard_base_dir='{ship_pro_dir}', auto=True, plan_output_dir='{ship_pro_dir}/stages')
-print(json.dumps({{'mode': result.get('mode', 'prompt'), 'plan_written': result.get('plan_written', False), 'input_summary': result.get('input_summary', {{}})}}))
+from domains.ship_pro.pipeline_designer import PipelineDesigner, validate_solution_pro_input
+from pathlib import Path
+sol = json.loads(Path('{ship_pro_dir}/stages/solution_pro_input.json').read_text())
+validate_solution_pro_input(sol)
+designer = PipelineDesigner(blackboard_path=Path('{ship_pro_dir}'))
+result = designer.design_pipeline(sol, auto=True, plan_output_dir='{ship_pro_dir}/stages')
+print(json.dumps({{'mode': result.get('mode', 'prompt'), 'input_summary': result.get('input_summary', {{}})}}))
 "
 
 **检查结果**:
@@ -1362,7 +1303,7 @@ from .orchestrator.ship_orchestrator import extract_json_from_completion
 
 __all__ = [
     "run_ship_pro",           # 2.0.0 唯一入口
-    "design_pipeline",        # 2.0.0 兼容
+    # "design_pipeline" 已废弃（2026-09-05），不再导出
     "prepare_runner_spawn",   # 2.0.0 兼容
     "extract_json_from_completion",
     "generate_ship_track",    # ADR-009: Track 生成
