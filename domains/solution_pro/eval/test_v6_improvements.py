@@ -18,6 +18,12 @@ import json
 import sys
 from pathlib import Path
 from typing import Dict, Any, List
+import pytest
+
+pytest.skip(
+    "V1-LEGACY eval 脚本：依赖历史 blackboard bb_path，不纳入默认 pytest 基线",
+    allow_module_level=True,
+)
 
 
 def test_single_file_output(bb_path: Path) -> List[str]:

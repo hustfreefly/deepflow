@@ -20,6 +20,14 @@ import pytest
 # Add src to path for imports
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DIAG_PKG = REPO_ROOT / "src" / "deepflow" / "diagnostics"
+if not DIAG_PKG.exists():
+    pytest.skip(
+        "src/deepflow/diagnostics 不在当前 checkout（历史 cleanup 已移除），diagnostics 测试停用",
+        allow_module_level=True,
+    )
+
 class MockDiagnosticsData:
     """Helper to create mock diagnostics data for testing."""
 

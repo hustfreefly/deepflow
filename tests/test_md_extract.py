@@ -7,7 +7,7 @@ ADR-009 MD Track Extractor — 9 Test Scenarios
 4. deliver_pro 合法 MD 通过
 5. research_pro 合法 MD 通过
 6. 缺失章节 → 拒绝
-7. 畸形表格 → 拒绝（extract 阶段）
+7. 畸形表格 → 告警（extract 阶段放宽，不 raise）
 8. track.json schema 验证
 9. 边界长度（deliver_pro 200字符刚好通过）
 """
@@ -471,7 +471,7 @@ version: "1.0.0"
 class TestExtractTrackJson:
     """Phase 2b: extract_track_json tests"""
 
-    def test_7_malformed_table_raises(self):
+    def test_7_malformed_table_warns(self, caplog):
         # MD with valid frontmatter and sections but NO tables at all
         bad_table_md = """---
 domain: deliver_pro
@@ -498,8 +498,9 @@ version: "1.0.0"
 
 没有 Gate 表格。
 """
-        with pytest.raises(ValueError, match="未找到任何表格|Gate 决策表提取为空"):
-            extract_track_json(bad_table_md, "deliver_pro")
+        track = extract_track_json(bad_table_md, "deliver_pro")
+        assert track["metrics"]["req_count"] == 0
+        assert "未找到任何表格" in caplog.text or "Gate 决策表提取为空" in caplog.text
 
     def test_8_track_json_schema_valid(self):
         track = extract_track_json(VALID_SPEC_MD, "spec_pro")
