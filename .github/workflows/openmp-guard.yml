@@ -1,1 +1,26 @@
+name: openmp-guard
 
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  openmp-single-runtime:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install minimal deps for guard
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest numpy torch
+
+      - name: Verify numpy/torch load a single libomp runtime
+        run: |
+          python -m pytest tests/test_environment/test_openmp_single_runtime.py -q --tb=short
