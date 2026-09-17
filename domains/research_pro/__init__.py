@@ -115,7 +115,7 @@ def run_research_pro(
     # Step 3: 清理旧状态文件
     for old_file in [".completed", ".cron_run_count", ".notified_stages.json"]:
         try:
-            bm._resolve(old_file).unlink(missing_ok=True)
+            bm._resolve(old_file, None).unlink(missing_ok=True)
         except Exception as e:
             logger.error(f"research_pro cleanup failed: {e}")
 
@@ -148,8 +148,8 @@ def run_research_pro(
         prompt_filename = "orchestrator_prompt.md"
         bm.write(prompt_filename, orchestrator_prompt, subdir="stages")
         
-        # 写入验证
-        verify = bm.read_stage_raw(f"stages/{prompt_filename}")
+        # 写入验证（read 与 write 对称：同 filename + 同 subdir）
+        verify = bm.read(prompt_filename, subdir="stages")
         if not verify:
             raise RuntimeError(
                 f"Bootstrap write-back verification failed for {prompt_filename}"
@@ -174,7 +174,7 @@ def run_research_pro(
             "runtime": "subagent",
             "mode": "run",
             "label": "research_pro_orchestrator",
-            "task": auto_bootstrap(deepflow_root, session_dir / "stages", task, "research_orchestrator"),
+            "task": auto_bootstrap(deepflow_root, bm.get_session_dir() / "stages", task, "research_orchestrator"),
             "cwd": str(deepflow_root),
             "lightContext": True,
             "runTimeoutSeconds": timeout_seconds,
