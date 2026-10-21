@@ -200,7 +200,7 @@ def generate_spec_track(session_dir: Path) -> dict | None:
             return generate_track_from_md(
                 md_path=md_path,
                 domain="spec_pro",
-                output_dir=session_dir / "spec",
+                output_path=session_dir / "spec",
             )
         except ImportError:
             pass
