@@ -11,16 +11,16 @@ Track B: build_handoff_cli.py 守恒 Gate fail-closed 校验测试
 import sys as _sys
 from pathlib import Path
 from pathlib import Path as _Path
+import json
+import subprocess
+import tempfile
+from datetime import datetime
 
 _p = _Path(__file__).resolve()
 _r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 if _r and str(_r) not in _sys.path:
     _sys.path.insert(0, str(_r))
 
-import json
-import subprocess
-import tempfile
-from datetime import datetime
 
 from domains.spec_pro.coordinator import SpecProCoordinator
 

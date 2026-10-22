@@ -12,15 +12,15 @@ Track B: gate_input_conservation 测试
 
 import sys as _sys
 from pathlib import Path as _Path
+import json
+import pytest
+from unittest.mock import MagicMock
 
 _p = _Path(__file__).resolve()
 _r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 if _r and str(_r) not in _sys.path:
     _sys.path.insert(0, str(_r))
 
-import json
-import pytest
-from unittest.mock import MagicMock
 
 from domains.spec_pro.contracts.gate_input_conservation import (
     gate_input_conservation,

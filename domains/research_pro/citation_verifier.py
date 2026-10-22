@@ -14,14 +14,14 @@ CitationVerifier — ResearchPro 引用验证器
 """
 
 import sys as _sys
+import re
+import hashlib
 
 _p = __import__("pathlib").Path(__file__).resolve()
 _r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 _sys.path.insert(0, str(_r)) if _r and str(
     _r
 ) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
-import re
-import hashlib
 
 # RED-DC-001: 引用必须来自 source_registry
 from domains.research_pro.source_registry import SourceRegistry, _validate_safe_url

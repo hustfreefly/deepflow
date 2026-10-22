@@ -19,14 +19,13 @@ Pipeline Orchestrator Agent（depth-1）
 """
 
 import logging
-
-logger = logging.getLogger(__name__)
-
-
 import json
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
+
 
 from core.config.path_config import PathConfig
 from core.blackboard import BlackboardManager

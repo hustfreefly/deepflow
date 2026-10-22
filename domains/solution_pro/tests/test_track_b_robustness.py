@@ -11,16 +11,16 @@ Track B: Solution Pro 稳健性测试
 
 import sys as _sys
 from pathlib import Path as _Path
+import pytest
+from unittest.mock import MagicMock, patch
+import tempfile
+import shutil
 
 _p = _Path(__file__).resolve()
 _r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 if _r and str(_r) not in _sys.path:
     _sys.path.insert(0, str(_r))
 
-import pytest
-from unittest.mock import MagicMock, patch
-import tempfile
-import shutil
 
 from domains.solution_pro.blackboard import BlackboardManager
 

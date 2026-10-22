@@ -11,13 +11,13 @@ Phase 2c: MD Track Extractor 扩展测试
 
 import sys as _sys
 from pathlib import Path as _Path
+import logging
 
 _p = _Path(__file__).resolve()
 _r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 if _r and str(_r) not in _sys.path:
     _sys.path.insert(0, str(_r))
 
-import logging
 
 from core.md_track_extractor import (
     _extract_semantic_anchors,

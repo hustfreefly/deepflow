@@ -26,6 +26,9 @@ import tempfile
 import shutil
 from datetime import datetime
 from typing import Optional
+from orchestrator import ResearchProOrchestrator
+from tier_classifier import TierClassifier
+from citation_verifier import CitationVerifier
 
 # 添加 deep-research lib 到路径
 DEEPFLOW_ROOT = os.path.join(
@@ -33,10 +36,6 @@ DEEPFLOW_ROOT = os.path.join(
 )
 SKILL_LIB = os.path.join(DEEPFLOW_ROOT, "skills", "deep-research", "lib")
 SKILL_ROOT = os.path.join(DEEPFLOW_ROOT, "skills", "deep-research")
-
-from orchestrator import ResearchProOrchestrator
-from tier_classifier import TierClassifier
-from citation_verifier import CitationVerifier
 
 
 class ResearchProE2ETest:

@@ -19,9 +19,9 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 import yaml
+from packaging import version
 
 logger = logging.getLogger(__name__)
-from packaging import version
 
 from core.config.path_config import PathConfig
 

@@ -25,17 +25,17 @@ sessions_spawn(**result["spawn_params"])
 """
 
 import sys as _sys
+import json
+import pathlib
+from typing import Optional  # 契约笼子：_try_load_handoff_package 返回类型
+from pathlib import Path
 
 _p = __import__("pathlib").Path(__file__).resolve()
 _r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 _sys.path.insert(0, str(_r)) if _r and str(
     _r
 ) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
-import json
-import pathlib
-from typing import Optional  # 契约笼子：_try_load_handoff_package 返回类型
 from core.prompt_utils import render_prompt  # V4: 集成 PromptUtils
-from pathlib import Path
 
 from .blackboard import BlackboardManager
 

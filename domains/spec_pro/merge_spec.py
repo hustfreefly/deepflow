@@ -11,17 +11,17 @@ Usage:
 """
 
 import sys as _sys
+import json
+import logging
+import os
+import sys
+from datetime import datetime
 
 _p = __import__("pathlib").Path(__file__).resolve()
 _r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 _sys.path.insert(0, str(_r)) if _r and str(
     _r
 ) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
-import json
-import logging
-import os
-import sys
-from datetime import datetime
 
 from core.utils.atomic_io import atomic_write_json
 from domains.spec_pro.spec_living_md import render_living_spec_md

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import sys as _sys
+import json
+import argparse
+import logging
 
 _p = __import__("pathlib").Path(__file__).resolve()
 _r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
@@ -25,9 +28,6 @@ Usage:
 注意：核心逻辑已移至 utils.py::append_conversation_log，此处为 CLI 入口（P1-2 去重）。
 """
 
-import json
-import argparse
-import logging
 
 logger = logging.getLogger(__name__)
 

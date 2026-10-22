@@ -9,21 +9,21 @@
 
 import sys
 from pathlib import Path
+import pytest
+from pydantic import ValidationError
+from scripts.render_transition_prompt import render_transition_prompt
 
 # 添加 .deepflow 到 sys.path
 deepflow_root = Path(__file__).resolve().parent.parent
 if str(deepflow_root) not in sys.path:
     sys.path.insert(0, str(deepflow_root))
 
-import pytest
-from pydantic import ValidationError
 
 from domains.spec_pro.contracts.transition_prompt import (
     TransitionPrompt,
     TransitionPromptVariables,
     validate_transition_prompt,
 )
-from scripts.render_transition_prompt import render_transition_prompt
 
 
 class TestTransitionPromptVariables:

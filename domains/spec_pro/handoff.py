@@ -11,6 +11,10 @@ ADR-009 P0（2026-07-12）：MD 直传架构
 """
 
 import sys as _sys
+import json
+import logging
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 _p = __import__("pathlib").Path(__file__).resolve()
 # 契约笼子：强制将 .deepflow 根目录插到 sys.path[0]，覆盖脚本目录优先级
@@ -22,10 +26,6 @@ if _root:
         _sys.path.remove(_root_str)
     _sys.path.insert(0, _root_str)
 
-import json
-import logging
-from pathlib import Path
-from typing import Any, Dict, Optional
 
 # 契约笼子：导入 Pydantic 强类型模型
 from contracts.shared.handoff_contract import HandoffPackage

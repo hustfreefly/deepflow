@@ -11,10 +11,10 @@ import tempfile
 import warnings
 from pathlib import Path
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-from typing import Optional
 
 # ============================================================================
 # 模块级常量

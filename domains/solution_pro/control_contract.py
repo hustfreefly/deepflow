@@ -12,17 +12,17 @@ Do not import this file for new workflows.
 from __future__ import annotations
 
 import sys as _sys
+import json
+import re
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List
 
 _p = __import__("pathlib").Path(__file__).resolve()
 _r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 _sys.path.insert(0, str(_r)) if _r and str(
     _r
 ) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
-import json
-import re
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List
 
 # [2026-07-13] Removed unused task_builder imports (rewrite_after_planning deprecated):
 #   build_researcher_task, build_auditor_task, build_fixer_task_with_audit,

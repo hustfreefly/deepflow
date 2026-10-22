@@ -15,15 +15,15 @@ import sqlite3
 import sys
 from pathlib import Path
 import logging
+from typing import Optional, List, Callable
+from frontend.backend.database import get_db, Task
 
 logger = logging.getLogger(__name__)
 
-from typing import Optional, List, Callable
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from frontend.backend.database import get_db, Task
 
 # DeepFlow imports
 

@@ -18,12 +18,6 @@ Orchestrator — ResearchPro 核心编排器
 from __future__ import annotations
 
 import sys as _sys
-
-_p = __import__("pathlib").Path(__file__).resolve()
-_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
-_sys.path.insert(0, str(_r)) if _r and str(
-    _r
-) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 import json
 import threading
 import copy
@@ -33,6 +27,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Callable
 from urllib.parse import urlparse
+import logging
+
+_p = __import__("pathlib").Path(__file__).resolve()
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
+_sys.path.insert(0, str(_r)) if _r and str(
+    _r
+) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 
 from core.config.path_config import PathConfig
 from core.blackboard.blackboard_manager import BlackboardManager
@@ -44,7 +45,6 @@ from domains.research_pro.citation_verifier import CitationVerifier
 from domains.research_pro.ddgs_client import search_ddgs
 from domains.research_pro.safe_fetcher import _SafeFetcher, SafeFetchError
 
-import logging
 
 logger = logging.getLogger(__name__)
 

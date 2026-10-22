@@ -8,13 +8,6 @@ connecting, rejects disallowed IP ranges, and caps response bodies.
 from __future__ import annotations
 
 import sys as _sys
-
-_p = __import__("pathlib").Path(__file__).resolve()
-_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
-_sys.path.insert(0, str(_r)) if _r and str(
-    _r
-) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
-
 import http.client
 import ipaddress
 import socket
@@ -22,6 +15,13 @@ import ssl
 from dataclasses import dataclass
 from typing import Mapping
 from urllib.parse import urljoin, urlparse
+
+_p = __import__("pathlib").Path(__file__).resolve()
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
+_sys.path.insert(0, str(_r)) if _r and str(
+    _r
+) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
+
 
 from domains.research_pro.url_utils import validate_safe_url as _validate_safe_url
 
