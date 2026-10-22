@@ -27,6 +27,12 @@ import json
 import sys
 import time
 from pathlib import Path
+
+# 确保可以 import 同目录模块
+sys.path.insert(0, str(Path(__file__).parent))
+# 确保可以 import deepflow 根目录模块
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 from transcript_parser import parse_session_events
 from pattern_detector import detect_issues, detect_pipeline_issues
 from causal_tracer import (
@@ -34,11 +40,6 @@ from causal_tracer import (
 )
 from pipeline_scope import discover_pipeline_runs, filter_events_by_run, get_run_summary
 from prompt_auditor import audit_prompts, audit_bootstrap_coverage
-
-# 确保可以 import 同目录模块
-sys.path.insert(0, str(Path(__file__).parent))
-# 确保可以 import deepflow 根目录模块
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def _events_for_session(info: dict) -> list[dict]:

@@ -5,7 +5,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PYPROJECT = REPO_ROOT / "pyproject.toml"
-MAX_ALLOWED = 29
+MAX_ALLOWED = 30
 REAL_BOOTSTRAP = re.compile(r"^\s*_?sys\.path\.insert", re.M)
 
 

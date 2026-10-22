@@ -78,3 +78,4 @@ extend-exclude = ["blackboard", "_archive", "domains/*/_archive", "contracts/sha
 "scripts/run_solution_pro_real.py" = ["E402"]
 "scripts/start_solution_pro.py" = ["E402"]
 "tests/test_transition_prompt.py" = ["E402"]
+"scripts/doctor/doctor_main.py" = ["E402"]
