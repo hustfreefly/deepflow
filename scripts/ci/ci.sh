@@ -55,7 +55,7 @@ case "$MODE" in
   coverage)
     run_contract
     echo "-- coverage gate --"
-    python3 -m pytest -q --cov=core --cov=domains --cov-report=term-missing --cov-fail-under="\${COVERAGE_MIN:-40}"
+    python3 -m pytest -q --cov=core --cov=domains --cov-report=term-missing --cov-fail-under="\${COVERAGE_MIN:-45}"
     ;;
   full)
     run_contract
