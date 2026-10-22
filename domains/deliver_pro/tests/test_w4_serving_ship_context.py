@@ -4,8 +4,6 @@ F4: _adapt_ship_pro_wp 支持 package_serving_principles fallback（semantic_anc
 F5: ship_context.json reader 已删除，Worker prompt 不含 {ship_context} 占位符。
 """
 
-
-
 from domains.deliver_pro import _adapt_ship_pro_wp
 from domains.deliver_pro.contracts import WorkPackage
 from domains.deliver_pro.prompt_registry import load_prompt

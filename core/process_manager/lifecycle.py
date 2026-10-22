@@ -23,7 +23,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
-
 @dataclass
 class RunInfo:
     """try_acquire_run 返回的运行信息"""

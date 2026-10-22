@@ -6,7 +6,6 @@ Ship Pro - Repair Adapters (兼容性转换层)
 """
 
 
-
 def legacy_array_to_worker_deliverable(worker_spec: dict, raw_array: list) -> dict:
     """将旧版 JSON 数组输出转换为 WorkerDeliverable object。
 

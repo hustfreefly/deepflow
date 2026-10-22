@@ -20,7 +20,6 @@ from datetime import datetime
 DEEPFLOW_ROOT = Path(__file__).resolve().parent.parent.parent  # .deepflow/
 
 
-
 class GoldenCaseVerifier:
     """Golden Case E2E 验证器"""
 

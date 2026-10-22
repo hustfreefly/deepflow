@@ -2,7 +2,6 @@
 ResearchPro 单元测试 — _SafeFetcher
 """
 
-
 import socket
 import unittest
 from unittest.mock import patch

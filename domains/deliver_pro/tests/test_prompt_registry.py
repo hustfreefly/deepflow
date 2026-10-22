@@ -1,6 +1,5 @@
 """Tests for Deliver Pro Prompt Registry."""
 
-
 import pytest
 from domains.deliver_pro.prompt_registry import (
     load_prompt,

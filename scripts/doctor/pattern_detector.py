@@ -11,7 +11,6 @@ DeepFlow Doctor — Pattern Detector
 """
 
 
-
 def detect_issues(events: list[dict], session_label: str = "") -> list[dict]:
     """
     从事件流中检测所有带病模式。
