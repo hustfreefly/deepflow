@@ -1,0 +1,36 @@
+cage_version: "2.0.0"
+component: dev_ops
+status: active
+module: dev_ops
+version: "1.0.0"
+created: '2026-10-22'
+updated: '2026-10-22'
+complexity: medium
+description: |
+  P1 研发运维武器契约：隔离工作区、一键自检、spawn 异构守卫。
+  三件武器都必须可执行、可验收，失败必须响亮。
+interface:
+  worktree_bootstrap: "scripts/worktree.sh create|remove|list"
+  selfcheck: "scripts/selfcheck.py --json"
+  spawn_guard: "scripts/spawn_guard.py --request <json>"
+behavior:
+  worktree_bootstrap:
+    success: "create 后工作区可收集测试；remove 干净删除"
+    failure: "收集出现 error 时 exit 1，不静默通过"
+  selfcheck:
+    success: "所有 check 非 FAIL 时 exit 0，输出 JSON"
+    failure: "任一 check FAIL 时 exit 1"
+  spawn_guard:
+    success: "异构 model 且 task < 3KB 时 exit 0"
+    failure: "缺 model exit 2；redteam 同模型 exit 3；task 超限 exit 4"
+boundaries:
+  - "worktree 只创建在仓库同级目录，不写入 blackboard"
+  - "selfcheck 只读，不修改仓库"
+  - "spawn_guard 不调用 sessions_spawn，只做前置校验"
+redlines:
+  - id: RED-OPS-001
+    rule: "worktree create 必须同步运行态并验证收集"
+    check: "python3 -m pytest --collect-only -q 无 error"
+  - id: RED-OPS-002
+    rule: "redteam 复核模型必须 != 执行模型"
+    check: "spawn_guard exit 3 on same model"
