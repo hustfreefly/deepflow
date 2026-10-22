@@ -25,6 +25,7 @@ Deliver Pro — 入口模块 (V3: Pulse 脉冲调度，唯一生产路径)
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 
@@ -36,7 +37,13 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 DEEPFLOW_ROOT = Path(__file__).resolve().parent.parent.parent
-BLACKBOARD_ROOT = DEEPFLOW_ROOT / "blackboard"
+# 默认路径不变；允许用环境变量隔离测试/冒烟，避免误写生产 blackboard。
+_env_blackboard_root = os.environ.get("DEEPFLOW_BLACKBOARD_ROOT")
+BLACKBOARD_ROOT = (
+    Path(_env_blackboard_root).expanduser()
+    if _env_blackboard_root
+    else DEEPFLOW_ROOT / "blackboard"
+)
 
 
 def find_ship_package_path(project_name: str) -> Path:
