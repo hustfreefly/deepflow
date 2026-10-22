@@ -52,19 +52,50 @@ RICH_FROZEN_SPEC = {
     "domain": "test",
     "mode": "full",
     "constraints": [
-        {"req_id": "REQ-001", "description": "Must support high availability", "priority": "MUST"},
-        {"req_id": "REQ-002", "description": "Must complete within 30 days", "priority": "SHOULD"},
+        {
+            "req_id": "REQ-001",
+            "description": "Must support high availability",
+            "priority": "MUST",
+        },
+        {
+            "req_id": "REQ-002",
+            "description": "Must complete within 30 days",
+            "priority": "SHOULD",
+        },
     ],
     "key_decisions": [
-        {"decision": "Use microservices", "rationale": "Scalability", "alternatives": "Monolith (rejected)"},
-        {"decision": "Use PostgreSQL", "rationale": "ACID compliance", "alternatives": "MongoDB"},
+        {
+            "decision": "Use microservices",
+            "rationale": "Scalability",
+            "alternatives": "Monolith (rejected)",
+        },
+        {
+            "decision": "Use PostgreSQL",
+            "rationale": "ACID compliance",
+            "alternatives": "MongoDB",
+        },
     ],
     "risk_summary": [
-        {"risk": "Context degradation", "severity": "高", "probability": "Medium", "mitigation": "Periodic restart"},
+        {
+            "risk": "Context degradation",
+            "severity": "高",
+            "probability": "Medium",
+            "mitigation": "Periodic restart",
+        },
     ],
     "implementation_phases": [
-        {"phase": "1", "title": "Foundation", "timeline": "Week 1-2", "estimated_effort": "2 weeks"},
-        {"phase": "2", "title": "Core", "timeline": "Week 3-4", "estimated_effort": "2 weeks"},
+        {
+            "phase": "1",
+            "title": "Foundation",
+            "timeline": "Week 1-2",
+            "estimated_effort": "2 weeks",
+        },
+        {
+            "phase": "2",
+            "title": "Core",
+            "timeline": "Week 3-4",
+            "estimated_effort": "2 weeks",
+        },
     ],
     "semantic_anchors": [
         {"name": "HA Pattern", "category": "architecture", "constraint": "REQ-001"},
@@ -74,6 +105,7 @@ RICH_FROZEN_SPEC = {
 
 
 # ─── Tests ───────────────────────────────────────────────────────────────────
+
 
 class TestRenderBasic:
     """test_render_basic — 基础渲染，检查 required sections 存在"""
@@ -93,8 +125,12 @@ class TestParseFrontmatter:
     def test_parse_frontmatter(self):
         md = render_frozen_spec_md(RICH_FROZEN_SPEC)
         result = parse_frozen_spec_md(md)
-        assert result.get("schema_version") == "2.0.0", f"Expected '2.0.0', got {result.get('schema_version')}"
-        assert result.get("session_id") == "test_frozen_001", f"Expected 'test_frozen_001', got {result.get('session_id')}"
+        assert result.get("schema_version") == "2.0.0", (
+            f"Expected '2.0.0', got {result.get('schema_version')}"
+        )
+        assert result.get("session_id") == "test_frozen_001", (
+            f"Expected 'test_frozen_001', got {result.get('session_id')}"
+        )
 
 
 class TestParseKeyDecisionsTable:
@@ -202,10 +238,16 @@ class TestRoundTripRich:
             preserved_fields += 1
             for orig, parsed in zip(orig_kd, parsed_kd):
                 total_fields += 1
-                if isinstance(parsed, dict) and parsed.get("decision") == orig["decision"]:
+                if (
+                    isinstance(parsed, dict)
+                    and parsed.get("decision") == orig["decision"]
+                ):
                     preserved_fields += 1
                 total_fields += 1
-                if isinstance(parsed, dict) and parsed.get("rationale") == orig["rationale"]:
+                if (
+                    isinstance(parsed, dict)
+                    and parsed.get("rationale") == orig["rationale"]
+                ):
                     preserved_fields += 1
 
         # risk_summary
@@ -219,7 +261,10 @@ class TestRoundTripRich:
                 if isinstance(parsed, dict) and parsed.get("risk") == orig["risk"]:
                     preserved_fields += 1
                 total_fields += 1
-                if isinstance(parsed, dict) and parsed.get("mitigation") == orig["mitigation"]:
+                if (
+                    isinstance(parsed, dict)
+                    and parsed.get("mitigation") == orig["mitigation"]
+                ):
                     preserved_fields += 1
 
         # implementation_phases
@@ -246,7 +291,9 @@ class TestRoundTripRich:
             preserved_fields += 1
 
         retention = preserved_fields / total_fields if total_fields > 0 else 0
-        assert retention >= 0.95, f"Round-trip retention {retention:.1%} < 95% ({preserved_fields}/{total_fields})"
+        assert retention >= 0.95, (
+            f"Round-trip retention {retention:.1%} < 95% ({preserved_fields}/{total_fields})"
+        )
 
 
 class TestRoundTripBackwardCompat:
@@ -374,4 +421,6 @@ class TestNoTruncation:
             {"name": "Test", "category": "test", "constraint": long_constraint},
         ]
         md = render_frozen_spec_md(spec)
-        assert long_constraint in md, "Long semantic anchor constraint was truncated in render"
+        assert long_constraint in md, (
+            "Long semantic anchor constraint was truncated in render"
+        )

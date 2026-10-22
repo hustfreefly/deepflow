@@ -29,8 +29,10 @@ import pytest
 def bb(tmp_path):
     """创建临时 BlackboardManager 实例"""
     import sys
+
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
     from core.blackboard.blackboard_manager import BlackboardManager
+
     return BlackboardManager(session_id="test_session", base_dir=tmp_path)
 
 
@@ -96,9 +98,7 @@ class TestWriteDynamicStage:
     def test_single_variable(self, bb_with_init):
         """单变量模板"""
         result = bb_with_init.write_dynamic_stage(
-            "research_expert_{expert_id}",
-            data={"findings": "test"},
-            expert_id=1
+            "research_expert_{expert_id}", data={"findings": "test"}, expert_id=1
         )
         assert result is True
         assert bb_with_init.stage_exists("research_expert_1")
@@ -106,9 +106,7 @@ class TestWriteDynamicStage:
     def test_multi_variable(self, bb_with_init):
         """多变量模板"""
         result = bb_with_init.write_dynamic_stage(
-            "review_{domain}_{round}",
-            data={"score": 95},
-            domain="security", round=2
+            "review_{domain}_{round}", data={"score": 95}, domain="security", round=2
         )
         assert result is True
         assert bb_with_init.stage_exists("review_security_2")
@@ -242,7 +240,9 @@ class TestDeprecatedMethods:
             warnings.simplefilter("always")
             bb_with_init.get_stage_path("test")
             assert len(w) >= 1
-            assert any(issubclass(warning.category, DeprecationWarning) for warning in w)
+            assert any(
+                issubclass(warning.category, DeprecationWarning) for warning in w
+            )
 
     def test_list_stages_registry_backward_compat(self, bb_with_init):
         """list_stages_registry 保持旧的 Dict[str, bool] 行为"""

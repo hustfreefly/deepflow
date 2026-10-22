@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class LivingSpecMeta(BaseModel):
     """Living Spec 元数据"""
+
     engine: str = "spec_pro"
     version: str = "2.1"
     spec_version: int = 1
@@ -25,18 +26,20 @@ class LivingSpecMeta(BaseModel):
     quality_level: str = "C"
     domain_type: Optional[str] = Field(
         default="software",
-        description="领域类型标识(software/investment/hardware/business/其他),用于加载对应领域配置"
+        description="领域类型标识(software/investment/hardware/business/其他),用于加载对应领域配置",
     )
 
 
 class SuccessMetric(BaseModel):
     """成功指标"""
+
     metric: str
     target: str
 
 
 class User(BaseModel):
     """用户角色"""
+
     role: str
     count: Optional[str] = None
     key_needs: Optional[str] = None
@@ -45,6 +48,7 @@ class User(BaseModel):
 
 class Capabilities(BaseModel):
     """能力分层"""
+
     always_do: list[str] = Field(default_factory=list)
     should_do: list[str] = Field(default_factory=list)
     never_do: list[str] = Field(default_factory=list)
@@ -52,6 +56,7 @@ class Capabilities(BaseModel):
 
 class QualityAttribute(BaseModel):
     """质量属性"""
+
     category: str
     spec: str
     priority: str = "P1"
@@ -59,6 +64,7 @@ class QualityAttribute(BaseModel):
 
 class RisksAndAssumptions(BaseModel):
     """风险与假设"""
+
     risks: list[str] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
     dependencies: list[str] = Field(default_factory=list)
@@ -66,13 +72,17 @@ class RisksAndAssumptions(BaseModel):
 
 class Term(BaseModel):
     """术语定义"""
+
     name: str
     definition: str
-    category: str = Field(default="", description="术语分类，如 technical/business/domain")
+    category: str = Field(
+        default="", description="术语分类，如 technical/business/domain"
+    )
 
 
 class ConfirmedLayer(BaseModel):
     """已确认层"""
+
     objective: str = ""
     pain_points: list[str] = Field(default_factory=list)
     success_metrics: list[SuccessMetric] = Field(default_factory=list)
@@ -82,7 +92,9 @@ class ConfirmedLayer(BaseModel):
     quality_attributes: list[QualityAttribute] = Field(default_factory=list)
     constraints: dict = Field(default_factory=dict)
     integration: dict = Field(default_factory=dict)
-    risks_and_assumptions: RisksAndAssumptions = Field(default_factory=RisksAndAssumptions)
+    risks_and_assumptions: RisksAndAssumptions = Field(
+        default_factory=RisksAndAssumptions
+    )
     terms: list[Term] = Field(default_factory=list)
     user_directives: list[dict] = Field(default_factory=list)
     benchmark_references: list = Field(default_factory=list, description="基准参考")
@@ -91,7 +103,7 @@ class ConfirmedLayer(BaseModel):
     quality_priorities: list = Field(default_factory=list, description="质量优先级")
     industry_references: list = Field(default_factory=list, description="行业参考")
 
-    @field_validator('users')
+    @field_validator("users")
     @classmethod
     def validate_users(cls, v):
         """Fix 3: 确保每个 user 都有非空的 role。"""
@@ -109,6 +121,7 @@ class ConfirmedLayer(BaseModel):
 
 class InferredItem(BaseModel):
     """推断项"""
+
     id: str
     dimension: str
     content: str
@@ -119,6 +132,7 @@ class InferredItem(BaseModel):
 
 class Guardrails(BaseModel):
     """护栏"""
+
     always_do: list[str] = Field(default_factory=list)
     never_do: list[str] = Field(default_factory=list)
     ask_first: list[str] = Field(default_factory=list)
@@ -126,13 +140,16 @@ class Guardrails(BaseModel):
 
 class SolutionProHints(BaseModel):
     """下游提示"""
+
     focus_areas: list = Field(default_factory=list, description="关注领域")
     complexity_notes: Optional[str] = Field(default=None, description="复杂度说明")
-    priority_dimensions: list[str] = Field(default_factory=list, description="优先级维度")
+    priority_dimensions: list[str] = Field(
+        default_factory=list, description="优先级维度"
+    )
     layer2_hints: Optional[dict] = Field(default=None, description="Layer 2 约束提示")
     anti_patterns: list[str] = Field(default_factory=list, description="反模式提示")
 
-    @field_validator('focus_areas', mode='before')
+    @field_validator("focus_areas", mode="before")
     @classmethod
     def coerce_focus_areas(cls, v):
         if v is None:
@@ -142,7 +159,7 @@ class SolutionProHints(BaseModel):
             for item in v:
                 if isinstance(item, dict):
                     # 从 dict 中提取 area 或 name 字段
-                    result.append(item.get('area', item.get('name', str(item))))
+                    result.append(item.get("area", item.get("name", str(item))))
                 elif isinstance(item, str):
                     result.append(item)
                 else:
@@ -158,40 +175,58 @@ class SolutionProHints(BaseModel):
 # 建议类别列表（开放枚举，不强制）
 SUGGESTED_ANCHOR_CATEGORIES = {
     # 软件域（原有）
-    "platform_api", "architecture_principle", "external_system", "technical_constraint",
+    "platform_api",
+    "architecture_principle",
+    "external_system",
+    "technical_constraint",
     # 投资域
-    "market_segment", "patent_portfolio", "regulatory_framework", "financial_metric",
+    "market_segment",
+    "patent_portfolio",
+    "regulatory_framework",
+    "financial_metric",
     # 硬件域
-    "physical_constraint", "material_spec", "manufacturing_process", "thermal_parameter",
+    "physical_constraint",
+    "material_spec",
+    "manufacturing_process",
+    "thermal_parameter",
     # 商业域
-    "business_rule", "compliance_requirement", "partnership_model", "revenue_stream",
+    "business_rule",
+    "compliance_requirement",
+    "partnership_model",
+    "revenue_stream",
 }
 
 
 class SemanticAnchor(BaseModel):
     """
     语义锚点 — 全链路不可变的信息守恒实体
-    
+
     设计原则（AI Native 契约笼子）：
     - LLM 做语义提取（从 narrative 中识别不可抽象化的具体引用）
     - 代码做格式化（写入结构化字段，Pydantic 强制 schema）
     - 全链路透传（每一层只增不改不删）
-    
+
     泛化性：
     - 适用于任何有“具体约束”的项目（关键引用名称、规则、原则）
     - 不适用于抽象哲学概念（“设计优雅”不算 anchor）
     """
+
     name: str = Field(..., description="具体引用名称，如 sessions_spawn、全LLM控制")
-    category: str = Field(..., description="platform_api | architecture_principle | external_system | technical_constraint")
+    category: str = Field(
+        ...,
+        description="platform_api | architecture_principle | external_system | technical_constraint",
+    )
     constraint: str = Field(..., description="对该引用的具体约束描述（必须可操作）")
     source_quote: str = Field(..., description="narrative 中的原文引用（证据）")
     confidence: float = Field(default=0.9, ge=0.0, le=1.0, description="LLM 自评置信度")
-    applicable_to: List[str] = Field(default_factory=lambda: ["all"], description="适用的下游 Worker 角色列表，['all'] = 广播")
-    category_rationale: Optional[str] = Field(
-        default=None,
-        description="当 category 不在标准列表中时，解释为什么需要此类别"
+    applicable_to: List[str] = Field(
+        default_factory=lambda: ["all"],
+        description="适用的下游 Worker 角色列表，['all'] = 广播",
     )
-    
+    category_rationale: Optional[str] = Field(
+        default=None, description="当 category 不在标准列表中时，解释为什么需要此类别"
+    )
+
     @field_validator("category")
     @classmethod
     def validate_category(cls, v):
@@ -200,6 +235,7 @@ class SemanticAnchor(BaseModel):
             raise ValueError(f"契约笼子: SemanticAnchor.category 太短: '{v}'")
         if v not in SUGGESTED_ANCHOR_CATEGORIES:
             import logging
+
             logging.getLogger(__name__).info(
                 f"SemanticAnchor.category '{v}' 不在建议列表中，但已接受（开放枚举）"
             )
@@ -216,7 +252,9 @@ class SemanticAnchor(BaseModel):
     @classmethod
     def validate_constraint_actionable(cls, v):
         if len(v.strip()) < 5:
-            raise ValueError(f"契约笼子: SemanticAnchor.constraint 太短,不可操作: '{v}'")
+            raise ValueError(
+                f"契约笼子: SemanticAnchor.constraint 太短,不可操作: '{v}'"
+            )
         return v.strip()
 
 
@@ -236,6 +274,7 @@ class LivingSpec(BaseModel):
     3. requirement_index 用于 Verification 的 REQ-ID 追溯
     4. semantic_anchors 用于全链路信息守恒(不可变实体)
     """
+
     meta: LivingSpecMeta
     confirmed: ConfirmedLayer
     inferred: list[InferredItem] = Field(default_factory=list)
@@ -243,18 +282,21 @@ class LivingSpec(BaseModel):
     solution_pro_hints: Optional[SolutionProHints] = None
     route_recommendation: Optional[str] = None
     # Living Spec 成为唯一输入(叙述为主体 + REQ-ID 索引为附件)
-    core_summary: str = ""  # 核心需求摘要(≤5KB),下游 Agent 优先读取,避免 30KB narrative 的 token 开销
+    core_summary: str = (
+        ""  # 核心需求摘要(≤5KB),下游 Agent 优先读取,避免 30KB narrative 的 token 开销
+    )
     narrative: str = ""  # 完整的用户需求叙述(主体)
     requirement_index: list = Field(default_factory=list)  # REQ-ID 追溯索引(附件)
     # Semantic Anchors - 全链路信息守恒实体
-    semantic_anchors: list[SemanticAnchor] = Field(default_factory=list, description="不可变语义锚点,全链路透传")
+    semantic_anchors: list[SemanticAnchor] = Field(
+        default_factory=list, description="不可变语义锚点,全链路透传"
+    )
     # 多轮对话摘要
     conversation_digest: Optional[dict] = Field(
-        default=None,
-        description="多轮对话摘要（summary + key_excerpts）"
+        default=None, description="多轮对话摘要（summary + key_excerpts）"
     )
 
-    @field_validator('core_summary')
+    @field_validator("core_summary")
     @classmethod
     def validate_core_summary(cls, v):
         """Fix 3: core_summary 非空时必须满足最小长度（结构性约束，不验证语义）。"""
@@ -262,7 +304,7 @@ class LivingSpec(BaseModel):
             raise ValueError(f"core_summary too short: {len(v.strip())} chars (min 10)")
         return v
 
-    @field_validator('narrative')
+    @field_validator("narrative")
     @classmethod
     def validate_narrative(cls, v):
         """Fix 3: narrative 非空时必须满足最小长度（结构性约束，不验证语义）。"""

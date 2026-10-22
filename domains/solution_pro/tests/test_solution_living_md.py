@@ -21,11 +21,21 @@ from domains.solution_pro.solution_living_md import (
 MINIMAL_SOLUTION = {
     "schema_version": "2.0.0",
     "key_decisions": [
-        {"decision": "Use FastAPI", "rationale": "Async + fast", "alternatives": "Flask (rejected)"},
+        {
+            "decision": "Use FastAPI",
+            "rationale": "Async + fast",
+            "alternatives": "Flask (rejected)",
+        },
     ],
     "implementation_phases": [
-        {"phase": 0, "title": "Setup", "timeline": "Week 1", "estimated_effort": "1 week",
-         "tasks": ["Init project", "Setup CI"], "verification": "Project builds"},
+        {
+            "phase": 0,
+            "title": "Setup",
+            "timeline": "Week 1",
+            "estimated_effort": "1 week",
+            "tasks": ["Init project", "Setup CI"],
+            "verification": "Project builds",
+        },
     ],
     "metadata": {"session_id": "test_001"},
 }
@@ -33,36 +43,71 @@ MINIMAL_SOLUTION = {
 RICH_SOLUTION = {
     "schema_version": "3.0.0",
     "constraint_coverage": {
-        "total": 89, "covered": 89, "ratio": 1.0, "uncovered": [],
-        "breakdown": {"MUST": {"total": 31, "passed": 31}, "SHOULD": {"total": 58, "passed": 58}},
+        "total": 89,
+        "covered": 89,
+        "ratio": 1.0,
+        "uncovered": [],
+        "breakdown": {
+            "MUST": {"total": 31, "passed": 31},
+            "SHOULD": {"total": 58, "passed": 58},
+        },
     },
     "key_decisions": [
-        {"decision": "Fold Mapping", "rationale": "depth_limit=2", "alternatives": "Spatial nesting"},
-        {"decision": "Context Budget", "rationale": "Prevents degradation", "alternatives": "Single shared"},
+        {
+            "decision": "Fold Mapping",
+            "rationale": "depth_limit=2",
+            "alternatives": "Spatial nesting",
+        },
+        {
+            "decision": "Context Budget",
+            "rationale": "Prevents degradation",
+            "alternatives": "Single shared",
+        },
     ],
     "implementation_phases": [
-        {"phase": 0, "title": "Infrastructure", "timeline": "Week 1", "estimated_effort": "1 week",
-         "tasks": ["Blackboard", "Controller"], "verification": "Can spawn worker"},
-        {"phase": 1, "title": "Core Loop", "timeline": "Week 2-3", "estimated_effort": "2 weeks",
-         "tasks": ["Domain Loop", "Stall detection"], "verification": "E2E task"},
+        {
+            "phase": 0,
+            "title": "Infrastructure",
+            "timeline": "Week 1",
+            "estimated_effort": "1 week",
+            "tasks": ["Blackboard", "Controller"],
+            "verification": "Can spawn worker",
+        },
+        {
+            "phase": 1,
+            "title": "Core Loop",
+            "timeline": "Week 2-3",
+            "estimated_effort": "2 weeks",
+            "tasks": ["Domain Loop", "Stall detection"],
+            "verification": "E2E task",
+        },
     ],
     "risk_summary": [
-        {"risk": "Context degradation", "severity": "高", "probability": "High",
-         "impact": "High", "mitigation": "Periodic restart + LCM"},
+        {
+            "risk": "Context degradation",
+            "severity": "高",
+            "probability": "High",
+            "impact": "High",
+            "mitigation": "Periodic restart + LCM",
+        },
     ],
     "verification_status": {
-        "passed": 31, "failed": 0, "total_checks": 31,
+        "passed": 31,
+        "failed": 0,
+        "total_checks": 31,
         "layer1_checklist": "31/31 PASS",
     },
     "document_ref": "solution_document",
     "metadata": {
-        "session_id": "test_rich", "date": "2026-07-19",
+        "session_id": "test_rich",
+        "date": "2026-07-19",
         "status": "Production-Ready",
     },
 }
 
 
 # ─── Test: render ────────────────────────────────────────────────────────────
+
 
 class TestRender:
     def test_minimal(self):
@@ -101,6 +146,7 @@ class TestRender:
 
 # ─── Test: parse ─────────────────────────────────────────────────────────────
 
+
 class TestParse:
     def test_parse_minimal(self):
         md = render_final_solution_md(MINIMAL_SOLUTION)
@@ -128,6 +174,7 @@ class TestParse:
 
 # ─── Test: validate ──────────────────────────────────────────────────────────
 
+
 class TestValidate:
     def test_valid_md(self):
         md = render_final_solution_md(MINIMAL_SOLUTION)
@@ -145,14 +192,20 @@ class TestValidate:
 
 # ─── Test: Round-trip ────────────────────────────────────────────────────────
 
+
 class TestMultiWordHeaders:
     """BUG-001 regression: multi-word ## headers should parse correctly."""
 
     def test_multi_word_headers_normalize_to_snake_case(self):
         from domains.solution_pro.solution_living_md import _parse_md_sections
-        body = "## Key Decisions\n\nsome content\n\n## Implementation Phases\n\nphase info"
+
+        body = (
+            "## Key Decisions\n\nsome content\n\n## Implementation Phases\n\nphase info"
+        )
         sections = _parse_md_sections(body)
-        assert "key_decisions" in sections, f"Expected key_decisions, got keys: {list(sections.keys())}"
+        assert "key_decisions" in sections, (
+            f"Expected key_decisions, got keys: {list(sections.keys())}"
+        )
         assert "implementation_phases" in sections
         assert "some content" in sections["key_decisions"]
         assert "phase info" in sections["implementation_phases"]
@@ -160,6 +213,7 @@ class TestMultiWordHeaders:
     def test_snake_case_headers_still_work(self):
         """Backward compatibility: render produces snake_case, must still parse."""
         from domains.solution_pro.solution_living_md import _parse_md_sections
+
         body = "## key_decisions\n\ntable data\n\n## risk_summary\n\nrisk data"
         sections = _parse_md_sections(body)
         assert "key_decisions" in sections
@@ -168,6 +222,7 @@ class TestMultiWordHeaders:
     def test_parse_final_solution_with_multi_word_headers(self):
         """BUG-001 E2E: parse_final_solution_md should extract data from Agent-generated MD."""
         from domains.solution_pro.solution_living_md import parse_final_solution_md
+
         md = """# Solution Pro — Final Solution Document
 
 ## Key Decisions
@@ -186,8 +241,9 @@ class TestMultiWordHeaders:
 - Duration: Week 3-4
 """
         result = parse_final_solution_md(md)
-        assert len(result.get("implementation_phases", [])) == 2, \
+        assert len(result.get("implementation_phases", [])) == 2, (
             f"Expected 2 phases, got {len(result.get('implementation_phases', []))}"
+        )
 
 
 class TestRoundTrip:
@@ -217,7 +273,10 @@ class TestRoundTrip:
 
         # implementation_phases
         total += 1
-        if parsed.get("implementation_phases") and len(parsed["implementation_phases"]) >= 2:
+        if (
+            parsed.get("implementation_phases")
+            and len(parsed["implementation_phases"]) >= 2
+        ):
             preserved += 1
 
         # risk_summary
@@ -235,7 +294,12 @@ class TestRoundTrip:
 
     def test_real_data_round_trip(self):
         """用真实 final_solution 做 round-trip（ADR-009: MD-first）"""
-        base = Path(__file__).resolve().parent.parent.parent.parent / "blackboard" / "ai_loop_solution_e591f8b1" / "stages"
+        base = (
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "blackboard"
+            / "ai_loop_solution_e591f8b1"
+            / "stages"
+        )
         # ADR-009: 优先读 .md，fallback 到 .json
         md_path = base / "final_solution.md"
         json_path = base / "final_solution.json"
@@ -258,6 +322,9 @@ class TestRoundTrip:
             assert passed, f"Validation failed: {errors}"
             parsed = parse_final_solution_md(md)
             assert parsed.get("schema_version") == data.get("schema_version")
-            assert len(parsed.get("key_decisions", [])) >= len(data.get("key_decisions", [])) * 0.8
+            assert (
+                len(parsed.get("key_decisions", []))
+                >= len(data.get("key_decisions", [])) * 0.8
+            )
         else:
             pytest.skip(f"Real data not found: {base}/final_solution.md or .json")

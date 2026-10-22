@@ -19,8 +19,8 @@ import json
 import os
 import sys
 import logging
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 
 EXPECTED_DELTA_BY_MODE = {
@@ -50,7 +50,9 @@ def get_expected_delta(round_num: int, mode: str = "standard") -> tuple:
     return 1, 3
 
 
-def check_progress_rate(trajectory: list, current_round: int, mode: str = "standard") -> list:
+def check_progress_rate(
+    trajectory: list, current_round: int, mode: str = "standard"
+) -> list:
     anomalies = []
     if len(trajectory) < 2:
         return anomalies
@@ -87,7 +89,9 @@ def check_inference_integrity(trajectory: list) -> list:
     return anomalies
 
 
-def check_conversation_balance(trajectory: list, deliberately_omitted_dims: set = None) -> list:
+def check_conversation_balance(
+    trajectory: list, deliberately_omitted_dims: set = None
+) -> list:
     anomalies = []
     if not trajectory:
         return anomalies
@@ -100,7 +104,9 @@ def check_conversation_balance(trajectory: list, deliberately_omitted_dims: set 
 
     # ✅ 排除 deliberately_omitted 维度
     if deliberately_omitted_dims:
-        dim_scores = {k: v for k, v in dim_scores.items() if k not in deliberately_omitted_dims}
+        dim_scores = {
+            k: v for k, v in dim_scores.items() if k not in deliberately_omitted_dims
+        }
 
     if len(dim_scores) < 2:
         return anomalies
@@ -122,11 +128,16 @@ def check_conversation_balance(trajectory: list, deliberately_omitted_dims: set 
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Process Guard for Spec Pro")
     parser.add_argument("base_path", help="Session base path")
     parser.add_argument("current_round", type=int, help="Current round number")
-    parser.add_argument("--mode", choices=["quick", "standard", "deep"],
-                        default="standard", help="Conversation mode (default: standard)")
+    parser.add_argument(
+        "--mode",
+        choices=["quick", "standard", "deep"],
+        default="standard",
+        help="Conversation mode (default: standard)",
+    )
     args = parser.parse_args()
 
     base_path = args.base_path

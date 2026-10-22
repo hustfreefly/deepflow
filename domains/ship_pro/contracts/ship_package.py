@@ -3,6 +3,7 @@ Ship Pro - ShipPackage Contract
 
 定义 ShipPackage 的数据结构。
 """
+
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 from .worker_deliverable import WorkPackage
@@ -10,54 +11,48 @@ from .worker_deliverable import WorkPackage
 
 class DependencyGraph(BaseModel):
     """依赖图"""
+
     edges: List[Dict[str, str]] = Field(
-        default_factory=list,
-        description="依赖边列表，每个边包含 from 和 to 字段"
+        default_factory=list, description="依赖边列表，每个边包含 from 和 to 字段"
     )
     execution_layers: List[List[str]] = Field(
         default_factory=list,
-        description="执行层级，每层包含可以并行执行的 work_package ID 列表"
+        description="执行层级，每层包含可以并行执行的 work_package ID 列表",
     )
 
 
 class ShipPackage(BaseModel):
     """ShipPackage - Ship Pro 的最终输出"""
-    solution_name: str = Field(
-        ...,
-        description="解决方案名称"
-    )
+
+    solution_name: str = Field(..., description="解决方案名称")
     work_packages: List[WorkPackage] = Field(
         ...,
         min_length=1,
-        description="工作包列表（必须包含完整 WP，不允许空列表或摘要化）"
+        description="工作包列表（必须包含完整 WP，不允许空列表或摘要化）",
     )
     dependency_graph: DependencyGraph = Field(
-        default_factory=DependencyGraph,
-        description="依赖图"
+        default_factory=DependencyGraph, description="依赖图"
     )
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="元数据"
-    )
-    
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
+
     # 契约笼子：Semantic Anchors 透传（信息守恒强制字段）
     semantic_anchors: List[Dict[str, Any]] = Field(
         default_factory=list,
         description="从 Solution Pro 透传的语义锚点（契约笼子：必须保留，不可丢弃）。"
-                    "每条包含 name/category/constraint。"
-                    "Consolidator 必须从 solution_pro_input 中原样复制到此处。"
+        "每条包含 name/category/constraint。"
+        "Consolidator 必须从 solution_pro_input 中原样复制到此处。",
     )
     anchor_coverage: Dict[str, Any] = Field(
         default_factory=dict,
         description="Semantic Anchor 覆盖统计（契约笼子：自动计算）。"
-                    "格式: {anchor_name: [wp_id, ...], ...}，"
-                    "以及 _uncovered: [anchor_name, ...] 列出未被任何 WP 引用的 anchor。"
+        "格式: {anchor_name: [wp_id, ...], ...}，"
+        "以及 _uncovered: [anchor_name, ...] 列出未被任何 WP 引用的 anchor。",
     )
 
     # N1-FIX: Solution Pro 关键信息透传字段（向后兼容：Optional + default）
     key_decisions: Optional[List[str]] = Field(
         default_factory=list,
-        description="Solution Pro 产出的关键决策列表（N1-FIX：保留最终 artifact 关键信息）"
+        description="Solution Pro 产出的关键决策列表（N1-FIX：保留最终 artifact 关键信息）",
     )
     # W4-F4: serving_principles 包级透传（生产方补建）
     # Solution Pro 无显式产出，由 Ship Pro 从 guardrails 确定性派生
@@ -65,19 +60,19 @@ class ShipPackage(BaseModel):
     # semantic_anchors 同款包级 fallback 模式消费。
     serving_principles: Optional[List[Dict[str, Any]]] = Field(
         default_factory=list,
-        description="服务原则列表（含 obligation / anti_pattern），包级透传到 Deliver Pro"
+        description="服务原则列表（含 obligation / anti_pattern），包级透传到 Deliver Pro",
     )
     architecture: Optional[str] = Field(
         default=None,
-        description="Solution Pro 产出的架构描述（N1-FIX：保留最终 artifact 关键信息）"
+        description="Solution Pro 产出的架构描述（N1-FIX：保留最终 artifact 关键信息）",
     )
     risk_summary: Optional[str] = Field(
         default=None,
-        description="Solution Pro 产出的风险摘要（N1-FIX：保留最终 artifact 关键信息）"
+        description="Solution Pro 产出的风险摘要（N1-FIX：保留最终 artifact 关键信息）",
     )
     implementation_phases: Optional[List[str]] = Field(
         default_factory=list,
-        description="Solution Pro 产出的实施阶段列表（N1-FIX：保留最终 artifact 关键信息）"
+        description="Solution Pro 产出的实施阶段列表（N1-FIX：保留最终 artifact 关键信息）",
     )
 
     class Config:
@@ -85,11 +80,8 @@ class ShipPackage(BaseModel):
             "example": {
                 "solution_name": "Example Solution",
                 "work_packages": [],
-                "dependency_graph": {
-                    "edges": [],
-                    "execution_layers": []
-                },
-                "metadata": {}
+                "dependency_graph": {"edges": [], "execution_layers": []},
+                "metadata": {},
             }
         }
 

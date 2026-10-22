@@ -46,7 +46,8 @@ def check_audit_pipeline():
     checks = {
         "_execute_audit_stage": "_execute_audit_stage" in content,
         "_run_single_audit": "_run_single_audit" in content,
-        "correctness/security/performance": "correctness" in content and "security" in content,
+        "correctness/security/performance": "correctness" in content
+        and "security" in content,
         "audit_summary.md": "audit_summary.md" in content,
     }
 

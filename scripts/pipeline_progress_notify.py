@@ -187,7 +187,7 @@ def list_stage_files(ws, config):
 
 def build_phase_detail_list(config, completed_set, failed_set, current):
     """Build detailed phase list with status icons.
-    
+
     Output example:
       📊 数据收集     ✅ 完成
       📝 规划         ✅ 完成
@@ -198,7 +198,7 @@ def build_phase_detail_list(config, completed_set, failed_set, current):
     lines = []
     # Find max name length for alignment
     max_name_len = max(len(name) for _, name, _ in config["phases"])
-    
+
     for i, (key, name, icon) in enumerate(config["phases"], 1):
         if i in failed_set:
             status = "❌ 失败"
@@ -208,21 +208,25 @@ def build_phase_detail_list(config, completed_set, failed_set, current):
             status = "⏳ 进行中"
         else:
             status = "○ 待开始"
-        
+
         # Pad name for alignment
         padded_name = name.ljust(max_name_len)
         lines.append(f"  {icon} {padded_name}  {status}")
-    
+
     return "\n".join(lines)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True)
-    parser.add_argument("--pipeline", default="solution_pro",
-                       choices=list(PIPELINE_CONFIGS.keys()))
-    parser.add_argument("--detail", action="store_true",
-                       help="显示详细阶段列表（每行一个阶段 + 状态图标）")
+    parser.add_argument(
+        "--pipeline", default="solution_pro", choices=list(PIPELINE_CONFIGS.keys())
+    )
+    parser.add_argument(
+        "--detail",
+        action="store_true",
+        help="显示详细阶段列表（每行一个阶段 + 状态图标）",
+    )
     args = parser.parse_args()
 
     ws = args.workspace
@@ -256,8 +260,9 @@ def main():
         started_at = progress.get("started_at", "") if progress else ""
         elapsed_min, duration = format_duration(started_at)
 
-        is_completed = (status == "completed" and not failed) or \
-                       (status == "partial" and completion_rate >= 1.0 and not failed)
+        is_completed = (status == "completed" and not failed) or (
+            status == "partial" and completion_rate >= 1.0 and not failed
+        )
 
         if is_completed:
             file_count = list_stage_files(ws, config)

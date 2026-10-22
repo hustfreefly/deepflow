@@ -51,8 +51,7 @@ def generate_session_id(
     # 验证 domain
     if domain not in VALID_DOMAINS:
         raise ValueError(
-            f"Invalid domain: '{domain}'. "
-            f"Must be one of: {sorted(VALID_DOMAINS)}"
+            f"Invalid domain: '{domain}'. Must be one of: {sorted(VALID_DOMAINS)}"
         )
 
     # 生成 hash
@@ -88,6 +87,7 @@ def generate_run_id(domain: str, fmt: str = "d") -> str:
         run_id 字符串
     """
     from datetime import datetime
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"run_{timestamp}_{fmt.lower()}"
 

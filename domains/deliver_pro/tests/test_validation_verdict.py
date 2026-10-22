@@ -15,11 +15,14 @@ def _make_dim(score: int = 4, weight: float = 0.2) -> ScoreDimension:
 
 def _full_scores(score: int = 4) -> dict[str, ScoreDimension]:
     """Construct a complete 6-dimension scores dict all at `score`."""
-    return {dim: _make_dim(score=score, weight=w) for dim, w in
-            zip(REQUIRED_DIMENSIONS, [0.25, 0.25, 0.20, 0.15, 0.10, 0.05])}
+    return {
+        dim: _make_dim(score=score, weight=w)
+        for dim, w in zip(REQUIRED_DIMENSIONS, [0.25, 0.25, 0.20, 0.15, 0.10, 0.05])
+    }
 
 
 # --- C1: 单维度高分不应通过六维质量门 ---
+
 
 class TestDimensionCompleteness:
     """缺失维度 → FAIL，无论分数多高。"""
@@ -28,7 +31,8 @@ class TestDimensionCompleteness:
         """单维度 score=5，weighted_score=5.0 → 必须 FAIL。"""
         scores = {"completeness": _make_dim(score=5, weight=1.0)}
         verdict = ValidationVerdict.compute_verdict(
-            weighted_score=5.0, scores=scores,
+            weighted_score=5.0,
+            scores=scores,
         )
         assert verdict == "FAIL"
 
@@ -39,7 +43,8 @@ class TestDimensionCompleteness:
             "correctness": _make_dim(score=5, weight=0.5),
         }
         verdict = ValidationVerdict.compute_verdict(
-            weighted_score=5.0, scores=scores,
+            weighted_score=5.0,
+            scores=scores,
         )
         assert verdict == "FAIL"
 
@@ -49,19 +54,22 @@ class TestDimensionCompleteness:
         del scores["professionalism"]  # 移除权重最低的维度
         weighted = ValidationVerdict.compute_weighted_score(scores)
         verdict = ValidationVerdict.compute_verdict(
-            weighted_score=weighted, scores=scores,
+            weighted_score=weighted,
+            scores=scores,
         )
         assert verdict == "FAIL"
 
     def test_empty_scores_fails(self):
         """空 scores → FAIL。"""
         verdict = ValidationVerdict.compute_verdict(
-            weighted_score=0.0, scores={},
+            weighted_score=0.0,
+            scores={},
         )
         assert verdict == "FAIL"
 
 
 # --- 向后兼容：六维完整时行为不变 ---
+
 
 class TestFullDimensionsBackwardCompat:
     """六维完整时，原有阈值逻辑不变。"""
@@ -70,7 +78,8 @@ class TestFullDimensionsBackwardCompat:
         scores = _full_scores(score=5)
         weighted = ValidationVerdict.compute_weighted_score(scores)
         verdict = ValidationVerdict.compute_verdict(
-            weighted_score=weighted, scores=scores,
+            weighted_score=weighted,
+            scores=scores,
         )
         assert verdict == "PASS"
 
@@ -79,7 +88,8 @@ class TestFullDimensionsBackwardCompat:
         scores = _full_scores(score=4)
         weighted = ValidationVerdict.compute_weighted_score(scores)
         verdict = ValidationVerdict.compute_verdict(
-            weighted_score=weighted, scores=scores,
+            weighted_score=weighted,
+            scores=scores,
         )
         assert verdict == "PASS"
 
@@ -88,7 +98,8 @@ class TestFullDimensionsBackwardCompat:
         scores = _full_scores(score=3)
         weighted = ValidationVerdict.compute_weighted_score(scores)
         verdict = ValidationVerdict.compute_verdict(
-            weighted_score=weighted, scores=scores,
+            weighted_score=weighted,
+            scores=scores,
         )
         assert verdict == "CONDITIONAL"
 
@@ -97,7 +108,8 @@ class TestFullDimensionsBackwardCompat:
         scores = _full_scores(score=2)
         weighted = ValidationVerdict.compute_weighted_score(scores)
         verdict = ValidationVerdict.compute_verdict(
-            weighted_score=weighted, scores=scores,
+            weighted_score=weighted,
+            scores=scores,
         )
         assert verdict == "FAIL"
 
@@ -105,7 +117,8 @@ class TestFullDimensionsBackwardCompat:
         scores = _full_scores(score=1)
         weighted = ValidationVerdict.compute_weighted_score(scores)
         verdict = ValidationVerdict.compute_verdict(
-            weighted_score=weighted, scores=scores,
+            weighted_score=weighted,
+            scores=scores,
         )
         assert verdict == "FAIL"
 
@@ -115,7 +128,8 @@ class TestFullDimensionsBackwardCompat:
         scores["professionalism"] = _make_dim(score=3, weight=0.05)
         weighted = ValidationVerdict.compute_weighted_score(scores)
         verdict = ValidationVerdict.compute_verdict(
-            weighted_score=weighted, scores=scores,
+            weighted_score=weighted,
+            scores=scores,
         )
         # weighted ≈ 3.95, min=3 → PASS
         assert verdict == "PASS"
@@ -126,13 +140,15 @@ class TestFullDimensionsBackwardCompat:
         scores["correctness"] = _make_dim(score=2, weight=0.25)
         weighted = ValidationVerdict.compute_weighted_score(scores)
         verdict = ValidationVerdict.compute_verdict(
-            weighted_score=weighted, scores=scores,
+            weighted_score=weighted,
+            scores=scores,
         )
         # weighted=2.75, min=2 → weighted < 3.0 → FAIL
         assert verdict == "FAIL"
 
 
 # --- compute_weighted_score 不受影响 ---
+
 
 class TestWeightedScore:
     def test_empty_scores_zero(self):

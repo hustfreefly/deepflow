@@ -127,17 +127,23 @@ def test_read_output_persists_reconstructed_state(tmp_path, monkeypatch):
     )
     # Patch BlackboardManager to use tmp_path/blackboard as base_dir
     from domains.spec_pro.blackboard import BlackboardManager as _BM
+
     _orig_init = _BM.__init__
+
     def _patched_init(self, sid, base_dir=None, **kw):
         _orig_init(self, sid, base_dir=str(tmp_path / "blackboard"), **kw)
+
     monkeypatch.setattr(_BM, "__init__", _patched_init)
 
     result = spec_pro_api.cmd_read_output(SimpleNamespace(session_id=session_id))
 
     assert result["success"] is True
-    persisted = json.loads((session_path / "coord_state.json").read_text(encoding="utf-8"))
+    persisted = json.loads(
+        (session_path / "coord_state.json").read_text(encoding="utf-8")
+    )
     # cmd_read_output 读取 round_result 后根据 action 更新 state
     # summary → confirming（如果 cmd_read_output 实现了此转换）
     # 否则 state 保持原值（asking）
-    assert persisted["state"] in ("confirming", "asking"), \
+    assert persisted["state"] in ("confirming", "asking"), (
         f"Expected state 'confirming' or 'asking', got '{persisted['state']}'"
+    )

@@ -165,7 +165,9 @@ def _build_user_prompt(
 
     # 2. Candidates with context (cap at 15 to keep prompt manageable)
     capped = candidates[:15]
-    parts.append(f"## 候选问题（共 {len(candidates)} 个，以下展示前 {len(capped)} 个代表性候选，剩余 {len(candidates)-len(capped)} 个模式类似）")
+    parts.append(
+        f"## 候选问题（共 {len(candidates)} 个，以下展示前 {len(capped)} 个代表性候选，剩余 {len(candidates) - len(capped)} 个模式类似）"
+    )
     parts.append("")
 
     for i, c in enumerate(capped):
@@ -190,10 +192,14 @@ def _build_user_prompt(
                 for ce in context_events:
                     ce_type = ce.get("type", "?")
                     if ce_type == "tool_call":
-                        parts.append(f"    [{ce_type}] {ce.get('tool', '?')}: {ce.get('input_preview', '')[:120]}")
+                        parts.append(
+                            f"    [{ce_type}] {ce.get('tool', '?')}: {ce.get('input_preview', '')[:120]}"
+                        )
                     elif ce_type == "tool_result":
                         success = "✅" if ce.get("success") else "❌"
-                        parts.append(f"    [{ce_type}] {success} {ce.get('tool', '?')}: {ce.get('content_preview', '')[:120]}")
+                        parts.append(
+                            f"    [{ce_type}] {success} {ce.get('tool', '?')}: {ce.get('content_preview', '')[:120]}"
+                        )
                     elif ce_type == "text":
                         parts.append(f"    [{ce_type}] {ce.get('content', '')[:120]}")
         parts.append("")
@@ -201,7 +207,9 @@ def _build_user_prompt(
     return "\n".join(parts)
 
 
-def _get_context_events(events: list[dict], target_ts: int, window: int = 5) -> list[dict]:
+def _get_context_events(
+    events: list[dict], target_ts: int, window: int = 5
+) -> list[dict]:
     """获取目标时间戳前后的事件（跳过 thinking/text 类型，只保留 tool_call/tool_result）。"""
     # Find the index closest to target_ts
     best_idx = 0
@@ -273,7 +281,9 @@ def analyze_candidates(
         }
 
     api_config = _get_api_config()
-    user_prompt = _build_user_prompt(candidates, events, session_label, pipeline_meta or {})
+    user_prompt = _build_user_prompt(
+        candidates, events, session_label, pipeline_meta or {}
+    )
 
     raw_response = _call_llm(SYSTEM_PROMPT, user_prompt, api_config)
 
@@ -291,7 +301,8 @@ def analyze_candidates(
     except json.JSONDecodeError:
         # Fallback: try to extract JSON from the response
         import re
-        json_match = re.search(r'\{[\s\S]*\}', text)
+
+        json_match = re.search(r"\{[\s\S]*\}", text)
         if json_match:
             result = json.loads(json_match.group())
         else:

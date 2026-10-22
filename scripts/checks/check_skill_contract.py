@@ -86,7 +86,9 @@ def check_frontmatter(content: str, expected_name: str) -> list[str]:
 
     # Check required fields
     if f"name: {expected_name}" not in fm and f'name: "{expected_name}"' not in fm:
-        issues.append(f"[MUST] frontmatter missing or wrong name (expected: {expected_name})")
+        issues.append(
+            f"[MUST] frontmatter missing or wrong name (expected: {expected_name})"
+        )
     if "description:" not in fm:
         issues.append("[MUST] frontmatter missing description")
     if "version:" not in fm:
@@ -101,7 +103,10 @@ def check_h1_title(content: str, domain_name: str) -> list[str]:
     h1_lines = [l for l in content.split("\n") if l.startswith("# ")]
     if not h1_lines:
         issues.append("[MUST] Missing H1 title (# ...)")
-    elif domain_name not in h1_lines[0] and domain_name.replace("-", " ") not in h1_lines[0].lower():
+    elif (
+        domain_name not in h1_lines[0]
+        and domain_name.replace("-", " ") not in h1_lines[0].lower()
+    ):
         # Allow flexible naming but flag if totally unrelated
         pass
     return issues
@@ -123,7 +128,9 @@ def check_line_count(content: str, min_lines: int, max_lines: int) -> list[str]:
     if count < min_lines:
         issues.append(f"[MUST] Too short: {count} lines (min {min_lines})")
     if count > max_lines:
-        issues.append(f"[SHOULD] Too long: {count} lines (max {max_lines}) — consider trimming")
+        issues.append(
+            f"[SHOULD] Too long: {count} lines (max {max_lines}) — consider trimming"
+        )
     return issues
 
 
@@ -148,7 +155,9 @@ def check_no_deprecated_api(content: str) -> list[str]:
     ]
     for api_name, old_path in deprecated:
         if api_name in content:
-            issues.append(f"[SHOULD] References deprecated API: {api_name} (was in {old_path})")
+            issues.append(
+                f"[SHOULD] References deprecated API: {api_name} (was in {old_path})"
+            )
     return issues
 
 
@@ -238,7 +247,9 @@ def check_quickstart_dedup() -> dict:
 
     issues = []
     if root_qs.exists():
-        issues.append("[MUST] docs/QUICKSTART.md should be removed (canonical: docs/guides/QUICKSTART.md)")
+        issues.append(
+            "[MUST] docs/QUICKSTART.md should be removed (canonical: docs/guides/QUICKSTART.md)"
+        )
 
     if not guides_qs.exists():
         issues.append("[MUST] docs/guides/QUICKSTART.md missing (canonical quickstart)")
@@ -281,7 +292,9 @@ def main():
     total_should = 0
 
     for r in results:
-        status_icon = {"PASS": "✅", "FAIL": "❌", "MISSING": "💀"}.get(r["status"], "?")
+        status_icon = {"PASS": "✅", "FAIL": "❌", "MISSING": "💀"}.get(
+            r["status"], "?"
+        )
         print(f"{status_icon} {r['file']}")
         for issue in r["issues"]:
             print(f"   {issue}")
@@ -290,7 +303,9 @@ def main():
         print()
 
     print("-" * 60)
-    print(f"Total: {len(results)} files | MUST issues: {total_must} | SHOULD issues: {total_should}")
+    print(
+        f"Total: {len(results)} files | MUST issues: {total_must} | SHOULD issues: {total_should}"
+    )
 
     if total_must > 0:
         print(f"\n❌ CONTRACT VIOLATION: {total_must} MUST issues found")

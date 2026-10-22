@@ -8,12 +8,12 @@ from .pipeline_state import (
     SolutionProPipelineState,
     ModuleState,
     StageProgress,
-    ConvergenceState
+    ConvergenceState,
 )
 
 __all__ = [
     "SolutionProPipelineState",
     "ModuleState",
-    "StageProgress", 
-    "ConvergenceState"
+    "StageProgress",
+    "ConvergenceState",
 ]

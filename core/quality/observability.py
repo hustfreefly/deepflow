@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 
 try:
     import structlog as _sl
+
     _sl.configure(
         processors=[
             _sl.processors.TimeStamper(fmt="iso"),
@@ -28,9 +29,11 @@ try:
         ],
         logger_factory=_sl.PrintLoggerFactory(),
     )
+
     def _get_structured_logger(name: str = "v3") -> Any:
         return _sl.get_logger(name)
 except ImportError:
+
     class _FallbackLogger:
         def __init__(self, name: str = "v3") -> None:
             self._logger = logging.getLogger(name)
@@ -39,21 +42,41 @@ except ImportError:
                 h.setFormatter(logging.Formatter("%(message)s"))
                 self._logger.addHandler(h)
                 self._logger.setLevel(logging.INFO)
+
         def _log(self, level: int, event: str, **kw: Any) -> None:
-            entry = {"ts": time.time(), "level": logging.getLevelName(level),
-                     "logger": self._logger.name, "event": event, **kw}
+            entry = {
+                "ts": time.time(),
+                "level": logging.getLevelName(level),
+                "logger": self._logger.name,
+                "event": event,
+                **kw,
+            }
             self._logger.log(level, json.dumps(entry, ensure_ascii=False))
-        def info(self, event: str, **kw: Any) -> None:  self._log(logging.INFO, event, **kw)
-        def warning(self, event: str, **kw: Any) -> None: self._log(logging.WARNING, event, **kw)
-        def error(self, event: str, **kw: Any) -> None:  self._log(logging.ERROR, event, **kw)
-        def debug(self, event: str, **kw: Any) -> None: self._log(logging.DEBUG, event, **kw)
-        def critical(self, event: str, **kw: Any) -> None: self._log(logging.CRITICAL, event, **kw)
-        def exception(self, event: str, **kw: Any) -> None: self._log(logging.ERROR, event, exc_info=True, **kw)
+
+        def info(self, event: str, **kw: Any) -> None:
+            self._log(logging.INFO, event, **kw)
+
+        def warning(self, event: str, **kw: Any) -> None:
+            self._log(logging.WARNING, event, **kw)
+
+        def error(self, event: str, **kw: Any) -> None:
+            self._log(logging.ERROR, event, **kw)
+
+        def debug(self, event: str, **kw: Any) -> None:
+            self._log(logging.DEBUG, event, **kw)
+
+        def critical(self, event: str, **kw: Any) -> None:
+            self._log(logging.CRITICAL, event, **kw)
+
+        def exception(self, event: str, **kw: Any) -> None:
+            self._log(logging.ERROR, event, exc_info=True, **kw)
+
     def _get_structured_logger(name: str = "v3") -> _FallbackLogger:
         return _FallbackLogger(name)
 
 
 # ── Metric Store (thread-safe, Prometheus-style) ──
+
 
 class _MetricStore:
     def __init__(self) -> None:
@@ -62,17 +85,23 @@ class _MetricStore:
         self._gauges: Dict[str, float] = {}
         self._histograms: Dict[str, Dict[str, float]] = {}
 
-    def counter(self, name: str, value: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def counter(
+        self, name: str, value: float = 1.0, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         key = self._key(name, labels)
         with self._lock:
             self._counters[key] = self._counters.get(key, 0.0) + value
 
-    def gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def gauge(
+        self, name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         key = self._key(name, labels)
         with self._lock:
             self._gauges[key] = value
 
-    def histogram(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def histogram(
+        self, name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         key = self._key(name, labels)
         with self._lock:
             if key not in self._histograms:
@@ -87,13 +116,17 @@ class _MetricStore:
             return {
                 "counters": dict(self._counters),
                 "gauges": dict(self._gauges),
-                "histograms": {k: {"count": v["count"], "sum": v["sum"], "avg": v["mean"]}
-                               for k, v in self._histograms.items()},
+                "histograms": {
+                    k: {"count": v["count"], "sum": v["sum"], "avg": v["mean"]}
+                    for k, v in self._histograms.items()
+                },
             }
 
     def reset(self) -> None:
         with self._lock:
-            self._counters.clear(); self._gauges.clear(); self._histograms.clear()
+            self._counters.clear()
+            self._gauges.clear()
+            self._histograms.clear()
 
     @staticmethod
     def _key(name: str, labels: Optional[Dict[str, str]] = None) -> str:
@@ -103,6 +136,7 @@ class _MetricStore:
 
 
 # ── Trace Context ──
+
 
 class _TraceContext:
     def __init__(self) -> None:
@@ -124,8 +158,14 @@ class _TraceContext:
             return self._sessions.get(session_id)
 
     def push(self, tid: str, stage: str, agent: str) -> Dict[str, Any]:
-        span = {"stage": stage, "agent": agent, "start": time.time(),
-                "end": None, "success": None, "duration": None}
+        span = {
+            "stage": stage,
+            "agent": agent,
+            "start": time.time(),
+            "end": None,
+            "success": None,
+            "duration": None,
+        }
         with self._lock:
             if tid in self._spans:
                 self._spans[tid].append(span)
@@ -148,7 +188,8 @@ class _TraceContext:
 
     def reset(self) -> None:
         with self._lock:
-            self._sessions.clear(); self._spans.clear()
+            self._sessions.clear()
+            self._spans.clear()
 
 
 # ── Global Singletons ──
@@ -159,6 +200,7 @@ _log = _get_structured_logger()
 
 
 # ── Observability Public API ──
+
 
 class Observability:
     """可观测性静态接口：日志 + 指标 + 追踪。"""
@@ -178,34 +220,53 @@ class Observability:
     def log_stage_start(stage: str, agent: str, trace_id: str, **kw: Any) -> None:
         _trace.push(trace_id, stage, agent)
         _log.info("stage_start", trace_id=trace_id, stage=stage, agent=agent, **kw)
-        Observability.record_counter("stage_starts", labels={"stage": stage, "agent": agent})
+        Observability.record_counter(
+            "stage_starts", labels={"stage": stage, "agent": agent}
+        )
 
     @staticmethod
-    def log_stage_end(stage: str, success: bool, duration: float, trace_id: str, **kw: Any) -> None:
+    def log_stage_end(
+        stage: str, success: bool, duration: float, trace_id: str, **kw: Any
+    ) -> None:
         span = _trace.pop(trace_id, success)
-        _log.info("stage_end" if success else "stage_fail",
-                   trace_id=trace_id, stage=stage, success=success,
-                   duration=round(duration, 3), **kw)
+        _log.info(
+            "stage_end" if success else "stage_fail",
+            trace_id=trace_id,
+            stage=stage,
+            success=success,
+            duration=round(duration, 3),
+            **kw,
+        )
         if success:
             Observability.record_counter("stage_successes", labels={"stage": stage})
         else:
             Observability.record_counter("stage_failures", labels={"stage": stage})
-        Observability.record_histogram("stage_duration_seconds", duration, labels={"stage": stage})
+        Observability.record_histogram(
+            "stage_duration_seconds", duration, labels={"stage": stage}
+        )
 
     @staticmethod
-    def record_counter(name: str, value: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def record_counter(
+        name: str, value: float = 1.0, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         _store.counter(name, value, labels)
 
     @staticmethod
-    def record_gauge(name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def record_gauge(
+        name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         _store.gauge(name, value, labels)
 
     @staticmethod
-    def record_histogram(name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def record_histogram(
+        name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         _store.histogram(name, value, labels)
 
     @staticmethod
-    def record_quality_score(score: float, stage: str, trace_id: Optional[str] = None) -> None:
+    def record_quality_score(
+        score: float, stage: str, trace_id: Optional[str] = None
+    ) -> None:
         if not (0.0 <= score <= 1.0):
             _log.warning("quality_score_oor", score=score, stage=stage)
             score = max(0.0, min(1.0, score))
@@ -215,15 +276,26 @@ class Observability:
     @staticmethod
     def record_convergence(round_num: int, converged: bool, reason: str = "") -> None:
         _store.gauge("convergence_round", float(round_num))
-        _store.counter("convergence_events", labels={"converged": str(converged), "reason": reason or "continue"})
+        _store.counter(
+            "convergence_events",
+            labels={"converged": str(converged), "reason": reason or "continue"},
+        )
 
     @staticmethod
-    def record_error(error_type: str, message: str, stage: str = "", trace_id: Optional[str] = None) -> None:
+    def record_error(
+        error_type: str, message: str, stage: str = "", trace_id: Optional[str] = None
+    ) -> None:
         labels: Dict[str, str] = {"error_type": error_type}
         if stage:
             labels["stage"] = stage
         _store.counter("error_count", labels=labels)
-        _log.error("error", error_type=error_type, message=message, stage=stage, trace_id=trace_id)
+        _log.error(
+            "error",
+            error_type=error_type,
+            message=message,
+            stage=stage,
+            trace_id=trace_id,
+        )
 
     @staticmethod
     def get_metrics() -> Dict[str, Any]:

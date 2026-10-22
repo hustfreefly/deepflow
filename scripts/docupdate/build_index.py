@@ -18,7 +18,17 @@ from pathlib import Path
 
 DEEPFLOW_ROOT = Path(__file__).resolve().parents[2]
 INDEX_PATH = DEEPFLOW_ROOT / ".doc_index.json"
-EXCLUDE_DIRS = {"ARCHIVED", "docs/archive", "blackboard", "__pycache__", ".git", ".codegraph", "node_modules", "venv", ".deepflow/frontend"}
+EXCLUDE_DIRS = {
+    "ARCHIVED",
+    "docs/archive",
+    "blackboard",
+    "__pycache__",
+    ".git",
+    ".codegraph",
+    "node_modules",
+    "venv",
+    ".deepflow/frontend",
+}
 
 
 def _should_exclude(path: Path) -> bool:
@@ -71,7 +81,7 @@ def _extract_symbols_from_ast() -> dict:
 
 def _extract_words(text: str) -> set:
     """从文本中提取所有标识符单词（快速）。"""
-    return set(re.findall(r'[a-zA-Z_][a-zA-Z0-9_]{3,}', text))
+    return set(re.findall(r"[a-zA-Z_][a-zA-Z0-9_]{3,}", text))
 
 
 def _scan_markdown_refs(symbols: dict) -> dict:
@@ -97,7 +107,7 @@ def _scan_markdown_refs(symbols: dict) -> dict:
         found = {}  # sym -> (context, confidence)
 
         # 策略 1: 代码块中提取单词，与符号名做集合交集（高置信度）
-        code_blocks = re.findall(r'```(?:\w*)\n(.*?)```', content, re.DOTALL)
+        code_blocks = re.findall(r"```(?:\w*)\n(.*?)```", content, re.DOTALL)
         for block in code_blocks:
             words = _extract_words(block)
             hits = words & sym_names
@@ -106,7 +116,7 @@ def _scan_markdown_refs(symbols: dict) -> dict:
                     found[sym] = ("code_block", "high")
 
         # 策略 2: 内联代码引用（中置信度）
-        inline_matches = re.findall(r'`([^`]+)`', content)
+        inline_matches = re.findall(r"`([^`]+)`", content)
         for ref_text in inline_matches:
             words = _extract_words(ref_text)
             hits = words & sym_names
@@ -123,11 +133,13 @@ def _scan_markdown_refs(symbols: dict) -> dict:
 
         # 写入 refs
         for sym, (context, confidence) in found.items():
-            refs[sym].append({
-                "file": rel_path,
-                "context": context,
-                "confidence": confidence,
-            })
+            refs[sym].append(
+                {
+                    "file": rel_path,
+                    "context": context,
+                    "confidence": confidence,
+                }
+            )
 
     return dict(refs)
 

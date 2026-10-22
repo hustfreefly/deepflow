@@ -74,12 +74,16 @@ def _fresh_mtime(path: Path) -> float:
 
 def _read_json(path: Path) -> dict[str, Any] | None:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))  # safe-json: 防御性读取，任何异常返回 None，仅用于内部状态推导（track.json 等代码写入文件）
+        return json.loads(
+            path.read_text(encoding="utf-8")
+        )  # safe-json: 防御性读取，任何异常返回 None，仅用于内部状态推导（track.json 等代码写入文件）
     except Exception:
         return None
 
 
-def _has_substantial_file(directory: Path, min_bytes: int = DONE_MIN_FILE_BYTES) -> bool:
+def _has_substantial_file(
+    directory: Path, min_bytes: int = DONE_MIN_FILE_BYTES
+) -> bool:
     """DONE 契约检查：交付目录至少含一个 ≥min_bytes 的实质文件。
 
     K2 排除规则（Pulse V1.1）：final_deliverable 内嵌套的 worker_outputs/
@@ -143,7 +147,9 @@ def derive_worker_progress(
                 status = data.get("status", "")
                 if status == "FAILED":
                     failed.add(task_id)
-                    failure_reasons[task_id] = data.get("failure_reason", "worker_reported_failed")
+                    failure_reasons[task_id] = data.get(
+                        "failure_reason", "worker_reported_failed"
+                    )
                 else:
                     # COMPLETE / PASS / PARTIAL / 其他 → 完成
                     completed.add(task_id)
@@ -231,7 +237,9 @@ def _reset_manifest_corruption_count(wp_dir: Path) -> None:
         pass
 
 
-def _validate_delivery_manifest(manifest_path: Path, wp_dir: Path | None = None) -> bool:
+def _validate_delivery_manifest(
+    manifest_path: Path, wp_dir: Path | None = None
+) -> bool:
     """校验 delivery_manifest.json 是否为有效 JSON 且符合 DeliveryManifest schema。
 
     B1 fix（2026-07-30）：畸形 manifest 不应让 derive_phase 返回 DONE。
@@ -264,13 +272,16 @@ def _validate_delivery_manifest(manifest_path: Path, wp_dir: Path | None = None)
     # Schema 验证：尝试用 DeliveryManifest 解析
     try:
         from domains.deliver_pro.contracts.delivery_manifest import DeliveryManifest
+
         DeliveryManifest.model_validate(data)
         # 校验通过，重置计数器
         if wp_dir:
             _reset_manifest_corruption_count(wp_dir)
         return True
     except Exception as e:
-        logger.warning(f"delivery_manifest.json failed schema validation: {manifest_path}: {e}")
+        logger.warning(
+            f"delivery_manifest.json failed schema validation: {manifest_path}: {e}"
+        )
         if wp_dir:
             count = _increment_manifest_corruption_count(wp_dir)
             if count >= MANIFEST_CORRUPTION_LIMIT:
@@ -320,6 +331,7 @@ def derive_phase(wp_dir: Path) -> str:
             # B1 fix: legacy 路径也要校验 manifest
             if _validate_delivery_manifest(manifest_file):
                 import warnings
+
                 warnings.warn(
                     f"{wp_dir.name}: final_deliverable 在 WP 根目录（legacy 路径），"
                     f"应迁移到 stages/final_deliverable/",
@@ -354,14 +366,13 @@ def derive_phase(wp_dir: Path) -> str:
                 for t in task_graph
             }
             task_deps = {
-                (t.get("task_id", "") if isinstance(t, dict) else str(t)):
-                    (t.get("depends_on", []) if isinstance(t, dict) else [])
+                (t.get("task_id", "") if isinstance(t, dict) else str(t)): (
+                    t.get("depends_on", []) if isinstance(t, dict) else []
+                )
                 for t in task_graph
             }
             progress = derive_worker_progress(wp_dir, plan_task_ids, task_deps)
-            resolved = (
-                progress["completed"] | progress["failed"] | progress["blocked"]
-            )
+            resolved = progress["completed"] | progress["failed"] | progress["blocked"]
             if len(resolved) >= len(plan_task_ids):
                 return PHASE_ASSEMBLING
             return PHASE_GENERATING
@@ -434,7 +445,9 @@ def invalidate_downstream(wp_dir: Path, from_phase: str) -> list[str]:
     return removed
 
 
-def migrate_legacy_worker_outputs(wp_dir: Path, blackboard_root: Path | None = None) -> list[str]:
+def migrate_legacy_worker_outputs(
+    wp_dir: Path, blackboard_root: Path | None = None
+) -> list[str]:
     """搬迁 legacy 路径的 worker 输出到标准路径（幂等）。
 
     标准路径: {wp_dir}/stages/worker_outputs/
@@ -511,8 +524,9 @@ def derive_wp_status(wp_dir: Path) -> dict[str, Any]:
                 for t in task_graph
             }
             task_deps = {
-                (t.get("task_id", "") if isinstance(t, dict) else str(t)):
-                    (t.get("depends_on", []) if isinstance(t, dict) else [])
+                (t.get("task_id", "") if isinstance(t, dict) else str(t)): (
+                    t.get("depends_on", []) if isinstance(t, dict) else []
+                )
                 for t in task_graph
             }
             status["workers"] = derive_worker_progress(wp_dir, plan_task_ids, task_deps)

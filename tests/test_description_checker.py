@@ -291,7 +291,9 @@ class TestNonASCIIWarning:
 
     def test_chinese_characters_generate_warning(self, checker):
         """Chinese characters → warning about non-ASCII."""
-        desc = "构建应用并部署到Kubernetes集群中，支持自动健康检查和回滚功能确保服务高可用"
+        desc = (
+            "构建应用并部署到Kubernetes集群中，支持自动健康检查和回滚功能确保服务高可用"
+        )
         result = checker.check(desc)
         assert len(result.warnings) >= 1
         assert "non-ASCII" in result.warnings[0]
@@ -305,13 +307,17 @@ class TestNonASCIIWarning:
 
     def test_pure_ascii_no_warning(self, checker):
         """Pure ASCII → no warnings."""
-        desc = "Build and deploy the application to production servers with zero downtime"
+        desc = (
+            "Build and deploy the application to production servers with zero downtime"
+        )
         result = checker.check(desc)
         assert result.warnings == []
 
     def test_non_ascii_does_not_affect_validity(self, checker):
         """Non-ASCII warning is non-blocking; valid length still passes."""
-        desc = "构建应用并部署到集群中支持自动健康检查和回滚功能确保服务的高可用性和稳定性"
+        desc = (
+            "构建应用并部署到集群中支持自动健康检查和回滚功能确保服务的高可用性和稳定性"
+        )
         result = checker.check(desc)
         # Length is valid (30-500), so is_valid should be True despite warning
         assert result.is_valid is True
@@ -576,4 +582,6 @@ class TestParametricBoundaries:
         ]
         for text in test_cases:
             result = checker.check(text)
-            assert result.quality_score <= 100, f"Score {result.quality_score} > 100 for len={len(text)}"
+            assert result.quality_score <= 100, (
+                f"Score {result.quality_score} > 100 for len={len(text)}"
+            )

@@ -7,6 +7,7 @@
 
 本测试是第 4 层：CI 自动验证文档/代码一致性，防止未来回归。
 """
+
 import os
 import pytest
 from pathlib import Path
@@ -46,8 +47,10 @@ def test_init_docstring_mentions_pulse_not_llm_orchestrator():
 def test_run_deliver_pro_rejects_non_pulse_mode():
     """契约笼子：run_deliver_pro(mode!=pulse) 必须 raise ValueError。"""
     from unittest.mock import patch
+
     with patch("domains.deliver_pro.Path.exists", return_value=True):
         from domains.deliver_pro import run_deliver_pro
+
         with pytest.raises(ValueError, match="已禁用"):
             run_deliver_pro("test_project", mode="drive_all")
         with pytest.raises(ValueError, match="已禁用"):
@@ -57,17 +60,20 @@ def test_run_deliver_pro_rejects_non_pulse_mode():
 def test_drive_all_fence_blocks_without_env_var():
     """契约笼子：drive_all 无 DEEPFLOW_ALLOW_DRIVE_ALL=1 时必须 raise RuntimeError。"""
     from unittest.mock import patch, MagicMock
+
     # 确保环境变量未设置
     env = os.environ.copy()
     env.pop("DEEPFLOW_ALLOW_DRIVE_ALL", None)
     with patch.dict(os.environ, env, clear=True):
         from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
         # F1 fix (W3): _find_ship_package 缺失 → raise，所以测试 fence 需要 mock 一个有效 package
         mock_path = MagicMock()
-        mock_path.read_text.return_value = '{"work_packages": [], "dependency_graph": {}}'
+        mock_path.read_text.return_value = (
+            '{"work_packages": [], "dependency_graph": {}}'
+        )
         with patch.object(
-            DeliverOrchestrator, "_find_ship_package",
-            return_value=mock_path
+            DeliverOrchestrator, "_find_ship_package", return_value=mock_path
         ):
             orch = DeliverOrchestrator("test_project")
             with pytest.raises(RuntimeError, match="已禁用"):
@@ -77,16 +83,19 @@ def test_drive_all_fence_blocks_without_env_var():
 def test_drive_once_fence_blocks_without_env_var():
     """契约笼子：drive_once 无 DEEPFLOW_ALLOW_DRIVE_ALL=1 时必须 raise RuntimeError。"""
     from unittest.mock import patch, MagicMock
+
     env = os.environ.copy()
     env.pop("DEEPFLOW_ALLOW_DRIVE_ALL", None)
     with patch.dict(os.environ, env, clear=True):
         from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
         # F1 fix (W3): _find_ship_package 缺失 → raise，所以测试 fence 需要 mock 一个有效 package
         mock_path = MagicMock()
-        mock_path.read_text.return_value = '{"work_packages": [], "dependency_graph": {}}'
+        mock_path.read_text.return_value = (
+            '{"work_packages": [], "dependency_graph": {}}'
+        )
         with patch.object(
-            DeliverOrchestrator, "_find_ship_package",
-            return_value=mock_path
+            DeliverOrchestrator, "_find_ship_package", return_value=mock_path
         ):
             orch = DeliverOrchestrator("test_project")
             with pytest.raises(RuntimeError, match="已禁用"):
@@ -100,14 +109,17 @@ def test_drive_all_fence_allows_with_env_var():
     后续逻辑因 mock 环境可能抛其他异常（属正常）。
     """
     from unittest.mock import patch, MagicMock
+
     with patch.dict(os.environ, {"DEEPFLOW_ALLOW_DRIVE_ALL": "1"}):
         from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
         # F1 fix (W3): _find_ship_package 缺失 → raise，所以测试 fence 需要 mock 一个有效 package
         mock_path = MagicMock()
-        mock_path.read_text.return_value = '{"work_packages": [], "dependency_graph": {}}'
+        mock_path.read_text.return_value = (
+            '{"work_packages": [], "dependency_graph": {}}'
+        )
         with patch.object(
-            DeliverOrchestrator, "_find_ship_package",
-            return_value=mock_path
+            DeliverOrchestrator, "_find_ship_package", return_value=mock_path
         ):
             orch = DeliverOrchestrator("test_project")
             # fence 不应抛 "已禁用" RuntimeError；后续 get_status 可能因缺文件抛其他错

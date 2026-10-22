@@ -13,7 +13,13 @@ CitationVerifier — ResearchPro 引用验证器
 报告生成前必须执行引用验证循环 (RED-DC-005)。
 """
 
-import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
+import sys as _sys
+
+_p = __import__("pathlib").Path(__file__).resolve()
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
+_sys.path.insert(0, str(_r)) if _r and str(
+    _r
+) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 import re
 import hashlib
 
@@ -28,50 +34,50 @@ CITATION_FETCH_TIMEOUT = 10
 class CitationVerifier:
     """
     引用验证器 — 五步验证循环。
-    
+
     契约约束:
     - 所有引用必须来自 Source Registry (RED-DC-001)
     - 报告生成前必须执行引用验证循环 (RED-DC-005)
     """
-    
+
     def __init__(self, source_registry: SourceRegistry) -> None:
         """
         初始化 CitationVerifier。
-        
+
         Args:
             source_registry: SourceRegistry 实例
         """
         self.source_registry = source_registry
         self._fetcher = _SafeFetcher(timeout=CITATION_FETCH_TIMEOUT)
-    
+
     def extract_citations(self, report_md: str) -> list[int]:
         """
         步骤 1: 正则提取报告中的 [N] 引用标记。
-        
+
         Args:
             report_md: 报告 Markdown 内容
-        
+
         Returns:
             引用编号列表 (去重后, 升序)
         """
-        pattern = r'\[(\d+)\]'
+        pattern = r"\[(\d+)\]"
         matches = re.findall(pattern, report_md)
         citation_ids = sorted(set(int(m) for m in matches))
         return citation_ids
-    
+
     def verify_citation(self, source_id: int) -> dict:
         """
         步骤 2-5: 验证单个引用。
-        
+
         步骤 2: 映射引用编号到 source_registry
         步骤 2.5 (P0 fix): 检查 eligible_for_citation，拒绝 ineligible source
         步骤 3: HTTP HEAD 验证 URL 可达性
         步骤 4: 内容一致性验证 (content_hash)
         步骤 5: 验证失败处理
-        
+
         Args:
             source_id: 引用编号 (对应 source_registry 中的 id)
-        
+
         Returns:
             dict: 单条引用验证结果
         """
@@ -151,7 +157,7 @@ class CitationVerifier:
                 "quality_tier": quality_tier,
                 "verification_detail": f"URL unreachable: {url} ({str(e)})",
             }
-        
+
         # 步骤 4: 内容一致性验证 (content_hash)
         # P1-4/P2-11: 真正 GET url → 计算 hash → 对比 stored_hash
         # P2-11 修复: 无 hash 时返回 failed 而非 suspect，防止绕过
@@ -165,16 +171,20 @@ class CitationVerifier:
                 "quality_tier": quality_tier,
                 "verification_detail": f"No content_hash stored for {url}, content integrity cannot be verified",
             }
-        
+
         try:
             get_response = self._fetcher.get(url)
             if get_response.status >= 400:
                 raise SafeFetchError(f"HTTP {get_response.status} for {url}")
             fetched_content = get_response.text
-            
-            fetched_hash = hashlib.sha256(fetched_content.encode('utf-8')).hexdigest()[:16]
-            truncation_note = " (response truncated at 512 KiB)" if get_response.truncated else ""
-            
+
+            fetched_hash = hashlib.sha256(fetched_content.encode("utf-8")).hexdigest()[
+                :16
+            ]
+            truncation_note = (
+                " (response truncated at 512 KiB)" if get_response.truncated else ""
+            )
+
             if fetched_hash == stored_hash:
                 return {
                     "status": "verified",
@@ -209,24 +219,30 @@ class CitationVerifier:
                 "quality_tier": quality_tier,
                 "verification_detail": f"URL reachable (HEAD OK) but GET failed for content verification: {url} ({str(e)})",
             }
-    
+
     def verify_all(self, report_md: str) -> dict:
         """
         验证报告中所有引用。
-        
+
         Args:
             report_md: 报告 Markdown 内容
-        
+
         Returns:
             dict: prompt/schema 对齐后的验证摘要
         """
         # 步骤 1: 提取引用
         citation_ids = self.extract_citations(report_md)
-        total_citations = len(re.findall(r'\[(\d+)\]', report_md))
+        total_citations = len(re.findall(r"\[(\d+)\]", report_md))
 
         # 验证每个引用
         details = []
-        counts = {"verified": 0, "unreachable": 0, "not_found": 0, "content_mismatch": 0, "ineligible_source": 0}
+        counts = {
+            "verified": 0,
+            "unreachable": 0,
+            "not_found": 0,
+            "content_mismatch": 0,
+            "ineligible_source": 0,
+        }
 
         for cid in citation_ids:
             result = self.verify_citation(cid)
@@ -234,16 +250,18 @@ class CitationVerifier:
             if status in counts:
                 counts[status] += 1
 
-            details.append({
-                "citation_id": cid,
-                "source_id": result["source_id"],
-                "url": result["url"],
-                "status": status,
-                "http_status": result["http_status"],
-                "content_hash_match": result["content_hash_match"],
-                "quality_tier": result["quality_tier"],
-                "verification_detail": result["verification_detail"],
-            })
+            details.append(
+                {
+                    "citation_id": cid,
+                    "source_id": result["source_id"],
+                    "url": result["url"],
+                    "status": status,
+                    "http_status": result["http_status"],
+                    "content_hash_match": result["content_hash_match"],
+                    "quality_tier": result["quality_tier"],
+                    "verification_detail": result["verification_detail"],
+                }
+            )
 
         # P0 fix: ineligible sources are treated as failures for trust score
         trust_score = counts["verified"] / total_citations if total_citations else 0.0

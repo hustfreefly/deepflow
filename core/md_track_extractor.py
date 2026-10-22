@@ -28,13 +28,23 @@ except ImportError:
 DOMAIN_CONFIG = {
     "spec_pro": {
         "required_sections": [
-            "meta_info", "confirmed_reqs", "capability_boundary",
-            "constraints", "gate_decisions",
+            "meta_info",
+            "confirmed_reqs",
+            "capability_boundary",
+            "constraints",
+            "gate_decisions",
         ],
         "optional_sections": [
-            "overview", "inferred", "quality_attrs", "conversation_summary",
-            "user_directives", "open_questions", "guardrails",
-            "traceability", "solution_pro_hints", "route_recommendation",
+            "overview",
+            "inferred",
+            "quality_attrs",
+            "conversation_summary",
+            "user_directives",
+            "open_questions",
+            "guardrails",
+            "traceability",
+            "solution_pro_hints",
+            "route_recommendation",
             "semantic_anchors",
         ],
         "min_length": 500,
@@ -42,8 +52,21 @@ DOMAIN_CONFIG = {
     },
     "solution_pro": {
         "required_sections": ["meta_info"],
-        "optional_sections": ["overview", "solution_structure", "key_decisions", "implementation_phases", "implementation_plan", "requirement_coverage", "quality_impl", "semantic_anchors", "gate_decisions"],
-        "section_aliases": {"implementation_plan": ["implementation_phases"], "solution_structure": ["overview", "key_decisions"]},
+        "optional_sections": [
+            "overview",
+            "solution_structure",
+            "key_decisions",
+            "implementation_phases",
+            "implementation_plan",
+            "requirement_coverage",
+            "quality_impl",
+            "semantic_anchors",
+            "gate_decisions",
+        ],
+        "section_aliases": {
+            "implementation_plan": ["implementation_phases"],
+            "solution_structure": ["overview", "key_decisions"],
+        },
         "min_length": 300,
         "req_id_semantics": "requirement coverage mapping",
         "summary_sections": {
@@ -77,10 +100,11 @@ GATE_VERDICTS = {"PASS", "CONDITIONAL", "FAIL"}
 
 # ─── Phase 2a: Validate ─────────────────────────────────────────────────────
 
+
 def validate_md_structure(md_content: str, domain: str) -> tuple[bool, str, list[str]]:
     """
     L1: MD 结构校验（纯函数，不碰文件系统）。
-    
+
     Returns:
         (passed, message, warnings)
         - passed: bool — 是否通过校验
@@ -123,15 +147,24 @@ def validate_md_structure(md_content: str, domain: str) -> tuple[bool, str, list
         warnings.append("未检测到结构化表格（非软件域可忽略）")
 
     # 5. Gate 决策表检查（warning）
-    if "## Gate 决策" not in md_content and "## Gate Decision" not in md_content and "## gate_decisions" not in md_content:
+    if (
+        "## Gate 决策" not in md_content
+        and "## Gate Decision" not in md_content
+        and "## gate_decisions" not in md_content
+    ):
         warnings.append("缺少 Gate 决策表")
 
     passed = len(errors) == 0
-    message = "校验通过" if passed else f"校验失败（{len(errors)} 个错误）: {'; '.join(errors)}"
+    message = (
+        "校验通过"
+        if passed
+        else f"校验失败（{len(errors)} 个错误）: {'; '.join(errors)}"
+    )
     return passed, message, warnings
 
 
 # ─── Phase 2b: Extract ──────────────────────────────────────────────────────
+
 
 def _extract_tables_mistune(md_content: str) -> list[dict]:
     """用 mistune 解析 MD，提取所有表格为 list[dict]。"""
@@ -200,8 +233,12 @@ def _extract_gate_verdict(tables: list[dict]) -> dict:
         header = table.get("header", [])
         if "检查层" in header or "Check Layer" in header or "check_layer" in header:
             for row in table["rows"]:
-                layer_key = row.get("检查层", row.get("Check Layer", row.get("check_layer", ""))).strip()
-                result = row.get("结果", row.get("Result", row.get("result", ""))).strip()
+                layer_key = row.get(
+                    "检查层", row.get("Check Layer", row.get("check_layer", ""))
+                ).strip()
+                result = row.get(
+                    "结果", row.get("Result", row.get("result", ""))
+                ).strip()
                 # Extract verdict (PASS/CONDITIONAL/FAIL)
                 for verdict in GATE_VERDICTS:
                     if verdict in result:
@@ -268,23 +305,33 @@ def _extract_semantic_anchors(md_content: str) -> list[dict[str, str]]:
         if name_idx is not None:
             for row_cells in table_rows[1:]:
                 if len(row_cells) > max(name_idx, cat_idx or 0, con_idx or 0):
-                    anchors.append({
-                        "name": row_cells[name_idx].strip(),
-                        "category": row_cells[cat_idx].strip() if cat_idx is not None else "",
-                        "constraint": row_cells[con_idx].strip() if con_idx is not None else "",
-                    })
+                    anchors.append(
+                        {
+                            "name": row_cells[name_idx].strip(),
+                            "category": row_cells[cat_idx].strip()
+                            if cat_idx is not None
+                            else "",
+                            "constraint": row_cells[con_idx].strip()
+                            if con_idx is not None
+                            else "",
+                        }
+                    )
         if anchors:
             return anchors
 
     # Fallback: list format - [category] name: constraint
     # Search in section first, then fall back to full document
     search_text = section_text if section_text else md_content
-    for m in re.finditer(r"^\s*-\s+\[([^\]]*)\]\s+([^:]+):\s+(.+)$", search_text, re.MULTILINE):
-        anchors.append({
-            "category": m.group(1).strip(),
-            "name": m.group(2).strip(),
-            "constraint": m.group(3).strip(),
-        })
+    for m in re.finditer(
+        r"^\s*-\s+\[([^\]]*)\]\s+([^:]+):\s+(.+)$", search_text, re.MULTILINE
+    ):
+        anchors.append(
+            {
+                "category": m.group(1).strip(),
+                "name": m.group(2).strip(),
+                "constraint": m.group(3).strip(),
+            }
+        )
 
     return anchors
 
@@ -303,15 +350,21 @@ def _extract_summary(md_content: str) -> dict[str, int]:
     summary: dict[str, int] = {}
 
     # key_decisions: Chinese or English section names
-    kd_text = _extract_section_text(md_content, "key_decisions", "关键技术决策", "关键决策")
+    kd_text = _extract_section_text(
+        md_content, "key_decisions", "关键技术决策", "关键决策"
+    )
     summary["key_decisions_count"] = _count_data_rows(kd_text) if kd_text else 0
 
     # implementation_phases
-    ip_text = _extract_section_text(md_content, "implementation_phases", "实施阶段", "实施计划")
+    ip_text = _extract_section_text(
+        md_content, "implementation_phases", "实施阶段", "实施计划"
+    )
     summary["implementation_phases_count"] = _count_data_rows(ip_text) if ip_text else 0
 
     # risk
-    risk_text = _extract_section_text(md_content, "risk_summary", "风险评估", "风险与应对", "风险")
+    risk_text = _extract_section_text(
+        md_content, "risk_summary", "风险评估", "风险与应对", "风险"
+    )
     summary["risk_count"] = _count_data_rows(risk_text) if risk_text else 0
 
     return summary
@@ -330,7 +383,9 @@ def _extract_constraint_coverage(md_content: str) -> dict[str, Any]:
     """
     result: dict[str, Any] = {"covered": 0, "total": 0, "ratio": 0.0}
 
-    section_text = _extract_section_text(md_content, "requirement_coverage", "需求覆盖度", "constraint_coverage")
+    section_text = _extract_section_text(
+        md_content, "requirement_coverage", "需求覆盖度", "constraint_coverage"
+    )
     if not section_text:
         return result
 
@@ -361,7 +416,9 @@ def _extract_constraint_coverage(md_content: str) -> dict[str, Any]:
 
     # Fallback 1: search for "covered: X / total: Y" pattern in section text
     if result["covered"] == 0 and result["total"] == 0:
-        ct_m = re.search(r"covered[:\s]+(\d+)\s*/?\s*total[:\s]+(\d+)", section_text, re.IGNORECASE)
+        ct_m = re.search(
+            r"covered[:\s]+(\d+)\s*/?\s*total[:\s]+(\d+)", section_text, re.IGNORECASE
+        )
         if ct_m:
             covered = int(ct_m.group(1))
             total = int(ct_m.group(2))
@@ -413,6 +470,7 @@ def _extract_constraint_coverage(md_content: str) -> dict[str, Any]:
 
 
 # ─── Helper functions for section extraction ────────────────────────────────
+
 
 def _extract_section_text(md_content: str, *section_names: str) -> str:
     """
@@ -507,9 +565,9 @@ def _find_col(header: list[str], candidates: list[str]) -> int | None:
 def extract_track_json(md_content: str, domain: str) -> dict[str, Any]:
     """
     从 MD 提取 track.json 数据。
-    
+
     提取失败 → raise ValueError（不静默返回空数据）。
-    
+
     Returns:
         track.json dict，符合 ADR-009 Schema。
     """
@@ -573,11 +631,15 @@ def extract_track_json(md_content: str, domain: str) -> dict[str, Any]:
 
     # 放宽验证：gate_summary 为空仅 warning（非所有域都有 Gate 表）
     if not gate_summary:
-        logger.warning("Gate 决策表提取为空，track.json 可能不完整（domain=%s）", domain)
+        logger.warning(
+            "Gate 决策表提取为空，track.json 可能不完整（domain=%s）", domain
+        )
 
     # 放宽验证：L3 合并 verdict 不存在仅 warning
     l3_keys = [k for k in gate_summary if "L3" in k or "合并" in k]
     if not l3_keys and gate_summary:
-        logger.warning("未找到 L3 合并 verdict，Gate 决策表可能不完整（domain=%s）", domain)
+        logger.warning(
+            "未找到 L3 合并 verdict，Gate 决策表可能不完整（domain=%s）", domain
+        )
 
     return track

@@ -200,10 +200,10 @@ class PathManager:
             return self._blackboard
 
         # 分割路径并逐段验证
-        parts = relative_path.replace('\\', '/').split('/')
+        parts = relative_path.replace("\\", "/").split("/")
         try:
             for part in parts:
-                if part and part != '.':
+                if part and part != ".":
                     FileNameInput(value=part)
         except ValidationError as e:
             raise PathValidationError(f"路径验证失败: {e}") from e
@@ -340,9 +340,7 @@ class PathManager:
 
         # 检查路径遍历
         if not self._is_relative_to(resolved, base_resolved):
-            raise PathTraversalError(
-                f"路径遍历检测: {result} 不在 {base} 范围内"
-            )
+            raise PathTraversalError(f"路径遍历检测: {result} 不在 {base} 范围内")
 
         return result
 
@@ -407,11 +405,12 @@ class PathManager:
                     raise PathNotWritableError(
                         f"无法创建目录（重试 {max_retries} 次）: {dir_path} - {e}"
                     )
-                time.sleep(0.1 * (2 ** attempt))  # 指数退避
+                time.sleep(0.1 * (2**attempt))  # 指数退避
 
     @staticmethod
     def _file_lock(lock_path: Path, timeout: float = 5.0):
         """文件锁上下文管理器"""
+
         class FileLock:
             def __init__(self, path, timeout):
                 self.path = path

@@ -44,7 +44,9 @@ def tmp_skill_dir(tmp_path: Path) -> Path:
 def _make_skill_info(skill_dir: Path, name: str = "test-skill") -> SkillInfo:
     """Helper to create a SkillInfo with minimal required fields."""
     skill_md = skill_dir / "SKILL.md"
-    skill_md.write_text("---\nskill_name: test\nversion: 1.0.0\n---\n", encoding="utf-8")
+    skill_md.write_text(
+        "---\nskill_name: test\nversion: 1.0.0\n---\n", encoding="utf-8"
+    )
     return SkillInfo(
         skill_dir=skill_dir,
         skill_md_path=skill_md,
@@ -72,7 +74,9 @@ class TestSemVerValidation:
             "0.1.0",
         ],
     )
-    def test_valid_basic_semver(self, validator: VersionValidator, version: str) -> None:
+    def test_valid_basic_semver(
+        self, validator: VersionValidator, version: str
+    ) -> None:
         result = validator.validate(version)
         assert result.is_valid is True
         assert result.declared_version == version
@@ -91,7 +95,9 @@ class TestSemVerValidation:
             "1.0.0-beta.2+build.456",
         ],
     )
-    def test_valid_semver_prerelease(self, validator: VersionValidator, version: str) -> None:
+    def test_valid_semver_prerelease(
+        self, validator: VersionValidator, version: str
+    ) -> None:
         result = validator.validate(version)
         assert result.is_valid is True
         assert result.declared_version == version
@@ -105,7 +111,9 @@ class TestSemVerValidation:
             "1.0.0+exp.sha.5114f85",
         ],
     )
-    def test_valid_semver_build_metadata(self, validator: VersionValidator, version: str) -> None:
+    def test_valid_semver_build_metadata(
+        self, validator: VersionValidator, version: str
+    ) -> None:
         result = validator.validate(version)
         assert result.is_valid is True
         assert result.declared_version == version
@@ -113,19 +121,19 @@ class TestSemVerValidation:
     @pytest.mark.parametrize(
         "version",
         [
-            "1.0",       # Missing patch
-            "1",         # Major only
-            "01.0.0",    # Leading zero
-            "1.01.0",    # Leading zero
-            "1.0.01",    # Leading zero
-            "1.0.0-",    # Trailing hyphen
-            "1.0.0+",    # Trailing plus
-            "v1.0.0",    # v prefix not allowed in strict SemVer
-            "1.0.0.0",   # Too many parts
-            "",          # Empty string
-            "abc",       # Non-numeric
-            "1.0.0-",    # Incomplete prerelease
-            "1.a.0",     # Non-numeric minor
+            "1.0",  # Missing patch
+            "1",  # Major only
+            "01.0.0",  # Leading zero
+            "1.01.0",  # Leading zero
+            "1.0.01",  # Leading zero
+            "1.0.0-",  # Trailing hyphen
+            "1.0.0+",  # Trailing plus
+            "v1.0.0",  # v prefix not allowed in strict SemVer
+            "1.0.0.0",  # Too many parts
+            "",  # Empty string
+            "abc",  # Non-numeric
+            "1.0.0-",  # Incomplete prerelease
+            "1.a.0",  # Non-numeric minor
         ],
     )
     def test_invalid_semver(self, validator: VersionValidator, version: str) -> None:
@@ -170,18 +178,20 @@ class TestSimplifiedVersionValidation:
     @pytest.mark.parametrize(
         "version",
         [
-            "01",      # Leading zero
-            "1.01",    # Leading zero in minor
-            "1.0.0",   # This is SemVer, not simplified (but still valid)
-            "v1",      # v prefix
-            "1.",      # Trailing dot
-            ".1",      # Leading dot
-            "1.0.0.0", # Too many parts
-            "-1",      # Negative
+            "01",  # Leading zero
+            "1.01",  # Leading zero in minor
+            "1.0.0",  # This is SemVer, not simplified (but still valid)
+            "v1",  # v prefix
+            "1.",  # Trailing dot
+            ".1",  # Leading dot
+            "1.0.0.0",  # Too many parts
+            "-1",  # Negative
             "1.02.3",  # Leading zero in patch
         ],
     )
-    def test_invalid_simplified(self, validator: VersionValidator, version: str) -> None:
+    def test_invalid_simplified(
+        self, validator: VersionValidator, version: str
+    ) -> None:
         """These should not match simplified format."""
         result = validator.validate(version)
         if version == "1.0.0":
@@ -199,17 +209,23 @@ class TestSimplifiedVersionValidation:
 class TestInvalidFormatErrorMessages:
     """AC-1: Invalid format returns is_valid=False with format error description."""
 
-    def test_invalid_format_returns_is_valid_false(self, validator: VersionValidator) -> None:
+    def test_invalid_format_returns_is_valid_false(
+        self, validator: VersionValidator
+    ) -> None:
         result = validator.validate("not-a-version")
         assert result.is_valid is False
         assert result.declared_version == "not-a-version"
 
-    def test_invalid_format_has_mismatch_details(self, validator: VersionValidator) -> None:
+    def test_invalid_format_has_mismatch_details(
+        self, validator: VersionValidator
+    ) -> None:
         result = validator.validate("abc.def.ghi")
         assert result.mismatch_details is not None
         assert "Invalid version format" in result.mismatch_details
 
-    def test_invalid_format_mentions_valid_examples(self, validator: VersionValidator) -> None:
+    def test_invalid_format_mentions_valid_examples(
+        self, validator: VersionValidator
+    ) -> None:
         result = validator.validate("xyz")
         assert result.mismatch_details is not None
         assert "1.0.0" in result.mismatch_details  # Shows example
@@ -224,7 +240,9 @@ class TestInvalidFormatErrorMessages:
         assert result.is_valid is False
         assert result.declared_version == ""
 
-    def test_result_type_is_version_check_result(self, validator: VersionValidator) -> None:
+    def test_result_type_is_version_check_result(
+        self, validator: VersionValidator
+    ) -> None:
         result = validator.validate("1.0.0")
         assert isinstance(result, VersionCheckResult)
 
@@ -306,7 +324,10 @@ class TestDirectoryConsistencyMismatch:
         assert result.declared_version == "1.0.0"
         assert result.detected_version == "2.0.0"
         assert result.mismatch_details is not None
-        assert "mismatch" in result.mismatch_details.lower() or "1.0.0" in result.mismatch_details
+        assert (
+            "mismatch" in result.mismatch_details.lower()
+            or "1.0.0" in result.mismatch_details
+        )
 
     def test_mismatch_has_suggestion_with_fix_direction(
         self, validator: VersionValidator, tmp_skill_dir: Path
@@ -357,7 +378,9 @@ class TestNoVersionMarkers:
         self, validator: VersionValidator, tmp_skill_dir: Path
     ) -> None:
         (tmp_skill_dir / "main.py").write_text("print('hello')\n", encoding="utf-8")
-        (tmp_skill_dir / "utils.py").write_text("def helper(): pass\n", encoding="utf-8")
+        (tmp_skill_dir / "utils.py").write_text(
+            "def helper(): pass\n", encoding="utf-8"
+        )
         skill_info = _make_skill_info(tmp_skill_dir)
         result = validator.validate("1.0.0", skill_info=skill_info)
         assert result.is_valid is True
@@ -514,6 +537,7 @@ class TestImportability:
 
     def test_import_from_module(self) -> None:
         from src.skill_health.version_validator import VersionValidator
+
         assert VersionValidator is not None
 
     def test_instantiate(self) -> None:
@@ -521,6 +545,8 @@ class TestImportability:
         assert hasattr(v, "validate")
         assert callable(v.validate)
 
-    def test_validate_returns_version_check_result(self, validator: VersionValidator) -> None:
+    def test_validate_returns_version_check_result(
+        self, validator: VersionValidator
+    ) -> None:
         result = validator.validate("1.0.0")
         assert isinstance(result, VersionCheckResult)

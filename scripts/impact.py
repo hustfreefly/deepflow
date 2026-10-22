@@ -4,6 +4,7 @@
 Contract: cage/active/dev_toolchain_v1.0.yaml
 Unknown paths deliberately fall back to the full suite: never return an empty set.
 """
+
 import argparse
 import json
 import subprocess
@@ -16,7 +17,9 @@ ROOT = Path(__file__).resolve().parent.parent
 def git_changed(base: str) -> list[str]:
     result = subprocess.run(
         ["git", "diff", "--name-only", base],
-        cwd=ROOT, capture_output=True, text=True,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         raise SystemExit(f"git diff failed: {result.stderr.strip()}")

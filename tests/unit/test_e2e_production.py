@@ -9,7 +9,10 @@ DeepFlow 生产部署前端到端体检
 """
 
 import pytest
-pytest.skip("Coordinator 已移除，待重写测试以匹配 PipelineOrchestrator", allow_module_level=True)
+
+pytest.skip(
+    "Coordinator 已移除，待重写测试以匹配 PipelineOrchestrator", allow_module_level=True
+)
 
 from core.config.path_config import PathConfig
 
@@ -22,11 +25,13 @@ issues = []
 checks_passed = []
 bypass_log = []
 
+
 def check(name: str, condition: bool, detail: str = ""):
     if condition:
         checks_passed.append(f"✅ {name}")
     else:
         issues.append(f"❌ {name}: {detail}")
+
 
 async def run_e2e_test():
     print("=" * 60)
@@ -47,9 +52,11 @@ async def run_e2e_test():
     all_pending = []
 
     print(f"   Round 1 → state={status.state}, domain={status.domain}")
-    check("start() 返回 WAITING_AGENT 或 DONE",
-          status.state in ("WAITING_AGENT", "COMPLETED", "DONE"),
-          f"实际状态: {status.state}")
+    check(
+        "start() 返回 WAITING_AGENT 或 DONE",
+        status.state in ("WAITING_AGENT", "COMPLETED", "DONE"),
+        f"实际状态: {status.state}",
+    )
 
     if status.domain == "general":
         check("意图解析: general", True)
@@ -74,7 +81,9 @@ async def run_e2e_test():
 
             # 检查是否有 bypass 日志
             for req in reqs:
-                bypass_log.append(f"[{round_num}] Agent: {req['agent_role']}, stage: {req['stage_id']}, instance: {req['instance_name']}")
+                bypass_log.append(
+                    f"[{round_num}] Agent: {req['agent_role']}, stage: {req['stage_id']}, instance: {req['instance_name']}"
+                )
 
             agent_results = []
             for req in reqs:
@@ -93,7 +102,7 @@ async def run_e2e_test():
                 bb.write(output_file, content)
 
                 result = AgentResult(
-                    request_id=req['request_id'],
+                    request_id=req["request_id"],
                     success=True,
                     output_file=output_file,
                     score=0.85,
@@ -130,19 +139,32 @@ async def run_e2e_test():
     print(f"   共享状态 keys: {list(shared_state.keys())}")
 
     # 检查 plan_output
-    plan_files = [f for f in all_files if 'plan' in str(f).lower()]
-    check("plan_output.md 存在", len(plan_files) > 0,
-          f"plan 相关文件: {[str(f) for f in plan_files]}")
+    plan_files = [f for f in all_files if "plan" in str(f).lower()]
+    check(
+        "plan_output.md 存在",
+        len(plan_files) > 0,
+        f"plan 相关文件: {[str(f) for f in plan_files]}",
+    )
 
     # 检查 researcher_output
-    researcher_files = [f for f in all_files if 'execute' in str(f).lower() or 'researcher' in str(f).lower()]
-    check("researcher_output 存在", len(researcher_files) > 0,
-          f"researcher/execute 相关文件: {[str(f) for f in researcher_files]}")
+    researcher_files = [
+        f
+        for f in all_files
+        if "execute" in str(f).lower() or "researcher" in str(f).lower()
+    ]
+    check(
+        "researcher_output 存在",
+        len(researcher_files) > 0,
+        f"researcher/execute 相关文件: {[str(f) for f in researcher_files]}",
+    )
 
     # 检查 quality_scores
     quality_scores = shared_state.get("quality_scores", [])
-    check("quality_scores 非空", len(quality_scores) > 0,
-          f"quality_scores 长度={len(quality_scores)}")
+    check(
+        "quality_scores 非空",
+        len(quality_scores) > 0,
+        f"quality_scores 长度={len(quality_scores)}",
+    )
 
     # 检查 shared_state 基本结构
     check("shared_state 包含 stage_history", "stage_history" in shared_state)
@@ -153,24 +175,34 @@ async def run_e2e_test():
     # ══════════════════════════════════════════════════════
     print("\n📍 TEST 3: 无 bypass 验证")
 
-    check("所有 Agent 通过 Coordinator 调度", len(all_pending) > 0,
-          f"总计 {len(all_pending)} 个 Agent 请求")
+    check(
+        "所有 Agent 通过 Coordinator 调度",
+        len(all_pending) > 0,
+        f"总计 {len(all_pending)} 个 Agent 请求",
+    )
 
     # 检查是否有 "直接 spawn" 日志
     # 在我们的测试中，所有 Agent 都通过 Coordinator._create_agent_callback_d 收集
-    spawn_log = [log for log in bypass_log if "spawn" in log.lower() and "coordinator" not in log.lower()]
-    check("无 '直接 spawn' 日志", len(spawn_log) == 0,
-          f"发现 {len(spawn_log)} 条可疑日志")
+    spawn_log = [
+        log
+        for log in bypass_log
+        if "spawn" in log.lower() and "coordinator" not in log.lower()
+    ]
+    check(
+        "无 '直接 spawn' 日志", len(spawn_log) == 0, f"发现 {len(spawn_log)} 条可疑日志"
+    )
 
     # 验证所有 Agent 请求都有合法的 stage 关联
     valid_stages = {s.id for s in pipeline.stages}
     for req in all_pending:
-        stage_id = req.get('stage_id', '')
+        stage_id = req.get("stage_id", "")
         if stage_id not in valid_stages:
             issues.append(f"⚠️ Agent 请求关联到未知 stage: {stage_id}")
 
-    check("所有 Agent 请求关联到有效 stage",
-          all(req.get('stage_id', '') in valid_stages for req in all_pending))
+    check(
+        "所有 Agent 请求关联到有效 stage",
+        all(req.get("stage_id", "") in valid_stages for req in all_pending),
+    )
 
     # 验证所有数据通过 Blackboard
     if all_files:
@@ -190,7 +222,7 @@ async def run_e2e_test():
 
     executed_stages = set()
     for req in all_pending:
-        executed_stages.add(req.get('stage_id', 'unknown'))
+        executed_stages.add(req.get("stage_id", "unknown"))
 
     print(f"   已执行 stages: {executed_stages}")
     print(f"   管线定义 stages: {valid_stages}")
@@ -198,8 +230,11 @@ async def run_e2e_test():
     skipped_ok = {"check", "fix", "verify"}
     missing_stages = valid_stages - executed_stages - skipped_ok
     if missing_stages:
-        check(f"管线阶段覆盖 (缺失: {missing_stages})", False,
-              f"已执行: {executed_stages}")
+        check(
+            f"管线阶段覆盖 (缺失: {missing_stages})",
+            False,
+            f"已执行: {executed_stages}",
+        )
     else:
         check("管线阶段覆盖 (fix/check/verify因收敛跳过属正常)", True)
 
@@ -231,6 +266,7 @@ async def run_e2e_test():
     print("=" * 60)
 
     return score, passed
+
 
 if __name__ == "__main__":
     score, passed = asyncio.run(run_e2e_test())

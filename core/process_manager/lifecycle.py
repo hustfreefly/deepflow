@@ -33,6 +33,7 @@ from .contracts import (
 @dataclass
 class RunInfo:
     """try_acquire_run 返回的运行信息"""
+
     run_id: str
     attempt: int
     already_running: bool = False  # True 表示已有活跃运行，不应重复 spawn
@@ -48,6 +49,7 @@ class RunInfo:
 @dataclass
 class ModuleWaitResult:
     """wait_for_module 返回结果"""
+
     found: bool
     run_id: str | None = None
     attempt: int = 0
@@ -116,25 +118,29 @@ class ModuleLifecycleManager:
     def _write_run(self, module: str, record: dict) -> None:
         """
         原子写操作（强制契约）
-        
+
         所有文件写入必须使用 .tmp + rename 模式，防止写入中断导致文件损坏。
         这是解决 V39/V40 "JSON 损坏" 问题的关键。
         """
         path = self._run_path(module)
         tmp = path.with_suffix(".tmp")
-        
+
         # 写入临时文件
-        tmp.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
-        
+        tmp.write_text(
+            json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
         # 原子重命名（POSIX 系统保证原子性）
         tmp.rename(path)
 
-    def atomic_write_file(self, target_path: str, content: str, encoding: str = "utf-8") -> None:
+    def atomic_write_file(
+        self, target_path: str, content: str, encoding: str = "utf-8"
+    ) -> None:
         """
         通用原子写操作（供 Module Agent 使用）
-        
+
         Module Agent 写输出文件时必须调用此方法，确保文件写入的原子性。
-        
+
         Args:
             target_path: 目标文件路径（相对 session_dir）
             content: 文件内容
@@ -142,10 +148,10 @@ class ModuleLifecycleManager:
         """
         fpath = self.session_dir / target_path
         tmp = fpath.with_suffix(".tmp")
-        
+
         # 写入临时文件
         tmp.write_text(content, encoding=encoding)
-        
+
         # 原子重命名
         tmp.rename(fpath)
 
@@ -302,7 +308,8 @@ class ModuleLifecycleManager:
             if files_valid:
                 if status != "completed":
                     auto_result = self.mark_completed(
-                        module, run_id,
+                        module,
+                        run_id,
                         output_files=self._get_file_details(expected_files or []),
                     )
                     completion_source = "auto_update" if auto_result else "run_record"
@@ -386,7 +393,8 @@ class ModuleLifecycleManager:
             expected = expected_files_map.get(module, [])
             if self._verify_output_files(expected):
                 self.mark_completed(
-                    module, record["run_id"],
+                    module,
+                    record["run_id"],
                     output_files=self._get_file_details(expected),
                 )
                 recovered.append(f"{module}: auto-completed")

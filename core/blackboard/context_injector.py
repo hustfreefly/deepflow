@@ -11,7 +11,7 @@ context_injector.py — 子 Agent 上下文注入统一层
 
 用法:
     from core.blackboard.context_injector import build_agent_context
-    
+
     context = build_agent_context(deepflow_root, blackboard_id)
     spawn_task = context + "\\n\\n---\\n\\n" + original_task
 """
@@ -28,20 +28,30 @@ from typing import Optional
 # FIX-1: 路径上下文
 # ═══════════════════════════════════════════
 
+
 def _generate_directory_tree(deepflow_root: Path, max_lines: int = 50) -> str:
     """生成目录树，tree 不可用时 fallback 到 find"""
     tree_cmd = shutil.which("tree")
     if tree_cmd:
         try:
             output = subprocess.check_output(
-                [tree_cmd, "-L", "2", "--dirsfirst",
-                 "-I", "__pycache__|*.pyc|.pytest_cache|node_modules",
-                 str(deepflow_root)],
-                text=True, timeout=5
+                [
+                    tree_cmd,
+                    "-L",
+                    "2",
+                    "--dirsfirst",
+                    "-I",
+                    "__pycache__|*.pyc|.pytest_cache|node_modules",
+                    str(deepflow_root),
+                ],
+                text=True,
+                timeout=5,
             )
             lines = output.strip().split("\n")
             if len(lines) > max_lines:
-                return "\n".join(lines[:max_lines]) + f"\n... (已截断，共 {len(lines)} 行)"
+                return (
+                    "\n".join(lines[:max_lines]) + f"\n... (已截断，共 {len(lines)} 行)"
+                )
             return output.strip()
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
             pass
@@ -49,9 +59,22 @@ def _generate_directory_tree(deepflow_root: Path, max_lines: int = 50) -> str:
     # fallback: find
     try:
         output = subprocess.check_output(
-            ["find", str(deepflow_root), "-maxdepth", "2", "-type", "d",
-             "-not", "-path", "*__pycache__*", "-not", "-path", "*.pytest_cache*"],
-            text=True, timeout=5
+            [
+                "find",
+                str(deepflow_root),
+                "-maxdepth",
+                "2",
+                "-type",
+                "d",
+                "-not",
+                "-path",
+                "*__pycache__*",
+                "-not",
+                "-path",
+                "*.pytest_cache*",
+            ],
+            text=True,
+            timeout=5,
         )
         lines = output.strip().split("\n")
         if len(lines) > max_lines:
@@ -87,6 +110,7 @@ def generate_path_context(deepflow_root: Path, blackboard_id: str) -> str:
 # ═══════════════════════════════════════════
 # FIX-2: BM API 文档
 # ═══════════════════════════════════════════
+
 
 def generate_api_doc() -> str:
     """生成 BlackboardManager API 文档"""
@@ -202,7 +226,9 @@ def generate_env_summary(deepflow_root: Path) -> str:
     lines.append("**Python**: " + " | ".join(mods))
 
     # tree
-    lines.append(f"**tree 命令**: {'✅ 可用' if caps['tree_available'] else '❌ 不可用 (已用 find fallback)'}")
+    lines.append(
+        f"**tree 命令**: {'✅ 可用' if caps['tree_available'] else '❌ 不可用 (已用 find fallback)'}"
+    )
 
     return "\n".join(lines)
 
@@ -210,6 +236,7 @@ def generate_env_summary(deepflow_root: Path) -> str:
 # ═══════════════════════════════════════════
 # FIX-3: Schema 提示 (Ship Pro 专用)
 # ═══════════════════════════════════════════
+
 
 def generate_schema_hint() -> str:
     """生成 Ship Pro Generator 的 Schema 提示"""
@@ -262,6 +289,7 @@ def generate_schema_hint() -> str:
 # FIX-5: 数据分析流程约束
 # ═══════════════════════════════════════════
 
+
 def generate_analysis_workflow() -> str:
     """生成数据分析流程约束"""
     return """## 📋 数据分析流程
@@ -289,6 +317,7 @@ python3 scripts/analyze_json.py <文件路径> --summary
 # ═══════════════════════════════════════════
 # 统一入口
 # ═══════════════════════════════════════════
+
 
 def build_agent_context(
     deepflow_root: Path,
@@ -338,20 +367,21 @@ def build_agent_context(
 # FIX-6: Bootstrap 模式（解决 sessions_spawn 截断）
 # ═══════════════════════════════════════════
 
+
 def build_agent_context_slim(
     deepflow_root: Path,
     blackboard_id: str,
 ) -> str:
     """
     精简版上下文注入，用于 bootstrap task 模式。
-    
+
     只包含最小必要信息：路径 + session_id + BM 基本用法。
     完整 prompt 通过 blackboard 传递（write → read），不嵌入 task 参数。
-    
+
     大小: ~500 bytes (vs build_agent_context 的 ~6,300 bytes)
     """
     bb_dir = deepflow_root / "blackboard" / blackboard_id
-    
+
     return f"""## 环境
 - session_id: `{blackboard_id}`
 - DeepFlow root: `{deepflow_root}`
@@ -365,6 +395,7 @@ def build_agent_context_slim(
 # ═══════════════════════════════════════════
 # FIX-7: Universal Auto-Bootstrap（通用契约笼子）
 # ═══════════════════════════════════════════
+
 
 def auto_bootstrap(
     deepflow_root: Path,
@@ -397,10 +428,10 @@ def auto_bootstrap(
 
     filename = f"_bootstrap_{label}.md"
     filepath = prompt_dir / filename
-    filepath.write_text(task_content, encoding='utf-8')
+    filepath.write_text(task_content, encoding="utf-8")
 
     # 契约笼子：write-back 验证
-    verify = filepath.read_text(encoding='utf-8')
+    verify = filepath.read_text(encoding="utf-8")
     if verify != task_content:
         raise ValueError(
             f"auto_bootstrap write-back verification failed for {label}. "
@@ -432,27 +463,27 @@ def build_bootstrap_task(
 ) -> str:
     """
     构建 bootstrap task V2：最小化 task 参数，完整 prompt 从 blackboard 读取。
-    
+
     V2 改进（2026-07-12 专家评审后）：
     - 用 read 工具替代 exec（避免 exec 失败点 + 32KB output 截断风险）
     - 显式声明指令优先级（防止 bootstrap 指令覆盖文件内指令）
     - Bootstrap task 极简化（≤3 句行为指令）
-    
+
     Args:
         deepflow_root: DeepFlow 根目录
         blackboard_id: Blackboard session ID
         prompt_filename: Prompt 文件名（在 stages/ 下），如 "orchestrator_prompt.md"
         preamble: 额外的 preamble 文本（如 PYTHONPATH 设置）
-    
+
     Returns:
         精简的 bootstrap task 字符串（<1,500 bytes）
     """
     bb_dir = deepflow_root / "blackboard" / blackboard_id
-    
+
     task = ""
     if preamble:
         task += preamble + "\n\n"
-    
+
     task += f"""## 环境
 - session_id: `{blackboard_id}`
 - DeepFlow root: `{deepflow_root}`

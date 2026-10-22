@@ -11,7 +11,13 @@ Do not import this file for new workflows.
 
 from __future__ import annotations
 
-import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
+import sys as _sys
+
+_p = __import__("pathlib").Path(__file__).resolve()
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
+_sys.path.insert(0, str(_r)) if _r and str(
+    _r
+) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 import json
 import re
 from datetime import datetime
@@ -25,6 +31,7 @@ from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY, BlackboardManag
 
 
 # ── helpers ──
+
 
 def _get_bm(base_path: str) -> BlackboardManager:
     """从 base_path（session 目录）创建 BlackboardManager"""
@@ -88,15 +95,17 @@ def _normalize_experts(planning: Dict[str, Any], mode: str) -> List[Dict[str, st
         expert_id = _slug(name, f"expert_{index}")
         fixed_id = f"expert_{index}"
         stage_name = f"research_{fixed_id}"
-        normalized.append({
-            "id": fixed_id,
-            "planner_expert_id": expert_id,
-            "name": name,
-            "angle": str(item.get("angle") or "综合分析"),
-            "reason": str(item.get("reason") or "Planner 认为该角度需要深入研究"),
-            "expected_output_path": _registry_path(stage_name, stage_name),
-            "worker_role": f"researcher_{fixed_id}",
-        })
+        normalized.append(
+            {
+                "id": fixed_id,
+                "planner_expert_id": expert_id,
+                "name": name,
+                "angle": str(item.get("angle") or "综合分析"),
+                "reason": str(item.get("reason") or "Planner 认为该角度需要深入研究"),
+                "expected_output_path": _registry_path(stage_name, stage_name),
+                "worker_role": f"researcher_{fixed_id}",
+            }
+        )
 
     if not normalized:
         return DEFAULT_RESEARCH_EXPERTS
@@ -130,7 +139,11 @@ def _normalize_acceptance_criteria(planning: Dict[str, Any]) -> List[Dict[str, s
     if isinstance(raw, list):
         for index, item in enumerate(raw, 1):
             if isinstance(item, dict):
-                text = item.get("text") or item.get("description") or item.get("measurable")
+                text = (
+                    item.get("text")
+                    or item.get("description")
+                    or item.get("measurable")
+                )
                 priority = item.get("priority", "P1")
                 req_id = item.get("id", f"REQ-{index:03d}")
             else:
@@ -138,7 +151,9 @@ def _normalize_acceptance_criteria(planning: Dict[str, Any]) -> List[Dict[str, s
                 priority = "P1"
                 req_id = f"REQ-{index:03d}"
             if text:
-                criteria.append({"id": str(req_id), "text": str(text), "priority": str(priority)})
+                criteria.append(
+                    {"id": str(req_id), "text": str(text), "priority": str(priority)}
+                )
     return criteria
 
 
@@ -164,6 +179,7 @@ def _acceptance_from_living_spec(bm: BlackboardManager) -> List[Dict[str, str]]:
         if md_content:
             try:
                 from domains.spec_pro.spec_living_md import parse_living_spec_md
+
                 living_spec = parse_living_spec_md(md_content) or {}
             except Exception:
                 living_spec = {}
@@ -182,13 +198,19 @@ def _acceptance_from_living_spec(bm: BlackboardManager) -> List[Dict[str, str]]:
         if isinstance(req_index, list) and req_index:
             criteria = []
             for item in req_index:
-                if isinstance(item, dict) and item.get("id") and item.get("description"):
-                    criteria.append({
-                        "id": str(item["id"]),
-                        "text": str(item["description"]),
-                        "priority": str(item.get("priority", "P1")),
-                        "category": str(item.get("category", "requirement")),
-                    })
+                if (
+                    isinstance(item, dict)
+                    and item.get("id")
+                    and item.get("description")
+                ):
+                    criteria.append(
+                        {
+                            "id": str(item["id"]),
+                            "text": str(item["description"]),
+                            "priority": str(item.get("priority", "P1")),
+                            "category": str(item.get("category", "requirement")),
+                        }
+                    )
             if criteria:
                 return criteria
 
@@ -232,8 +254,11 @@ def build_control_contract(base_path: str) -> Dict[str, Any]:
         "audit_strategy": audit_strategy,
         "frozen_spec_path": "data/frozen_spec.md",
         "traceability_matrix_path": "requirements_traceability_matrix.json",
-        "acceptance_criteria": _acceptance_from_living_spec(bm) or _normalize_acceptance_criteria(planning),
-        "warnings": [] if planning else ["planning.json missing or invalid; using fallback control contract"],
+        "acceptance_criteria": _acceptance_from_living_spec(bm)
+        or _normalize_acceptance_criteria(planning),
+        "warnings": []
+        if planning
+        else ["planning.json missing or invalid; using fallback control contract"],
     }
 
 
@@ -250,6 +275,7 @@ def rewrite_after_planning(base_path: str, domain_profile=None) -> Dict[str, Any
         A stub response indicating the function is deprecated.
     """
     import warnings
+
     warnings.warn(
         "rewrite_after_planning() is deprecated since 2026-07-13. "
         "V2 uses PlanningOrchestrator with Meta-Planner dynamic expert "

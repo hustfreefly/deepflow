@@ -34,6 +34,7 @@ from domains.deliver_pro.wp_runner import (
 # Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def wp():
     return WorkPackage(
@@ -61,7 +62,12 @@ def sample_plan():
         scenario="code",
         task_graph=[
             TaskNode(task_id="T-001", title="Root task", scenario_type="code"),
-            TaskNode(task_id="T-002", title="Child task", depends_on=["T-001"], scenario_type="code"),
+            TaskNode(
+                task_id="T-002",
+                title="Child task",
+                depends_on=["T-001"],
+                scenario_type="code",
+            ),
         ],
         concurrency_plan=ConcurrencyPlan(
             suggested_parallelism=2,
@@ -77,11 +83,14 @@ def sample_plan():
 # Initialization
 # ============================================================================
 
+
 class TestInit:
     def test_creates_directories(self, orchestrator, bb_path):
         assert (bb_path / "deliver_pro" / "wp_001" / "data").is_dir()
         assert (bb_path / "deliver_pro" / "wp_001" / "stages").is_dir()
-        assert (bb_path / "deliver_pro" / "wp_001" / "stages" / "worker_outputs").is_dir()
+        assert (
+            bb_path / "deliver_pro" / "wp_001" / "stages" / "worker_outputs"
+        ).is_dir()
 
     def test_writes_wp_json(self, orchestrator, bb_path):
         wp_path = bb_path / "deliver_pro" / "wp_001" / "data" / "wp.json"
@@ -108,6 +117,7 @@ class TestInit:
 # ============================================================================
 # Phase 1: Analyze
 # ============================================================================
+
 
 class TestPrepareAnalyzeSpawn:
     def test_returns_spawn_params(self, orchestrator):
@@ -181,19 +191,24 @@ class TestVerifyAnalyzeOutput:
 # Phase 2: Workers
 # ============================================================================
 
+
 class TestPrepareWorkersSpawn:
     def test_ready_tasks(self, orchestrator, sample_plan):
         # Set state to GENERATING with pending tasks
         orchestrator.state.phase = PipelinePhase.GENERATING
         orchestrator.state.pending_tasks = ["T-001", "T-002"]
 
-        params_list = orchestrator.prepare_workers_spawn(sample_plan, completed_tasks=set())
+        params_list = orchestrator.prepare_workers_spawn(
+            sample_plan, completed_tasks=set()
+        )
         assert len(params_list) == 1  # Only T-001 is ready (no deps)
         assert params_list[0]["runtime"] == "subagent"
         assert "deliver-worker-wp-001-t-001" in params_list[0]["label"]
 
     def test_no_ready_tasks(self, orchestrator, sample_plan):
-        params_list = orchestrator.prepare_workers_spawn(sample_plan, completed_tasks={"T-001", "T-002"})
+        params_list = orchestrator.prepare_workers_spawn(
+            sample_plan, completed_tasks={"T-001", "T-002"}
+        )
         assert params_list == []
 
     def test_respects_parallelism(self, wp, bb_path):
@@ -211,7 +226,9 @@ class TestPrepareWorkersSpawn:
         assert len(params_list) == 2  # limited by suggested_parallelism
 
     def test_after_completed_first_wave(self, orchestrator, sample_plan):
-        params_list = orchestrator.prepare_workers_spawn(sample_plan, completed_tasks={"T-001"})
+        params_list = orchestrator.prepare_workers_spawn(
+            sample_plan, completed_tasks={"T-001"}
+        )
         assert len(params_list) == 1
         assert "deliver-worker-wp-001-t-002" in params_list[0]["label"]
 
@@ -227,7 +244,9 @@ class TestVerifyWorkerOutput:
             "This is a valid deliverable with sufficient content "
             "to pass the minimum length check (50 chars).\n"
         )
-        (output_dir / "DELIVERABLE.md").write_text(deliverable_content, encoding="utf-8")
+        (output_dir / "DELIVERABLE.md").write_text(
+            deliverable_content, encoding="utf-8"
+        )
         # P1-2: Create all 4 files for COMPLETE status
         (output_dir / "EVIDENCE.md").write_text("# Evidence\n", encoding="utf-8")
         (output_dir / "ISSUES.md").write_text("无\n", encoding="utf-8")
@@ -237,7 +256,9 @@ class TestVerifyWorkerOutput:
             "scenario": "code",
             "status": "COMPLETE",
         }
-        (output_dir / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (output_dir / "MANIFEST.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
 
         orchestrator.state.running_tasks = [task_id]
         passed, msg, meta = orchestrator.verify_worker_output(task_id, output_dir)
@@ -256,7 +277,9 @@ class TestVerifyWorkerOutput:
             "This is a valid deliverable with sufficient content "
             "to pass the minimum length check (50 chars).\n"
         )
-        (output_dir / "DELIVERABLE.md").write_text(deliverable_content, encoding="utf-8")
+        (output_dir / "DELIVERABLE.md").write_text(
+            deliverable_content, encoding="utf-8"
+        )
         # Only create required files, not optional ones
         manifest = {
             "task_id": task_id,
@@ -264,7 +287,9 @@ class TestVerifyWorkerOutput:
             "scenario": "code",
             "status": "COMPLETE",
         }
-        (output_dir / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (output_dir / "MANIFEST.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
 
         orchestrator.state.running_tasks = [task_id]
         passed, msg, meta = orchestrator.verify_worker_output(task_id, output_dir)
@@ -283,7 +308,9 @@ class TestVerifyWorkerOutput:
             "to pass the minimum length check (50 chars).\n",
             encoding="utf-8",
         )
-        (output_dir / "EVIDENCE.md").write_text("# Evidence\n仅文字说明，未提及脚本。\n", encoding="utf-8")
+        (output_dir / "EVIDENCE.md").write_text(
+            "# Evidence\n仅文字说明，未提及脚本。\n", encoding="utf-8"
+        )
         (output_dir / "ISSUES.md").write_text("无\n", encoding="utf-8")
         manifest = {
             "task_id": task_id,
@@ -292,7 +319,9 @@ class TestVerifyWorkerOutput:
             "status": "COMPLETE",
             "outputs": [{"path": "scripts/git_init.sh", "type": "script"}],
         }
-        (output_dir / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (output_dir / "MANIFEST.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
 
         orchestrator.state.running_tasks = [task_id]
         passed, msg, meta = orchestrator.verify_worker_output(task_id, output_dir)
@@ -322,7 +351,9 @@ class TestVerifyWorkerOutput:
             "status": "COMPLETE",
             "outputs": [{"path": "scripts/git_init.sh", "type": "script"}],
         }
-        (output_dir / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (output_dir / "MANIFEST.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
 
         orchestrator.state.running_tasks = [task_id]
         passed, msg, meta = orchestrator.verify_worker_output(task_id, output_dir)
@@ -348,7 +379,9 @@ class TestVerifyWorkerOutput:
             "status": "COMPLETE",
             "outputs": [{"path": "scripts/helper.sh", "type": "script"}],
         }
-        (output_dir / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (output_dir / "MANIFEST.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
 
         orchestrator.state.running_tasks = [task_id]
         passed, msg, meta = orchestrator.verify_worker_output(task_id, output_dir)
@@ -410,6 +443,7 @@ class TestVerifyWorkerOutput:
 # Phase 3: Integrate
 # ============================================================================
 
+
 class TestPrepareIntegrateSpawn:
     def test_returns_spawn_params(self, orchestrator, sample_plan):
         orchestrator.state.phase = PipelinePhase.GENERATING
@@ -424,14 +458,19 @@ class TestPrepareIntegrateSpawn:
         # use prepare_fix_integrate_spawn instead (stays in FIX_LOOP).
         orchestrator.state.phase = PipelinePhase.GENERATING
         directives = [
-            FixDirective(target="T-001", issue="Bug", fix_instruction="Fix it", priority="high"),
+            FixDirective(
+                target="T-001", issue="Bug", fix_instruction="Fix it", priority="high"
+            ),
         ]
-        params = orchestrator.prepare_integrate_spawn(sample_plan, fix_directives=directives)
+        params = orchestrator.prepare_integrate_spawn(
+            sample_plan, fix_directives=directives
+        )
         # Bootstrap pattern: task is a reference, content is in the bootstrap file
         import re
-        bootstrap_match = re.search(r'`read` 工具读取: `([^`]+)`', params["task"])
+
+        bootstrap_match = re.search(r"`read` 工具读取: `([^`]+)`", params["task"])
         assert bootstrap_match, "Expected bootstrap reference in task"
-        bootstrap_content = Path(bootstrap_match.group(1)).read_text(encoding='utf-8')
+        bootstrap_content = Path(bootstrap_match.group(1)).read_text(encoding="utf-8")
         assert "修复指令" in bootstrap_content
 
 
@@ -445,7 +484,9 @@ class TestVerifyIntegrateOutput:
             "workers_failed": 0,
             "status": "READY_FOR_VALIDATE",
         }
-        (output_dir / "integration_report.json").write_text(json.dumps(report), encoding="utf-8")
+        (output_dir / "integration_report.json").write_text(
+            json.dumps(report), encoding="utf-8"
+        )
 
         # verify_integrate_output transitions INTEGRATING → VALIDATING
         orchestrator.state.phase = PipelinePhase.INTEGRATING
@@ -458,7 +499,9 @@ class TestVerifyIntegrateOutput:
         output_dir = tmp_path / "integrated_draft"
         output_dir.mkdir()
         report = {"workers_integrated": 2, "status": "READY_FOR_VALIDATE"}
-        (output_dir / "integration_report.json").write_text(json.dumps(report), encoding="utf-8")
+        (output_dir / "integration_report.json").write_text(
+            json.dumps(report), encoding="utf-8"
+        )
 
         orchestrator.state.phase = PipelinePhase.INTEGRATING
         passed, msg = orchestrator.verify_integrate_output(output_dir)
@@ -470,7 +513,9 @@ class TestVerifyIntegrateOutput:
         output_dir.mkdir()
         (output_dir / "DELIVERABLE.md").write_text("# Draft", encoding="utf-8")
         report = {"workers_integrated": 2, "status": "ASSEMBLY_FAILED"}
-        (output_dir / "integration_report.json").write_text(json.dumps(report), encoding="utf-8")
+        (output_dir / "integration_report.json").write_text(
+            json.dumps(report), encoding="utf-8"
+        )
 
         orchestrator.state.phase = PipelinePhase.INTEGRATING
         passed, msg = orchestrator.verify_integrate_output(output_dir)
@@ -481,6 +526,7 @@ class TestVerifyIntegrateOutput:
 # ============================================================================
 # Phase 4: Validate
 # ============================================================================
+
 
 class TestPrepareValidateSpawn:
     def test_returns_spawn_params(self, orchestrator, sample_plan):
@@ -600,6 +646,7 @@ class TestDecideValidateLoop:
 # Phase 5: Package
 # ============================================================================
 
+
 class TestPreparePackageSpawn:
     def test_returns_spawn_params(self, orchestrator, sample_plan):
         orchestrator.state.phase = PipelinePhase.VALIDATING
@@ -617,6 +664,7 @@ class TestPreparePackageSpawn:
 # Worker Failure Recovery
 # ============================================================================
 
+
 class TestDiagnosisSpawn:
     def test_returns_spawn_params(self, orchestrator):
         error = WorkerError(
@@ -630,9 +678,10 @@ class TestDiagnosisSpawn:
         assert "deliver_diagnosis_WP-001_T-001" in params["label"]
         # Bootstrap pattern: task is a reference, content is in the bootstrap file
         import re
-        bootstrap_match = re.search(r'`read` 工具读取: `([^`]+)`', params["task"])
+
+        bootstrap_match = re.search(r"`read` 工具读取: `([^`]+)`", params["task"])
         assert bootstrap_match, "Expected bootstrap reference in task"
-        bootstrap_content = Path(bootstrap_match.group(1)).read_text(encoding='utf-8')
+        bootstrap_content = Path(bootstrap_match.group(1)).read_text(encoding="utf-8")
         assert "timeout" in bootstrap_content
 
 
@@ -664,7 +713,10 @@ class TestShouldRetryWorker:
         assert orchestrator.should_retry_worker("T-001", 2) is True
 
     def test_at_max(self, orchestrator):
-        assert orchestrator.should_retry_worker("T-001", MAX_WORKER_RECOVERY_ATTEMPTS) is False
+        assert (
+            orchestrator.should_retry_worker("T-001", MAX_WORKER_RECOVERY_ATTEMPTS)
+            is False
+        )
 
     def test_above_max(self, orchestrator):
         assert orchestrator.should_retry_worker("T-001", 5) is False
@@ -681,6 +733,7 @@ class TestMarkWorkerFailed:
 # ============================================================================
 # State Query
 # ============================================================================
+
 
 class TestPipelineSummary:
     def test_summary_structure(self, orchestrator):
@@ -730,6 +783,7 @@ class TestLoadFromBlackboard:
 # ADR-009: Track JSON Generation
 # ============================================================================
 
+
 class TestGenerateTrackJson:
     """Integration tests for generate_track_json() — 3 scenarios."""
 
@@ -743,7 +797,9 @@ class TestGenerateTrackJson:
             # Should not raise, should not create file
             orchestrator.generate_track_json()
             track_path = orchestrator.stages_dir / "deliver_track.json"
-            assert not track_path.exists(), "track.json should not be created when extractor unavailable"
+            assert not track_path.exists(), (
+                "track.json should not be created when extractor unavailable"
+            )
         finally:
             orch_module._HAS_TRACK_EXTRACTOR = original
 
@@ -757,7 +813,9 @@ class TestGenerateTrackJson:
             # No DELIVERABLE.md exists
             orchestrator.generate_track_json()
             track_path = orchestrator.stages_dir / "deliver_track.json"
-            assert not track_path.exists(), "track.json should not be created when DELIVERABLE.md missing"
+            assert not track_path.exists(), (
+                "track.json should not be created when DELIVERABLE.md missing"
+            )
         finally:
             orch_module._HAS_TRACK_EXTRACTOR = original
 

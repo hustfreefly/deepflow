@@ -47,21 +47,25 @@ def check_pipeline_engine():
     init_found = False
     spawn_fn_param = False
     for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef) and node.name == 'PipelineEngine':
+        if isinstance(node, ast.ClassDef) and node.name == "PipelineEngine":
             for item in node.body:
-                if isinstance(item, ast.FunctionDef) and item.name == '__init__':
+                if isinstance(item, ast.FunctionDef) and item.name == "__init__":
                     init_found = True
                     args = item.args
                     arg_names = [arg.arg for arg in args.args + args.kwonlyargs]
-                    
-                    if 'spawn_fn' in arg_names:
+
+                    if "spawn_fn" in arg_names:
                         spawn_fn_param = True
                         print("✅ PipelineEngine.__init__ 接受 spawn_fn 参数")
                     else:
-                        violations.append(Violation(
-                            "P0", "spawn_fn参数缺失", item.lineno,
-                            "PipelineEngine.__init__ 必须接受 spawn_fn 参数用于注入 sessions_spawn 工具"
-                        ))
+                        violations.append(
+                            Violation(
+                                "P0",
+                                "spawn_fn参数缺失",
+                                item.lineno,
+                                "PipelineEngine.__init__ 必须接受 spawn_fn 参数用于注入 sessions_spawn 工具",
+                            )
+                        )
                     break
             break
 
@@ -72,84 +76,109 @@ def check_pipeline_engine():
     do_spawn_found = False
     uses_spawn_fn = False
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == '_do_spawn_agent':
+        if isinstance(node, ast.FunctionDef) and node.name == "_do_spawn_agent":
             do_spawn_found = True
             # 检查函数体中是否引用 self._spawn_fn
             for child in ast.walk(node):
                 if isinstance(child, ast.Attribute):
-                    if child.attr == '_spawn_fn':
+                    if child.attr == "_spawn_fn":
                         uses_spawn_fn = True
                 elif isinstance(child, ast.Name):
-                    if child.id == '_spawn_fn':
+                    if child.id == "_spawn_fn":
                         uses_spawn_fn = True
-            
+
             if uses_spawn_fn:
                 print("✅ _do_spawn_agent 使用 self._spawn_fn")
             else:
-                violations.append(Violation(
-                    "P0", "spawn_fn未使用", node.lineno,
-                    "_do_spawn_agent 必须优先使用注入的 spawn_fn"
-                ))
+                violations.append(
+                    Violation(
+                        "P0",
+                        "spawn_fn未使用",
+                        node.lineno,
+                        "_do_spawn_agent 必须优先使用注入的 spawn_fn",
+                    )
+                )
             break
 
     if not do_spawn_found:
-        violations.append(Violation("P0", "_do_spawn_agent未找到", 0, "未找到 _do_spawn_agent 方法"))
+        violations.append(
+            Violation("P0", "_do_spawn_agent未找到", 0, "未找到 _do_spawn_agent 方法")
+        )
 
     # 3. 检查 _run_single_agent 是否返回 Worker 结果（不是元数据）
     run_single_found = False
     returns_result = False
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == '_run_single_agent':
+        if isinstance(node, ast.FunctionDef) and node.name == "_run_single_agent":
             run_single_found = True
             # 检查返回值是否包含真实结果
             for child in ast.walk(node):
                 if isinstance(child, ast.Return):
                     # 检查返回的是否是 StageResult 且包含真实结果
                     if isinstance(child.value, ast.Call):
-                        if isinstance(child.value.func, ast.Name) and child.value.func.id == 'StageResult':
+                        if (
+                            isinstance(child.value.func, ast.Name)
+                            and child.value.func.id == "StageResult"
+                        ):
                             # 检查关键字参数
                             keywords = {kw.arg for kw in child.value.keywords}
-                            if 'output' in keywords:
+                            if "output" in keywords:
                                 # 检查 output 是否包含 agent_id（这是元数据）
                                 for kw in child.value.keywords:
-                                    if kw.arg == 'output':
+                                    if kw.arg == "output":
                                         if isinstance(kw.value, ast.Dict):
                                             keys = []
                                             for k in kw.value.keys:
-                                                if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                                                if isinstance(
+                                                    k, ast.Constant
+                                                ) and isinstance(k.value, str):
                                                     keys.append(k.value)
-                                            if 'agent_id' in keys and len(keys) <= 2:
-                                                violations.append(Violation(
-                                                    "P0", "返回元数据", child.lineno,
-                                                    "_run_single_agent 返回的是元数据(agent_id)，不是Worker真实结果"
-                                                ))
+                                            if "agent_id" in keys and len(keys) <= 2:
+                                                violations.append(
+                                                    Violation(
+                                                        "P0",
+                                                        "返回元数据",
+                                                        child.lineno,
+                                                        "_run_single_agent 返回的是元数据(agent_id)，不是Worker真实结果",
+                                                    )
+                                                )
                                             else:
                                                 returns_result = True
             break
 
     if not run_single_found:
-        violations.append(Violation("P0", "_run_single_agent未找到", 0, "未找到 _run_single_agent 方法"))
+        violations.append(
+            Violation(
+                "P0", "_run_single_agent未找到", 0, "未找到 _run_single_agent 方法"
+            )
+        )
 
     # 4. 检查 orchestrator_agent.py 是否传入 sessions_spawn
     orch_filepath = ROOT / "orchestrator_agent.py"
     if orch_filepath.exists():
         with open(orch_filepath) as f:
             orch_source = f.read()
-        
-        if 'spawn_fn=' in orch_source or 'spawn_fn =' in orch_source:
+
+        if "spawn_fn=" in orch_source or "spawn_fn =" in orch_source:
             print("✅ orchestrator_agent.py 传入 spawn_fn")
         else:
-            violations.append(Violation(
-                "P0", "spawn_fn未传入", 0,
-                "orchestrator_agent.py 创建 PipelineEngine 时必须传入 spawn_fn=sessions_spawn"
-            ))
+            violations.append(
+                Violation(
+                    "P0",
+                    "spawn_fn未传入",
+                    0,
+                    "orchestrator_agent.py 创建 PipelineEngine 时必须传入 spawn_fn=sessions_spawn",
+                )
+            )
     else:
-        violations.append(Violation("P0", "orchestrator_agent.py不存在", 0, "文件不存在"))
+        violations.append(
+            Violation("P0", "orchestrator_agent.py不存在", 0, "文件不存在")
+        )
 
     # 输出结果
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"验证结果: PipelineEngine spawn 功能")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if not violations:
         print("✅ 全部通过！无违规")

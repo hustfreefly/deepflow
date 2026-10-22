@@ -41,17 +41,23 @@ RICH_PACKAGE = {
     "solution": "Ship Pro V8 Output",
     "work_packages": [
         {
-            "id": "WP-001", "title": "Core API", "description": "Build REST API",
+            "id": "WP-001",
+            "title": "Core API",
+            "description": "Build REST API",
             "acceptance_criteria": [{"criterion": "All endpoints respond"}],
             "deliverables": [{"name": "api.py", "type": "file"}],
-            "effort_hours": 16, "requirement_ids": ["REQ-001", "REQ-002"],
+            "effort_hours": 16,
+            "requirement_ids": ["REQ-001", "REQ-002"],
             "dependencies": [],
         },
         {
-            "id": "WP-002", "title": "Database Layer", "description": "Setup DB",
+            "id": "WP-002",
+            "title": "Database Layer",
+            "description": "Setup DB",
             "acceptance_criteria": [{"criterion": "Migrations pass"}],
             "deliverables": [{"name": "models.py", "type": "file"}],
-            "effort_hours": 8, "requirement_ids": ["REQ-003"],
+            "effort_hours": 8,
+            "requirement_ids": ["REQ-003"],
             "dependencies": ["WP-001"],
         },
     ],
@@ -59,8 +65,10 @@ RICH_PACKAGE = {
         "execution_layers": [["WP-001"], ["WP-002"]],
     },
     "statistics": {
-        "total_wps": 2, "total_effort_hours": 24,
-        "req_coverage_rate": "75%", "dependency_edges": 1,
+        "total_wps": 2,
+        "total_effort_hours": 24,
+        "req_coverage_rate": "75%",
+        "dependency_edges": 1,
     },
     "issues": [
         {"description": "Missing test coverage", "severity": "medium"},
@@ -179,7 +187,14 @@ class TestRoundTrip:
 
     def test_real_data_round_trip(self):
         """用真实 ship_package.json"""
-        real_path = Path(__file__).resolve().parent.parent.parent.parent / "blackboard" / "OpenClaw AI Native Loop Engineering Framework" / "ship_pro" / "stages" / "ship_package.json"
+        real_path = (
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "blackboard"
+            / "OpenClaw AI Native Loop Engineering Framework"
+            / "ship_pro"
+            / "stages"
+            / "ship_package.json"
+        )
         if not real_path.exists():
             pytest.skip(f"Real data not found: {real_path}")
 
@@ -193,4 +208,7 @@ class TestRoundTrip:
         assert passed, f"Validation failed: {errors}"
 
         parsed = parse_ship_package_md(md)
-        assert len(parsed.get("work_packages", [])) >= len(data.get("work_packages", [])) * 0.9
+        assert (
+            len(parsed.get("work_packages", []))
+            >= len(data.get("work_packages", [])) * 0.9
+        )

@@ -23,6 +23,7 @@ Output: JSON to stdout
         "stages": [...], "completed": {...}, "state": {...}
     }
 """
+
 import argparse
 import fcntl
 import json
@@ -35,6 +36,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 # ---------------------------------------------------------------------------
 # Defensive helpers (ported from pipeline_watcher.py V2)
 # ---------------------------------------------------------------------------
+
 
 def atomic_write(path: Path, content: str) -> None:
     """Atomic write via tmp + os.replace. Prevents half-written state files."""
@@ -72,6 +74,7 @@ def parse_timestamp(ts: str) -> Optional[datetime]:
 # ---------------------------------------------------------------------------
 # State migration (V2 → V3 compat)
 # ---------------------------------------------------------------------------
+
 
 def _migrate_legacy_state(state_dir: Path) -> None:
     """Merge V2 state files into unified .watcher_state.json.
@@ -112,8 +115,10 @@ def _migrate_legacy_state(state_dir: Path) -> None:
 # SafeDict for template rendering (prevents KeyError on missing keys)
 # ---------------------------------------------------------------------------
 
+
 class SafeDict(dict):
     """Dict that returns '{key}' for missing keys instead of raising KeyError."""
+
     def __missing__(self, key: str) -> str:
         return f"{{{key}}}"
 
@@ -121,6 +126,7 @@ class SafeDict(dict):
 # ---------------------------------------------------------------------------
 # Run counter + timeout
 # ---------------------------------------------------------------------------
+
 
 class RunCounter:
     def __init__(self, state: Dict, limits: Dict, run_start_at: str):
@@ -135,7 +141,12 @@ class RunCounter:
 
     def is_timeout(self) -> bool:
         start = parse_timestamp(self.run_start_at)
-        if start and (datetime.now(start.tzinfo or timezone.utc) - start).total_seconds() / 60 > self.timeout_min:
+        if (
+            start
+            and (datetime.now(start.tzinfo or timezone.utc) - start).total_seconds()
+            / 60
+            > self.timeout_min
+        ):
             return True
         return self.count > self.max_runs
 
@@ -143,6 +154,7 @@ class RunCounter:
 # ---------------------------------------------------------------------------
 # Completion checker (with timestamp validation)
 # ---------------------------------------------------------------------------
+
 
 class CompletionChecker:
     def __init__(self, base_path: Path, detection: Dict, run_start_at: str):
@@ -166,6 +178,7 @@ class CompletionChecker:
 # Stage detector (glob + stale filter + merge_group)
 # ---------------------------------------------------------------------------
 
+
 class StageDetector:
     def __init__(self, base_path: Path, detection: Dict, run_start_at: str = ""):
         self.base_path = base_path
@@ -185,20 +198,22 @@ class StageDetector:
 
     def scan(self) -> List[Dict]:
         """Scan all configured directories, return stage info list.
-        
+
         merge_group handling: if multiple files share the same merge_group,
         the stage is counted once (as completed) when ANY file in the group exists.
         """
         found: Dict[str, Dict] = {}
         merge_groups_seen: Set[str] = set()
-        
+
         for sd in self.scan_dirs:
             dir_p = self.base_path / sd["path"] if sd["path"] != "." else self.base_path
             if not dir_p.is_dir():
                 continue
-            matches = (dir_p.rglob(sd.get("pattern", "*.json"))
-                       if sd.get("dir_mode") == "nested"
-                       else dir_p.glob(sd.get("pattern", "*.json")))
+            matches = (
+                dir_p.rglob(sd.get("pattern", "*.json"))
+                if sd.get("dir_mode") == "nested"
+                else dir_p.glob(sd.get("pattern", "*.json"))
+            )
             for p in matches:
                 if p.is_file() and not self._is_stale(p):
                     fname = p.name
@@ -223,6 +238,7 @@ class StageDetector:
 # Circuit breaker (consecutive no-output counter)
 # ---------------------------------------------------------------------------
 
+
 class CircuitBreaker:
     def __init__(self, state: Dict, limits: Dict):
         self.threshold = limits.get("circuit_breaker_threshold", 3)
@@ -242,6 +258,7 @@ class CircuitBreaker:
 # ---------------------------------------------------------------------------
 # Message rendering helpers (UI v3, ported from pipeline_watcher.py)
 # ---------------------------------------------------------------------------
+
 
 def _progress_bar(completed: int, total: int, width: int = 20) -> str:
     if total <= 0:
@@ -285,8 +302,9 @@ def _build_icon_chain(completed_seqs: Set[int], current_seq: int, cfg: Dict) -> 
     return " ".join(parts)
 
 
-def _build_detail_list(completed_seqs: Set[int], failed_seqs: Set[int],
-                       current_seq: int, cfg: Dict) -> str:
+def _build_detail_list(
+    completed_seqs: Set[int], failed_seqs: Set[int], current_seq: int, cfg: Dict
+) -> str:
     phases = _phase_defs(cfg)
     if not phases:
         return ""
@@ -325,7 +343,9 @@ def _elapsed_minutes(run_start_at: str) -> int:
     s = parse_timestamp(run_start_at)
     if not s:
         return 0
-    return max(0, int((datetime.now(s.tzinfo or timezone.utc) - s).total_seconds() / 60))
+    return max(
+        0, int((datetime.now(s.tzinfo or timezone.utc) - s).total_seconds() / 60)
+    )
 
 
 def _get_completed_seqs(base: Path, cfg: Dict) -> Tuple[Set[int], Set[int], int]:
@@ -335,7 +355,11 @@ def _get_completed_seqs(base: Path, cfg: Dict) -> Tuple[Set[int], Set[int], int]
     """
     # Try stages/.stage_progress.json first, then base/.stage_progress.json
     for sub in ("stages", ".", ""):
-        sp_path = base / sub / ".stage_progress.json" if sub else base / ".stage_progress.json"
+        sp_path = (
+            base / sub / ".stage_progress.json"
+            if sub
+            else base / ".stage_progress.json"
+        )
         sp = load_json(sp_path)
         if sp:
             completed = set(sp.get("completed_phases", []))
@@ -370,7 +394,8 @@ def render_progress(cfg: Dict, stages: List[Dict], run_start_at: str) -> str:
     """Render progress message using config template."""
     phase_defs = _phase_defs(cfg)
     completed_seqs, failed_seqs, current_seq = _get_completed_seqs(
-        Path(cfg.get("base_path", "")), cfg)
+        Path(cfg.get("base_path", "")), cfg
+    )
 
     # Fallback: if no stage_progress, use scanned stages
     if not completed_seqs and stages:
@@ -392,17 +417,22 @@ def render_progress(cfg: Dict, stages: List[Dict], run_start_at: str) -> str:
     remaining = _estimate_remaining(elapsed_min, completed_count, total)
     detail = _build_detail_list(completed_seqs, failed_seqs, current_seq, cfg)
 
-    ctx = _render_ctx(cfg, completed_count,
-                      stage_lines="",  # legacy compat
-                      elapsed=_elapsed_v3(run_start_at),
-                      elapsed_time=_elapsed_v3(run_start_at),
-                      progress_bar=bar,
-                      icon_chain=chain,
-                      remaining=remaining,
-                      current_phase_name=current_name,
-                      detail_list=detail,
-                      artifact_count=len(stages))
-    tpl = cfg.get("templates", {}).get("progress", "{display_name} {progress_bar} {completed}/{total}")
+    ctx = _render_ctx(
+        cfg,
+        completed_count,
+        stage_lines="",  # legacy compat
+        elapsed=_elapsed_v3(run_start_at),
+        elapsed_time=_elapsed_v3(run_start_at),
+        progress_bar=bar,
+        icon_chain=chain,
+        remaining=remaining,
+        current_phase_name=current_name,
+        detail_list=detail,
+        artifact_count=len(stages),
+    )
+    tpl = cfg.get("templates", {}).get(
+        "progress", "{display_name} {progress_bar} {completed}/{total}"
+    )
     return tpl.format_map(ctx)
 
 
@@ -410,31 +440,40 @@ def render_completed(cfg: Dict, comp_data: Dict, run_start_at: str) -> str:
     total = cfg["detection"]["total_stages"]
     all_seqs = {s for _n, s, _i in _phase_defs(cfg)}
     bar = _progress_bar(total, total)
-    ctx = _render_ctx(cfg, total,
-                      elapsed=_elapsed_v3(run_start_at),
-                      elapsed_time=_elapsed_v3(run_start_at),
-                      score=comp_data.get("score", "N/A"),
-                      progress_bar=bar,
-                      icon_chain=_build_icon_chain(all_seqs, 0, cfg),
-                      error=comp_data.get("error", "未知"))
+    ctx = _render_ctx(
+        cfg,
+        total,
+        elapsed=_elapsed_v3(run_start_at),
+        elapsed_time=_elapsed_v3(run_start_at),
+        score=comp_data.get("score", "N/A"),
+        progress_bar=bar,
+        icon_chain=_build_icon_chain(all_seqs, 0, cfg),
+        error=comp_data.get("error", "未知"),
+    )
     tpl = cfg.get("templates", {}).get("completed", "✅ {display_name} 完成！")
     return tpl.format_map(ctx)
 
 
 def render_failed(cfg: Dict, comp_data: Dict, run_start_at: str) -> str:
     completed_seqs, _, _ = _get_completed_seqs(Path(cfg.get("base_path", "")), cfg)
-    ctx = _render_ctx(cfg, len(completed_seqs),
-                      elapsed=_elapsed_v3(run_start_at),
-                      elapsed_time=_elapsed_v3(run_start_at),
-                      error=comp_data.get("error", "未知"))
+    ctx = _render_ctx(
+        cfg,
+        len(completed_seqs),
+        elapsed=_elapsed_v3(run_start_at),
+        elapsed_time=_elapsed_v3(run_start_at),
+        error=comp_data.get("error", "未知"),
+    )
     tpl = cfg.get("templates", {}).get("failed", "⚠️ {display_name}失败")
     return tpl.format_map(ctx)
 
 
 def render_timeout(cfg: Dict) -> str:
-    ctx = _render_ctx(cfg, 0,
-                      timeout_min=cfg["limits"].get("timeout_minutes", 60),
-                      timeout_minutes=cfg["limits"].get("timeout_minutes", 60))
+    ctx = _render_ctx(
+        cfg,
+        0,
+        timeout_min=cfg["limits"].get("timeout_minutes", 60),
+        timeout_minutes=cfg["limits"].get("timeout_minutes", 60),
+    )
     tpl = cfg.get("templates", {}).get("timeout", "⚠️ {display_name}超时")
     return tpl.format_map(ctx)
 
@@ -449,7 +488,8 @@ def render_still_running(cfg: Dict, stages: List[Dict], run_start_at: str) -> st
     """Render 'still running' message when circuit breaker resets."""
     phase_defs = _phase_defs(cfg)
     completed_seqs, failed_seqs, current_seq = _get_completed_seqs(
-        Path(cfg.get("base_path", "")), cfg)
+        Path(cfg.get("base_path", "")), cfg
+    )
     if not completed_seqs and stages:
         completed_seqs = {s.get("seq", 0) for s in stages}
 
@@ -463,22 +503,29 @@ def render_still_running(cfg: Dict, stages: List[Dict], run_start_at: str) -> st
 
     bar = _progress_bar(completed_count, total)
     detail = _build_detail_list(completed_seqs, failed_seqs, current_seq, cfg)
-    ctx = _render_ctx(cfg, completed_count,
-                      elapsed=_elapsed_v3(run_start_at),
-                      elapsed_time=_elapsed_v3(run_start_at),
-                      progress_bar=bar,
-                      remaining=_estimate_remaining(
-                          _elapsed_minutes(run_start_at), completed_count, total),
-                      current_phase_name=current_name,
-                      detail_list=detail)
+    ctx = _render_ctx(
+        cfg,
+        completed_count,
+        elapsed=_elapsed_v3(run_start_at),
+        elapsed_time=_elapsed_v3(run_start_at),
+        progress_bar=bar,
+        remaining=_estimate_remaining(
+            _elapsed_minutes(run_start_at), completed_count, total
+        ),
+        current_phase_name=current_name,
+        detail_list=detail,
+    )
     # Use progress template with a "still running" prefix
-    tpl = cfg.get("templates", {}).get("progress", "{display_name} {progress_bar} {completed}/{total}")
+    tpl = cfg.get("templates", {}).get(
+        "progress", "{display_name} {progress_bar} {completed}/{total}"
+    )
     return f"🟡 {tpl.format_map(ctx)}"
 
 
 # ---------------------------------------------------------------------------
 # Auto-chain trigger writer
 # ---------------------------------------------------------------------------
+
 
 def write_auto_chain(cfg: Dict, base_path: Path, comp_data: Dict) -> Optional[str]:
     ac = cfg.get("auto_chain", {})
@@ -491,8 +538,10 @@ def write_auto_chain(cfg: Dict, base_path: Path, comp_data: Dict) -> Optional[st
         "completed_at": comp_data.get("completed_at", ""),
         "base_path": str(base_path),
     }
-    atomic_write(base_path / ac.get("trigger_file", ".auto_chain_trigger"),
-                 json.dumps(trigger, ensure_ascii=False))
+    atomic_write(
+        base_path / ac.get("trigger_file", ".auto_chain_trigger"),
+        json.dumps(trigger, ensure_ascii=False),
+    )
     return next_pl
 
 
@@ -500,8 +549,15 @@ def write_auto_chain(cfg: Dict, base_path: Path, comp_data: Dict) -> Optional[st
 # JSON output helper
 # ---------------------------------------------------------------------------
 
-def emit(action: str, message: str = "", should_remove: bool = False,
-         error: str = None, cron_job_id: str = "", **extra: Any) -> None:
+
+def emit(
+    action: str,
+    message: str = "",
+    should_remove: bool = False,
+    error: str = None,
+    cron_job_id: str = "",
+    **extra: Any,
+) -> None:
     """Print JSON result and exit."""
     result: Dict[str, Any] = {
         "action": action,
@@ -518,6 +574,7 @@ def emit(action: str, message: str = "", should_remove: bool = False,
 # ---------------------------------------------------------------------------
 # Main pipeline logic
 # ---------------------------------------------------------------------------
+
 
 def _run(cfg: Dict, base: Path, state_dir: Path, args: Any) -> None:
     cron_id = args.cron_job_id
@@ -537,8 +594,12 @@ def _run(cfg: Dict, base: Path, state_dir: Path, args: Any) -> None:
     config_templates = cfg.get("templates", {})
     missing = _REQUIRED_TPL_KEYS - set(config_templates.keys())
     if missing:
-        emit("failed", error=f"watcher_config.json 缺少必需模板: {missing}",
-             should_remove=True, cron_job_id=cron_id)
+        emit(
+            "failed",
+            error=f"watcher_config.json 缺少必需模板: {missing}",
+            should_remove=True,
+            cron_job_id=cron_id,
+        )
 
     # ── Run counter + timeout ──
     rc = RunCounter(state, cfg["limits"], run_start_at)
@@ -564,8 +625,13 @@ def _run(cfg: Dict, base: Path, state_dir: Path, args: Any) -> None:
             msg = render_failed(cfg, comp, run_start_at)
             error_detail = comp.get("error", "unknown")
             _save_state(state_path, state, rc, None)
-            emit("failed", msg, should_remove=True,
-                 error=error_detail, cron_job_id=cron_id)
+            emit(
+                "failed",
+                msg,
+                should_remove=True,
+                error=error_detail,
+                cron_job_id=cron_id,
+            )
 
     # ── Stage detection ──
     sd = StageDetector(base, cfg["detection"], run_start_at)
@@ -592,10 +658,16 @@ def _run(cfg: Dict, base: Path, state_dir: Path, args: Any) -> None:
             key = (s["name"], s["seq"])
             if key not in seen_phase_keys:
                 seen_phase_keys.add(key)
-                unique_stages.append({"name": s["name"], "seq": s["seq"], "icon": s.get("icon", "📄")})
-        emit("progress", msg, cron_job_id=cron_id,
-             stages=unique_stages,
-             completed_count=len({s.get("seq", 0) for s in all_stages}))
+                unique_stages.append(
+                    {"name": s["name"], "seq": s["seq"], "icon": s.get("icon", "📄")}
+                )
+        emit(
+            "progress",
+            msg,
+            cron_job_id=cron_id,
+            stages=unique_stages,
+            completed_count=len({s.get("seq", 0) for s in all_stages}),
+        )
 
     # ── Circuit breaker ──
     cb = CircuitBreaker(state, cfg["limits"])
@@ -623,8 +695,9 @@ def _run(cfg: Dict, base: Path, state_dir: Path, args: Any) -> None:
     emit("noop", cron_job_id=cron_id)
 
 
-def _save_state(state_path: Path, state: Dict, rc: RunCounter,
-                cb: Optional[CircuitBreaker]) -> None:
+def _save_state(
+    state_path: Path, state: Dict, rc: RunCounter, cb: Optional[CircuitBreaker]
+) -> None:
     """Persist unified state atomically."""
     state["run_count"] = rc.count
     state["run_start_at"] = rc.run_start_at
@@ -637,6 +710,7 @@ def _save_state(state_path: Path, state: Dict, rc: RunCounter,
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="DeepFlow Watcher Scan V3")
@@ -653,14 +727,22 @@ def main() -> None:
     # Load config
     cfg = load_json(Path(args.config_path))
     if cfg is None:
-        emit("failed", error=f"Cannot read config: {args.config_path}",
-             should_remove=False, cron_job_id=args.cron_job_id)
+        emit(
+            "failed",
+            error=f"Cannot read config: {args.config_path}",
+            should_remove=False,
+            cron_job_id=args.cron_job_id,
+        )
 
     # Validate required fields
     for key in ("pipeline_id", "display_name", "limits", "detection"):
         if key not in cfg:
-            emit("failed", error=f"Config missing required field: {key}",
-                 should_remove=False, cron_job_id=args.cron_job_id)
+            emit(
+                "failed",
+                error=f"Config missing required field: {key}",
+                should_remove=False,
+                cron_job_id=args.cron_job_id,
+            )
 
     # Ensure state dir exists
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -676,8 +758,13 @@ def main() -> None:
         _run(cfg, base, state_dir, args)
     except Exception as e:
         import traceback
-        emit("failed", error=f"Watcher scan error: {e}\n{traceback.format_exc()}",
-             should_remove=False, cron_job_id=args.cron_job_id)
+
+        emit(
+            "failed",
+            error=f"Watcher scan error: {e}\n{traceback.format_exc()}",
+            should_remove=False,
+            cron_job_id=args.cron_job_id,
+        )
     finally:
         fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN)
         lock_f.close()

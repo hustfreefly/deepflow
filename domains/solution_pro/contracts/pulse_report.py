@@ -119,8 +119,14 @@ class SolutionPulseState(BaseModel):
     version: int = Field(default=1, ge=1)
     session_id: str = Field(min_length=1)
     phase: Literal[
-        "planning", "research", "summary", "validate", "review", "finalize",
-        "completed", "failed",
+        "planning",
+        "research",
+        "summary",
+        "validate",
+        "review",
+        "finalize",
+        "completed",
+        "failed",
     ] = "planning"
     modules: dict[str, ModuleDispatch] = Field(default_factory=dict)
     review: dict[str, ModuleDispatch] = Field(default_factory=dict)

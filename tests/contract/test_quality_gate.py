@@ -4,7 +4,13 @@
 """
 
 import pytest
-from core.quality.quality_gate import QualityGate, GateDecision, QualityReport, ConvergenceResult, ConvergenceResult
+from core.quality.quality_gate import (
+    QualityGate,
+    GateDecision,
+    QualityReport,
+    ConvergenceResult,
+    ConvergenceResult,
+)
 
 
 class TestQualityGateContract:
@@ -22,7 +28,12 @@ class TestQualityGateContract:
     def test_init_custom_config(self) -> None:
         """T2: 自定义配置初始化."""
         config = {
-            "weights": {"accuracy": 0.4, "completeness": 0.3, "depth": 0.2, "elegance": 0.1},
+            "weights": {
+                "accuracy": 0.4,
+                "completeness": 0.3,
+                "depth": 0.2,
+                "elegance": 0.1,
+            },
             "thresholds": {"auto_pass": 0.90, "hitl": 0.75, "dimension": 0.60},
         }
         gate = QualityGate(config)
@@ -31,7 +42,16 @@ class TestQualityGateContract:
     def test_init_invalid_weights(self) -> None:
         """T3: 无效权重配置应抛出ValueError."""
         with pytest.raises(ValueError, match="权重"):
-            QualityGate({"weights": {"accuracy": 0.3, "completeness": 0.3, "depth": 0.3, "elegance": 0.3}})
+            QualityGate(
+                {
+                    "weights": {
+                        "accuracy": 0.3,
+                        "completeness": 0.3,
+                        "depth": 0.3,
+                        "elegance": 0.3,
+                    }
+                }
+            )
 
     def test_init_invalid_dimension(self) -> None:
         """T4: 无效维度应抛出ValueError."""
@@ -186,7 +206,12 @@ class TestQualityGateContract:
         """T26: 检查所有维度通过."""
         report = QualityReport(
             overall_score=0.9,
-            dimensions={"accuracy": 0.9, "completeness": 0.8, "depth": 0.7, "elegance": 0.6},
+            dimensions={
+                "accuracy": 0.9,
+                "completeness": 0.8,
+                "depth": 0.7,
+                "elegance": 0.6,
+            },
             decision=GateDecision.PASS,
             reasoning="通过",
         )
@@ -196,7 +221,12 @@ class TestQualityGateContract:
         """T27: 部分维度未通过."""
         report = QualityReport(
             overall_score=0.5,
-            dimensions={"accuracy": 0.5, "completeness": 0.5, "depth": 0.5, "elegance": 0.5},
+            dimensions={
+                "accuracy": 0.5,
+                "completeness": 0.5,
+                "depth": 0.5,
+                "elegance": 0.5,
+            },
             decision=GateDecision.REJECT,
             reasoning="拒绝",
         )
@@ -204,10 +234,15 @@ class TestQualityGateContract:
         assert len(report.failed_dimensions) == 4
 
     def test_quality_report_failed_dimensions(self) -> None:
-        ""        """T28: 返回失败维度列表."""
+        "" """T28: 返回失败维度列表."""
         report = QualityReport(
             overall_score=0.7,
-            dimensions={"accuracy": 0.7, "completeness": 0.5, "depth": 0.7, "elegance": 0.5},
+            dimensions={
+                "accuracy": 0.7,
+                "completeness": 0.5,
+                "depth": 0.7,
+                "elegance": 0.5,
+            },
             decision=GateDecision.HITL,
             reasoning="待确认",
         )

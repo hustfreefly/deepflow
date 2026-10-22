@@ -4,6 +4,7 @@
 Contract: cage/active/dev_toolchain_v1.0.yaml
 One JSON object per line. Invalid input must not create or modify the file.
 """
+
 import argparse
 import json
 import sys
@@ -43,7 +44,10 @@ def record(args) -> int:
         print(f"invalid metrics entry: {exc}", file=sys.stderr)
         return 2
     if not entry["task"] or not entry["model"] or not entry["commit"]:
-        print("invalid metrics entry: task/model/commit must be non-empty", file=sys.stderr)
+        print(
+            "invalid metrics entry: task/model/commit must be non-empty",
+            file=sys.stderr,
+        )
         return 2
 
     path = Path(args.file)
@@ -71,8 +75,10 @@ def summary(args) -> int:
     if args.as_json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        print(f"tasks={payload['count']} passed={payload['passed']} "
-              f"failed={payload['failed']} duration={payload['duration_total']}s")
+        print(
+            f"tasks={payload['count']} passed={payload['passed']} "
+            f"failed={payload['failed']} duration={payload['duration_total']}s"
+        )
     return 0
 
 

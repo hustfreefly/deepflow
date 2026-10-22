@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 class TrajectoryPoint(BaseModel):
     """轨迹点"""
+
     round: int
     overall_score: Union[int, float]
     level: str = ""
@@ -21,5 +22,6 @@ class TrajectoryPoint(BaseModel):
 
 class QualityTrajectory(BaseModel):
     """质量轨迹"""
+
     scores: list[Union[int, float]] = Field(default_factory=list)
     trajectory: list[TrajectoryPoint] = Field(default_factory=list)

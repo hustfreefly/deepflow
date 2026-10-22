@@ -1,4 +1,5 @@
 """Contract tests for the P1 closure: runtime state, memory seed, spawn gate."""
+
 import os
 import subprocess
 from pathlib import Path
@@ -6,10 +7,12 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-AGENT_HOME = Path(os.environ.get(
-    "DEEPFLOW_AGENT_HOME",
-    "/Users/allen/.openclaw/workspace/agent-workspaces/deepflow-dev",
-))
+AGENT_HOME = Path(
+    os.environ.get(
+        "DEEPFLOW_AGENT_HOME",
+        "/Users/allen/.openclaw/workspace/agent-workspaces/deepflow-dev",
+    )
+)
 AGENT_AVAILABLE = AGENT_HOME.exists()
 AGENT_SKIP = pytest.mark.skipif(
     not AGENT_AVAILABLE,
@@ -18,14 +21,18 @@ AGENT_SKIP = pytest.mark.skipif(
 
 
 def test_core_blackboard_not_ignored():
-    p = subprocess.run(["git", "check-ignore", "-q", "core/blackboard/registry_base.py"], cwd=ROOT)
+    p = subprocess.run(
+        ["git", "check-ignore", "-q", "core/blackboard/registry_base.py"], cwd=ROOT
+    )
     assert p.returncode != 0, "core/blackboard source is still ignored"
 
 
 def test_registry_base_tracked():
     p = subprocess.run(
         ["git", "ls-files", "--error-unmatch", "core/blackboard/registry_base.py"],
-        cwd=ROOT, capture_output=True, text=True,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
     )
     assert p.returncode == 0, p.stderr
 

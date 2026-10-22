@@ -28,6 +28,7 @@ import pytest
 # Fixtures（对齐 test_pulse.py / test_final_synthesis.py 风格）
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def ship_package_data():
     return {
@@ -56,6 +57,7 @@ def _make_orchestrator(mock_blackboard):
     bb_root, project_name = mock_blackboard
     with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
         from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
         orch = DeliverOrchestrator(project_name)
         yield orch, bb_root, project_name
 
@@ -80,6 +82,7 @@ def _zeros_summary(report):
 # ---------------------------------------------------------------------------
 # P1-C: SafeJsonLoader 熔断（单元层）
 # ---------------------------------------------------------------------------
+
 
 class TestCircuitBreakerLoader:
     def test_trips_after_consecutive_corruptions(self, tmp_path):
@@ -168,6 +171,7 @@ class TestCircuitBreakerLoader:
 # P0-A: 前置条件缺失 → 结构化 blocked
 # ---------------------------------------------------------------------------
 
+
 class TestBlockedPrecondition:
     def test_missing_living_spec_returns_blocked_not_crash(self, mock_blackboard):
         """无 living_spec → status=blocked + CRITICAL 告警 + 标记落盘（不再 raise）。"""
@@ -209,6 +213,7 @@ class TestBlockedPrecondition:
 # ---------------------------------------------------------------------------
 # P0-B: 终态自停（僵尸轮询根因修复）
 # ---------------------------------------------------------------------------
+
 
 class TestTerminalSelfStop:
     def _mark_all_terminal_failed(self, orch):
@@ -253,6 +258,7 @@ class TestTerminalSelfStop:
 # P1-C: 冻结通道 + freeze 助手 + unfreeze（编排层）
 # ---------------------------------------------------------------------------
 
+
 class TestCircuitBreakerFreeze:
     def test_frozen_fast_path_is_noop(self, mock_blackboard):
         """冻结标记存在 → pulse 零工作零告警。"""
@@ -288,7 +294,9 @@ class TestCircuitBreakerFreeze:
 
         bb_root, project_name = mock_blackboard
         project_dir = bb_root / project_name
-        (project_dir / "_circuit_breaker.json").write_text(json.dumps({"frozen_at": 1.0}))
+        (project_dir / "_circuit_breaker.json").write_text(
+            json.dumps({"frozen_at": 1.0})
+        )
         (project_dir / ".a.json.corrupt_count").write_text("2")
         sub = project_dir / "deliver_pro" / "wp_001"
         sub.mkdir(parents=True)
@@ -316,6 +324,7 @@ class TestCircuitBreakerFreeze:
 # ---------------------------------------------------------------------------
 # P1-D: 损坏输入显式处理
 # ---------------------------------------------------------------------------
+
 
 class TestJsonHardening:
     def test_from_json_corrupted_raises_cleanly(self, tmp_path):

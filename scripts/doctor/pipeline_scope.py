@@ -26,10 +26,10 @@ _BLACKBOARD_DIR = _DEEPFLOW_ROOT / "blackboard"
 
 # 管线状态文件模式
 _PIPELINE_STATE_PATTERNS = [
-    "*/ship_output/pipeline_state.json",      # Ship Pro
-    "*/pipeline_state.json",                   # Solution Pro (in stages/)
-    "*/stages/pipeline_state.json",            # Solution Pro alt
-    "*/master_state.json",                     # Solution Pro 2.0 (MasterOrchestrator)
+    "*/ship_output/pipeline_state.json",  # Ship Pro
+    "*/pipeline_state.json",  # Solution Pro (in stages/)
+    "*/stages/pipeline_state.json",  # Solution Pro alt
+    "*/master_state.json",  # Solution Pro 2.0 (MasterOrchestrator)
 ]
 
 # 上海时区 offset
@@ -90,14 +90,19 @@ def discover_pipeline_runs(
                     try:
                         with open(completed_file) as cf:
                             completed_state = json.load(cf)
-                        completed_at = _parse_iso(completed_state.get("completed_at", ""))
+                        completed_at = _parse_iso(
+                            completed_state.get("completed_at", "")
+                        )
                     except (json.JSONDecodeError, OSError):
                         pass
                 # 用文件 mtime 作为 started_at 的 fallback
                 if not started_at:
                     import os
+
                     mtime = state_file.stat().st_mtime
-                    started_at = datetime.fromtimestamp(mtime, tz=_SHANGHAI_TZ) - timedelta(minutes=30)
+                    started_at = datetime.fromtimestamp(
+                        mtime, tz=_SHANGHAI_TZ
+                    ) - timedelta(minutes=30)
                     if not completed_at:
                         completed_at = datetime.fromtimestamp(mtime, tz=_SHANGHAI_TZ)
 
@@ -129,16 +134,18 @@ def discover_pipeline_runs(
             # 推断管线名称（从路径提取）
             pipeline_name = _extract_pipeline_name(state_file)
 
-            runs.append({
-                "run_id": run_id,
-                "pipeline_name": pipeline_name,
-                "domain": domain,
-                "started_at": started_at,
-                "completed_at": completed_at or datetime.now(_SHANGHAI_TZ),
-                "status": state.get("status", "unknown"),
-                "agents": state.get("agents", {}),
-                "state_path": str(state_file),
-            })
+            runs.append(
+                {
+                    "run_id": run_id,
+                    "pipeline_name": pipeline_name,
+                    "domain": domain,
+                    "started_at": started_at,
+                    "completed_at": completed_at or datetime.now(_SHANGHAI_TZ),
+                    "status": state.get("status", "unknown"),
+                    "agents": state.get("agents", {}),
+                    "state_path": str(state_file),
+                }
+            )
 
     # 按 started_at 排序（最新在前）
     runs.sort(key=lambda r: r["started_at"], reverse=True)
@@ -194,10 +201,7 @@ def filter_events_by_stage(events: list[dict], run: dict, stage: str) -> list[di
     }
 
     keywords = stage_keywords.get(stage_lower, [stage_lower])
-    return [
-        ev for ev in run_events
-        if _event_matches_stage(ev, keywords)
-    ]
+    return [ev for ev in run_events if _event_matches_stage(ev, keywords)]
 
 
 def get_run_summary(run: dict) -> str:
@@ -224,6 +228,7 @@ def get_run_summary(run: dict) -> str:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _parse_iso(ts_str: str) -> datetime | None:
     """解析 ISO 8601 时间字符串（兼容 UTC 和本地时间）。"""
@@ -282,7 +287,10 @@ def _infer_domain(state_path: Path, state: dict) -> str:
         stages_dir = state_path.parent / "stages"
         if stages_dir.exists():
             stage_files = [f.name for f in stages_dir.iterdir()]
-            if any("planning" in f or "research" in f or "summary" in f for f in stage_files):
+            if any(
+                "planning" in f or "research" in f or "summary" in f
+                for f in stage_files
+            ):
                 return "solution_pro"
     # deliver_pro 检查
     if state_path.name == "delivery_state.json":

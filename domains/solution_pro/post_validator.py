@@ -85,7 +85,7 @@ def validate_solution_output(bb) -> Dict[str, Any]:
 
     # P1-FIX: 持久化 L0 验证结果到 blackboard stage，支持审计
     try:
-        bb.write_stage('l0_validation_result', result)
+        bb.write_stage("l0_validation_result", result)
     except Exception as e:
         logger.warning(f"Failed to write L0 validation result to stage: {e}")
 
@@ -100,19 +100,23 @@ def _validate_schema(bb) -> List[Dict[str, str]]:
     final_solution = bb.read_stage("final_solution")
 
     if final_solution is None:
-        failures.append({
-            "severity": "critical",
-            "check": "schema",
-            "message": "final_solution 不存在（Agent 未完成或输出丢失）",
-        })
+        failures.append(
+            {
+                "severity": "critical",
+                "check": "schema",
+                "message": "final_solution 不存在（Agent 未完成或输出丢失）",
+            }
+        )
         return failures
 
     if not isinstance(final_solution, dict):
-        failures.append({
-            "severity": "critical",
-            "check": "schema",
-            "message": f"final_solution 类型错误: {type(final_solution).__name__}（应为 dict）",
-        })
+        failures.append(
+            {
+                "severity": "critical",
+                "check": "schema",
+                "message": f"final_solution 类型错误: {type(final_solution).__name__}（应为 dict）",
+            }
+        )
         return failures
 
     # V4: 调用通用函数
@@ -123,48 +127,59 @@ def _validate_schema(bb) -> List[Dict[str, str]]:
     if not result.passed:
         # 转换 severity: ERROR → critical
         severity = "critical" if result.severity == "ERROR" else "warning"
-        failures.append({
-            "severity": severity,
-            "check": "schema",
-            "message": result.message,
-        })
+        failures.append(
+            {
+                "severity": severity,
+                "check": "schema",
+                "message": result.message,
+            }
+        )
 
     # 额外检查：空列表警告（保留原有逻辑）
     if "key_decisions" in final_solution:
         kd = final_solution["key_decisions"]
         if isinstance(kd, list) and len(kd) == 0:
-            failures.append({
-                "severity": "warning",
-                "check": "schema",
-                "message": "key_decisions 为空列表",
-            })
+            failures.append(
+                {
+                    "severity": "warning",
+                    "check": "schema",
+                    "message": "key_decisions 为空列表",
+                }
+            )
 
     if "implementation_phases" in final_solution:
         ip = final_solution["implementation_phases"]
         if isinstance(ip, list) and len(ip) == 0:
-            failures.append({
+            failures.append(
+                {
+                    "severity": "critical",
+                    "check": "schema",
+                    "message": "implementation_phases 为空列表，必须包含至少 1 个阶段",
+                }
+            )
+    else:
+        failures.append(
+            {
                 "severity": "critical",
                 "check": "schema",
-                "message": "implementation_phases 为空列表，必须包含至少 1 个阶段",
-            })
-    else:
-        failures.append({
-            "severity": "critical",
-            "check": "schema",
-            "message": "implementation_phases 字段缺失，必须包含至少 1 个阶段",
-        })
+                "message": "implementation_phases 字段缺失，必须包含至少 1 个阶段",
+            }
+        )
 
     # P1-FIX: Pydantic 完整验证 — 触发 Cage 验证器 (FS1/FS2/FS3)
     # 基础字段检查无法捕获语义级错误（如覆盖率不一致、提取失败未标注等）
     try:
         from domains.solution_pro.schemas.schemas import FinalSolutionSchema
+
         FinalSolutionSchema(**final_solution)
     except Exception as e:
-        failures.append({
-            "severity": "critical",
-            "check": "pydantic_validation",
-            "message": f"FinalSolutionSchema 验证失败: {e}",
-        })
+        failures.append(
+            {
+                "severity": "critical",
+                "check": "pydantic_validation",
+                "message": f"FinalSolutionSchema 验证失败: {e}",
+            }
+        )
 
     return failures
 
@@ -179,6 +194,7 @@ def _validate_requirement_coverage(bb) -> List[Dict[str, str]]:
     if isinstance(living_spec_content, str):
         try:
             from domains.spec_pro.spec_living_md import parse_living_spec_md
+
             living_spec = parse_living_spec_md(living_spec_content) or {}
         except Exception:
             living_spec = {}
@@ -193,6 +209,7 @@ def _validate_requirement_coverage(bb) -> List[Dict[str, str]]:
         if isinstance(frozen_spec_content, str):
             try:
                 from domains.solution_pro.frozen_living_md import parse_frozen_spec_md
+
                 frozen_spec = parse_frozen_spec_md(frozen_spec_content) or {}
             except Exception:
                 frozen_spec = {}
@@ -201,11 +218,13 @@ def _validate_requirement_coverage(bb) -> List[Dict[str, str]]:
         requirement_index = frozen_spec.get("requirement_index", [])
 
     if not requirement_index:
-        failures.append({
-            "severity": "warning",
-            "check": "requirement_coverage",
-            "message": "requirement_index 为空（无法验证覆盖率）",
-        })
+        failures.append(
+            {
+                "severity": "warning",
+                "check": "requirement_coverage",
+                "message": "requirement_index 为空（无法验证覆盖率）",
+            }
+        )
         return failures
 
     # 提取需求 ID 列表
@@ -219,26 +238,32 @@ def _validate_requirement_coverage(bb) -> List[Dict[str, str]]:
     final_solution = bb.read_stage("final_solution") or {}
 
     # V4: 调用通用函数（双层阈值：0.5 critical, 0.8 warning）
-    result = _quality_check_coverage(req_ids, final_solution, critical_threshold=0.5, warning_threshold=0.8)
+    result = _quality_check_coverage(
+        req_ids, final_solution, critical_threshold=0.5, warning_threshold=0.8
+    )
 
     if result.severity == "CRITICAL":
-        failures.append({
-            "severity": "critical",
-            "check": "requirement_coverage",
-            "message": (
-                f"需求覆盖率 {result.coverage_rate:.0%}（{result.covered_reqs}/{result.total_reqs}），"
-                f"低于 50% 阈值。未覆盖: {result.uncovered[:5]}..."
-            ),
-        })
+        failures.append(
+            {
+                "severity": "critical",
+                "check": "requirement_coverage",
+                "message": (
+                    f"需求覆盖率 {result.coverage_rate:.0%}（{result.covered_reqs}/{result.total_reqs}），"
+                    f"低于 50% 阈值。未覆盖: {result.uncovered[:5]}..."
+                ),
+            }
+        )
     elif result.severity == "WARNING":
-        failures.append({
-            "severity": "warning",
-            "check": "requirement_coverage",
-            "message": (
-                f"需求覆盖率 {result.coverage_rate:.0%}（{result.covered_reqs}/{result.total_reqs}），"
-                f"低于 80% 目标。未覆盖: {result.uncovered[:5]}..."
-            ),
-        })
+        failures.append(
+            {
+                "severity": "warning",
+                "check": "requirement_coverage",
+                "message": (
+                    f"需求覆盖率 {result.coverage_rate:.0%}（{result.covered_reqs}/{result.total_reqs}），"
+                    f"低于 80% 目标。未覆盖: {result.uncovered[:5]}..."
+                ),
+            }
+        )
 
     return failures
 
@@ -253,6 +278,7 @@ def _validate_information_conservation(bb) -> List[Dict[str, str]]:
     if isinstance(living_spec_content, str):
         try:
             from domains.spec_pro.spec_living_md import parse_living_spec_md
+
             living_spec = parse_living_spec_md(living_spec_content) or {}
         except Exception:
             living_spec = {}
@@ -267,6 +293,7 @@ def _validate_information_conservation(bb) -> List[Dict[str, str]]:
         if isinstance(frozen_spec_content, str):
             try:
                 from domains.solution_pro.frozen_living_md import parse_frozen_spec_md
+
                 frozen_spec = parse_frozen_spec_md(frozen_spec_content) or {}
             except Exception:
                 frozen_spec = {}
@@ -295,26 +322,32 @@ def _validate_information_conservation(bb) -> List[Dict[str, str]]:
     final_solution = bb.read_stage("final_solution") or {}
 
     # V4: 调用通用函数（双层阈值：0.5 critical, 0.8 warning）
-    result = _quality_check_anchors(anchor_names, final_solution, critical_threshold=0.5, warning_threshold=0.8)
+    result = _quality_check_anchors(
+        anchor_names, final_solution, critical_threshold=0.5, warning_threshold=0.8
+    )
 
     if result.severity == "CRITICAL":
         # 提取丢失的锚点名称
-        missing_names = [a[:50] for a in anchor_names if a.lower() not in str(final_solution).lower()][:5]
-        failures.append({
-            "severity": "critical",
-            "check": "information_conservation",
-            "message": (
-                f"信息守恒率低于 50% 阈值。丢失: {missing_names}..."
-            ),
-        })
+        missing_names = [
+            a[:50] for a in anchor_names if a.lower() not in str(final_solution).lower()
+        ][:5]
+        failures.append(
+            {
+                "severity": "critical",
+                "check": "information_conservation",
+                "message": (f"信息守恒率低于 50% 阈值。丢失: {missing_names}..."),
+            }
+        )
     elif result.severity == "WARNING":
-        missing_names = [a[:50] for a in anchor_names if a.lower() not in str(final_solution).lower()][:5]
-        failures.append({
-            "severity": "warning",
-            "check": "information_conservation",
-            "message": (
-                f"信息守恒率低于 80% 目标。丢失: {missing_names}..."
-            ),
-        })
+        missing_names = [
+            a[:50] for a in anchor_names if a.lower() not in str(final_solution).lower()
+        ][:5]
+        failures.append(
+            {
+                "severity": "warning",
+                "check": "information_conservation",
+                "message": (f"信息守恒率低于 80% 目标。丢失: {missing_names}..."),
+            }
+        )
 
     return failures

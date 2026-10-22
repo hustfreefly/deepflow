@@ -9,7 +9,11 @@ from src.graph.pyg_data_builder import (
     PYG_AVAILABLE,
 )
 from src.graph.service_graph import Node, Edge
-from src.graph.feature_extractor import FeatureExtractor, NODE_FEATURE_DIM, EDGE_FEATURE_DIM
+from src.graph.feature_extractor import (
+    FeatureExtractor,
+    NODE_FEATURE_DIM,
+    EDGE_FEATURE_DIM,
+)
 
 
 # Skip markers for optional PyG dependency

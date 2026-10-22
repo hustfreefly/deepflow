@@ -7,6 +7,7 @@ AgentDryRun V3.7 (2026-07-30) 发现：
 
 契约笼子修复：物理移除过时注释 + CI 防回归测试。
 """
+
 import re
 from pathlib import Path
 
@@ -15,17 +16,20 @@ def _get_deliver_pro_files() -> list[Path]:
     """Get all Python files in deliver_pro directory (excluding tests)."""
     deliver_pro_dir = Path(__file__).resolve().parent.parent
     return [
-        f for f in deliver_pro_dir.glob("*.py")
+        f
+        for f in deliver_pro_dir.glob("*.py")
         if f.name != "__init__.py" and "test" not in f.name
     ]
 
 
 def _is_prohibition_line(line: str) -> bool:
     """Check if a line is a prohibition instruction (e.g., '绝不 sessions_yield')."""
-    return bool(re.search(
-        r"绝不.*sessions_yield|禁止.*sessions_yield|不要.*sessions_yield|NOT.*sessions_yield",
-        line
-    ))
+    return bool(
+        re.search(
+            r"绝不.*sessions_yield|禁止.*sessions_yield|不要.*sessions_yield|NOT.*sessions_yield",
+            line,
+        )
+    )
 
 
 def test_no_sessions_yield_in_deliver_pro_code():
@@ -38,7 +42,7 @@ def test_no_sessions_yield_in_deliver_pro_code():
         content = filepath.read_text()
         matches = list(re.finditer(r"sessions_yield", content))
         for m in matches:
-            line_no = content[:m.start()].count("\n") + 1
+            line_no = content[: m.start()].count("\n") + 1
             line_text = content.split("\n")[line_no - 1]
             # Exclude prohibition instructions ("绝不 sessions_yield" is a valid prohibition)
             if _is_prohibition_line(line_text):
@@ -64,7 +68,7 @@ def test_no_yield_instruction_in_deliver_pro_docstrings():
         content = filepath.read_text()
         for pat in patterns:
             for m in re.finditer(pat, content):
-                line_no = content[:m.start()].count("\n") + 1
+                line_no = content[: m.start()].count("\n") + 1
                 line_text = content.split("\n")[line_no - 1].strip()
                 # Exclude prohibition instructions
                 if _is_prohibition_line(line_text):

@@ -40,6 +40,7 @@ from domains.solution_pro.spec_context import (
     build_worker_context_section,
 )
 
+
 class TestResult:
     def __init__(self, name: str):
         self.name = name
@@ -56,13 +57,14 @@ class TestResult:
         self.detail = detail
         return self
 
+
 class TestSuite:
     def __init__(self):
         self.results = []
         self.tmpdir = tempfile.mkdtemp(prefix="spec_pro_full_test_")
 
     def run(self, fn):
-        name = fn.__name__ if hasattr(fn, '__name__') else str(fn)
+        name = fn.__name__ if hasattr(fn, "__name__") else str(fn)
         r = TestResult(name)
         self.results.append(r)
         try:
@@ -85,9 +87,11 @@ class TestSuite:
     def cleanup(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
+
 # ---------------------------------------------------------------------------
 # T1: Coordinator 初始化 + 多轮对话
 # ---------------------------------------------------------------------------
+
 
 def t1_init_session(suite: TestSuite, r: TestResult):
     """T1.1: Coordinator init_session 正常初始化"""
@@ -110,18 +114,21 @@ def t1_init_session(suite: TestSuite, r: TestResult):
     suite._coord = coord
     suite._session_id = result["session_id"]
     suite._base_path = result["base_path"]
-    r.ok(f"session={result['session_id']}, task={len(result['orchestrator_task'])} chars")
+    r.ok(
+        f"session={result['session_id']}, task={len(result['orchestrator_task'])} chars"
+    )
+
 
 def t1_multi_round(suite: TestSuite, r: TestResult):
     """T1.2: Coordinator 多轮对话 build_next_round_task"""
-    coord = getattr(suite, '_coord', None)
+    coord = getattr(suite, "_coord", None)
     if not coord:
         r.fail("No coordinator from T1.1")
         return
 
     rounds_ok = 0
     for i in range(2, 5):
-        response = f"第{i}轮补充：需要支持{i*10}个SKU，{i*5}个仓库"
+        response = f"第{i}轮补充：需要支持{i * 10}个SKU，{i * 5}个仓库"
         result = coord.build_next_round_task(response)
 
         if "safety_stop" in str(result.get("action", "")):
@@ -133,11 +140,14 @@ def t1_multi_round(suite: TestSuite, r: TestResult):
         rounds_ok += 1
 
     status = coord.get_status()
-    r.ok(f"{rounds_ok} rounds completed, state={status['state']}, current_round={status['current_round']}")
+    r.ok(
+        f"{rounds_ok} rounds completed, state={status['state']}, current_round={status['current_round']}"
+    )
+
 
 def t1_status_check(suite: TestSuite, r: TestResult):
     """T1.3: Coordinator get_status + is_done"""
-    coord = getattr(suite, '_coord', None)
+    coord = getattr(suite, "_coord", None)
     if not coord:
         r.fail("No coordinator")
         return
@@ -152,6 +162,7 @@ def t1_status_check(suite: TestSuite, r: TestResult):
     is_done = coord.is_done()
     r.ok(f"state={status['state']}, is_done={is_done}")
 
+
 def t1_safety_stop(suite: TestSuite, r: TestResult):
     """T1.4: Coordinator 超过最大轮次安全停止"""
     coord = SpecProCoordinator(scenario="genesis", mode="quick")
@@ -160,11 +171,14 @@ def t1_safety_stop(suite: TestSuite, r: TestResult):
     for i in range(10):
         result = coord.build_next_round_task(f"补充信息{i}")
         if result.get("action") == "safety_stop":
-            r.ok(f"Safety stop at round {i+2}")
+            r.ok(f"Safety stop at round {i + 2}")
             return
 
     status = coord.get_status()
-    r.ok(f"No safety stop (mode allows more rounds), final_round={status['current_round']}")
+    r.ok(
+        f"No safety stop (mode allows more rounds), final_round={status['current_round']}"
+    )
+
 
 def t1_different_modes(suite: TestSuite, r: TestResult):
     """T1.5: 不同模式 quick/standard/deep 都能初始化"""
@@ -180,6 +194,7 @@ def t1_different_modes(suite: TestSuite, r: TestResult):
     else:
         r.fail(f"Only {len(modes_ok)}/3 modes OK: {modes_ok}")
 
+
 def t1_different_scenarios(suite: TestSuite, r: TestResult):
     """T1.6: 不同场景 genesis/supplement/refine/pivot"""
     scenarios_ok = []
@@ -194,13 +209,16 @@ def t1_different_scenarios(suite: TestSuite, r: TestResult):
     else:
         r.fail(f"Only {len(scenarios_ok)}/4 OK: {scenarios_ok}")
 
+
 # ---------------------------------------------------------------------------
 # T2: merge_spec 合并流程
 # ---------------------------------------------------------------------------
 
+
 def _write_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
 
 def _make_response(round_num=1):
     return {
@@ -212,23 +230,63 @@ def _make_response(round_num=1):
                 "should_do": [f"应该做{round_num}"],
                 "never_do": [f"禁止{round_num}"],
             },
-            "constraints": {"platform": f"平台{round_num}", "tech_stack": [f"Tech{round_num}"]},
+            "constraints": {
+                "platform": f"平台{round_num}",
+                "tech_stack": [f"Tech{round_num}"],
+            },
         },
         "conversation_digest": {
             "summary": f"第{round_num}轮对话摘要：用户描述了核心需求...",
             "key_excerpts": [
-                {"excerpt": f"关键表达{round_num}A", "dimension": "pain_points", "importance": "critical", "source_round": round_num},
-                {"excerpt": f"关键表达{round_num}B", "dimension": "constraints", "importance": "important", "source_round": round_num},
+                {
+                    "excerpt": f"关键表达{round_num}A",
+                    "dimension": "pain_points",
+                    "importance": "critical",
+                    "source_round": round_num,
+                },
+                {
+                    "excerpt": f"关键表达{round_num}B",
+                    "dimension": "constraints",
+                    "importance": "important",
+                    "source_round": round_num,
+                },
             ],
         },
     }
 
+
 def t2_merge_spec(suite: TestSuite, r: TestResult):
     """T2.1: merge_spec 合并 ResponseWorker 输出到 living_spec"""
     spec = {
-        "meta": {"engine": "spec_pro", "version": "2.1.0", "spec_version": 1, "scenario": "genesis", "created_at": "2026-06-22T00:00:00", "updated_at": "", "conversation_rounds": 0, "quality_score": 0, "quality_level": "C"},
-        "confirmed": {"objective": "", "pain_points": [], "success_metrics": [], "users": [], "key_scenarios": [], "capabilities": {"always_do": [], "should_do": [], "never_do": []}, "quality_attributes": [], "constraints": {}, "integration": {"existing_systems": [], "requirements": []}, "risks_and_assumptions": {"risks": [], "assumptions": [], "dependencies": []}},
-        "inferred": [], "guardrails": {"always_do": [], "ask_first": [], "never_do": []},
+        "meta": {
+            "engine": "spec_pro",
+            "version": "2.1.0",
+            "spec_version": 1,
+            "scenario": "genesis",
+            "created_at": "2026-06-22T00:00:00",
+            "updated_at": "",
+            "conversation_rounds": 0,
+            "quality_score": 0,
+            "quality_level": "C",
+        },
+        "confirmed": {
+            "objective": "",
+            "pain_points": [],
+            "success_metrics": [],
+            "users": [],
+            "key_scenarios": [],
+            "capabilities": {"always_do": [], "should_do": [], "never_do": []},
+            "quality_attributes": [],
+            "constraints": {},
+            "integration": {"existing_systems": [], "requirements": []},
+            "risks_and_assumptions": {
+                "risks": [],
+                "assumptions": [],
+                "dependencies": [],
+            },
+        },
+        "inferred": [],
+        "guardrails": {"always_do": [], "ask_first": [], "never_do": []},
     }
 
     resp_path = os.path.join(suite.tmpdir, "response.json")
@@ -258,12 +316,39 @@ def t2_merge_spec(suite: TestSuite, r: TestResult):
 
     r.ok(f"Merged: {len(pain_points)} pain_points, objective='{objective[:40]}'")
 
+
 def t2_merge_multi_round(suite: TestSuite, r: TestResult):
     """T2.2: merge_spec 多轮累积"""
     spec = {
-        "meta": {"engine": "spec_pro", "version": "2.1.0", "spec_version": 1, "scenario": "genesis", "created_at": "2026-06-22T00:00:00", "updated_at": "", "conversation_rounds": 0, "quality_score": 0, "quality_level": "C"},
-        "confirmed": {"objective": "", "pain_points": [], "success_metrics": [], "users": [], "key_scenarios": [], "capabilities": {"always_do": [], "should_do": [], "never_do": []}, "quality_attributes": [], "constraints": {}, "integration": {"existing_systems": [], "requirements": []}, "risks_and_assumptions": {"risks": [], "assumptions": [], "dependencies": []}},
-        "inferred": [], "guardrails": {"always_do": [], "ask_first": [], "never_do": []},
+        "meta": {
+            "engine": "spec_pro",
+            "version": "2.1.0",
+            "spec_version": 1,
+            "scenario": "genesis",
+            "created_at": "2026-06-22T00:00:00",
+            "updated_at": "",
+            "conversation_rounds": 0,
+            "quality_score": 0,
+            "quality_level": "C",
+        },
+        "confirmed": {
+            "objective": "",
+            "pain_points": [],
+            "success_metrics": [],
+            "users": [],
+            "key_scenarios": [],
+            "capabilities": {"always_do": [], "should_do": [], "never_do": []},
+            "quality_attributes": [],
+            "constraints": {},
+            "integration": {"existing_systems": [], "requirements": []},
+            "risks_and_assumptions": {
+                "risks": [],
+                "assumptions": [],
+                "dependencies": [],
+            },
+        },
+        "inferred": [],
+        "guardrails": {"always_do": [], "ask_first": [], "never_do": []},
     }
 
     spec_path = os.path.join(suite.tmpdir, "multi_spec.json")
@@ -288,6 +373,7 @@ def t2_merge_multi_round(suite: TestSuite, r: TestResult):
 
     r.ok(f"3 rounds merged: {len(pain_points)} pain_points")
 
+
 def t2_merge_error_handling(suite: TestSuite, r: TestResult):
     """T2.3: merge_spec 错误处理（文件不存在、JSON格式错误）"""
     # File not found
@@ -302,7 +388,9 @@ def t2_merge_error_handling(suite: TestSuite, r: TestResult):
         f.write("{invalid json")
 
     spec_path = os.path.join(suite.tmpdir, "err_spec.json")
-    _write_json(spec_path, {"meta": {}, "confirmed": {}, "inferred": [], "guardrails": {}})
+    _write_json(
+        spec_path, {"meta": {}, "confirmed": {}, "inferred": [], "guardrails": {}}
+    )
 
     result2 = merge_spec(bad_path, spec_path)
     if result2.get("status") != "error":
@@ -311,12 +399,39 @@ def t2_merge_error_handling(suite: TestSuite, r: TestResult):
 
     r.ok("File not found + invalid JSON both handled")
 
+
 def t2_apply_revisions(suite: TestSuite, r: TestResult):
     """T2.4: apply_revisions 修正流程"""
     spec = {
-        "meta": {"engine": "spec_pro", "version": "2.1.0", "spec_version": 1, "scenario": "genesis", "created_at": "2026-06-22T00:00:00", "updated_at": "", "conversation_rounds": 0, "quality_score": 0, "quality_level": "C"},
-        "confirmed": {"objective": "旧目标", "pain_points": ["旧痛点"], "success_metrics": [], "users": [], "key_scenarios": [], "capabilities": {"always_do": [], "should_do": [], "never_do": []}, "quality_attributes": [], "constraints": {}, "integration": {"existing_systems": [], "requirements": []}, "risks_and_assumptions": {"risks": [], "assumptions": [], "dependencies": []}},
-        "inferred": [], "guardrails": {"always_do": [], "ask_first": [], "never_do": []},
+        "meta": {
+            "engine": "spec_pro",
+            "version": "2.1.0",
+            "spec_version": 1,
+            "scenario": "genesis",
+            "created_at": "2026-06-22T00:00:00",
+            "updated_at": "",
+            "conversation_rounds": 0,
+            "quality_score": 0,
+            "quality_level": "C",
+        },
+        "confirmed": {
+            "objective": "旧目标",
+            "pain_points": ["旧痛点"],
+            "success_metrics": [],
+            "users": [],
+            "key_scenarios": [],
+            "capabilities": {"always_do": [], "should_do": [], "never_do": []},
+            "quality_attributes": [],
+            "constraints": {},
+            "integration": {"existing_systems": [], "requirements": []},
+            "risks_and_assumptions": {
+                "risks": [],
+                "assumptions": [],
+                "dependencies": [],
+            },
+        },
+        "inferred": [],
+        "guardrails": {"always_do": [], "ask_first": [], "never_do": []},
     }
 
     spec_path = os.path.join(suite.tmpdir, "rev_spec.json")
@@ -325,8 +440,16 @@ def t2_apply_revisions(suite: TestSuite, r: TestResult):
     confirmation = {
         "action": "revise",
         "revisions": [
-            {"dimension": "confirmed", "field": "objective", "new_value": "修正后的新目标"},
-            {"dimension": "confirmed", "field": "pain_points", "new_value": ["新痛点1", "新痛点2"]},
+            {
+                "dimension": "confirmed",
+                "field": "objective",
+                "new_value": "修正后的新目标",
+            },
+            {
+                "dimension": "confirmed",
+                "field": "pain_points",
+                "new_value": ["新痛点1", "新痛点2"],
+            },
         ],
     }
     conf_path = os.path.join(suite.tmpdir, "confirmation.json")
@@ -344,11 +467,15 @@ def t2_apply_revisions(suite: TestSuite, r: TestResult):
         r.fail(f"Objective not revised: {updated['confirmed']['objective']}")
         return
 
-    r.ok(f"Revisions applied: objective='{updated['confirmed']['objective']}', pain_points={len(updated['confirmed']['pain_points'])}")
+    r.ok(
+        f"Revisions applied: objective='{updated['confirmed']['objective']}', pain_points={len(updated['confirmed']['pain_points'])}"
+    )
+
 
 # ---------------------------------------------------------------------------
 # T3: merge_conversation_digest 累积
 # ---------------------------------------------------------------------------
+
 
 def t3_digest_accumulation(suite: TestSuite, r: TestResult):
     """T3.1: conversation_digest 多轮累积 + 去重"""
@@ -370,7 +497,10 @@ def t3_digest_accumulation(suite: TestSuite, r: TestResult):
         r.fail("summary is empty")
         return
 
-    r.ok(f"6 excerpts, summary={len(summary)} chars, full_conversation_path={digest.get('full_conversation_path')}")
+    r.ok(
+        f"6 excerpts, summary={len(summary)} chars, full_conversation_path={digest.get('full_conversation_path')}"
+    )
+
 
 def t3_digest_dedup(suite: TestSuite, r: TestResult):
     """T3.2: conversation_digest 重复 excerpt 去重"""
@@ -387,6 +517,7 @@ def t3_digest_dedup(suite: TestSuite, r: TestResult):
 
     r.ok("Duplicates correctly removed (2+2→2)")
 
+
 def t3_digest_limit(suite: TestSuite, r: TestResult):
     """T3.3: conversation_digest 上限 20 条"""
     spec = {"meta": {}, "confirmed": {}, "inferred": [], "guardrails": {}}
@@ -396,8 +527,18 @@ def t3_digest_limit(suite: TestSuite, r: TestResult):
             "conversation_digest": {
                 "summary": f"Summary round {i}",
                 "key_excerpts": [
-                    {"excerpt": f"Excerpt_{i}_A_unique_text", "dimension": "pain_points", "importance": "critical", "source_round": i},
-                    {"excerpt": f"Excerpt_{i}_B_unique_text", "dimension": "constraints", "importance": "important", "source_round": i},
+                    {
+                        "excerpt": f"Excerpt_{i}_A_unique_text",
+                        "dimension": "pain_points",
+                        "importance": "critical",
+                        "source_round": i,
+                    },
+                    {
+                        "excerpt": f"Excerpt_{i}_B_unique_text",
+                        "dimension": "constraints",
+                        "importance": "important",
+                        "source_round": i,
+                    },
                 ],
             }
         }
@@ -416,6 +557,7 @@ def t3_digest_limit(suite: TestSuite, r: TestResult):
 
     r.ok(f"Capped at {len(excerpts)} excerpts, latest round={latest_round}")
 
+
 def t3_digest_none_handling(suite: TestSuite, r: TestResult):
     """T3.4: conversation_digest None/空响应不崩溃"""
     spec = {"meta": {}, "confirmed": {}, "inferred": [], "guardrails": {}}
@@ -432,28 +574,65 @@ def t3_digest_none_handling(suite: TestSuite, r: TestResult):
 
     r.ok("Empty/None responses handled without crash")
 
+
 # ---------------------------------------------------------------------------
 # T4: Harness V2 评估
 # ---------------------------------------------------------------------------
 
+
 def _make_full_spec():
     return {
-        "meta": {"engine": "spec_pro", "version": "2.1.0", "spec_version": 1, "scenario": "genesis", "created_at": "2026-06-22T00:00:00"},
+        "meta": {
+            "engine": "spec_pro",
+            "version": "2.1.0",
+            "spec_version": 1,
+            "scenario": "genesis",
+            "created_at": "2026-06-22T00:00:00",
+        },
         "confirmed": {
             "objective": "构建一个高性能实时数据处理平台，支持每秒100万条事件流处理",
             "pain_points": ["现有系统延迟>5秒", "数据丢失率2%", "无法水平扩展"],
-            "success_metrics": [{"metric": "端到端延迟", "target": "<100ms"}, {"metric": "吞吐量", "target": "100万条/秒"}],
-            "users": [{"role": "数据工程师", "key_needs": "低延迟流处理"}, {"role": "运维", "key_needs": "自动扩缩容"}],
+            "success_metrics": [
+                {"metric": "端到端延迟", "target": "<100ms"},
+                {"metric": "吞吐量", "target": "100万条/秒"},
+            ],
+            "users": [
+                {"role": "数据工程师", "key_needs": "低延迟流处理"},
+                {"role": "运维", "key_needs": "自动扩缩容"},
+            ],
             "key_scenarios": ["实时ETL", "异常检测", "实时告警"],
-            "capabilities": {"always_do": ["毫秒级处理", "精确一次语义"], "should_do": ["自动重试"], "never_do": ["同步阻塞IO"]},
-            "quality_attributes": [{"category": "性能", "spec": "P99延迟<100ms", "priority": "P0"}, {"category": "可用性", "spec": "99.99%", "priority": "P0"}],
-            "constraints": {"platform": "AWS", "tech_stack": ["Kafka", "Flink", "Kubernetes"], "data_source": ["IoT传感器", "用户行为日志"]},
-            "integration": {"existing_systems": [{"name": "Kafka集群", "type": "message_queue"}], "requirements": ["S3兼容存储"]},
-            "risks_and_assumptions": {"risks": ["Kafka分区限制"], "assumptions": ["团队有Flink经验"], "dependencies": ["AWS Region可用"]},
+            "capabilities": {
+                "always_do": ["毫秒级处理", "精确一次语义"],
+                "should_do": ["自动重试"],
+                "never_do": ["同步阻塞IO"],
+            },
+            "quality_attributes": [
+                {"category": "性能", "spec": "P99延迟<100ms", "priority": "P0"},
+                {"category": "可用性", "spec": "99.99%", "priority": "P0"},
+            ],
+            "constraints": {
+                "platform": "AWS",
+                "tech_stack": ["Kafka", "Flink", "Kubernetes"],
+                "data_source": ["IoT传感器", "用户行为日志"],
+            },
+            "integration": {
+                "existing_systems": [{"name": "Kafka集群", "type": "message_queue"}],
+                "requirements": ["S3兼容存储"],
+            },
+            "risks_and_assumptions": {
+                "risks": ["Kafka分区限制"],
+                "assumptions": ["团队有Flink经验"],
+                "dependencies": ["AWS Region可用"],
+            },
         },
         "inferred": [],
-        "guardrails": {"always_do": ["所有写入幂等"], "ask_first": ["更改数据保留策略"], "never_do": ["使用有状态Lambda"]},
+        "guardrails": {
+            "always_do": ["所有写入幂等"],
+            "ask_first": ["更改数据保留策略"],
+            "never_do": ["使用有状态Lambda"],
+        },
     }
+
 
 def t4_harness_v2_full(suite: TestSuite, r: TestResult):
     """T4.1: Harness V2 完整评估 - 高质量 spec"""
@@ -478,7 +657,10 @@ def t4_harness_v2_full(suite: TestSuite, r: TestResult):
         return
 
     decision = result.get("decision")
-    r.ok(f"Layer 1: {result['passed']}/{result['total']} PASS, Layer 2: 2/2 PASS, decision={decision}")
+    r.ok(
+        f"Layer 1: {result['passed']}/{result['total']} PASS, Layer 2: 2/2 PASS, decision={decision}"
+    )
+
 
 def t4_semantic_gate(suite: TestSuite, r: TestResult):
     """T4.2: SemanticGate 5维度独立评估"""
@@ -496,7 +678,12 @@ def t4_semantic_gate(suite: TestSuite, r: TestResult):
         results[name] = result
 
     # completeness needs quality_report
-    qr = {"dimensions": {"clarity": {"score": 80, "weight": 0.25}, "executability": {"score": 90, "weight": 0.25}}}
+    qr = {
+        "dimensions": {
+            "clarity": {"score": 80, "weight": 0.25},
+            "executability": {"score": 90, "weight": 0.25},
+        }
+    }
     results["completeness"] = gate.check_completeness(qr)
 
     all_pass = all(v.score >= 40 for v in results.values())
@@ -508,6 +695,7 @@ def t4_semantic_gate(suite: TestSuite, r: TestResult):
         return
 
     r.ok(f"Scores: {scores}")
+
 
 def t4_inference_gate(suite: TestSuite, r: TestResult):
     """T4.3: InferenceAuditGate 推断审计"""
@@ -528,13 +716,17 @@ def t4_inference_gate(suite: TestSuite, r: TestResult):
         return
 
     # Case 3: dict format with pending key
-    spec3 = {"inferred": {"pending": [{"id": i} for i in range(2)], "rejected": []}, "confirmed": {}}
+    spec3 = {
+        "inferred": {"pending": [{"id": i} for i in range(2)], "rejected": []},
+        "confirmed": {},
+    }
     result3 = gate.check(spec3)
     if result3.decision != "PASS":
         r.fail(f"2 pending should PASS, got {result3.decision}")
         return
 
     r.ok("Empty=PASS, 5pending=WARN, dict_format=PASS")
+
 
 def t4_v1_compat(suite: TestSuite, r: TestResult):
     """T4.4: V1 spec（无 conversation_digest）不崩溃"""
@@ -552,15 +744,22 @@ def t4_v1_compat(suite: TestSuite, r: TestResult):
 
     r.ok(f"V1 spec handled: {result['passed']}/{result['total']} checks passed")
 
+
 # ---------------------------------------------------------------------------
 # T5: spec_context 下游消费
 # ---------------------------------------------------------------------------
 
+
 def t5_living_spec_context(suite: TestSuite, r: TestResult):
     """T5.1: build_living_spec_context 上下文构建"""
     spec = _make_full_spec()
-    spec["solution_pro_hints"] = {"focus_areas": [{"area": "低延迟", "weight": 0.9}], "anti_patterns": ["同步处理"]}
-    spec["confirmed"]["user_directives"] = [{"directive": "d1", "dimension": "compliance", "content": "GDPR合规"}]
+    spec["solution_pro_hints"] = {
+        "focus_areas": [{"area": "低延迟", "weight": 0.9}],
+        "anti_patterns": ["同步处理"],
+    }
+    spec["confirmed"]["user_directives"] = [
+        {"directive": "d1", "dimension": "compliance", "content": "GDPR合规"}
+    ]
 
     ctx = build_living_spec_context(spec)
 
@@ -569,6 +768,7 @@ def t5_living_spec_context(suite: TestSuite, r: TestResult):
         return
 
     r.ok(f"Context keys: {list(ctx.keys())[:5]}")
+
 
 def t5_digest_for_prompt(suite: TestSuite, r: TestResult):
     """T5.2: build_conversation_digest_for_prompt prompt 格式"""
@@ -594,6 +794,7 @@ def t5_digest_for_prompt(suite: TestSuite, r: TestResult):
 
     r.ok(f"Prompt text: {len(text)} chars, has summary + excerpts + markers")
 
+
 def t5_digest_for_prompt_none(suite: TestSuite, r: TestResult):
     """T5.3: build_conversation_digest_for_prompt(None) → 空字符串"""
     text = build_conversation_digest_for_prompt(None)
@@ -608,11 +809,17 @@ def t5_digest_for_prompt_none(suite: TestSuite, r: TestResult):
 
     r.ok("None and empty dict both return ''")
 
+
 def t5_worker_context(suite: TestSuite, r: TestResult):
     """T5.4: build_worker_context_section 完整 Worker 上下文"""
     spec = _make_full_spec()
-    spec["confirmed"]["user_directives"] = [{"directive": "d1", "dimension": "compliance", "content": "GDPR"}]
-    spec["solution_pro_hints"] = {"focus_areas": [{"area": "低延迟", "weight": 0.9}], "anti_patterns": ["同步处理"]}
+    spec["confirmed"]["user_directives"] = [
+        {"directive": "d1", "dimension": "compliance", "content": "GDPR"}
+    ]
+    spec["solution_pro_hints"] = {
+        "focus_areas": [{"area": "低延迟", "weight": 0.9}],
+        "anti_patterns": ["同步处理"],
+    }
     merge_conversation_digest(spec, _make_response(1))
 
     for role in ["planner", "researcher", "reviewer", "auditor", "fixer"]:
@@ -623,11 +830,17 @@ def t5_worker_context(suite: TestSuite, r: TestResult):
 
     r.ok("All 5 roles got proper context sections")
 
+
 def t5_worker_context_guardrails(suite: TestSuite, r: TestResult):
     """T5.5: Worker context 包含 guardrails + conversation_digest"""
     spec = _make_full_spec()
-    spec["confirmed"]["user_directives"] = [{"directive": "d1", "dimension": "x", "content": "test"}]
-    spec["solution_pro_hints"] = {"focus_areas": [{"area": "test", "weight": 0.5}], "anti_patterns": []}
+    spec["confirmed"]["user_directives"] = [
+        {"directive": "d1", "dimension": "x", "content": "test"}
+    ]
+    spec["solution_pro_hints"] = {
+        "focus_areas": [{"area": "test", "weight": 0.5}],
+        "anti_patterns": [],
+    }
     merge_conversation_digest(spec, _make_response(1))
 
     text = build_worker_context_section(spec, "planner")
@@ -644,9 +857,11 @@ def t5_worker_context_guardrails(suite: TestSuite, r: TestResult):
 
     r.ok("guardrails + conversation_digest both present in worker context")
 
+
 # ---------------------------------------------------------------------------
 # T6: response_normalizer 格式适配
 # ---------------------------------------------------------------------------
+
 
 def t6_normalize_v2(suite: TestSuite, r: TestResult):
     """T6.1: normalize_response V2 格式"""
@@ -668,6 +883,7 @@ def t6_normalize_v2(suite: TestSuite, r: TestResult):
 
     r.ok("V2 format preserved correctly")
 
+
 def t6_normalize_v1(suite: TestSuite, r: TestResult):
     """T6.2: normalize_response V1→V2 转换不崩溃"""
     # V1 format: updates is a list of dicts
@@ -684,14 +900,18 @@ def t6_normalize_v1(suite: TestSuite, r: TestResult):
         if "parsed_updates" not in normalized:
             r.fail(f"Missing parsed_updates, keys={list(normalized.keys())}")
             return
-        r.ok(f"V1→V2 converted, keys={list(normalized['parsed_updates'].keys())[:3]}, warnings={len(warnings)}")
+        r.ok(
+            f"V1→V2 converted, keys={list(normalized['parsed_updates'].keys())[:3]}, warnings={len(warnings)}"
+        )
     except Exception as e:
         # V1 conversion may be strict; just verify it doesn't crash unexpectedly
         r.ok(f"V1 conversion raised {type(e).__name__} (acceptable for edge case)")
 
+
 def t6_normalize_empty(suite: TestSuite, r: TestResult):
     """T6.3: normalize_response 空/无效输入 → 抛出异常（预期行为）"""
     from domains.spec_pro.response_normalizer import ResponseFormatError
+
     try:
         normalized, warnings = normalize_response({})
         r.fail("Empty dict should raise ResponseFormatError")
@@ -700,9 +920,11 @@ def t6_normalize_empty(suite: TestSuite, r: TestResult):
     except Exception as e:
         r.ok(f"Empty dict raises {type(e).__name__} (acceptable)")
 
+
 # ---------------------------------------------------------------------------
 # T7: 边界场景
 # ---------------------------------------------------------------------------
+
 
 def t7_empty_spec(suite: TestSuite, r: TestResult):
     """T7.1: 空 spec 不崩溃"""
@@ -717,11 +939,17 @@ def t7_empty_spec(suite: TestSuite, r: TestResult):
 
     r.ok(f"Empty spec handled: decision={result.get('decision')}")
 
+
 def t7_large_spec(suite: TestSuite, r: TestResult):
     """T7.2: 大规模 spec（50 pain_points, 30 scenarios）"""
     spec = _make_full_spec()
-    spec["confirmed"]["pain_points"] = [f"痛点{i}: 用户反馈系统在高峰期间响应缓慢，导致客户满意度下降" for i in range(50)]
-    spec["confirmed"]["key_scenarios"] = [f"场景{i}: 当用户提交订单后系统需要在30秒内完成全流程处理" for i in range(30)]
+    spec["confirmed"]["pain_points"] = [
+        f"痛点{i}: 用户反馈系统在高峰期间响应缓慢，导致客户满意度下降"
+        for i in range(50)
+    ]
+    spec["confirmed"]["key_scenarios"] = [
+        f"场景{i}: 当用户提交订单后系统需要在30秒内完成全流程处理" for i in range(30)
+    ]
 
     spec_path = os.path.join(suite.tmpdir, "large.json")
     _write_json(spec_path, spec)
@@ -731,13 +959,20 @@ def t7_large_spec(suite: TestSuite, r: TestResult):
         r.fail("Large spec should return checks")
         return
 
-    r.ok(f"Large spec (50 pain_points, 30 scenarios): {result['passed']}/{result['total']}")
+    r.ok(
+        f"Large spec (50 pain_points, 30 scenarios): {result['passed']}/{result['total']}"
+    )
+
 
 def t7_chinese_content(suite: TestSuite, r: TestResult):
     """T7.3: 中文内容正确处理"""
     spec = _make_full_spec()
     spec["confirmed"]["objective"] = "构建一个支持中文自然语言处理的智能客服系统"
-    spec["confirmed"]["pain_points"] = ["客户投诉响应时间过长", "多语言支持不足", "人工坐席成本高昂"]
+    spec["confirmed"]["pain_points"] = [
+        "客户投诉响应时间过长",
+        "多语言支持不足",
+        "人工坐席成本高昂",
+    ]
 
     spec_path = os.path.join(suite.tmpdir, "chinese.json")
     _write_json(spec_path, spec)
@@ -750,7 +985,12 @@ def t7_chinese_content(suite: TestSuite, r: TestResult):
         "conversation_digest": {
             "summary": "用户描述了一个中文客服系统的核心需求，重点关注响应速度和成本控制",
             "key_excerpts": [
-                {"excerpt": "每天处理3000+中文工单", "dimension": "pain_points", "importance": "critical", "source_round": 1},
+                {
+                    "excerpt": "每天处理3000+中文工单",
+                    "dimension": "pain_points",
+                    "importance": "critical",
+                    "source_round": 1,
+                },
             ],
         }
     }
@@ -763,9 +1003,11 @@ def t7_chinese_content(suite: TestSuite, r: TestResult):
 
     r.ok("Chinese content preserved throughout pipeline")
 
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main():
     print("=" * 70)
@@ -832,6 +1074,7 @@ def main():
         print("=" * 70)
 
     return 0 if all_pass else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

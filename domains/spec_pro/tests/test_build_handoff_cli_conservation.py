@@ -12,7 +12,7 @@ import sys as _sys
 from pathlib import Path as _Path
 
 _p = _Path(__file__).resolve()
-_r = next((d for d in _p.parents if (d / 'core' / 'blackboard').is_dir()), None)
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 if _r and str(_r) not in _sys.path:
     _sys.path.insert(0, str(_r))
 
@@ -38,7 +38,12 @@ def _create_session_dir(tmpdir: str) -> "Path":
         "narrative": "Test narrative that needs to be at least twenty characters long to pass",
         "semantic_anchors": [],
         "requirement_index": [
-            {"id": "REQ-CAP-001", "element": "核心功能", "type": "capability", "verified": True}
+            {
+                "id": "REQ-CAP-001",
+                "element": "核心功能",
+                "type": "capability",
+                "verified": True,
+            }
         ],
         "meta": {
             "created_at": datetime.now().isoformat(),
@@ -90,7 +95,9 @@ class TestConservationGateFailClosed:
                 "must_missing": [{"id": "E1", "element": "关键功能"}],
                 "elements": [],
             }
-            (sd / "spec" / "input_conservation_gate.json").write_text(json.dumps(gate_data))
+            (sd / "spec" / "input_conservation_gate.json").write_text(
+                json.dumps(gate_data)
+            )
             result = _run_cli(sd)
             assert result.returncode == 1
             assert "BLOCKED" in result.stderr
@@ -105,10 +112,17 @@ class TestConservationGateFailClosed:
                 "conservation_rate": 1.0,
                 "must_missing": [],
                 "elements": [
-                    {"id": "E1", "element": "关键功能", "criticality": "MUST", "status": "MISSING"}
+                    {
+                        "id": "E1",
+                        "element": "关键功能",
+                        "criticality": "MUST",
+                        "status": "MISSING",
+                    }
                 ],
             }
-            (sd / "spec" / "input_conservation_gate.json").write_text(json.dumps(gate_data))
+            (sd / "spec" / "input_conservation_gate.json").write_text(
+                json.dumps(gate_data)
+            )
             result = _run_cli(sd)
             assert result.returncode == 1
             assert "BLOCKED" in result.stderr
@@ -123,10 +137,17 @@ class TestConservationGateFailClosed:
                 "conservation_rate": 1.0,
                 "must_missing": [],
                 "elements": [
-                    {"id": "E1", "element": "关键功能", "criticality": "MUST", "status": "COVERED"}
+                    {
+                        "id": "E1",
+                        "element": "关键功能",
+                        "criticality": "MUST",
+                        "status": "COVERED",
+                    }
                 ],
             }
-            (sd / "spec" / "input_conservation_gate.json").write_text(json.dumps(gate_data))
+            (sd / "spec" / "input_conservation_gate.json").write_text(
+                json.dumps(gate_data)
+            )
             result = _run_cli(sd)
             assert result.returncode == 0
             assert "CONSERVATION_GATE_PASS" in result.stdout
@@ -143,6 +164,7 @@ class TestInitSessionRawUserInput:
         with tempfile.TemporaryDirectory() as tmpdir:
             # 切换到临时目录以避免创建真实 session
             import os
+
             orig_cwd = os.getcwd()
             try:
                 os.chdir(tmpdir)
@@ -160,7 +182,9 @@ class TestInitSessionRawUserInput:
                 # 验证 raw_user_input.txt 被写入
                 session_dir = Path(result["base_path"])
                 raw_input_path = session_dir / "data" / "raw_user_input.txt"
-                assert raw_input_path.exists(), f"raw_user_input.txt 未被写入: {raw_input_path}"
+                assert raw_input_path.exists(), (
+                    f"raw_user_input.txt 未被写入: {raw_input_path}"
+                )
                 assert raw_input_path.read_text(encoding="utf-8") == user_input
             finally:
                 os.chdir(orig_cwd)

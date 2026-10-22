@@ -1,7 +1,11 @@
 """URL 安全验证工具测试。"""
+
 import core.bootstrap
 import unittest
-from domains.research_pro.url_utils import validate_safe_url, _is_private_or_disallowed_host
+from domains.research_pro.url_utils import (
+    validate_safe_url,
+    _is_private_or_disallowed_host,
+)
 
 
 class TestValidateSafeUrl(unittest.TestCase):

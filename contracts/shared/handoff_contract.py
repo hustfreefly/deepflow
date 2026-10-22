@@ -20,6 +20,7 @@ class DensityGateResult(BaseModel):
 
     嵌套在 HandoffPackage 中，确保 density_gate_result 结构合法。
     """
+
     passed: bool
     issues: List[str] = Field(default_factory=list)
 
@@ -41,6 +42,7 @@ class HandoffPackage(BaseModel):
       1. living_spec 不可为空
       2. handoff_allowed=False 时必须有 block_reason
     """
+
     schema_version: str = "2.0.0"
     handoff_allowed: bool
     living_spec: Dict[str, Any]
@@ -60,12 +62,16 @@ class HandoffPackage(BaseModel):
 
     @field_validator("semantic_anchors")
     @classmethod
-    def validate_semantic_anchor_dicts(cls, v: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def validate_semantic_anchor_dicts(
+        cls, v: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """契约铁律：每个 semantic anchor dict 必须有 name/category/constraint 字段"""
         required_keys = {"name", "category", "constraint"}
         for i, anchor in enumerate(v):
             if not isinstance(anchor, dict):
-                raise ValueError(f"semantic_anchors[{i}] 必须是 dict，实际类型: {type(anchor).__name__}")
+                raise ValueError(
+                    f"semantic_anchors[{i}] 必须是 dict，实际类型: {type(anchor).__name__}"
+                )
             missing = required_keys - set(anchor.keys())
             if missing:
                 raise ValueError(

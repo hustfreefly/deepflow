@@ -129,8 +129,7 @@ class EntryHarness:
         supported_domains = ["code", "general"]
         if domain not in supported_domains:
             raise ValueError(
-                f"Unsupported domain: '{domain}'. "
-                f"Supported: {supported_domains}"
+                f"Unsupported domain: '{domain}'. Supported: {supported_domains}"
             )
 
         # 检查领域配置目录存在
@@ -188,6 +187,7 @@ class EntryHarness:
         else:
             # 通用 domain
             import uuid
+
             topic = context.get("topic", "unknown")
             safe_topic = "".join(c for c in topic if c.isalnum() or c in "_- ")[:20]
             session_id = f"{domain}_{safe_topic}_{uuid.uuid4().hex[:8]}"
@@ -215,7 +215,9 @@ class EntryHarness:
         # P0-3 修复: 直接复用已有的 session_id
         session_id = context.get("session_id")
         if not session_id:
-            raise ValueError("session_id must be set in context before _generate_execution_plan")
+            raise ValueError(
+                "session_id must be set in context before _generate_execution_plan"
+            )
         session_dir = _DEEPFLOW_BASE / "blackboard" / session_id
 
         if domain == "solution_pro":
@@ -274,6 +276,7 @@ class EntryHarness:
 # ============================================================================
 # 便捷函数
 # ============================================================================
+
 
 def start_pipeline(
     domain: str,

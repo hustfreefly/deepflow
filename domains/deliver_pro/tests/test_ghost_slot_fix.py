@@ -35,6 +35,7 @@ from domains.deliver_pro.tests.test_pulse import (  # noqa: F401  (复用 helper
 # Fixtures（test_pulse.py 的 fixture 不跨模块可见，此处复制定义）
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def ship_package_data():
     return {
@@ -62,6 +63,7 @@ def mock_blackboard(tmp_path, ship_package_data):
 # F1a: budget=0 分支清理孤儿目录
 # ---------------------------------------------------------------------------
 
+
 class TestBudgetZeroNoOrphans:
     def test_budget_zero_leaves_no_orphan_dirs(self, mock_blackboard):
         """budget=0 时 params 已构建（mkdir 副作用）→ 必须清理空目录。"""
@@ -84,17 +86,31 @@ class TestBudgetZeroNoOrphans:
                     "mode": "run",
                 }
 
-            driver.orch._prepare_single_worker_spawn.side_effect = _build_with_side_effect
+            driver.orch._prepare_single_worker_spawn.side_effect = (
+                _build_with_side_effect
+            )
             driver.step3_workers.return_value = [
-                {"task_id": "T-001", "label": "deliver-worker-aaa-001-t-001", "task": "x", "mode": "run"},
-                {"task_id": "T-002", "label": "deliver-worker-aaa-001-t-002", "task": "x", "mode": "run"},
+                {
+                    "task_id": "T-001",
+                    "label": "deliver-worker-aaa-001-t-001",
+                    "task": "x",
+                    "mode": "run",
+                },
+                {
+                    "task_id": "T-002",
+                    "label": "deliver-worker-aaa-001-t-002",
+                    "task": "x",
+                    "mode": "run",
+                },
             ]
             # 手工造出 params 构建时的副作用目录（模拟真实 driver 行为）
             (wo / "T-001").mkdir(parents=True, exist_ok=True)
             (wo / "T-002").mkdir(parents=True, exist_ok=True)
 
-            with patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_count_in_flight", return_value=99):  # budget=0
+            with (
+                patch.object(orch, "_get_driver", return_value=driver),
+                patch.object(orch, "_count_in_flight", return_value=99),
+            ):  # budget=0
                 report = orch.pulse()
 
             assert report["summary"]["in_flight"] == 99
@@ -106,6 +122,7 @@ class TestBudgetZeroNoOrphans:
 # ---------------------------------------------------------------------------
 # F1b: 无记录孤儿空目录 sweep
 # ---------------------------------------------------------------------------
+
 
 class TestRecordlessOrphanSweep:
     def test_recordless_empty_dir_swept_after_grace(self, mock_blackboard):
@@ -120,6 +137,7 @@ class TestRecordlessOrphanSweep:
             # 把 mtime 调到 10 分钟前（超过 5min 宽限）
             old = time.time() - 600
             import os
+
             os.utime(orphan, (old, old))
 
             orch._orphan_sweep()
@@ -152,6 +170,7 @@ class TestRecordlessOrphanSweep:
             productive.mkdir(parents=True)
             (productive / "output.md").write_text("real output")
             import os
+
             old = time.time() - 600
             os.utime(productive, (old, old))
 
@@ -163,13 +182,12 @@ class TestRecordlessOrphanSweep:
 # F2: 非 worker dispatch 证据化计数
 # ---------------------------------------------------------------------------
 
+
 class TestEvidenceBasedInFlight:
     def test_analyze_evidence_releases_slot(self, mock_blackboard):
         """analyze confirmed + execution_plan.json 存在 → 不计 in_flight。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(
-                bb_root, project, "AAA-001", ["T-001"]
-            )
+            stages = _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
             # plan 已存在（_setup_generating_wp 已写）= analyze 完成证据
             orch.progress["AAA-001"] = {
                 "last_spawned_action": "analyze",
@@ -182,17 +200,19 @@ class TestEvidenceBasedInFlight:
     def test_validate_evidence_releases_slot(self, mock_blackboard):
         """validate confirmed + validation_result.json 存在 → 不计。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(
-                bb_root, project, "AAA-001", ["T-001"]
+            stages = _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
+            (stages / "validation_result.json").write_text(
+                json.dumps({"verdict": "PASS"})
             )
-            (stages / "validation_result.json").write_text(json.dumps({"verdict": "PASS"}))
             orch.progress["AAA-001"] = {
                 "last_spawned_action": "validate",
                 "last_spawned_at": time.time(),
                 "dispatch_confirmed": True,
             }
             n = orch._count_in_flight()
-            assert n == 0, f"validation_result 存在时 validate dispatch 不应计数，got {n}"
+            assert n == 0, (
+                f"validation_result 存在时 validate dispatch 不应计数，got {n}"
+            )
 
     def test_no_evidence_still_counts(self, mock_blackboard):
         """无证据文件 + 未超时 → 仍计数（agent 可能还在跑）。"""
@@ -209,22 +229,25 @@ class TestEvidenceBasedInFlight:
     def test_package_evidence_releases_slot(self, mock_blackboard):
         """package confirmed + delivery_manifest.json 存在 → 不计。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(
-                bb_root, project, "AAA-001", ["T-001"]
+            stages = _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
+            (stages / "delivery_manifest.json").write_text(
+                json.dumps({"status": "DONE"})
             )
-            (stages / "delivery_manifest.json").write_text(json.dumps({"status": "DONE"}))
             orch.progress["AAA-001"] = {
                 "last_spawned_action": "package",
                 "last_spawned_at": time.time(),
                 "dispatch_confirmed": True,
             }
             n = orch._count_in_flight()
-            assert n == 0, f"delivery_manifest 存在时 package dispatch 不应计数，got {n}"
+            assert n == 0, (
+                f"delivery_manifest 存在时 package dispatch 不应计数，got {n}"
+            )
 
 
 # ---------------------------------------------------------------------------
 # F3a: GENERATING 分支级联守卫
 # ---------------------------------------------------------------------------
+
 
 class TestCascadeGuardGenerating:
     def test_all_done_blocked_by_retriable_timed_out(self, mock_blackboard):
@@ -241,8 +264,9 @@ class TestCascadeGuardGenerating:
             with patch.object(orch, "_get_driver", return_value=driver):
                 action = orch._get_wp_next_action("AAA-001")
             # F3a：应被拦截，走 spawn_workers（重试）而非 assemble
-            assert action["action"] == "spawn_workers", \
+            assert action["action"] == "spawn_workers", (
                 f"F3a 应拦截 assemble，got {action['action']}"
+            )
 
     def test_all_done_passes_when_no_retriable(self, mock_blackboard):
         """all_done=True 且无 retriable timed_out → 正常 assemble。"""
@@ -255,8 +279,9 @@ class TestCascadeGuardGenerating:
             orch.progress["AAA-001"] = {}
             with patch.object(orch, "_get_driver", return_value=driver):
                 action = orch._get_wp_next_action("AAA-001")
-            assert action["action"] == "assemble", \
+            assert action["action"] == "assemble", (
                 f"无 retriable 时应正常 assemble，got {action['action']}"
+            )
 
     def test_manifest_failed_no_deadlock(self, mock_blackboard):
         """MANIFEST-FAILED 任务不触发守卫（防死锁回归）——只查 timed_out 子集。"""
@@ -267,11 +292,16 @@ class TestCascadeGuardGenerating:
             # T-002 写 MANIFEST FAILED（真跑过但失败）——不是 timed_out
             t2 = stages / "worker_outputs" / "T-002"
             t2.mkdir(parents=True, exist_ok=True)
-            (t2 / "MANIFEST.json").write_text(json.dumps({
-                "task_id": "T-002", "status": "FAILED",
-                "failure_reason": "real worker failure",
-                "completed_at": time.time(),
-            }))
+            (t2 / "MANIFEST.json").write_text(
+                json.dumps(
+                    {
+                        "task_id": "T-002",
+                        "status": "FAILED",
+                        "failure_reason": "real worker failure",
+                        "completed_at": time.time(),
+                    }
+                )
+            )
             driver = _mock_driver_for_retry(
                 bb_root, project, "AAA-001", ["T-001", "T-002"], timed_out=()
             )
@@ -280,13 +310,15 @@ class TestCascadeGuardGenerating:
             with patch.object(orch, "_get_driver", return_value=driver):
                 action = orch._get_wp_next_action("AAA-001")
             # MANIFEST-FAILED 不归 retry 管 → 守卫不触发 → 正常 assemble（不死锁）
-            assert action["action"] == "assemble", \
+            assert action["action"] == "assemble", (
                 f"MANIFEST-FAILED 不应触发守卫（死锁），got {action['action']}"
+            )
 
 
 # ---------------------------------------------------------------------------
 # F3c: 终态写入前守卫（PACKAGING 分支）
 # ---------------------------------------------------------------------------
+
 
 class TestTerminalWriteGuard:
     def test_packaging_blocked_by_unexecuted_tasks(self, mock_blackboard):
@@ -307,11 +339,14 @@ class TestTerminalWriteGuard:
                 "failure_reasons": {},
             }
             orch.progress["AAA-001"] = {"phase": "PACKAGING"}
-            with patch.object(orch, "_check_wp_phase", return_value="PACKAGING"), \
-                 patch.object(orch, "_get_driver", return_value=driver):
+            with (
+                patch.object(orch, "_check_wp_phase", return_value="PACKAGING"),
+                patch.object(orch, "_get_driver", return_value=driver),
+            ):
                 action = orch._get_wp_next_action("AAA-001")
-            assert action["action"] == "spawn_workers", \
+            assert action["action"] == "spawn_workers", (
                 f"F3c 应拦截 package 回退重跑，got {action['action']}"
+            )
 
     def test_packaging_passes_when_all_executed(self, mock_blackboard):
         """所有任务都有执行证据 → 正常 package。"""
@@ -331,16 +366,20 @@ class TestTerminalWriteGuard:
             }
             driver.step7_package.return_value = {"task": "package it", "mode": "run"}
             orch.progress["AAA-001"] = {"phase": "PACKAGING"}
-            with patch.object(orch, "_check_wp_phase", return_value="PACKAGING"), \
-                 patch.object(orch, "_get_driver", return_value=driver):
+            with (
+                patch.object(orch, "_check_wp_phase", return_value="PACKAGING"),
+                patch.object(orch, "_get_driver", return_value=driver),
+            ):
                 action = orch._get_wp_next_action("AAA-001")
-            assert action["action"] == "package", \
+            assert action["action"] == "package", (
                 f"全部执行完应正常 package，got {action['action']}"
+            )
 
 
 # ---------------------------------------------------------------------------
 # F5: label WP 前缀 + confirm 解析
 # ---------------------------------------------------------------------------
+
 
 class TestLabelWpPrefix:
     def test_confirm_rollback_with_wp_prefixed_label(self, mock_blackboard):
@@ -353,10 +392,22 @@ class TestLabelWpPrefix:
                 "task_attempts": {"T-001": 1, "T-002": 1},
                 "task_spawned_at": {"T-001": time.time(), "T-002": time.time()},
             }
-            out = orch.confirm_dispatches([
-                {"wp_id": "AAA-001", "label": "deliver-worker-aaa-001-t-001", "ok": True, "error": None},
-                {"wp_id": "AAA-001", "label": "deliver-worker-aaa-001-t-002", "ok": False, "error": "429"},
-            ])
+            out = orch.confirm_dispatches(
+                [
+                    {
+                        "wp_id": "AAA-001",
+                        "label": "deliver-worker-aaa-001-t-001",
+                        "ok": True,
+                        "error": None,
+                    },
+                    {
+                        "wp_id": "AAA-001",
+                        "label": "deliver-worker-aaa-001-t-002",
+                        "ok": False,
+                        "error": "429",
+                    },
+                ]
+            )
             assert out["confirmed"] == 1
             assert out["rolled_back"] == 1
             entry = orch.progress["AAA-001"]
@@ -372,9 +423,16 @@ class TestLabelWpPrefix:
                 "last_spawned_at": time.time(),
                 "dispatch_confirmed": False,
             }
-            out = orch.confirm_dispatches([
-                {"wp_id": "AAA-001", "label": "deliver-worker-t-002", "ok": False, "error": "429"},
-            ])
+            out = orch.confirm_dispatches(
+                [
+                    {
+                        "wp_id": "AAA-001",
+                        "label": "deliver-worker-t-002",
+                        "ok": False,
+                        "error": "429",
+                    },
+                ]
+            )
             assert out["rolled_back"] == 1
             entry = orch.progress["AAA-001"]
             assert "T-002" not in entry.get("last_spawned_action", "")

@@ -12,13 +12,20 @@ from unittest.mock import MagicMock
 import pytest
 
 import pytest
+
 pytestmark = pytest.mark.skip(reason="core.data module removed")
 
 try:
     from core.data.data_manager import (
-        DataProvider, DataQuery, DataResult, DataRequest, DataFinding,
-        ProviderRegistry, ConfigDrivenCollector, DataEvolutionLoop,
-        ConditionEvaluator
+        DataProvider,
+        DataQuery,
+        DataResult,
+        DataRequest,
+        DataFinding,
+        ProviderRegistry,
+        ConfigDrivenCollector,
+        DataEvolutionLoop,
+        ConditionEvaluator,
     )
 except ImportError:
     pass
@@ -27,6 +34,7 @@ except ImportError:
 # ============================================================
 # Fixtures
 # ============================================================
+
 
 @pytest.fixture
 def temp_dir():
@@ -47,7 +55,7 @@ def mock_provider():
         def fetch(self, query: DataQuery) -> DataResult:
             return DataResult(
                 data={"mock_key": "mock_value", "query": query.source_id},
-                metadata={"source": "mock"}
+                metadata={"source": "mock"},
             )
 
         def validate_finding(self, finding: DataFinding) -> bool:
@@ -89,6 +97,7 @@ dynamic_rules:
 # Test DataProvider Interface
 # ============================================================
 
+
 class TestDataProvider:
     def test_interface_is_abstract(self):
         """DataProvider 是抽象类，不能直接实例化"""
@@ -106,6 +115,7 @@ class TestDataProvider:
 # ============================================================
 # Test ProviderRegistry
 # ============================================================
+
 
 class TestProviderRegistry:
     def setup_method(self):
@@ -130,45 +140,48 @@ class TestProviderRegistry:
 # Test ConditionEvaluator
 # ============================================================
 
+
 class TestConditionEvaluator:
     def test_string_eq(self):
         result = ConditionEvaluator.evaluate(
             "data_request.type == 'competitor'",
-            {"data_request": {"type": "competitor"}}
+            {"data_request": {"type": "competitor"}},
         )
         assert result == True
 
     def test_string_neq(self):
         result = ConditionEvaluator.evaluate(
-            "data_request.type == 'competitor'",
-            {"data_request": {"type": "other"}}
+            "data_request.type == 'competitor'", {"data_request": {"type": "other"}}
         )
         assert result == False
 
     def test_dict_eq(self):
         result = ConditionEvaluator.evaluate(
-            {"eq": ["data_request.type", "test"]},
-            {"data_request": {"type": "test"}}
+            {"eq": ["data_request.type", "test"]}, {"data_request": {"type": "test"}}
         )
         assert result == True
 
     def test_dict_and(self):
         result = ConditionEvaluator.evaluate(
-            {"and": [
-                {"eq": ["a", 1]},
-                {"eq": ["b", 2]},
-            ]},
-            {"a": 1, "b": 2}
+            {
+                "and": [
+                    {"eq": ["a", 1]},
+                    {"eq": ["b", 2]},
+                ]
+            },
+            {"a": 1, "b": 2},
         )
         assert result == True
 
     def test_dict_or(self):
         result = ConditionEvaluator.evaluate(
-            {"or": [
-                {"eq": ["a", 1]},
-                {"eq": ["a", 2]},
-            ]},
-            {"a": 2}
+            {
+                "or": [
+                    {"eq": ["a", 1]},
+                    {"eq": ["a", 2]},
+                ]
+            },
+            {"a": 2},
         )
         assert result == True
 
@@ -176,6 +189,7 @@ class TestConditionEvaluator:
 # ============================================================
 # Test ConfigDrivenCollector
 # ============================================================
+
 
 class TestConfigDrivenCollector:
     def test_load_config(self, sample_config):
@@ -217,6 +231,7 @@ class TestConfigDrivenCollector:
 # Test DataEvolutionLoop
 # ============================================================
 
+
 class TestDataEvolutionLoop:
     def test_bootstrap_phase(self, mock_blackboard, mock_provider, sample_config):
         ProviderRegistry.register("mock_provider", mock_provider)
@@ -235,8 +250,13 @@ class TestDataEvolutionLoop:
             {
                 "agent_role": "analyst",
                 "data_requests": [
-                    {"type": "competitor", "query": "华峰测控", "priority": "high", "reason": "对比"},
-                ]
+                    {
+                        "type": "competitor",
+                        "query": "华峰测控",
+                        "priority": "high",
+                        "reason": "对比",
+                    },
+                ],
             }
         ]
 
@@ -249,8 +269,18 @@ class TestDataEvolutionLoop:
         loop = DataEvolutionLoop(collector, mock_blackboard, ProviderRegistry)
 
         agent_outputs = [
-            {"agent_role": "A", "data_requests": [{"type": "news", "query": "AI", "priority": "high", "reason": "x"}]},
-            {"agent_role": "B", "data_requests": [{"type": "news", "query": "AI", "priority": "medium", "reason": "y"}]},
+            {
+                "agent_role": "A",
+                "data_requests": [
+                    {"type": "news", "query": "AI", "priority": "high", "reason": "x"}
+                ],
+            },
+            {
+                "agent_role": "B",
+                "data_requests": [
+                    {"type": "news", "query": "AI", "priority": "medium", "reason": "y"}
+                ],
+            },
         ]
 
         requests = loop.collect_requests(agent_outputs)
@@ -274,7 +304,7 @@ class TestDataEvolutionLoop:
                         "source": "https://example.com",
                         "confidence": 0.85,
                     }
-                }
+                },
             }
         ]
 
@@ -305,6 +335,7 @@ class TestDataEvolutionLoop:
 # ============================================================
 # Test DataFinding Validation
 # ============================================================
+
 
 class TestDataFindingValidation:
     def test_valid_finding(self, mock_provider):
@@ -345,6 +376,7 @@ class TestDataFindingValidation:
 # Test P0-2: YAML depends_on Mechanism
 # ============================================================
 
+
 class TestDependsOnMechanism:
     def test_get_task_dependencies(self, temp_dir):
         """P0-2: 获取任务依赖关系"""
@@ -363,7 +395,7 @@ bootstrap:
 """)
         collector = ConfigDrivenCollector(str(config_file))
         deps = collector.get_task_dependencies()
-        
+
         assert deps["task_a"] == []
         assert deps["task_b"] == ["task_a"]
         assert deps["task_c"] == ["task_a", "task_b"]
@@ -381,7 +413,7 @@ bootstrap:
 """)
         collector = ConfigDrivenCollector(str(config_file))
         order = collector.get_execution_order()
-        
+
         assert len(order) == 2
         assert set(order) == {"first", "second"}
 
@@ -399,7 +431,7 @@ bootstrap:
 """)
         collector = ConfigDrivenCollector(str(config_file))
         order = collector.get_execution_order()
-        
+
         assert order.index("base") < order.index("dependent")
 
     def test_circular_dependency_detection(self, temp_dir):
@@ -424,6 +456,7 @@ bootstrap:
 # Test P0-3: Summary Template Fault Tolerance
 # ============================================================
 
+
 class TestSummaryTemplates:
     def test_render_template_with_all_vars(self, temp_dir):
         """P0-3: 渲染模板，所有变量都存在"""
@@ -436,11 +469,11 @@ summary_templates:
     Value: {{ data.value | default('N/A') }}
 """)
         collector = ConfigDrivenCollector(str(config_file))
-        
-        result = collector.render_summary_template("test_summary", {
-            "data": {"name": "Test", "value": 100}
-        })
-        
+
+        result = collector.render_summary_template(
+            "test_summary", {"data": {"name": "Test", "value": 100}}
+        )
+
         assert "Name: Test" in result
         assert "Value: 100" in result
 
@@ -455,9 +488,9 @@ summary_templates:
     Value: {{ data.value | default('未知') }}
 """)
         collector = ConfigDrivenCollector(str(config_file))
-        
+
         result = collector.render_summary_template("test_summary", {})
-        
+
         assert "Name: N/A" in result
         assert "Value: 未知" in result
 
@@ -471,11 +504,11 @@ summary_templates:
     Industry: {{ financials.industry | default('未知行业') }}
 """)
         collector = ConfigDrivenCollector(str(config_file))
-        
-        result = collector.render_summary_template("test_summary", {
-            "financials": {"industry": "Technology"}
-        })
-        
+
+        result = collector.render_summary_template(
+            "test_summary", {"financials": {"industry": "Technology"}}
+        )
+
         assert "Industry: Technology" in result
 
     def test_render_template_nonexistent(self, temp_dir):
@@ -487,7 +520,7 @@ summary_templates:
   existing_template: "Hello"
 """)
         collector = ConfigDrivenCollector(str(config_file))
-        
+
         with pytest.raises(ValueError, match="模板 'nonexistent' 不存在"):
             collector.render_summary_template("nonexistent", {})
 

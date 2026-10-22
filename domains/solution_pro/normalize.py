@@ -106,6 +106,7 @@ def normalize_confirmed(confirmed: dict) -> dict:
 # 渲染函数（消费端唯一入口）
 # ---------------------------------------------------------------------------
 
+
 def format_metric(m: Any) -> str:
     """将 success_metrics 项渲染为 prompt 文本行。
 

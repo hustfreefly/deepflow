@@ -4,9 +4,16 @@ Safe HTTP fetcher for ResearchPro external requests.
 The fetcher validates URLs and every redirect target, resolves hostnames before
 connecting, rejects disallowed IP ranges, and caps response bodies.
 """
+
 from __future__ import annotations
 
-import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
+import sys as _sys
+
+_p = __import__("pathlib").Path(__file__).resolve()
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
+_sys.path.insert(0, str(_r)) if _r and str(
+    _r
+) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 
 import http.client
 import ipaddress
@@ -140,7 +147,9 @@ class _SafeFetcher:
             current_url = urljoin(current_url, location)
             _validate_safe_url(current_url)
             self._resolve_safe_ip(urlparse(current_url))
-            if response.status == 303 or (response.status in {301, 302} and current_method == "POST"):
+            if response.status == 303 or (
+                response.status in {301, 302} and current_method == "POST"
+            ):
                 current_method = "GET"
 
         raise SafeFetchError(f"Too many redirects for {url}")
@@ -205,7 +214,9 @@ class _SafeFetcher:
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
 
         try:
-            infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP)
+            infos = socket.getaddrinfo(
+                host, port, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
+            )
         except socket.gaierror as exc:
             raise SafeFetchError(f"DNS resolution failed for {host}: {exc}") from exc
 
@@ -221,8 +232,12 @@ class _SafeFetcher:
         for address in addresses:
             try:
                 if _is_disallowed_ip(address):
-                    raise SafeFetchError(f"Disallowed resolved IP for {host}: {address}")
+                    raise SafeFetchError(
+                        f"Disallowed resolved IP for {host}: {address}"
+                    )
             except ValueError as exc:
-                raise SafeFetchError(f"Invalid resolved IP for {host}: {address}") from exc
+                raise SafeFetchError(
+                    f"Invalid resolved IP for {host}: {address}"
+                ) from exc
 
         return addresses[0]

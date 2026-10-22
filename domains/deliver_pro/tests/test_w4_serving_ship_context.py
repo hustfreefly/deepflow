@@ -3,6 +3,7 @@
 F4: _adapt_ship_pro_wp 支持 package_serving_principles fallback（semantic_anchors 同款模式）。
 F5: ship_context.json reader 已删除，Worker prompt 不含 {ship_context} 占位符。
 """
+
 import json
 
 import pytest
@@ -29,7 +30,9 @@ class TestServingPrinciplesFallback:
     def test_wp_level_priority(self):
         wp = _ship_wp()
         wp["serving_principles"] = [{"obligation": "WP 级原则"}]
-        adapted = _adapt_ship_pro_wp(wp, package_serving_principles=[{"obligation": "包级原则"}])
+        adapted = _adapt_ship_pro_wp(
+            wp, package_serving_principles=[{"obligation": "包级原则"}]
+        )
         assert adapted["serving_principles"] == [{"obligation": "WP 级原则"}]
 
     def test_package_level_fallback(self):

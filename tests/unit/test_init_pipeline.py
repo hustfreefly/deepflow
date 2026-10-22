@@ -8,17 +8,21 @@ DeepFlow Pipeline 测试初始化 Agent
 """
 
 import pytest
-pytest.skip("Coordinator 已移除，待重写测试以匹配 PipelineOrchestrator", allow_module_level=True)
+
+pytest.skip(
+    "Coordinator 已移除，待重写测试以匹配 PipelineOrchestrator", allow_module_level=True
+)
 
 import asyncio
 import json
 import os
 
+
 async def main():
     user_input = "研究小米 SU7 市场反响"
     print(f"🚀 启动 DeepFlow Pipeline 测试")
     print(f"📝 输入: {user_input}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     coord = Coordinator()
 
@@ -27,8 +31,14 @@ async def main():
 
         # 1. 保存状态到 blackboard
         blackboard = BlackboardManager(status.session_id)
-        blackboard.write("init_status.json", json.dumps(status.to_dict(), ensure_ascii=False, indent=2))
-        blackboard.write("test_init_marker.md", f"# Test Init Marker\n\n- Task: {user_input}\n- Session: {status.session_id}\n- State: {status.state}")
+        blackboard.write(
+            "init_status.json",
+            json.dumps(status.to_dict(), ensure_ascii=False, indent=2),
+        )
+        blackboard.write(
+            "test_init_marker.md",
+            f"# Test Init Marker\n\n- Task: {user_input}\n- Session: {status.session_id}\n- State: {status.state}",
+        )
 
         # 2. 保存 Coordinator 状态
         await coord.save_state(status.session_id)
@@ -46,12 +56,16 @@ async def main():
         if status.pending_requests:
             print(f"\npending_agents ({len(status.pending_requests)}):")
             for req in status.pending_requests:
-                print(f"  - [{req['agent_role']}] {req['instance_name']} ({req['angle']})")
+                print(
+                    f"  - [{req['agent_role']}] {req['instance_name']} ({req['angle']})"
+                )
                 print(f"    request_id: {req['request_id']}")
                 print(f"    model: {req['model']}")
                 print(f"    timeout: {req['timeout']}s")
         else:
-            print(f"\npending_agents: [] (pipeline completed or no agent stages reached yet)")
+            print(
+                f"\npending_agents: [] (pipeline completed or no agent stages reached yet)"
+            )
 
         # 输出 JSON 供上游解析
         result = {
@@ -74,13 +88,14 @@ async def main():
             ],
             "blackboard_path": status.blackboard_path,
         }
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"📦 JSON Result:")
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     except Exception as e:
         print(f"\n❌ Pipeline 启动失败: {e}")
         import traceback
+
         traceback.print_exc()
 
         # 输出失败状态
@@ -91,6 +106,7 @@ async def main():
             "error": str(e),
         }
         print(json.dumps(result, ensure_ascii=False, indent=2))
+
 
 if __name__ == "__main__":
     asyncio.run(main())

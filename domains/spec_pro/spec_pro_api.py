@@ -78,12 +78,15 @@ def reconstruct_coord(state: dict) -> SpecProCoordinator:
     # Reconstruct BlackboardManager with correct base_dir from persisted base_path
     persisted_base = state.get("base_path")
     if persisted_base:
-        base_dir = _Path(persisted_base).parent  # session_dir's parent is blackboard_dir
+        base_dir = _Path(
+            persisted_base
+        ).parent  # session_dir's parent is blackboard_dir
         coord._bb = BlackboardManager(coord.session_id, base_dir=str(base_dir))
     else:
         # Fix 3: base_path 缺失时 fallback — 用默认 PathConfig 创建 BlackboardManager
         # 而非留 None 导致后续 build_next_round_task 崩溃
         import logging
+
         logging.getLogger(__name__).warning(
             f"base_path not in state for session {coord.session_id}, using default base_dir"
         )
@@ -104,10 +107,10 @@ def cmd_init(args):
         scenario=args.scenario,
         mode=args.mode,
     )
-    
+
     result = coord.init_session(args.user_input)
     save_coord_state(coord)
-    
+
     return {
         "success": True,
         "session_id": result["session_id"],
@@ -152,7 +155,7 @@ def cmd_next_round(args):
         }
 
     save_coord_state(coord)
-    
+
     if "safety_stop" in str(result.get("action", "")):
         return {
             "success": True,
@@ -160,7 +163,7 @@ def cmd_next_round(args):
             "reason": result.get("reason", "max_rounds"),
             "message": result.get("message", "Max rounds reached"),
         }
-    
+
     return {
         "success": True,
         "round_num": result["round_num"],
@@ -174,10 +177,10 @@ def cmd_read_output(args):
     """读取本轮输出"""
     state = load_coord_state(args.session_id)
     coord = reconstruct_coord(state)
-    
+
     result = coord.read_round_output()
     save_coord_state(coord)
-    
+
     return {
         "success": True,
         "output": result,
@@ -197,6 +200,7 @@ def generate_spec_track(session_dir: Path) -> dict | None:
     if md_path.exists():
         try:
             from core.track_generator import generate_track_from_md
+
             return generate_track_from_md(
                 md_path=md_path,
                 domain="spec_pro",
@@ -209,6 +213,7 @@ def generate_spec_track(session_dir: Path) -> dict | None:
     if json_path.exists():
         try:
             from core.track_generator import generate_track_from_json
+
             return generate_track_from_json(
                 json_path=json_path,
                 domain="spec_pro",
@@ -224,13 +229,14 @@ def cmd_status(args):
     """获取状态"""
     state = load_coord_state(args.session_id)
     coord = reconstruct_coord(state)
-    
+
     status = coord.get_status()
     is_done = coord.is_done()
-    
+
     # 当 Spec Pro 完成时，写 .completed 标记文件（触发 auto_chain）
-    if is_done and hasattr(coord, '_bb') and coord._bb:
+    if is_done and hasattr(coord, "_bb") and coord._bb:
         from datetime import datetime
+
         completed_path = Path(coord._bb.session_dir) / ".completed"
         if not completed_path.exists():
             import json as _json
@@ -244,7 +250,7 @@ def cmd_status(args):
                 "session_id": args.session_id,
             }
             completed_path.write_text(_json.dumps(marker, ensure_ascii=False))
-    
+
     return {
         "success": True,
         "status": status,
@@ -256,17 +262,17 @@ def cmd_confirm(args):
     """确认或修正"""
     state = load_coord_state(args.session_id)
     coord = reconstruct_coord(state)
-    
+
     confirmation = {"action": args.action}
     if args.action == "revise" and args.revisions:
         try:
             confirmation["revisions"] = json.loads(args.revisions)
         except json.JSONDecodeError as e:
             return {"success": False, "error": f"Invalid revisions JSON: {e}"}
-    
+
     task = coord.build_confirmation_task(confirmation)
     save_coord_state(coord)
-    
+
     return {
         "success": True,
         "coordinator_task": task,
@@ -312,26 +318,32 @@ def cmd_resume(args):
 def main():
     parser = argparse.ArgumentParser(description="Spec Pro API")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
-    
+
     # init
     p_init = subparsers.add_parser("init", help="Initialize session")
     p_init.add_argument("user_input", help="Initial user input")
-    p_init.add_argument("--mode", choices=["quick", "standard", "deep"], default="standard")
-    p_init.add_argument("--scenario", choices=["genesis", "supplement", "refine", "pivot"], default="genesis")
-    
+    p_init.add_argument(
+        "--mode", choices=["quick", "standard", "deep"], default="standard"
+    )
+    p_init.add_argument(
+        "--scenario",
+        choices=["genesis", "supplement", "refine", "pivot"],
+        default="genesis",
+    )
+
     # next_round
     p_next = subparsers.add_parser("next_round", help="Build next round task")
     p_next.add_argument("session_id", help="Session ID")
     p_next.add_argument("user_response", help="User response")
-    
+
     # read_output
     p_read = subparsers.add_parser("read_output", help="Read round output")
     p_read.add_argument("session_id", help="Session ID")
-    
+
     # status
     p_status = subparsers.add_parser("status", help="Get status")
     p_status.add_argument("session_id", help="Session ID")
-    
+
     # confirm
     p_confirm = subparsers.add_parser("confirm", help="Confirm or revise")
     p_confirm.add_argument("session_id", help="Session ID")
@@ -343,11 +355,11 @@ def main():
     p_resume.add_argument("session_id", help="Session ID")
 
     args = parser.parse_args()
-    
+
     if not args.command:
         parser.print_help()
         return 1
-    
+
     try:
         if args.command == "init":
             result = cmd_init(args)
@@ -364,10 +376,10 @@ def main():
         else:
             parser.print_help()
             return 1
-        
+
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
-        
+
     except Exception as e:
         print(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False))
         return 1

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 class ConversationRound(BaseModel):
     """单轮对话"""
+
     round: int
     timestamp: str = ""
     phase: str = "collecting"
@@ -28,4 +29,5 @@ class ConversationRound(BaseModel):
 
 class ConversationLog(BaseModel):
     """对话日志"""
+
     rounds: list[ConversationRound] = Field(default_factory=list)

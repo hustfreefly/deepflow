@@ -14,6 +14,7 @@ DeepFlow Quality Judge — 独立 LLM 质量评分框架
   - Judge 不能访问生成 Agent 的内部状态（只看输出）
   - 评分结果必须结构化（JSON），不能是自由文本
 """
+
 import json
 import logging
 from typing import Any, Callable, Dict, List, Optional
@@ -29,8 +30,9 @@ class QualityDimension:
     每个维度代表质量评估的一个独立角度，带权重和评分标准说明。
     权重用于计算加权综合分。
     """
-    name: str           # 维度名，如 "completeness"
-    weight: float = 1.0 # 权重（越大越重要）
+
+    name: str  # 维度名，如 "completeness"
+    weight: float = 1.0  # 权重（越大越重要）
     description: str = ""  # 评分标准说明（给 Judge 看的）
 
 
@@ -41,12 +43,13 @@ class QualityVerdict:
     由 Judge Agent 产出，包含综合分、各维度分、优缺点列表和最终建议。
     Gate 层根据 recommendation 决定是否通过。
     """
-    overall_score: float        # 0-10 综合分
+
+    overall_score: float  # 0-10 综合分
     dimension_scores: Dict[str, float] = field(default_factory=dict)
     strengths: List[str] = field(default_factory=list)
     weaknesses: List[str] = field(default_factory=list)
-    recommendation: str = ""    # PASS / CONDITIONAL / FAIL
-    raw_response: str = ""      # Judge 原始回复（用于调试/追溯）
+    recommendation: str = ""  # PASS / CONDITIONAL / FAIL
+    raw_response: str = ""  # Judge 原始回复（用于调试/追溯）
 
     @property
     def passed(self) -> bool:
@@ -196,7 +199,7 @@ class QualityJudge:
             return None
 
         # 向左找最近的 {
-        start = text.rfind('{', 0, idx)
+        start = text.rfind("{", 0, idx)
         if start == -1:
             return None
 
@@ -209,7 +212,7 @@ class QualityJudge:
             if escape_next:
                 escape_next = False
                 continue
-            if ch == '\\':
+            if ch == "\\":
                 escape_next = True
                 continue
             if ch == '"':
@@ -217,12 +220,12 @@ class QualityJudge:
                 continue
             if in_string:
                 continue
-            if ch == '{':
+            if ch == "{":
                 depth += 1
-            elif ch == '}':
+            elif ch == "}":
                 depth -= 1
                 if depth == 0:
-                    return text[start:i + 1]
+                    return text[start : i + 1]
 
         return None
 
@@ -294,6 +297,7 @@ class QualityJudge:
 # ── 预设 Judge 配置 ──
 # 为 DeepFlow 关键域提供开箱即用的 Judge 实例
 
+
 def solution_quality_judge() -> QualityJudge:
     """Solution Pro 方案质量 Judge
 
@@ -303,12 +307,14 @@ def solution_quality_judge() -> QualityJudge:
     - clarity (权重 1.0): 表述是否清晰，团队能否理解并执行
     - innovation (权重 0.5): 是否有创新性或最佳实践引用
     """
-    return QualityJudge(dimensions=[
-        QualityDimension("completeness", 2.0, "方案是否覆盖所有需求点"),
-        QualityDimension("feasibility", 2.0, "技术方案是否可行"),
-        QualityDimension("clarity", 1.0, "表述是否清晰，团队能否理解并执行"),
-        QualityDimension("innovation", 0.5, "是否有创新性或最佳实践引用"),
-    ])
+    return QualityJudge(
+        dimensions=[
+            QualityDimension("completeness", 2.0, "方案是否覆盖所有需求点"),
+            QualityDimension("feasibility", 2.0, "技术方案是否可行"),
+            QualityDimension("clarity", 1.0, "表述是否清晰，团队能否理解并执行"),
+            QualityDimension("innovation", 0.5, "是否有创新性或最佳实践引用"),
+        ]
+    )
 
 
 def ship_package_quality_judge() -> QualityJudge:
@@ -320,9 +326,13 @@ def ship_package_quality_judge() -> QualityJudge:
     - dependency_correctness (权重 1.5): 依赖关系是否合理（无环、无遗漏）
     - effort_estimation (权重 1.0): 工时估算是否合理
     """
-    return QualityJudge(dimensions=[
-        QualityDimension("completeness", 2.0, "工作包是否覆盖所有需求"),
-        QualityDimension("actionability", 2.0, "每个 WP 是否可直接执行"),
-        QualityDimension("dependency_correctness", 1.5, "依赖关系是否合理（无环、无遗漏）"),
-        QualityDimension("effort_estimation", 1.0, "工时估算是否合理"),
-    ])
+    return QualityJudge(
+        dimensions=[
+            QualityDimension("completeness", 2.0, "工作包是否覆盖所有需求"),
+            QualityDimension("actionability", 2.0, "每个 WP 是否可直接执行"),
+            QualityDimension(
+                "dependency_correctness", 1.5, "依赖关系是否合理（无环、无遗漏）"
+            ),
+            QualityDimension("effort_estimation", 1.0, "工时估算是否合理"),
+        ]
+    )

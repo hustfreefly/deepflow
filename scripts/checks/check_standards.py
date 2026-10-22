@@ -24,6 +24,7 @@ MAX_LINES = 500
 @dataclass
 class Violation:
     """违规记录"""
+
     level: str  # P0 / P1 / P2
     rule: str
     line: int
@@ -46,13 +47,15 @@ def check_bare_except(tree: ast.AST, filepath: str) -> list[Violation]:
     for node in ast.walk(tree):
         if isinstance(node, ast.ExceptHandler):
             if node.type is None:
-                violations.append(Violation(
-                    level="P0",
-                    rule="bare_except",
-                    line=node.lineno,
-                    message="禁止使用 bare except",
-                    file=filepath,
-                ))
+                violations.append(
+                    Violation(
+                        level="P0",
+                        rule="bare_except",
+                        line=node.lineno,
+                        message="禁止使用 bare except",
+                        file=filepath,
+                    )
+                )
     return violations
 
 
@@ -88,13 +91,15 @@ def check_unused_imports(tree: ast.AST, source: str, filepath: str) -> list[Viol
     # 检查未使用的导入
     for name, (full_import, line) in imports.items():
         if name not in names:
-            violations.append(Violation(
-                level="P0",
-                rule="unused_import",
-                line=line,
-                message=f"未使用的导入: {full_import}（别名: {name}）",
-                file=filepath,
-            ))
+            violations.append(
+                Violation(
+                    level="P0",
+                    rule="unused_import",
+                    line=line,
+                    message=f"未使用的导入: {full_import}（别名: {name}）",
+                    file=filepath,
+                )
+            )
     return violations
 
 
@@ -104,28 +109,32 @@ def check_type_annotations(tree: ast.AST, filepath: str) -> list[Violation]:
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
             # 公开方法（不以 _ 开头）
-            if not node.name.startswith('_'):
+            if not node.name.startswith("_"):
                 # 检查返回值注解
                 if node.returns is None:
-                    violations.append(Violation(
-                        level="P1",
-                        rule="missing_return_annotation",
-                        line=node.lineno,
-                        message=f"公开方法 {node.name} 缺少返回值类型注解",
-                        file=filepath,
-                    ))
+                    violations.append(
+                        Violation(
+                            level="P1",
+                            rule="missing_return_annotation",
+                            line=node.lineno,
+                            message=f"公开方法 {node.name} 缺少返回值类型注解",
+                            file=filepath,
+                        )
+                    )
                 # 检查参数注解
                 for arg in node.args.args:
-                    if arg.arg == 'self':
+                    if arg.arg == "self":
                         continue
                     if arg.annotation is None:
-                        violations.append(Violation(
-                            level="P1",
-                            rule="missing_param_annotation",
-                            line=node.lineno,
-                            message=f"公开方法 {node.name} 的参数 {arg.arg} 缺少类型注解",
-                            file=filepath,
-                        ))
+                        violations.append(
+                            Violation(
+                                level="P1",
+                                rule="missing_param_annotation",
+                                line=node.lineno,
+                                message=f"公开方法 {node.name} 的参数 {arg.arg} 缺少类型注解",
+                                file=filepath,
+                            )
+                        )
     return violations
 
 
@@ -134,34 +143,38 @@ def check_docstrings(tree: ast.AST, filepath: str) -> list[Violation]:
     violations = []
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
-            if not node.name.startswith('_'):
+            if not node.name.startswith("_"):
                 # 计算方法行数（end_lineno - lineno + 1）
                 method_lines = (node.end_lineno or node.lineno) - node.lineno + 1
                 # 超过10行的方法才强制docstring
                 if method_lines > 10:
                     docstring = ast.get_docstring(node)
                     if not docstring:
-                        violations.append(Violation(
-                            level="P1",
-                            rule="missing_docstring",
-                            line=node.lineno,
-                            message=f"公开方法 {node.name}（{method_lines}行）缺少 docstring",
-                            file=filepath,
-                        ))
+                        violations.append(
+                            Violation(
+                                level="P1",
+                                rule="missing_docstring",
+                                line=node.lineno,
+                                message=f"公开方法 {node.name}（{method_lines}行）缺少 docstring",
+                                file=filepath,
+                            )
+                        )
     return violations
 
 
 def check_file_length(source: str, filepath: str) -> list[Violation]:
     """P1: 检查文件行数"""
-    lines = source.count('\n') + 1
+    lines = source.count("\n") + 1
     if lines > MAX_LINES:
-        return [Violation(
-            level="P1",
-            rule="file_too_long",
-            line=lines,
-            message=f"文件过长: {lines} 行（限制 {MAX_LINES} 行）",
-            file=filepath,
-        )]
+        return [
+            Violation(
+                level="P1",
+                rule="file_too_long",
+                line=lines,
+                message=f"文件过长: {lines} 行（限制 {MAX_LINES} 行）",
+                file=filepath,
+            )
+        ]
     return []
 
 
@@ -174,29 +187,33 @@ def check_file(filepath: str) -> list[Violation]:
         print(f"  ❌ 文件不存在: {filepath}")
         return violations
 
-    source = filepath.read_text(encoding='utf-8')
+    source = filepath.read_text(encoding="utf-8")
 
     # 处理空文件
     if not source.strip():
-        violations.append(Violation(
-            level="P1",
-            rule="empty_file",
-            line=0,
-            message="文件为空",
-            file=str(filepath),
-        ))
+        violations.append(
+            Violation(
+                level="P1",
+                rule="empty_file",
+                line=0,
+                message="文件为空",
+                file=str(filepath),
+            )
+        )
         return violations
 
     try:
         tree = ast.parse(source)
     except SyntaxError as e:
-        violations.append(Violation(
-            level="P0",
-            rule="syntax_error",
-            line=e.lineno or 0,
-            message=f"语法错误: {e.msg}",
-            file=str(filepath),
-        ))
+        violations.append(
+            Violation(
+                level="P0",
+                rule="syntax_error",
+                line=e.lineno or 0,
+                message=f"语法错误: {e.msg}",
+                file=str(filepath),
+            )
+        )
         return violations
 
     # 运行所有检查
@@ -250,9 +267,9 @@ def main() -> None:
             else:
                 print(f"  ✅ 无违规")
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("汇总结果")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         for module, violations in sorted(all_violations.items()):
             p0 = sum(1 for v in violations if v.level == "P0")
             p1 = sum(1 for v in violations if v.level == "P1")

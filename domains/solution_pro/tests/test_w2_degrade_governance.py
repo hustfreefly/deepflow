@@ -5,6 +5,7 @@
 2. mkdir 顺序（P0-2b）：校验失败时目录未被创建
 3. frozen_spec.md 渲染失败 → raise（P0-3）
 """
+
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -15,26 +16,31 @@ class TestP02aUserInputValidation:
 
     def test_none_raises(self):
         from domains.solution_pro import run_solution_pro
+
         with pytest.raises(ValueError, match="user_input 为 None"):
             run_solution_pro(user_input=None)
 
     def test_empty_string_raises(self):
         from domains.solution_pro import run_solution_pro
+
         with pytest.raises(ValueError, match="空字符串或纯空白"):
             run_solution_pro(user_input="")
 
     def test_whitespace_only_raises(self):
         from domains.solution_pro import run_solution_pro
+
         with pytest.raises(ValueError, match="空字符串或纯空白"):
             run_solution_pro(user_input="   \n\t  ")
 
     def test_non_string_raises(self):
         from domains.solution_pro import run_solution_pro
+
         with pytest.raises(ValueError, match="必须是 str"):
             run_solution_pro(user_input=12345)
 
     def test_non_string_list_raises(self):
         from domains.solution_pro import run_solution_pro
+
         with pytest.raises(ValueError, match="必须是 str"):
             run_solution_pro(user_input=["a", "b"])
 
@@ -50,9 +56,7 @@ class TestP02bMkdirOrder:
         blackboard_root.mkdir()
 
         # 需要让 BlackboardManager 使用 tmp_path 作为 base_dir
-        with patch(
-            "domains.solution_pro.BlackboardManager"
-        ) as MockBM:
+        with patch("domains.solution_pro.BlackboardManager") as MockBM:
             mock_bm = MagicMock()
             mock_bm.session_id = "test_session"
             mock_bm.session_dir = blackboard_root / "test_session"
@@ -68,9 +72,7 @@ class TestP02bMkdirOrder:
         """living_spec 校验失败（requirement_index 为空）时，init_session 不应被调用"""
         from domains.solution_pro import run_solution_pro
 
-        with patch(
-            "domains.solution_pro.BlackboardManager"
-        ) as MockBM:
+        with patch("domains.solution_pro.BlackboardManager") as MockBM:
             mock_bm = MagicMock()
             mock_bm.session_id = "test_session"
             mock_bm.session_dir = tmp_path / "test_session"
@@ -93,15 +95,13 @@ class TestP03FrozenSpecMdRenderRaise:
 
     def test_render_failure_raises(self, tmp_path):
         """render_living_spec_md 抛异常时，run_solution_pro 必须 raise（不能只 warning）
-    
-    Phase 3 迁移完成：Ship Pro 直接消费 living_spec.md，不再消费 frozen_spec。
-    契约笼子：living_spec.md 渲染失败必须 raise，禁止静默降级。
-    """
+
+        Phase 3 迁移完成：Ship Pro 直接消费 living_spec.md，不再消费 frozen_spec。
+        契约笼子：living_spec.md 渲染失败必须 raise，禁止静默降级。
+        """
         from domains.solution_pro import run_solution_pro
 
-        with patch(
-            "domains.solution_pro.BlackboardManager"
-        ) as MockBM:
+        with patch("domains.solution_pro.BlackboardManager") as MockBM:
             mock_bm = MagicMock()
             mock_bm.session_id = "test_session"
             mock_bm.session_dir = tmp_path / "test_session"
@@ -111,7 +111,9 @@ class TestP03FrozenSpecMdRenderRaise:
             # 提供合法的 living_spec
             living_spec = {
                 "requirement_index": [{"id": "REQ-1", "description": "test"}],
-                "semantic_anchors": [{"name": "anchor1", "category": "test", "constraint": "test"}],
+                "semantic_anchors": [
+                    {"name": "anchor1", "category": "test", "constraint": "test"}
+                ],
                 "guardrails": {"always_do": [], "never_do": []},
             }
 

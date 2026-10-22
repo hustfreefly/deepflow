@@ -21,6 +21,7 @@ DELIVERY_STAGES = ["frozen_spec", "final_solution", "solution_document"]
 def bb(tmp_path):
     """创建临时 BlackboardManager"""
     from core.blackboard.blackboard_manager import BlackboardManager
+
     return BlackboardManager(session_id="adr009_test", base_dir=tmp_path)
 
 
@@ -36,11 +37,15 @@ class TestMDFirstEnforcement:
 
         # .md 文件应存在
         md_path = bb._stage_path(stage_name, ".md")
-        assert md_path.exists(), f"{stage_name} .md file should exist after write_stage(str)"
+        assert md_path.exists(), (
+            f"{stage_name} .md file should exist after write_stage(str)"
+        )
 
         # .json 文件不应存在
         json_path = bb._stage_path(stage_name, ".json")
-        assert not json_path.exists(), f"{stage_name} .json file should NOT exist after write_stage(str)"
+        assert not json_path.exists(), (
+            f"{stage_name} .json file should NOT exist after write_stage(str)"
+        )
 
     @pytest.mark.parametrize("stage_name", DELIVERY_STAGES)
     def test_read_stage_prefers_md(self, bb, stage_name):
@@ -93,20 +98,29 @@ class TestStagePathRegistry:
     def test_frozen_spec_registry_is_md(self):
         """STAGE_PATH_REGISTRY['frozen_spec'] 应是 .md 路径"""
         from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY
+
         path = STAGE_PATH_REGISTRY.get("frozen_spec", "")
-        assert path.endswith(".md"), f"frozen_spec registry path should be .md, got: {path}"
+        assert path.endswith(".md"), (
+            f"frozen_spec registry path should be .md, got: {path}"
+        )
 
     def test_final_solution_registry_is_md(self):
         """STAGE_PATH_REGISTRY['final_solution'] 应是 .md 路径"""
         from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY
+
         path = STAGE_PATH_REGISTRY.get("final_solution", "")
-        assert path.endswith(".md"), f"final_solution registry path should be .md, got: {path}"
+        assert path.endswith(".md"), (
+            f"final_solution registry path should be .md, got: {path}"
+        )
 
     def test_solution_document_registry_is_md(self):
         """STAGE_PATH_REGISTRY['solution_document'] 应是 .md 路径"""
         from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY
+
         path = STAGE_PATH_REGISTRY.get("solution_document", "")
-        assert path.endswith(".md"), f"solution_document registry path should be .md, got: {path}"
+        assert path.endswith(".md"), (
+            f"solution_document registry path should be .md, got: {path}"
+        )
 
 
 class TestControlContract:
@@ -117,8 +131,9 @@ class TestControlContract:
         # 检查源码中不包含硬编码的 frozen_spec.json
         import inspect
         from domains.solution_pro import control_contract
+
         source = inspect.getsource(control_contract)
-        assert 'frozen_spec.json' not in source, (
+        assert "frozen_spec.json" not in source, (
             "control_contract.py should not contain hardcoded 'frozen_spec.json'"
         )
 
@@ -129,12 +144,13 @@ class TestNoJsonPrimaryWrite:
     def test_no_direct_json_write_for_delivery_stages(self):
         """代码中不应直接写入交付物 .json（排除 fallback 读取）"""
         import re
+
         source_dir = Path(__file__).parent.parent
         # 扫描 .py 文件（排除 tests/ 和 __pycache__）
         patterns = [
-            r'write.*final_solution\.json',
-            r'write.*solution_document\.json',
-            r'write_stage.*final_solution.*\.json',
+            r"write.*final_solution\.json",
+            r"write.*solution_document\.json",
+            r"write_stage.*final_solution.*\.json",
         ]
         violations = []
         for py_file in source_dir.rglob("*.py"):
@@ -146,9 +162,9 @@ class TestNoJsonPrimaryWrite:
                     violations.append(f"{py_file.relative_to(source_dir)}: {pattern}")
 
         assert not violations, (
-            f"Found direct JSON write for delivery stages:\n" +
-            "\n".join(violations) +
-            "\nUse write_stage(stage_name, md_string) for MD-first output."
+            f"Found direct JSON write for delivery stages:\n"
+            + "\n".join(violations)
+            + "\nUse write_stage(stage_name, md_string) for MD-first output."
         )
 
 

@@ -102,7 +102,9 @@ class ValidationVerdict(BaseModel):
         return self.verdict == "FAIL"
 
     @classmethod
-    def compute_verdict(cls, weighted_score: float, scores: dict[str, ScoreDimension]) -> str:
+    def compute_verdict(
+        cls, weighted_score: float, scores: dict[str, ScoreDimension]
+    ) -> str:
         """根据加权分、维度分和维度完整性计算门禁判定。
 
         六维质量门要求：scores 必须包含全部 6 个维度
@@ -154,7 +156,9 @@ class ValidationVerdict(BaseModel):
         if result.state == "not_found":
             raise FileNotFoundError(f"validation_result.json 不存在: {path}")
         if result.state != "ok":
-            backup_note = f"（已备份到 {result.backup_path}）" if result.backup_path else ""
+            backup_note = (
+                f"（已备份到 {result.backup_path}）" if result.backup_path else ""
+            )
             raise ValueError(
                 f"validation_result.json 不可读（{result.state}）: {result.error}{backup_note}"
             )

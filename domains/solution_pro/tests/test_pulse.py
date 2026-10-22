@@ -209,10 +209,20 @@ class TestPhaseProgression:
         assert reviewer_modules == {"adversarial_reviewer", "consistency_checker"}
 
         # reviewers confirm + 产出
-        pulse.confirm_dispatches([
-            {"module": "adversarial_reviewer", "label": "solution_adversarial_reviewer", "ok": True},
-            {"module": "consistency_checker", "label": "solution_consistency_checker", "ok": True},
-        ])
+        pulse.confirm_dispatches(
+            [
+                {
+                    "module": "adversarial_reviewer",
+                    "label": "solution_adversarial_reviewer",
+                    "ok": True,
+                },
+                {
+                    "module": "consistency_checker",
+                    "label": "solution_consistency_checker",
+                    "ok": True,
+                },
+            ]
+        )
         _make_stage(pulse, "adversarial_review_summary")
         _make_stage(pulse, "consistency_check")
         # → finalize → completed
@@ -221,7 +231,11 @@ class TestPhaseProgression:
         assert pulse.completed_path.exists()
         completed = json.loads(pulse.completed_path.read_text())
         assert completed["status"] == "completed"
-        assert set(completed["modules_completed"]) == {"planning", "research", "summary"}
+        assert set(completed["modules_completed"]) == {
+            "planning",
+            "research",
+            "summary",
+        }
 
     def test_completed_fast_path(self, pulse):
         pulse.completed_path.write_text("{}", encoding="utf-8")
@@ -266,7 +280,7 @@ class TestStallAndRetry:
         )
         state = SolutionPulseState(**_load_state(pulse))
         d = state.modules[module]
-        d.last_spawned_at = time.time() - 300   # 冷却已过
+        d.last_spawned_at = time.time() - 300  # 冷却已过
         d.retry_count = retries
         state.last_progress_at = time.time() - 2000  # 无进展 >1800s
         pulse._save_state(state)
@@ -346,9 +360,16 @@ class TestRespawnCooldown:
 class TestConfirm:
     def test_failed_spawn_rolls_back(self, pulse):
         pulse.pulse()  # spawn planning
-        out = pulse.confirm_dispatches([
-            {"module": "planning", "label": "solution_planning_module", "ok": False, "error": "API 429"}
-        ])
+        out = pulse.confirm_dispatches(
+            [
+                {
+                    "module": "planning",
+                    "label": "solution_planning_module",
+                    "ok": False,
+                    "error": "API 429",
+                }
+            ]
+        )
         assert out["rolled_back"][0]["module"] == "planning"
         assert "alert" in out
         state = _load_state(pulse)
@@ -360,9 +381,9 @@ class TestConfirm:
 
     def test_confirm_unknown_module_ignored(self, pulse):
         pulse.pulse()
-        out = pulse.confirm_dispatches([
-            {"module": "nonexistent", "label": "x", "ok": True}
-        ])
+        out = pulse.confirm_dispatches(
+            [{"module": "nonexistent", "label": "x", "ok": True}]
+        )
         assert out["confirmed"] == []
 
 
@@ -377,6 +398,7 @@ class TestLock:
             assert report["status"] == "locked"
         finally:
             import fcntl
+
             fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
             lock_fh.close()
 
@@ -416,12 +438,16 @@ class TestActionsFile:
 class TestCLI:
     def _run_cli(self, *cli_args, cwd=None):
         from domains.solution_pro import pulse as _pulse_mod
+
         deepflow_root = Path(_pulse_mod.__file__).resolve().parent.parent.parent
         env = os.environ.copy()
         env["PYTHONPATH"] = str(deepflow_root)
         return subprocess.run(
             ["python3", "-m", "domains.solution_pro.pulse_cli", *cli_args],
-            capture_output=True, text=True, cwd=str(deepflow_root), env=env,
+            capture_output=True,
+            text=True,
+            cwd=str(deepflow_root),
+            env=env,
         )
 
     def test_check_no_session(self):
@@ -436,9 +462,9 @@ class TestCLI:
         sp.session_dir.mkdir(parents=True)
         report = sp.pulse()
         assert report["status"] == "active"
-        out = sp.confirm_dispatches([
-            {"module": "planning", "label": "solution_planning_module", "ok": True}
-        ])
+        out = sp.confirm_dispatches(
+            [{"module": "planning", "label": "solution_planning_module", "ok": True}]
+        )
         assert out["confirmed"] == ["planning"]
 
 
@@ -476,7 +502,6 @@ class TestOrphanDispatchSweep:
 # - TestReviewPromptReplacement
 # - TestPostValidationBaseDir
 # - TestQualityNotes
-# 
+#
 # 这些功能现在是独立可调用工具，不再由 orchestrator 自动触发。
 # 如需测试这些独立工具，请在单独的测试文件中验证。
-

@@ -21,14 +21,60 @@ INDEX_PATH = DEEPFLOW_ROOT / ".doc_index.json"
 
 # 常见词过滤（这些符号太通用，引用不代表依赖）
 NOISE_SYMBOLS = {
-    "main", "init", "check", "run", "reset", "scan", "parse", "process",
-    "setup", "cleanup", "validate", "handle", "execute", "load", "save",
-    "read", "write", "get", "set", "update", "delete", "create", "remove",
-    "start", "stop", "open", "close", "send", "receive", "format",
-    "completed", "failed", "pending", "running", "timeout", "progress",
-    "error", "warning", "info", "debug", "test", "assert",
-    "parse_timestamp", "generate", "build", "compile", "transform",
-    "dfs", "bfs", "sort", "filter", "map", "reduce", "merge",
+    "main",
+    "init",
+    "check",
+    "run",
+    "reset",
+    "scan",
+    "parse",
+    "process",
+    "setup",
+    "cleanup",
+    "validate",
+    "handle",
+    "execute",
+    "load",
+    "save",
+    "read",
+    "write",
+    "get",
+    "set",
+    "update",
+    "delete",
+    "create",
+    "remove",
+    "start",
+    "stop",
+    "open",
+    "close",
+    "send",
+    "receive",
+    "format",
+    "completed",
+    "failed",
+    "pending",
+    "running",
+    "timeout",
+    "progress",
+    "error",
+    "warning",
+    "info",
+    "debug",
+    "test",
+    "assert",
+    "parse_timestamp",
+    "generate",
+    "build",
+    "compile",
+    "transform",
+    "dfs",
+    "bfs",
+    "sort",
+    "filter",
+    "map",
+    "reduce",
+    "merge",
 }
 
 
@@ -56,6 +102,7 @@ def analyze(changed_files: list[str] = None, since: str = None):
         print("⚠️ 索引不存在，正在构建...")
         sys.path.insert(0, str(DEEPFLOW_ROOT))
         from scripts.docupdate.build_index import build_index
+
         index = build_index()
     else:
         index = json.loads(INDEX_PATH.read_text())
@@ -69,12 +116,17 @@ def analyze(changed_files: list[str] = None, since: str = None):
         # 3a: 文件删除/重命名检查
         if not (DEEPFLOW_ROOT / changed_file).exists():
             for md_file in DEEPFLOW_ROOT.rglob("*.md"):
-                if any(d in str(md_file) for d in ["ARCHIVED", "docs/archive", "blackboard", "__pycache__"]):
+                if any(
+                    d in str(md_file)
+                    for d in ["ARCHIVED", "docs/archive", "blackboard", "__pycache__"]
+                ):
                     continue
                 content = md_file.read_text(errors="ignore")
                 if changed_file in content:
                     rel = str(md_file.relative_to(DEEPFLOW_ROOT))
-                    affected_docs[rel]["reasons"].append(f"引用了已删除/重命名的文件: {changed_file}")
+                    affected_docs[rel]["reasons"].append(
+                        f"引用了已删除/重命名的文件: {changed_file}"
+                    )
                     affected_docs[rel]["level"] = "red"
 
         # 3b: 符号级查询（过滤噪音符号）
@@ -128,15 +180,15 @@ def analyze(changed_files: list[str] = None, since: str = None):
 
 
 def _print_report(report):
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  DeepFlow DocUpdate 影响报告")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     print(f"📁 改动文件 ({len(report['changed_files'])} 个):")
     for f in report["changed_files"][:15]:
         print(f"  - {f}")
     if len(report["changed_files"]) > 15:
-        print(f"  ... 还有 {len(report['changed_files'])-15} 个")
+        print(f"  ... 还有 {len(report['changed_files']) - 15} 个")
 
     print(f"\n🔴 必须更新 ({len(report['red'])} 个):")
     if report["red"]:
@@ -145,7 +197,7 @@ def _print_report(report):
             for r in item["reasons"][:3]:
                 print(f"     → {r}")
             if len(item["reasons"]) > 3:
-                print(f"     ... 还有 {len(item['reasons'])-3} 个原因")
+                print(f"     ... 还有 {len(item['reasons']) - 3} 个原因")
     else:
         print("  无")
 
@@ -156,17 +208,18 @@ def _print_report(report):
             for r in item["reasons"][:2]:
                 print(f"     → {r}")
             if len(item["reasons"]) > 2:
-                print(f"     ... 还有 {len(item['reasons'])-2} 个原因")
+                print(f"     ... 还有 {len(item['reasons']) - 2} 个原因")
     else:
         print("  无")
 
     print(f"\n🟢 无需更新: {report['green_count']} 个文档不受影响")
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
 
 
 def auto_fix_red(report: dict) -> int:
     """自动修复 🔴 级别问题（路径重命名/删除）。"""
     import re as _re
+
     fixed_count = 0
 
     for item in report.get("red", []):
@@ -178,12 +231,15 @@ def auto_fix_red(report: dict) -> int:
 
         for reason in item["reasons"]:
             # 提取旧路径 → 新路径映射
-            match = _re.search(r'已删除/重命名的文件: (.+)', reason)
+            match = _re.search(r"已删除/重命名的文件: (.+)", reason)
             if match:
                 old_path = match.group(1)
                 # 尝试推断新路径（从 git diff 的改动文件中找同名文件）
                 for changed in report.get("changed_files", []):
-                    if Path(changed).name == Path(old_path).name and changed != old_path:
+                    if (
+                        Path(changed).name == Path(old_path).name
+                        and changed != old_path
+                    ):
                         new_content = new_content.replace(old_path, changed)
                         fixed_count += 1
                         print(f"  ✅ {item['file']}: {old_path} → {changed}")

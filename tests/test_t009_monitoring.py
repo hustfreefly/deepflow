@@ -7,13 +7,19 @@ AC-3: Grafana Dashboard shows throughput/latency/error/queue/resources
 AC-4: Logs JSON format, no Authorization header leak
 AC-5: otelcol_exporter_queue_size metric available
 """
+
 import json
 import os
 import re
 import unittest
 import pytest
 
-CHART_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "deploy", "helm", "otel-collector")
+CHART_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "deploy",
+    "helm",
+    "otel-collector",
+)
 
 if not os.path.isdir(CHART_DIR):
     pytest.skip(
@@ -37,8 +43,10 @@ class TestServiceMonitor(unittest.TestCase):
 
     def test_has_two_servicemonitors(self):
         """Should define two ServiceMonitor resources (agent + gateway)."""
-        kinds = re.findall(r'kind:\s*ServiceMonitor', self.content)
-        self.assertEqual(len(kinds), 2, f"Expected 2 ServiceMonitors, found {len(kinds)}")
+        kinds = re.findall(r"kind:\s*ServiceMonitor", self.content)
+        self.assertEqual(
+            len(kinds), 2, f"Expected 2 ServiceMonitors, found {len(kinds)}"
+        )
 
     def test_agent_servicemonitor_has_metrics_endpoint(self):
         """Agent ServiceMonitor should have metrics endpoint."""
@@ -223,12 +231,16 @@ class TestLoggingConfig(unittest.TestCase):
     def test_agent_redacts_multiple_auth_variants(self):
         """Agent should redact multiple auth key variants."""
         delete_count = self.agent_content.count("action: delete")
-        self.assertGreaterEqual(delete_count, 3, f"Expected >= 3 delete actions, got {delete_count}")
+        self.assertGreaterEqual(
+            delete_count, 3, f"Expected >= 3 delete actions, got {delete_count}"
+        )
 
     def test_gateway_redacts_multiple_auth_variants(self):
         """Gateway should redact multiple auth key variants."""
         delete_count = self.gateway_content.count("action: delete")
-        self.assertGreaterEqual(delete_count, 3, f"Expected >= 3 delete actions, got {delete_count}")
+        self.assertGreaterEqual(
+            delete_count, 3, f"Expected >= 3 delete actions, got {delete_count}"
+        )
 
     def test_agent_has_initial_fields(self):
         """Agent should have initial_fields for component identification."""
@@ -289,15 +301,20 @@ class TestCodeQuality(unittest.TestCase):
             "templates/agent/logging-config.yaml",
             "templates/gateway/logging-config.yaml",
         ]
-        secret_patterns = [r'password\s*:\s*[a-zA-Z0-9]', r'secret\s*:\s*[a-zA-Z0-9]',
-                          r'Bearer\s+[a-zA-Z0-9+/=]{20,}']
+        secret_patterns = [
+            r"password\s*:\s*[a-zA-Z0-9]",
+            r"secret\s*:\s*[a-zA-Z0-9]",
+            r"Bearer\s+[a-zA-Z0-9+/=]{20,}",
+        ]
         for f in files:
             content = read_template(f)
             # Remove template directives for checking
-            clean = re.sub(r'\{\{.*?\}\}', '', content)
+            clean = re.sub(r"\{\{.*?\}\}", "", content)
             for pattern in secret_patterns:
-                self.assertIsNone(re.search(pattern, clean, re.IGNORECASE),
-                                  f"Hardcoded secret detected in {f}: {pattern}")
+                self.assertIsNone(
+                    re.search(pattern, clean, re.IGNORECASE),
+                    f"Hardcoded secret detected in {f}: {pattern}",
+                )
 
 
 if __name__ == "__main__":

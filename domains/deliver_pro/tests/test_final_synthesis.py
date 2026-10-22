@@ -23,6 +23,7 @@ import pytest
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def ship_package_data():
     return {
@@ -50,6 +51,7 @@ def _make_orchestrator(mock_blackboard):
     bb_root, project_name = mock_blackboard
     with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
         from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
         orch = DeliverOrchestrator(project_name)
         yield orch, bb_root, project_name
 
@@ -86,6 +88,7 @@ def _setup_living_spec(bb_root, project_name, content=None):
 # ---------------------------------------------------------------------------
 # 交付物契约推断
 # ---------------------------------------------------------------------------
+
 
 class TestInferDeliverableContract:
     def test_should_infer_contract_when_missing(self, mock_blackboard):
@@ -148,15 +151,20 @@ class TestInferDeliverableContract:
 # Final Synthesis 触发条件
 # ---------------------------------------------------------------------------
 
+
 class TestFinalSynthesisTrigger:
     def test_should_trigger_when_all_done(self, mock_blackboard):
         """全部 WP DONE + contract 存在 + 无 done 标记 → 应触发。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             _setup_done_wp(bb_root, project, "AAA-001")
-            (bb_root / project / "_deliverable_contract.json").write_text(json.dumps({
-                "deliverable_type": "report",
-                "req_elements": [],
-            }))
+            (bb_root / project / "_deliverable_contract.json").write_text(
+                json.dumps(
+                    {
+                        "deliverable_type": "report",
+                        "req_elements": [],
+                    }
+                )
+            )
             assert orch._should_trigger_final_synthesis() is True
 
     def test_should_not_trigger_when_wp_not_done(self, mock_blackboard):
@@ -185,6 +193,7 @@ class TestFinalSynthesisTrigger:
 # 语义回溯 Gate（LLM-as-Judge）
 # ---------------------------------------------------------------------------
 
+
 class TestSemanticGate:
     def test_build_run_final_gate_action(self, mock_blackboard):
         """构建 run_final_gate 动作（LLM-as-Judge spawn）。"""
@@ -195,11 +204,13 @@ class TestSemanticGate:
                     {"element": "Core feature A", "criticality": "MUST"},
                 ],
             }
-            (bb_root / project / "_deliverable_contract.json").write_text(json.dumps(contract))
+            (bb_root / project / "_deliverable_contract.json").write_text(
+                json.dumps(contract)
+            )
             synthesis_dir = bb_root / project / "final_synthesis"
             synthesis_dir.mkdir(parents=True)
             (synthesis_dir / "report.md").write_text("Some synthesis output")
-            
+
             action = orch._build_run_final_gate_action()
             assert action["action"] == "run_final_gate"
             assert action["wp_id"] == "BATCH"
@@ -213,11 +224,18 @@ class TestSemanticGate:
             # 模拟 LLM 写的 gate report（MUST MISSING）
             report = {
                 "gaps": [
-                    {"element": "Core feature A", "criticality": "MUST", "status": "MISSING", "reason": "Not addressed"},
+                    {
+                        "element": "Core feature A",
+                        "criticality": "MUST",
+                        "status": "MISSING",
+                        "reason": "Not addressed",
+                    },
                 ],
             }
-            (bb_root / project / "_final_gate_report.json").write_text(json.dumps(report))
-            
+            (bb_root / project / "_final_gate_report.json").write_text(
+                json.dumps(report)
+            )
+
             with pytest.raises(ValueError, match="HARD_BLOCK"):
                 orch._process_gate_report()
 
@@ -226,15 +244,31 @@ class TestSemanticGate:
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             report = {
                 "gaps": [
-                    {"element": "Core feature A", "criticality": "MUST", "status": "COVERED", "reason": "Fully addressed"},
-                    {"element": "Nice-to-have B", "criticality": "SHOULD", "status": "MISSING", "reason": "Not addressed"},
+                    {
+                        "element": "Core feature A",
+                        "criticality": "MUST",
+                        "status": "COVERED",
+                        "reason": "Fully addressed",
+                    },
+                    {
+                        "element": "Nice-to-have B",
+                        "criticality": "SHOULD",
+                        "status": "MISSING",
+                        "reason": "Not addressed",
+                    },
                 ],
             }
-            (bb_root / project / "_final_gate_report.json").write_text(json.dumps(report))
-            
+            (bb_root / project / "_final_gate_report.json").write_text(
+                json.dumps(report)
+            )
+
             result = orch._process_gate_report()
             assert result["passed"] is True
-            should_gaps = [g for g in result["gaps"] if g["criticality"] == "SHOULD" and g["status"] == "MISSING"]
+            should_gaps = [
+                g
+                for g in result["gaps"]
+                if g["criticality"] == "SHOULD" and g["status"] == "MISSING"
+            ]
             assert len(should_gaps) == 1
             assert should_gaps[0]["element"] == "Nice-to-have B"
 
@@ -243,12 +277,24 @@ class TestSemanticGate:
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             report = {
                 "gaps": [
-                    {"element": "Feature A", "criticality": "MUST", "status": "COVERED", "reason": "Addressed"},
-                    {"element": "Feature B", "criticality": "SHOULD", "status": "COVERED", "reason": "Addressed"},
+                    {
+                        "element": "Feature A",
+                        "criticality": "MUST",
+                        "status": "COVERED",
+                        "reason": "Addressed",
+                    },
+                    {
+                        "element": "Feature B",
+                        "criticality": "SHOULD",
+                        "status": "COVERED",
+                        "reason": "Addressed",
+                    },
                 ],
             }
-            (bb_root / project / "_final_gate_report.json").write_text(json.dumps(report))
-            
+            (bb_root / project / "_final_gate_report.json").write_text(
+                json.dumps(report)
+            )
+
             result = orch._process_gate_report()
             assert result["passed"] is True
             assert all(g["status"] == "COVERED" for g in result["gaps"])
@@ -264,7 +310,7 @@ class TestSemanticGate:
         """Gate report 非法 JSON → raise（fail-closed）。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             (bb_root / project / "_final_gate_report.json").write_text("invalid json{{")
-            
+
             with pytest.raises(ValueError, match="invalid JSON"):
                 orch._process_gate_report()
 
@@ -272,8 +318,10 @@ class TestSemanticGate:
         """Gate report 缺少 gaps 数组 → raise（fail-closed）。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             report = {"some_other_field": "value"}
-            (bb_root / project / "_final_gate_report.json").write_text(json.dumps(report))
-            
+            (bb_root / project / "_final_gate_report.json").write_text(
+                json.dumps(report)
+            )
+
             with pytest.raises(ValueError, match="missing 'gaps' array"):
                 orch._process_gate_report()
 
@@ -282,6 +330,7 @@ class TestSemanticGate:
 # 完成宣告条件
 # ---------------------------------------------------------------------------
 
+
 class TestCompletionConditions:
     def test_completion_requires_final_synthesis(self, mock_blackboard):
         """全部 WP DONE 但无 final_synthesis_done → 不宣告完成。"""
@@ -289,10 +338,14 @@ class TestCompletionConditions:
             _setup_done_wp(bb_root, project, "AAA-001")
             _setup_living_spec(bb_root, project)  # 需要 living_spec 以避免 raise
             # 创建 contract 以避免 infer_contract 动作
-            (bb_root / project / "_deliverable_contract.json").write_text(json.dumps({
-                "deliverable_type": "report",
-                "req_elements": [],
-            }))
+            (bb_root / project / "_deliverable_contract.json").write_text(
+                json.dumps(
+                    {
+                        "deliverable_type": "report",
+                        "req_elements": [],
+                    }
+                )
+            )
             with patch.object(orch, "_count_in_flight", return_value=0):
                 report = orch.pulse()
             # 不应宣告 completed（因为缺少 final_synthesis_done）
@@ -304,19 +357,29 @@ class TestCompletionConditions:
             _setup_done_wp(bb_root, project, "AAA-001")
             _setup_living_spec(bb_root, project)  # 需要 living_spec 以避免 raise
             # 创建 contract 以避免 infer_contract 动作
-            (bb_root / project / "_deliverable_contract.json").write_text(json.dumps({
-                "deliverable_type": "report",
-                "req_elements": [],
-            }))
-            (bb_root / project / "_final_deliverable_done.json").write_text(json.dumps({
-                "completed_at": time.time(),
-                "gate_passed": True,
-            }))
+            (bb_root / project / "_deliverable_contract.json").write_text(
+                json.dumps(
+                    {
+                        "deliverable_type": "report",
+                        "req_elements": [],
+                    }
+                )
+            )
+            (bb_root / project / "_final_deliverable_done.json").write_text(
+                json.dumps(
+                    {
+                        "completed_at": time.time(),
+                        "gate_passed": True,
+                    }
+                )
+            )
             with patch.object(orch, "_count_in_flight", return_value=0):
                 report = orch.pulse()
             assert report["status"] == "completed"
             # 验证 completed 标记包含 final_synthesis_done
-            completed = json.loads((bb_root / project / ".deliver_completed.json").read_text())
+            completed = json.loads(
+                (bb_root / project / ".deliver_completed.json").read_text()
+            )
             assert completed["final_synthesis_done"] is True
 
 
@@ -324,10 +387,12 @@ class TestCompletionConditions:
 # PulseAction 契约扩展
 # ---------------------------------------------------------------------------
 
+
 class TestPulseActionExtension:
     def test_accepts_infer_deliverable_contract(self):
         """PulseAction 接受 infer_deliverable_contract action。"""
         from domains.deliver_pro.contracts.pulse_report import PulseAction
+
         action = PulseAction(
             wp_id="BATCH",
             action="infer_deliverable_contract",
@@ -339,6 +404,7 @@ class TestPulseActionExtension:
     def test_accepts_final_synthesis(self):
         """PulseAction 接受 final_synthesis action。"""
         from domains.deliver_pro.contracts.pulse_report import PulseAction
+
         action = PulseAction(
             wp_id="BATCH",
             action="final_synthesis",
@@ -350,6 +416,7 @@ class TestPulseActionExtension:
     def test_accepts_run_final_gate(self):
         """PulseAction 接受 run_final_gate action。"""
         from domains.deliver_pro.contracts.pulse_report import PulseAction
+
         action = PulseAction(
             wp_id="BATCH",
             action="run_final_gate",

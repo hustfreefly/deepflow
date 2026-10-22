@@ -12,7 +12,9 @@ with open("/Users/allen/.openclaw/workspace/.env") as f:
             k, _, v = line.partition("=")
             env[k.strip()] = v.strip().strip('"').strip("'")
 
-password = env["SMTP_QQ_PASSWORD"] if "SMTP_QQ_PASSWORD" in env else env["SMTP_PASSWORD"]
+password = (
+    env["SMTP_QQ_PASSWORD"] if "SMTP_QQ_PASSWORD" in env else env["SMTP_PASSWORD"]
+)
 
 sender = "81240779@qq.com"
 receivers = ["zhongli_ji@hsingchen.com", "81240779@qq.com"]
@@ -26,7 +28,9 @@ msg = MIMEMultipart()
 msg["From"] = sender
 msg["To"] = ", ".join(receivers)
 msg["Subject"] = Header("【PDF版】B1 深度洞察报告 + B2 行动路线报告", "utf-8")
-msg.attach(MIMEText("""忠礼：
+msg.attach(
+    MIMEText(
+        """忠礼：
 
 你要的两份 PDF 版：
 
@@ -38,13 +42,19 @@ msg.attach(MIMEText("""忠礼：
 至此四份报告全部都有 PDF 手机版了：主汇报 v2 + B1 + B2 + B3。
 
 —— 小满
-""", "plain", "utf-8"))
+""",
+        "plain",
+        "utf-8",
+    )
+)
 
 for path in files:
     with open(path, "rb") as f:
         part = MIMEApplication(f.read())
     fname = os.path.basename(path)
-    part.add_header("Content-Disposition", "attachment", filename=Header(fname, "utf-8").encode())
+    part.add_header(
+        "Content-Disposition", "attachment", filename=Header(fname, "utf-8").encode()
+    )
     msg.attach(part)
 
 ctx = ssl.create_default_context()

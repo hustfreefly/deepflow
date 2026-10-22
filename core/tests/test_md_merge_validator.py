@@ -158,6 +158,7 @@ session: "test_001"
 
 # ─── Test: SectionDiff Contract ──────────────────────────────────────────────
 
+
 class TestSectionDiffContract:
     def test_valid_statuses(self):
         for status in ("stable", "modified", "missing", "new"):
@@ -178,6 +179,7 @@ class TestSectionDiffContract:
 
 
 # ─── Test: MergeValidationResult Contract ────────────────────────────────────
+
 
 class TestMergeValidationResultContract:
     def test_valid_result(self):
@@ -205,6 +207,7 @@ class TestMergeValidationResultContract:
 
 
 # ─── Test: parse_sections ────────────────────────────────────────────────────
+
 
 class TestParseSections:
     def test_minimal_md(self):
@@ -241,6 +244,7 @@ class TestParseSections:
 
 # ─── Test: _line_similarity ──────────────────────────────────────────────────
 
+
 class TestLineSimilarity:
     def test_identical(self):
         assert _line_similarity("hello\nworld", "hello\nworld") == 1.0
@@ -261,6 +265,7 @@ class TestLineSimilarity:
 
 
 # ─── Test: validate_merge ────────────────────────────────────────────────────
+
 
 class TestValidateMerge:
     def test_identical_md_passes(self):
@@ -290,7 +295,10 @@ class TestValidateMerge:
 
     def test_new_section_detected(self):
         """Updated MD has new optional section"""
-        updated = UPDATED_MD_MODIFIED + "\n## inferred\n\n| hypothesis | confidence |\n|---|---|\n| Test | 0.8 |\n"
+        updated = (
+            UPDATED_MD_MODIFIED
+            + "\n## inferred\n\n| hypothesis | confidence |\n|---|---|\n| Test | 0.8 |\n"
+        )
         result = validate_merge(MINIMAL_MD, updated)
         assert "inferred" in result.new_sections
 
@@ -324,6 +332,7 @@ class TestValidateMerge:
 
 # ─── Test: detect_missing_content ────────────────────────────────────────────
 
+
 class TestDetectMissingContent:
     def test_no_missing_when_identical(self):
         missing = detect_missing_content(MINIMAL_MD, MINIMAL_MD)
@@ -352,6 +361,7 @@ class TestDetectMissingContent:
 
 
 # ─── Test: Integration ───────────────────────────────────────────────────────
+
 
 class TestIntegration:
     def test_full_workflow(self):

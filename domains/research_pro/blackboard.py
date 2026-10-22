@@ -15,7 +15,9 @@ Research Pro 阶段路径:
 
 import core.bootstrap  # 契约笼子: 通过 bootstrap 自动加入 sys.path
 from core.blackboard.registry_base import DomainRegistry
-from core.blackboard.blackboard_manager import BlackboardManager as CoreBlackboardManager
+from core.blackboard.blackboard_manager import (
+    BlackboardManager as CoreBlackboardManager,
+)
 
 
 # ============================================================================
@@ -24,14 +26,13 @@ from core.blackboard.blackboard_manager import BlackboardManager as CoreBlackboa
 # ============================================================================
 STAGE_PATH_REGISTRY = {
     # 研究阶段输出
-    "planning":         "planning",
-    "search":           "search",
-    "analysis":         "analysis",
-    "report":           "report",
-    "quality_review":   "quality_review",
-
+    "planning": "planning",
+    "search": "search",
+    "analysis": "analysis",
+    "report": "report",
+    "quality_review": "quality_review",
     # 输入
-    "input":            "input",
+    "input": "input",
 }
 
 
@@ -40,6 +41,7 @@ STAGE_PATH_REGISTRY = {
 # ============================================================================
 class ResearchRegistry(DomainRegistry):
     """Research Pro 路径注册表"""
+
     STAGE_PATH_REGISTRY = STAGE_PATH_REGISTRY
 
 

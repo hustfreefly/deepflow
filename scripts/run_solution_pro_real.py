@@ -24,16 +24,19 @@ def main():
     try:
         result = run_solution_pro(user_input=user_input)
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"🎉 Pipeline Complete!")
-        print(f"{'='*60}")
-        print(f"Status: {result.get('status', 'UNKNOWN') if isinstance(result, dict) else result}")
+        print(f"{'=' * 60}")
+        print(
+            f"Status: {result.get('status', 'UNKNOWN') if isinstance(result, dict) else result}"
+        )
 
         return 0
 
     except Exception as e:
         print(f"\n❌ Pipeline failed: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

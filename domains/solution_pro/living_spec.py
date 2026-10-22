@@ -42,12 +42,14 @@ def generate_requirement_index(living_spec: Dict[str, Any]) -> List[Dict[str, An
             # 补充来源上下文
             text = f"[{source_section}] {text}"
         req_counter += 1
-        index.append({
-            "id": f"REQ-{req_counter:03d}",
-            "description": text,
-            "priority": priority or "P1",
-            "source_section": source_section,
-        })
+        index.append(
+            {
+                "id": f"REQ-{req_counter:03d}",
+                "description": text,
+                "priority": priority or "P1",
+                "source_section": source_section,
+            }
+        )
 
     # 1. Objective（P0）
     objective = confirmed.get("objective", "")
@@ -86,7 +88,11 @@ def generate_requirement_index(living_spec: Dict[str, Any]) -> List[Dict[str, An
         if isinstance(item, dict):
             metric = item.get("metric", "")
             target = item.get("target", "")
-            desc = f"{metric}: {target}" if metric and target else (metric or target or str(item))
+            desc = (
+                f"{metric}: {target}"
+                if metric and target
+                else (metric or target or str(item))
+            )
             _add_index_entry(desc, "P1", "confirmed.success_metrics")
         else:
             _add_index_entry(str(item), "P1", "confirmed.success_metrics")
@@ -98,9 +104,13 @@ def generate_requirement_index(living_spec: Dict[str, Any]) -> List[Dict[str, An
             if val:
                 if isinstance(val, list):
                     for v in val:
-                        _add_index_entry(f"{key}: {v}", "P1", f"confirmed.constraints.{key}")
+                        _add_index_entry(
+                            f"{key}: {v}", "P1", f"confirmed.constraints.{key}"
+                        )
                 else:
-                    _add_index_entry(f"{key}: {val}", "P0", f"confirmed.constraints.{key}")
+                    _add_index_entry(
+                        f"{key}: {val}", "P0", f"confirmed.constraints.{key}"
+                    )
     elif isinstance(constraints_raw, list):
         for item in constraints_raw:
             _add_index_entry(str(item), "P1", "confirmed.constraints")
@@ -110,8 +120,16 @@ def generate_requirement_index(living_spec: Dict[str, Any]) -> List[Dict[str, An
         if isinstance(item, dict):
             role = item.get("role", "")
             key_needs = item.get("key_needs", [])
-            needs_str = "、".join(key_needs[:3]) if isinstance(key_needs, list) else str(key_needs)
-            desc = f"{role}（需求: {needs_str}）" if role and key_needs else (role or str(item))
+            needs_str = (
+                "、".join(key_needs[:3])
+                if isinstance(key_needs, list)
+                else str(key_needs)
+            )
+            desc = (
+                f"{role}（需求: {needs_str}）"
+                if role and key_needs
+                else (role or str(item))
+            )
             _add_index_entry(desc, "P1", "confirmed.users")
         else:
             _add_index_entry(str(item), "P1", "confirmed.users")
@@ -136,12 +154,20 @@ def generate_requirement_index(living_spec: Dict[str, Any]) -> List[Dict[str, An
                     desc = f"[风险-{severity}] {desc}"
                 _add_index_entry(desc, "P1", "confirmed.risks_and_assumptions.risks")
             else:
-                _add_index_entry(str(item), "P1", "confirmed.risks_and_assumptions.risks")
+                _add_index_entry(
+                    str(item), "P1", "confirmed.risks_and_assumptions.risks"
+                )
         for item in ra.get("assumptions", []) or []:
             if isinstance(item, dict):
-                _add_index_entry(item.get("description", str(item)), "P1", "confirmed.risks_and_assumptions.assumptions")
+                _add_index_entry(
+                    item.get("description", str(item)),
+                    "P1",
+                    "confirmed.risks_and_assumptions.assumptions",
+                )
             else:
-                _add_index_entry(str(item), "P1", "confirmed.risks_and_assumptions.assumptions")
+                _add_index_entry(
+                    str(item), "P1", "confirmed.risks_and_assumptions.assumptions"
+                )
 
     # 11. Guardrails（P0）
     guardrails = living_spec.get("guardrails", {})
@@ -172,10 +198,12 @@ def generate_requirement_index(living_spec: Dict[str, Any]) -> List[Dict[str, An
                     _add_index_entry(
                         f"研究重点: {area.get('area', '')} — {area.get('reason', '')}",
                         "P1",
-                        "solution_pro_hints.focus_areas"
+                        "solution_pro_hints.focus_areas",
                     )
                 else:
-                    _add_index_entry(f"研究重点: {area}", "P1", "solution_pro_hints.focus_areas")
+                    _add_index_entry(
+                        f"研究重点: {area}", "P1", "solution_pro_hints.focus_areas"
+                    )
 
     return index
 

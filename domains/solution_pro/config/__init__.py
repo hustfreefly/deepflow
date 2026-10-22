@@ -1,4 +1,5 @@
 """Solution Pro 领域适配配置模块"""
+
 from .domain_loader import (
     load_domain_config,
     get_suggested_categories,

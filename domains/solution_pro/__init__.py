@@ -24,7 +24,13 @@ sessions_spawn(**result["spawn_params"])
   - 后置验证：Agent 完成后 post_validator.py 检查输出质量
 """
 
-import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
+import sys as _sys
+
+_p = __import__("pathlib").Path(__file__).resolve()
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
+_sys.path.insert(0, str(_r)) if _r and str(
+    _r
+) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 import json
 import os
 import pathlib
@@ -35,8 +41,6 @@ from core.prompt_utils import render_prompt  # V4: 集成 PromptUtils
 from pathlib import Path
 
 from .blackboard import BlackboardManager
-
-
 
 
 # Track B（2026-07-29）: _extract_requirements_from_input() 已物理删除。
@@ -64,6 +68,7 @@ def _try_load_handoff_package(bm: BlackboardManager) -> Optional[dict]:
     """
     import glob
     import logging as _logging
+
     _logger = _logging.getLogger(__name__)
 
     from contracts.shared.handoff_contract import HandoffPackage
@@ -71,7 +76,9 @@ def _try_load_handoff_package(bm: BlackboardManager) -> Optional[dict]:
     # 扫描最新的 spec_handoff_package.json
     blackboard_root = bm._base
     pattern = str(blackboard_root / "*" / "spec" / "spec_handoff_package.json")
-    candidates = sorted(glob.glob(pattern), key=lambda p: Path(p).stat().st_mtime, reverse=True)
+    candidates = sorted(
+        glob.glob(pattern), key=lambda p: Path(p).stat().st_mtime, reverse=True
+    )
 
     if not candidates:
         return None
@@ -84,9 +91,7 @@ def _try_load_handoff_package(bm: BlackboardManager) -> Optional[dict]:
     try:
         package = HandoffPackage(**raw_package)
     except Exception as e:
-        raise ValueError(
-            f"handoff package 契约验证失败 ({latest_path}): {e}"
-        ) from e
+        raise ValueError(f"handoff package 契约验证失败 ({latest_path}): {e}") from e
 
     # 契约铁律：handoff_allowed=False → 阻断
     if not package.handoff_allowed:
@@ -111,6 +116,7 @@ def _try_load_handoff_package(bm: BlackboardManager) -> Optional[dict]:
         )
 
     from domains.spec_pro.spec_living_md import parse_living_spec_md
+
     md_content = md_path.read_text(encoding="utf-8")
     living_spec = parse_living_spec_md(md_content)
     _logger.info(
@@ -179,13 +185,18 @@ def run_solution_pro(user_input: str, **kwargs):
 
     # ADR-009 Phase 3: requirement_index 已在 living_spec 中（由 spec_pro 生成）
     # 契约笼子: living_spec 必须包含 requirement_index，否则 raise
-    requirement_index = living_spec.get("requirement_index", []) if isinstance(living_spec, dict) else []
+    requirement_index = (
+        living_spec.get("requirement_index", [])
+        if isinstance(living_spec, dict)
+        else []
+    )
     # Track B 契约铁律（2026-07-29）：living_spec 缺失或 requirement_index 为空 → raise
     # 用户铁律：需求对齐是硬性要求，不存在降级或静默方案
     if not requirement_index:
         # 尝试从 living_spec 的 narrative/confirmed 结构化提取（非正则，是结构化数据提取）
         try:
             from domains.solution_pro.living_spec import generate_requirement_index
+
             requirement_index = generate_requirement_index(living_spec or {})
         except Exception:
             requirement_index = []
@@ -214,23 +225,22 @@ def run_solution_pro(user_input: str, **kwargs):
     # MD 是真相源，JSON 衍生品已删除（双写 → 单写）
     # B1-FIX: semantic_anchors 从 living_spec 透传（pipeline_designer.py:169 契约笼子要求）
     _semantic_anchors = (
-        living_spec.get("semantic_anchors", [])
-        if isinstance(living_spec, dict) else []
+        living_spec.get("semantic_anchors", []) if isinstance(living_spec, dict) else []
     )
     # D-6-FIX: guardrails 和 solution_pro_hints 从 living_spec 透传
     _guardrails = (
-        living_spec.get("guardrails", {})
-        if isinstance(living_spec, dict) else {}
+        living_spec.get("guardrails", {}) if isinstance(living_spec, dict) else {}
     )
     # Phase 3 迁移完成：删除 frozen_spec 生成，Ship Pro 直接读 living_spec.md
     # frozen_spec 是中间产物，living_spec 已包含所有必需信息
     # 契约笼子：Ship Pro 验证 living_spec 必需字段（requirement_index, semantic_anchors, guardrails）
-    
+
     _solution_pro_hints = (
         living_spec.get("solution_pro_hints", {})
-        if isinstance(living_spec, dict) else {}
+        if isinstance(living_spec, dict)
+        else {}
     )
-    
+
     # 确保 living_spec 包含 Ship Pro 必需的字段
     if isinstance(living_spec, dict):
         # 注入 semantic_anchors（如果缺失）
@@ -242,9 +252,10 @@ def run_solution_pro(user_input: str, **kwargs):
         # 注入 solution_pro_hints（如果缺失）
         if "solution_pro_hints" not in living_spec:
             living_spec["solution_pro_hints"] = _solution_pro_hints
-    
+
     # MD 主写入：living_spec.md 是 Ship Pro 的唯一输入
     from domains.spec_pro.spec_living_md import render_living_spec_md
+
     living_spec_md = render_living_spec_md(living_spec)  # raise on failure
     bm.write("data/living_spec.md", living_spec_md)
 
@@ -260,7 +271,9 @@ def run_solution_pro(user_input: str, **kwargs):
     deepflow_root = str(Path(__file__).resolve().parent.parent.parent)
 
     # 5a. V4: 使用 PromptUtils 渲染 orchestrator.md
-    orchestrator_prompt_path = pathlib.Path(__file__).parent / "prompts" / "orchestrator.md"
+    orchestrator_prompt_path = (
+        pathlib.Path(__file__).parent / "prompts" / "orchestrator.md"
+    )
     render_result = render_prompt(
         orchestrator_prompt_path,
         session_id=session_id,
@@ -279,10 +292,11 @@ def run_solution_pro(user_input: str, **kwargs):
     #    导致 Orchestrator 只收到前 2/3 指令（Planning + Research），Step 3/4/5 被截掉。
     #    修复：task 只传最小引用，让 Orchestrator 自己读 blackboard 中的文件。
     import logging as _logging
+
     _logging.getLogger(__name__).info(
         f"run_solution_pro: session={session_id}, V3.2 Orchestrator path"
     )
-    
+
     # 最小引用 task（~350 chars），不塞完整 prompt
     # 根因：task 超过 ~500 chars 会被截断，导致 Orchestrator 只收到部分指令
     # 修复：task 只传最小引用（session_id + 读文件指令），完整指令在 orchestrator_prompt.md 中
@@ -293,7 +307,7 @@ def run_solution_pro(user_input: str, **kwargs):
         f"用 read 工具读取这个文件，然后严格按照文件内容执行所有步骤。\n"
         f"如果文件不存在 → 用 write 工具写入 `{session_dir}/stages/.failed` 并立即结束。"
     )
-    
+
     return {
         "session_id": session_id,
         "base_path": session_dir,
@@ -312,6 +326,7 @@ def run_solution_pro(user_input: str, **kwargs):
 # ============================================================================
 # ADR-009: Track Generation
 # ============================================================================
+
 
 def generate_solution_track(base_path: str) -> dict | None:
     """
@@ -356,6 +371,7 @@ def generate_solution_track(base_path: str) -> dict | None:
 # ADR-009: MD-First Rendering (Unified Fallback)
 # ============================================================================
 
+
 def render_solution_md(session_id: str, base_dir: str = None) -> dict:
     """
     ADR-009 Phase 3: MD 主写入 — 渲染 Solution Pro 的所有 MD 产物。
@@ -380,7 +396,7 @@ def render_solution_md(session_id: str, base_dir: str = None) -> dict:
     results = {"final_solution_md": False, "solution_document_md": False}
 
     # 1. final_solution.md — MD 主写入
-    final_solution_data = bm.read_stage('final_solution')
+    final_solution_data = bm.read_stage("final_solution")
     if final_solution_data:
         if isinstance(final_solution_data, str):
             # 已经是 MD（Phase 4+ Agent 直接写 MD）
@@ -388,11 +404,11 @@ def render_solution_md(session_id: str, base_dir: str = None) -> dict:
         else:
             # dict → MD 渲染（render 失败 → raise，不捕获）
             final_solution_md = render_final_solution_md(final_solution_data)
-        bm.write_stage('final_solution', final_solution_md)  # MD 真相源
-        results['final_solution_md'] = True
+        bm.write_stage("final_solution", final_solution_md)  # MD 真相源
+        results["final_solution_md"] = True
 
     # 2. solution_document.md — MD 主写入
-    solution_document_data = bm.read_stage('solution_document')
+    solution_document_data = bm.read_stage("solution_document")
     if solution_document_data:
         if isinstance(solution_document_data, str):
             # 已经是 MD（Agent 直接写 MD）
@@ -403,11 +419,11 @@ def render_solution_md(session_id: str, base_dir: str = None) -> dict:
                 "ADR-009 契约违反: solution_document 是 dict，缺少 MD renderer。"
                 "Phase 4+ Agent 应直接写 MD（str），不应写 dict。"
             )
-        bm.write_stage('solution_document', solution_document_md)  # MD 真相源
-        results['solution_document_md'] = True
+        bm.write_stage("solution_document", solution_document_md)  # MD 真相源
+        results["solution_document_md"] = True
 
     return results
 
 
 # 契约笼子（2026-07-14）：显式导出
-__all__ = ['run_solution_pro', 'generate_solution_track', 'render_solution_md']
+__all__ = ["run_solution_pro", "generate_solution_track", "render_solution_md"]

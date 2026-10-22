@@ -13,7 +13,7 @@ import sys as _sys
 from pathlib import Path as _Path
 
 _p = _Path(__file__).resolve()
-_r = next((d for d in _p.parents if (d / 'core' / 'blackboard').is_dir()), None)
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 if _r and str(_r) not in _sys.path:
     _sys.path.insert(0, str(_r))
 
@@ -32,6 +32,7 @@ from core.md_track_extractor import (
 # Test _extract_semantic_anchors
 # ============================================================================
 
+
 class TestExtractSemanticAnchors:
     def test_extract_semantic_anchors_list(self):
         """解析标准格式的 semantic anchor 列表项。"""
@@ -44,7 +45,7 @@ class TestExtractSemanticAnchors:
 - [cost] 预算上限: ¥50,000/月
 """
         result = _extract_semantic_anchors(md)
-        
+
         assert len(result) == 4
         assert result[0] == {
             "category": "performance",
@@ -84,6 +85,7 @@ class TestExtractSemanticAnchors:
 # Test _extract_summary
 # ============================================================================
 
+
 class TestExtractSummary:
     def test_extract_summary_counts(self):
         """从表格行数计算 key_decisions, phases, risks 计数。"""
@@ -110,7 +112,7 @@ class TestExtractSummary:
 | 人员不足 | 高 | 中 | 外包 |
 """
         result = _extract_summary(md)
-        
+
         assert result["key_decisions_count"] == 3
         assert result["implementation_phases_count"] == 2
         assert result["risk_count"] == 1
@@ -131,6 +133,7 @@ class TestExtractSummary:
 # Test _extract_constraint_coverage
 # ============================================================================
 
+
 class TestExtractConstraintCoverage:
     def test_extract_constraint_coverage_text_pattern(self):
         """从文本模式 'covered: X / total: Y' 提取覆盖率。"""
@@ -146,7 +149,7 @@ covered: 18 / total: 20
 | REQ-001 | ✓ |
 """
         result = _extract_constraint_coverage(md)
-        
+
         assert result["total"] == 20
         assert result["covered"] == 18
         assert result["ratio"] == 0.9
@@ -164,7 +167,7 @@ covered: 18 / total: 20
 | REQ-004 | 功能D | yes |
 """
         result = _extract_constraint_coverage(md)
-        
+
         assert result["total"] == 4
         assert result["covered"] == 3  # ✓, ✅, yes
         assert result["ratio"] == 0.75
@@ -182,6 +185,7 @@ covered: 18 / total: 20
 # ============================================================================
 # Test 放宽限制: 无表格 warning（不 raise）
 # ============================================================================
+
 
 class TestNoTablesWarning:
     def test_no_tables_warning(self, caplog):
@@ -216,7 +220,7 @@ created: "2026-07-29"
         # 不应 raise ValueError
         with caplog.at_level(logging.WARNING):
             result = extract_track_json(md, "solution_pro")
-        
+
         assert result["schema_version"] == "3.1.0"
         assert result["domain"] == "solution_pro"
         assert "summary" in result
@@ -228,6 +232,7 @@ created: "2026-07-29"
 # ============================================================================
 # Test 放宽限制: 无 Gate 表 warning（不 raise）
 # ============================================================================
+
 
 class TestNoGateTableWarning:
     def test_no_gate_table_warning(self, caplog):
@@ -273,7 +278,7 @@ covered: 5 / total: 5
         # 不应 raise ValueError
         with caplog.at_level(logging.WARNING):
             result = extract_track_json(md, "solution_pro")
-        
+
         assert result["schema_version"] == "3.1.0"
         assert result["gate_summary"] == {}
         # 验证 warning 被记录

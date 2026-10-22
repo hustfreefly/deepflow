@@ -31,6 +31,7 @@ Ship Pro 2.0.0 - 入口模块
   │   └── ...
   └── ...
 """
+
 import fcntl
 import json
 import logging
@@ -38,8 +39,14 @@ import re
 from datetime import datetime
 from pathlib import Path
 from core.trace import start_trace, span, save_to_blackboard  # 全链路追踪:跨域 trace_id
-from core.blackboard.context_injector import build_bootstrap_task, auto_bootstrap  # Bootstrap Pattern: 解决 sessions_spawn 8KB 截断
-from core.process_manager import ModuleLifecycleManager, SingleSourceStateManager  # 通用模块: 生命周期 + 单源状态管理
+from core.blackboard.context_injector import (
+    build_bootstrap_task,
+    auto_bootstrap,
+)  # Bootstrap Pattern: 解决 sessions_spawn 8KB 截断
+from core.process_manager import (
+    ModuleLifecycleManager,
+    SingleSourceStateManager,
+)  # 通用模块: 生命周期 + 单源状态管理
 
 
 # ============================================================================
@@ -77,6 +84,7 @@ def _find_solution_pro_output(project_blackboard: Path) -> dict:
     """
     import json as _json
     import logging as _logging
+
     _logger = _logging.getLogger(__name__)
 
     final_md = project_blackboard / "stages" / "final_solution.md"
@@ -87,6 +95,7 @@ def _find_solution_pro_output(project_blackboard: Path) -> dict:
     # ADR-009 MD-first（纯 MD 流转，删除 JSON fallback）
     if final_md.exists():
         from domains.solution_pro.solution_living_md import parse_final_solution_md
+
         md_content = final_md.read_text(encoding="utf-8")
         data = parse_final_solution_md(md_content)
         data["_solution_source"] = "final_solution_md"
@@ -102,8 +111,11 @@ def _find_solution_pro_output(project_blackboard: Path) -> dict:
 
     # Schema 验证: 必需字段存在且非空（确定性检查，代码做代码该做的事）
     _REQUIRED_FIELDS = [
-        "key_decisions", "implementation_phases", "covered_req_ids",
-        "constraint_coverage", "semantic_anchors",
+        "key_decisions",
+        "implementation_phases",
+        "covered_req_ids",
+        "constraint_coverage",
+        "semantic_anchors",
     ]
     missing = [f for f in _REQUIRED_FIELDS if not data.get(f)]
     if missing:
@@ -123,8 +135,11 @@ def _find_solution_pro_output(project_blackboard: Path) -> dict:
         # Fallback: 动态生成 track
         try:
             from core.md_track_extractor import extract_track_json
+
             track_data = extract_track_json(md_content, "solution_pro")
-            _logger.info("Dynamically generated solution_track via extract_track_json()")
+            _logger.info(
+                "Dynamically generated solution_track via extract_track_json()"
+            )
         except Exception as e:
             _logger.warning(f"Failed to generate track: {e}")
 
@@ -135,7 +150,9 @@ def _find_solution_pro_output(project_blackboard: Path) -> dict:
         track_anchors = track_data.get("semantic_anchors", [])
         if track_anchors and not data.get("semantic_anchors"):
             data["semantic_anchors"] = track_anchors
-            _logger.info(f"Enhanced semantic_anchors from track: {len(track_anchors)} anchors")
+            _logger.info(
+                f"Enhanced semantic_anchors from track: {len(track_anchors)} anchors"
+            )
         # 提取 req_ids
         track_req_ids = track_data.get("metrics", {}).get("req_ids", [])
         if track_req_ids:
@@ -162,6 +179,7 @@ def _get_ship_pro_dir(project_blackboard: Path) -> Path:
 # ============================================================================
 # 2.0.0 单入口
 # ============================================================================
+
 
 def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
     """
@@ -195,7 +213,12 @@ def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
 
     # 全链路追踪:继承或新建 trace_id,记录 Ship Pro 入口 span
     _trace_id = start_trace(trace_id)
-    span("ship_pro_entry", domain="ship_pro", project_name=project_name, trace_id=_trace_id)
+    span(
+        "ship_pro_entry",
+        domain="ship_pro",
+        project_name=project_name,
+        trace_id=_trace_id,
+    )
     # 全链路追踪:记录 blackboard 定位完成
     span("blackboard_located", domain="ship_pro", project_name=project_name)
 
@@ -215,7 +238,7 @@ def run_ship_pro(project_name: str, trace_id: str = None, **kwargs) -> dict:
 
     # P1 Fix #6: 文件锁防止并发执行
     lock_file = ship_dir / ".lock"
-    _lock_fd = open(lock_file, 'w')
+    _lock_fd = open(lock_file, "w")
     try:
         fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
@@ -265,10 +288,16 @@ def _run_ship_pro_locked(
     #    从 .runs/orchestrator.*.run.json 读取状态
     recovery_status = state_mgr.get_module_status("orchestrator")
     if state_mgr.is_module_completed("orchestrator"):
-        completed_run_id = recovery_status.get('run_id', '')
-        _logger.info(f"Ship Pro Orchestrator 已完成 (run_id: {completed_run_id}), 跳过 spawn")
+        completed_run_id = recovery_status.get("run_id", "")
+        _logger.info(
+            f"Ship Pro Orchestrator 已完成 (run_id: {completed_run_id}), 跳过 spawn"
+        )
         # run_id 隔离：从已完成 run 的独立目录查找 ship_package
-        completed_ship_dir = project_bb / f"ship_pro_{completed_run_id}" if completed_run_id else ship_dir
+        completed_ship_dir = (
+            project_bb / f"ship_pro_{completed_run_id}"
+            if completed_run_id
+            else ship_dir
+        )
         ship_package_path = completed_ship_dir / "stages" / "ship_package.md"
         return {
             "project_name": project_name,
@@ -276,7 +305,9 @@ def _run_ship_pro_locked(
             "ship_pro_dir": str(completed_ship_dir),
             "trace_id": trace_id,
             "status": "already_completed",
-            "ship_package_path": str(ship_package_path) if ship_package_path.exists() else None,
+            "ship_package_path": str(ship_package_path)
+            if ship_package_path.exists()
+            else None,
             "recovery": recovery_status,
         }
 
@@ -294,7 +325,9 @@ def _run_ship_pro_locked(
             "recovery": recovery_status,
         }
 
-    _logger.info(f"Ship Pro Orchestrator 运行权已获取: {run_info.run_id} (attempt {run_info.attempt})")
+    _logger.info(
+        f"Ship Pro Orchestrator 运行权已获取: {run_info.run_id} (attempt {run_info.attempt})"
+    )
 
     # run_id 目录隔离：每个 run 使用独立目录，防止并发/重试冲突
     run_id = run_info.run_id
@@ -305,7 +338,9 @@ def _run_ship_pro_locked(
 
     # 保存合并输入（统一写入 stages/ 目录，保持 gate judge 路径一致）
     input_path = ship_dir / "stages" / "solution_pro_input.json"
-    input_path.write_text(json.dumps(sol_input, ensure_ascii=False, indent=2), encoding="utf-8")
+    input_path.write_text(
+        json.dumps(sol_input, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     # 4. 构建 Orchestrator prompt
     deepflow_root = str(DEEPFLOW_ROOT)
@@ -335,19 +370,20 @@ def _run_ship_pro_locked(
     # 旧代码用 build_bootstrap_task（引用 stages/ 但写入 root）→ 路径不匹配
     # ═══════════════════════════════════════════════════════════
     from core.blackboard.context_injector import auto_bootstrap
+
     bootstrap_task = auto_bootstrap(
         deepflow_root=Path(deepflow_root),
         prompt_dir=ship_dir / "stages",
         task_content=orchestrator_prompt,
         label="ship_orchestrator",
     )
-    prompt_size = len(orchestrator_prompt.encode('utf-8'))
+    prompt_size = len(orchestrator_prompt.encode("utf-8"))
     _logger.info(
         f"Ship Pro Bootstrap: {prompt_size}B → {len(bootstrap_task.encode('utf-8'))}B"
     )
 
     # P1 Fix #8: 增强心跳 - 在 spawn Orchestrator 前立即发送初始心跳
-    lifecycle.heartbeat('orchestrator', run_info.run_id)
+    lifecycle.heartbeat("orchestrator", run_info.run_id)
     _logger.info(f"Ship Pro 初始心跳已发送: run_id={run_info.run_id}")
 
     # 5. 返回 spawn params(包含 trace_id 供下游继承)
@@ -381,6 +417,7 @@ def _run_ship_pro_locked(
 # 2.0.0 兼容入口(保留,但推荐用 run_ship_pro)
 # ============================================================================
 
+
 def design_pipeline(solution_pro_output_path: str, **kwargs) -> dict:
     """已废弃 — 物理移除，不再作为入口。
 
@@ -388,16 +425,12 @@ def design_pipeline(solution_pro_output_path: str, **kwargs) -> dict:
         Use :func:`run_ship_pro` instead.
     """
     raise RuntimeError(
-        "design_pipeline() 已废弃（2026-09-05 物理移除）。"
-        "唯一入口: run_ship_pro()。"
+        "design_pipeline() 已废弃（2026-09-05 物理移除）。唯一入口: run_ship_pro()。"
     )
 
 
 def prepare_runner_spawn(
-    base_path: str,
-    designer_output: str,
-    solution_pro_input: dict,
-    **kwargs
+    base_path: str, designer_output: str, solution_pro_input: dict, **kwargs
 ) -> dict:
     """2.0.0 兼容入口 - 推荐用 run_ship_pro()"""
     from .pipeline_designer import PipelineDesigner
@@ -409,8 +442,7 @@ def prepare_runner_spawn(
 
     plan_path = session_dir / "stages" / "pipeline_plan.json"
     plan_path.write_text(
-        json.dumps(plan.model_dump(), ensure_ascii=False, indent=2),
-        encoding="utf-8"
+        json.dumps(plan.model_dump(), ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
     contexts = designer.generate_worker_contexts(plan, solution_pro_input)
@@ -423,7 +455,7 @@ def prepare_runner_spawn(
 
     worker_spawn_params = []
     for role, prompt in worker_prompts.items():
-        label = re.sub(r'[^a-z0-9_-]', '_', f"worker_{role}".lower())
+        label = re.sub(r"[^a-z0-9_-]", "_", f"worker_{role}".lower())
         params = {
             "runtime": "subagent",
             "mode": "run",
@@ -435,8 +467,7 @@ def prepare_runner_spawn(
 
     spawn_params_path = session_dir / "stages" / "_worker_spawn_params.json"
     spawn_params_path.write_text(
-        json.dumps(worker_spawn_params, ensure_ascii=False, indent=2),
-        encoding="utf-8"
+        json.dumps(worker_spawn_params, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
     runner_prompt = _build_runner_prompt(
@@ -451,7 +482,9 @@ def prepare_runner_spawn(
             "runtime": "subagent",
             "mode": "run",
             "label": "pipeline_runner_v8",
-            "task": auto_bootstrap(Path(deepflow_root), stages_dir, runner_prompt, "pipeline_runner"),
+            "task": auto_bootstrap(
+                Path(deepflow_root), stages_dir, runner_prompt, "pipeline_runner"
+            ),
             "cwd": deepflow_root,
             "lightContext": True,
         },
@@ -467,6 +500,7 @@ def prepare_runner_spawn(
 # ============================================================================
 # Orchestrator prompt 构建
 # ============================================================================
+
 
 def _build_orchestrator_prompt(
     project_name: str,
@@ -486,9 +520,9 @@ def _build_orchestrator_prompt(
 - 统一 Blackboard: {project_blackboard}
 - Ship Pro 目录: {ship_pro_dir}
 - DeepFlow Root: {deepflow_root}
-- 需求数: {input_summary['req_count']}
-- 架构决策数: {input_summary['decision_count']}
-- 风险缓解数: {input_summary['risk_count']}
+- 需求数: {input_summary["req_count"]}
+- 架构决策数: {input_summary["decision_count"]}
+- 风险缓解数: {input_summary["risk_count"]}
 
 ## 你的职责
 你是唯一负责执行 Ship Pro 管线的 Agent。Main Agent 只启动你,后续不再介入。
@@ -917,6 +951,7 @@ print(json.dumps({{k: {{'passed': v.passed, 'details': str(v.details)[:200]}} fo
 # 内部函数
 # ============================================================================
 
+
 def _build_worker_prompts(
     plan,
     contexts: dict,
@@ -931,7 +966,7 @@ def _build_worker_prompts(
         # Fix 3: 统一写入路径为 stages/worker_outputs/
         worker_outputs_dir = session_dir / "stages" / "worker_outputs"
         worker_outputs_dir.mkdir(parents=True, exist_ok=True)
-        safe_role = worker.role.replace(' ', '_').replace('/', '_')
+        safe_role = worker.role.replace(" ", "_").replace("/", "_")
         output_path = str(worker_outputs_dir / f"worker_{safe_role}.json")
 
         prompt = _build_single_worker_prompt(worker, ctx, ctx_path, output_path)
@@ -969,7 +1004,11 @@ def _build_single_worker_prompt(worker, ctx, ctx_path: str, output_path: str) ->
     # ====================================================================
 
     # 契约笼子:从 context.json 提取 semantic_anchors,放到开头
-    anchors = ctx.semantic_anchors if hasattr(ctx, 'semantic_anchors') and ctx.semantic_anchors else []
+    anchors = (
+        ctx.semantic_anchors
+        if hasattr(ctx, "semantic_anchors") and ctx.semantic_anchors
+        else []
+    )
     if anchors:
         anchor_lines = []
         for a in anchors:
@@ -984,13 +1023,17 @@ def _build_single_worker_prompt(worker, ctx, ctx_path: str, output_path: str) ->
 
     # 领域上下文注入(D1: domain_analysis 消费)
     domain_context = ""
-    if hasattr(ctx, 'domain_analysis') and ctx.domain_analysis:
+    if hasattr(ctx, "domain_analysis") and ctx.domain_analysis:
         da = ctx.domain_analysis
-        domain = da.get('domain', '未知')
-        end_users = da.get('end_users', '未指定')
-        deliverable_form = da.get('deliverable_form', '未指定')
-        split_dim = da.get('split_dimension', '未指定')
-        key_constraints = ', '.join(da.get('key_constraints', [])) if da.get('key_constraints') else '无'
+        domain = da.get("domain", "未知")
+        end_users = da.get("end_users", "未指定")
+        deliverable_form = da.get("deliverable_form", "未指定")
+        split_dim = da.get("split_dimension", "未指定")
+        key_constraints = (
+            ", ".join(da.get("key_constraints", []))
+            if da.get("key_constraints")
+            else "无"
+        )
         domain_context = f"""## 领域上下文(来自 Planner 分析)
 - **领域**: {domain}
 - **最终用户**: {end_users}
@@ -1054,8 +1097,16 @@ read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", Wo
         req_section = f"""共 {len(ctx.module_reqs)} 个需求(详情见 context.json):
 {req_ids}"""
 
-    decisions_text = "\n".join(f"- {d}" for d in ctx.relevant_decisions[:3]) if ctx.relevant_decisions else "无"
-    constraints_text = "\n".join(f"- {c}" for c in ctx.extracted_constraints[:3]) if ctx.extracted_constraints else "无"
+    decisions_text = (
+        "\n".join(f"- {d}" for d in ctx.relevant_decisions[:3])
+        if ctx.relevant_decisions
+        else "无"
+    )
+    constraints_text = (
+        "\n".join(f"- {c}" for c in ctx.extracted_constraints[:3])
+        if ctx.extracted_constraints
+        else "无"
+    )
 
     # 接口契约:保留完整详情
     contracts = ctx.interface_contracts
@@ -1064,7 +1115,9 @@ read("{ctx_path}") → 理解需求 → 设计 WPs → write("{output_path}", Wo
     downstream = ", ".join(contracts.get("downstream_consumers", [])) or "无"
 
     # 输出规范:保留完整示例
-    example_compact = json.dumps(ctx.output_example, ensure_ascii=False, separators=(',', ':'))
+    example_compact = json.dumps(
+        ctx.output_example, ensure_ascii=False, separators=(",", ":")
+    )
     if len(example_compact) > 400:
         example_compact = example_compact[:400] + "..."
 
@@ -1191,12 +1244,14 @@ write 到 "{output_path}",**WorkerDeliverable JSON object**(不是数组!),格�
     return f"{tier_1}{tier_2}{tier_3}"
 
 
-def _build_runner_prompt(session_dir: Path, plan, context_paths: dict, deepflow_root: str) -> str:
+def _build_runner_prompt(
+    session_dir: Path, plan, context_paths: dict, deepflow_root: str
+) -> str:
     """构建 PipelineRunner prompt(2.0.0 兼容,2.0.0 用 ShipOrchestrator 替代)"""
     worker_count = len(plan.workers)
     layers = len(plan.execution_order)
     layer_desc = "\n".join(
-        f"  Layer {i+1}: {', '.join(layer)}"
+        f"  Layer {i + 1}: {', '.join(layer)}"
         for i, layer in enumerate(plan.execution_order)
     )
 
@@ -1242,6 +1297,7 @@ def _build_runner_prompt(session_dir: Path, plan, context_paths: dict, deepflow_
 # ADR-009: Track Generation
 # ============================================================================
 
+
 def generate_ship_track(base_path: str) -> dict | None:
     """
     ADR-009: 从 ship_package 生成 ship_track.json。
@@ -1263,7 +1319,10 @@ def generate_ship_track(base_path: str) -> dict | None:
 
     logger = logging.getLogger(__name__)
     try:
-        from core.track_generator import generate_track_from_md, generate_track_from_json
+        from core.track_generator import (
+            generate_track_from_md,
+            generate_track_from_json,
+        )
     except ImportError:
         logger.info("ADR-009: track_generator not available, skipping")
         return None
@@ -1302,9 +1361,9 @@ def generate_ship_track(base_path: str) -> dict | None:
 from .orchestrator.ship_orchestrator import extract_json_from_completion
 
 __all__ = [
-    "run_ship_pro",           # 2.0.0 唯一入口
+    "run_ship_pro",  # 2.0.0 唯一入口
     # "design_pipeline" 已废弃（2026-09-05），不再导出
-    "prepare_runner_spawn",   # 2.0.0 兼容
+    "prepare_runner_spawn",  # 2.0.0 兼容
     "extract_json_from_completion",
-    "generate_ship_track",    # ADR-009: Track 生成
+    "generate_ship_track",  # ADR-009: Track 生成
 ]

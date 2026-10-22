@@ -15,13 +15,13 @@ from typing import Dict
 
 def render_transition_prompt(prompt_data: Dict) -> str:
     """渲染过渡引导词
-    
+
     Args:
         prompt_data: 包含 template 和 variables 的字典
-        
+
     Returns:
         渲染后的引导词文本
-        
+
     Example:
         >>> data = {
         ...     "template": "spec_to_solution",
@@ -37,7 +37,7 @@ def render_transition_prompt(prompt_data: Dict) -> str:
     """
     template = prompt_data.get("template", "")
     variables = prompt_data.get("variables", {})
-    
+
     if template == "spec_to_solution":
         return _render_spec_to_solution(variables)
     elif template == "solution_to_ship":
@@ -55,7 +55,7 @@ def _render_spec_to_solution(vars: Dict) -> str:
     num_users = vars.get("num_users", 0)
     num_capabilities = vars.get("num_capabilities", 0)
     num_constraints = vars.get("num_constraints", 0)
-    
+
     # 根据质量等级选择不同模板
     if quality_level in ("S", "A"):
         # 高质量：积极鼓励
@@ -88,7 +88,7 @@ def _render_spec_to_solution(vars: Dict) -> str:
   [3] 继续补充需求细节
 
 请输入数字选择。"""
-    
+
     elif quality_level == "B":
         # 中等质量：建议继续补充
         return f"""━━━━━━━━━━━━━━━━━━━━
@@ -106,7 +106,7 @@ def _render_spec_to_solution(vars: Dict) -> str:
   [3] 查看需求文档详情
 
 请输入数字选择。"""
-    
+
     else:
         # 低质量（C级）：强烈建议继续补充
         return f"""━━━━━━━━━━━━━━━━━━━━
@@ -131,7 +131,7 @@ def _render_solution_to_ship(vars: Dict) -> str:
     harness_score = vars.get("harness_score", 0)
     num_reqs = vars.get("num_reqs", 0)
     num_modules = vars.get("num_modules", 0)
-    
+
     return f"""━━━━━━━━━━━━━━━━━━━━
 ✅ 方案设计完成！
 
@@ -165,7 +165,7 @@ def _render_solution_to_ship(vars: Dict) -> str:
 def _render_ship_completed(vars: Dict) -> str:
     """渲染 Ship Pro 完成引导词"""
     harness_score = vars.get("harness_score", 0)
-    
+
     return f"""━━━━━━━━━━━━━━━━━━━━
 ✅ 工程实现完成！
 
@@ -197,32 +197,23 @@ if __name__ == "__main__":
             "quality_level": "A",
             "num_users": 3,
             "num_capabilities": 8,
-            "num_constraints": 5
-        }
+            "num_constraints": 5,
+        },
     }
     print("=== 测试 1: Spec Pro → Solution Pro (A级) ===")
     print(render_transition_prompt(test_data_1))
     print()
-    
+
     # 测试 Solution Pro → Ship Pro
     test_data_2 = {
         "template": "solution_to_ship",
-        "variables": {
-            "harness_score": 92,
-            "num_reqs": 12,
-            "num_modules": 5
-        }
+        "variables": {"harness_score": 92, "num_reqs": 12, "num_modules": 5},
     }
     print("=== 测试 2: Solution Pro → Ship Pro ===")
     print(render_transition_prompt(test_data_2))
     print()
-    
+
     # 测试 Ship Pro 完成
-    test_data_3 = {
-        "template": "ship_completed",
-        "variables": {
-            "harness_score": 88
-        }
-    }
+    test_data_3 = {"template": "ship_completed", "variables": {"harness_score": 88}}
     print("=== 测试 3: Ship Pro 完成 ===")
     print(render_transition_prompt(test_data_3))

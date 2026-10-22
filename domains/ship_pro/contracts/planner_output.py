@@ -12,6 +12,7 @@ plus additional operational fields (execution_order, module_purpose, interface_p
 - 不限制角色名称（让 LLM 自由命名）
 - 只约束必要字段（让 LLM 有充分空间）
 """
+
 from typing import Any, Dict
 
 # Re-export unified schema from pipeline_designer

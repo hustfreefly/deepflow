@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from core.md_track_extractor import validate_md_structure, extract_track_json
+
     _HAS_TRACK_EXTRACTOR = True
 except ImportError:
     _HAS_TRACK_EXTRACTOR = False
@@ -32,7 +33,9 @@ def generate_track_from_md(
         logger.info(f"ADR-009: extractor not available, skipping track for {domain}")
         return None
     if not md_path.exists():
-        logger.warning(f"ADR-009: {md_path.name} not found, skipping track for {domain}")
+        logger.warning(
+            f"ADR-009: {md_path.name} not found, skipping track for {domain}"
+        )
         return None
     try:
         md_content = md_path.read_text(encoding="utf-8")
@@ -106,7 +109,9 @@ def generate_track_from_json(
 
     md_path = output_dir / md_filename
     md_path.write_text(md_content, encoding="utf-8")
-    logger.info(f"ADR-009: [{domain}] generated {md_filename} ({len(md_content)} chars)")
+    logger.info(
+        f"ADR-009: [{domain}] generated {md_filename} ({len(md_content)} chars)"
+    )
 
     track_path = output_dir / f"{domain}_track.json"
     return generate_track_from_md(md_path, domain, track_path)
@@ -137,9 +142,16 @@ _SPEC_REQ_SUB_KEYS = {
 }
 
 _SPEC_HANDLED_KEYS = {
-    "objective", "description", "pain_points", "terms",
-    "success_metrics", "users", "key_scenarios",
-    "capabilities", "quality_attributes", "constraints",
+    "objective",
+    "description",
+    "pain_points",
+    "terms",
+    "success_metrics",
+    "users",
+    "key_scenarios",
+    "capabilities",
+    "quality_attributes",
+    "constraints",
 }
 
 _SPEC_KEY_ALIASES = {
@@ -183,14 +195,16 @@ def _spec_json_to_md(data: dict) -> str:
     lines = []
 
     # YAML Frontmatter
-    lines.extend([
-        "---",
-        "domain: spec_pro",
-        f'version: "{spec_version}"',
-        f'session: "{data.get("session_id", "unknown")}"',
-        "---",
-        "",
-    ])
+    lines.extend(
+        [
+            "---",
+            "domain: spec_pro",
+            f'version: "{spec_version}"',
+            f'session: "{data.get("session_id", "unknown")}"',
+            "---",
+            "",
+        ]
+    )
 
     # Title
     lines.append(f"# Spec Requirements: {project_name}")
@@ -201,7 +215,13 @@ def _spec_json_to_md(data: dict) -> str:
     lines.append(f"| spec_version | {spec_version} |")
     lines.append(f"| domain_type | {domain_type} |")
     lines.append(f"| conversation_rounds | {rounds} |")
-    _META_SKIP = {"spec_version", "domain_type", "conversation_rounds", "created_at", "updated_at"}
+    _META_SKIP = {
+        "spec_version",
+        "domain_type",
+        "conversation_rounds",
+        "created_at",
+        "updated_at",
+    }
     for k, v in meta.items():
         if k not in _META_SKIP:
             lines.append(f"| {k} | {v} |")
@@ -229,7 +249,9 @@ def _spec_json_to_md(data: dict) -> str:
 
     for key, section_title in _SPEC_REQ_SUB_KEYS.items():
         val = confirmed.get(key)
-        if val and ((isinstance(val, (list, str)) and val) or (isinstance(val, dict) and val)):
+        if val and (
+            (isinstance(val, (list, str)) and val) or (isinstance(val, dict) and val)
+        ):
             lines.extend([f"### {section_title}", ""])
             _spec_render_value(lines, val)
             lines.append("")
@@ -275,7 +297,14 @@ def _spec_json_to_md(data: dict) -> str:
     # S7: quality_attrs (optional)
     qa = confirmed.get("quality_attributes", [])
     if qa:
-        lines.extend(["## quality_attrs", "", "| category | spec | priority |", "|------|------|--------|"])
+        lines.extend(
+            [
+                "## quality_attrs",
+                "",
+                "| category | spec | priority |",
+                "|------|------|--------|",
+            ]
+        )
         for item in qa:
             if isinstance(item, dict):
                 cat = item.get("category", "?")
@@ -326,19 +355,22 @@ def _spec_json_to_md(data: dict) -> str:
         lines.append("")
 
     # S11: Gate decisions
-    lines.extend([
-        "## gate_decisions",
-        "",
-        "| check_layer | result | reason |",
-        "|--------|------|------|",
-        "| L1 (Schema) | PASS | Spec Pro output |",
-        "| L3 (合并) | PASS | spec complete |",
-    ])
+    lines.extend(
+        [
+            "## gate_decisions",
+            "",
+            "| check_layer | result | reason |",
+            "|--------|------|------|",
+            "| L1 (Schema) | PASS | Spec Pro output |",
+            "| L3 (合并) | PASS | spec complete |",
+        ]
+    )
 
     return "\n".join(lines)
 
 
 # --- Spec Pro Helper Functions ---
+
 
 def _spec_extract_project_name(data, confirmed):
     for key in ("objective", "description"):
@@ -369,14 +401,16 @@ def _spec_render_req_id_table(lines, requirement_index, confirmed):
     if requirement_index:
         for i, req in enumerate(requirement_index):
             if isinstance(req, dict):
-                rid = req.get("id", f"REQ-{i+1:03d}")
+                rid = req.get("id", f"REQ-{i + 1:03d}")
                 dim = req.get("dimension", req.get("category", "functional"))
                 desc = req.get("description", str(req))[:80]
                 pri = req.get("priority", "P0")
                 st = req.get("status", "confirmed")
                 lines.append(f"| {rid} | {dim} | {desc} | {pri} | {st} |")
             else:
-                lines.append(f"| REQ-{i+1:03d} | functional | {str(req)[:80]} | P0 | confirmed |")
+                lines.append(
+                    f"| REQ-{i + 1:03d} | functional | {str(req)[:80]} | P0 | confirmed |"
+                )
         return
     idx = 1
     for src_key, dimension in [
@@ -529,6 +563,7 @@ def _spec_render_capabilities_table(lines, cap):
 # Ship Pro: JSON -> MD Converter
 # ============================================================================
 
+
 def _ship_json_to_md(data: dict) -> str:
     """Convert ship_package.json to ship_package.md format."""
     project_name = data.get("project_name", data.get("wp_id", "Unknown"))
@@ -562,25 +597,27 @@ def _ship_json_to_md(data: dict) -> str:
 
     for i, task in enumerate(tasks):
         if isinstance(task, dict):
-            wp_id = task.get("wp_id", task.get("id", f"WP-{i+1:03d}"))
+            wp_id = task.get("wp_id", task.get("id", f"WP-{i + 1:03d}"))
             title = task.get("title", task.get("name", "unnamed"))
             effort = task.get("estimated_effort", task.get("effort_hours", "?"))
             deps = ", ".join(task.get("dependencies", task.get("depends_on", [])))
         else:
-            wp_id = f"WP-{i+1:03d}"
+            wp_id = f"WP-{i + 1:03d}"
             title = str(task)[:50]
             effort = "?"
             deps = "none"
         lines.append(f"| {wp_id} | {title} | {effort}h | {deps} |")
 
-    lines.extend([
-        "",
-        "## gate_decisions",
-        "",
-        "| check_layer | result | reason |",
-        "|--------|------|------|",
-        "| L1 (structure) | PASS | Ship Pro output |",
-        "| L3 (merge) | PASS | work packages complete |",
-    ])
+    lines.extend(
+        [
+            "",
+            "## gate_decisions",
+            "",
+            "| check_layer | result | reason |",
+            "|--------|------|------|",
+            "| L1 (structure) | PASS | Ship Pro output |",
+            "| L3 (merge) | PASS | work packages complete |",
+        ]
+    )
 
     return "\n".join(lines)

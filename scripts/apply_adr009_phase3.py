@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """ADR-009 Phase 3: 3 surgical edits to orchestrator.py (incorporating PlanMode Lite review)"""
+
 import sys
 from pathlib import Path
 
-file_path = Path("/Users/allen/.openclaw/workspace/.deepflow/domains/deliver_pro/orchestrator.py")
+file_path = Path(
+    "/Users/allen/.openclaw/workspace/.deepflow/domains/deliver_pro/orchestrator.py"
+)
 content = file_path.read_text(encoding="utf-8")
 original_len = len(content)
 

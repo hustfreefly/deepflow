@@ -11,6 +11,7 @@ Ship Pro - PipelineDesigner
 - 输出必须通过 PipelinePlan Pydantic 验证
 - 裁剪后 context.json 大小 ≤ 3KB（raise ValueError 否则）
 """
+
 from __future__ import annotations
 
 import json
@@ -27,10 +28,11 @@ logger = logging.getLogger(__name__)
 # 契约笼子：Pydantic Schemas
 # ============================================================================
 
+
 class WorkerSpec(BaseModel):
     """
     PipelineDesigner 输出的单个 Worker 规格（统一 Schema）
-    
+
     统一了原 PipelinePlan.WorkerSpec 和 contracts.PlannerOutput.WorkerSpec 两套协议。
     字段说明：
     - module_purpose: 模块目的（≥20 字），替代原 task_description
@@ -38,36 +40,48 @@ class WorkerSpec(BaseModel):
     - must_constraints: 从 Solution Pro 继承的 MUST 约束（gates 验证用）
     - wp_id_prefix: WP ID 前缀（如 CORE-、LOOP-）
     """
+
     role: str = Field(..., min_length=3, description="Worker 角色名称")
     module_purpose: str = Field(..., min_length=20, description="模块目的（≥20 字）")
-    covered_req_ids: List[str] = Field(..., min_length=1, description="覆盖的 REQ-ID 列表")
-    depends_on: List[str] = Field(default_factory=list, description="依赖的其他 Worker role")
-    interface_provides: List[str] = Field(default_factory=list, description="对外接口签名")
-    interface_requires: List[str] = Field(default_factory=list, description="需要的接口签名")
-    relevant_decisions: List[str] = Field(default_factory=list, description="相关架构决策（≤5）")
-    relevant_risks: List[str] = Field(default_factory=list, description="相关风险（≤3）")
+    covered_req_ids: List[str] = Field(
+        ..., min_length=1, description="覆盖的 REQ-ID 列表"
+    )
+    depends_on: List[str] = Field(
+        default_factory=list, description="依赖的其他 Worker role"
+    )
+    interface_provides: List[str] = Field(
+        default_factory=list, description="对外接口签名"
+    )
+    interface_requires: List[str] = Field(
+        default_factory=list, description="需要的接口签名"
+    )
+    relevant_decisions: List[str] = Field(
+        default_factory=list, description="相关架构决策（≤5）"
+    )
+    relevant_risks: List[str] = Field(
+        default_factory=list, description="相关风险（≤3）"
+    )
     estimated_wps: int = Field(..., ge=3, le=12, description="预估 WP 数量 3-12")
-    estimated_effort_hours: int = Field(..., ge=10, le=200, description="预估工时 10-200h")
+    estimated_effort_hours: int = Field(
+        ..., ge=10, le=200, description="预估工时 10-200h"
+    )
     # --- 从 PlannerOutput.WorkerSpec 合并的字段（gates/orchestrator 需要）---
     must_constraints: List[str] = Field(
         default_factory=list,
-        description="从 Solution Pro 继承的 MUST 约束描述（语义描述，非 ID）"
+        description="从 Solution Pro 继承的 MUST 约束描述（语义描述，非 ID）",
     )
     wp_id_prefix: str = Field(
         default="WP",
-        description="WP ID 前缀（如 CORE-、LOOP-），所有该 Worker 生成的 WP ID 必须以此为前缀"
+        description="WP ID 前缀（如 CORE-、LOOP-），所有该 Worker 生成的 WP ID 必须以此为前缀",
     )
     needs_web_search: bool = Field(
-        default=False,
-        description="是否需要 web search 权限"
+        default=False, description="是否需要 web search 权限"
     )
     web_search_scope: Optional[str] = Field(
-        default=None,
-        description="搜索范围描述（如有权限）"
+        default=None, description="搜索范围描述（如有权限）"
     )
     solution_pro_refs: List[str] = Field(
-        default_factory=list,
-        description="引用的 Solution Pro 具体字段路径"
+        default_factory=list, description="引用的 Solution Pro 具体字段路径"
     )
 
     @field_validator("relevant_decisions")
@@ -87,9 +101,18 @@ class WorkerSpec(BaseModel):
 
 class PipelinePlan(BaseModel):
     """PipelineDesigner 的完整输出"""
-    domain_analysis: Optional[Dict[str, Any]] = Field(default=None, validate_default=True, description="领域分析（domain/end_users/deliverable_form/split_dimension/key_constraints）")
-    workers: List[WorkerSpec] = Field(..., min_length=2, max_length=8, description="Worker 列表 2-8 个")
-    execution_order: List[List[str]] = Field(..., min_length=1, description="分层执行顺序")
+
+    domain_analysis: Optional[Dict[str, Any]] = Field(
+        default=None,
+        validate_default=True,
+        description="领域分析（domain/end_users/deliverable_form/split_dimension/key_constraints）",
+    )
+    workers: List[WorkerSpec] = Field(
+        ..., min_length=2, max_length=8, description="Worker 列表 2-8 个"
+    )
+    execution_order: List[List[str]] = Field(
+        ..., min_length=1, description="分层执行顺序"
+    )
     rationale: str = Field(..., min_length=50, description="拆分理由（≥50 字）")
 
     @field_validator("execution_order")
@@ -113,6 +136,7 @@ class PipelinePlan(BaseModel):
         prefixes = [w.wp_id_prefix for w in v]
         if len(prefixes) != len(set(prefixes)):
             from collections import Counter
+
             dupes = [p for p, c in Counter(prefixes).items() if c > 1]
             raise ValueError(f"wp_id_prefix 必须唯一，重复: {dupes}")
         return v
@@ -122,31 +146,47 @@ class PipelinePlan(BaseModel):
     def domain_analysis_should_exist(cls, v):
         if v is None:
             import warnings
+
             warnings.warn(
                 "domain_analysis 为空 — Planner 未识别领域。"
                 "泛化能力降级：Worker 将无法推断产出模式。",
-                UserWarning
+                UserWarning,
             )
         return v
 
 
 class WorkerContext(BaseModel):
     """裁剪后的 Worker 上下文（context.json）"""
+
     module_overview: str = Field(..., min_length=20, description="模块概述")
-    module_reqs: List[Dict[str, Any]] = Field(..., min_length=1, description="本模块 REQ 列表")
-    extracted_constraints: List[str] = Field(default_factory=list, description="从 Solution Pro 语义提取的隐含约束（LLM 推断）")
+    module_reqs: List[Dict[str, Any]] = Field(
+        ..., min_length=1, description="本模块 REQ 列表"
+    )
+    extracted_constraints: List[str] = Field(
+        default_factory=list,
+        description="从 Solution Pro 语义提取的隐含约束（LLM 推断）",
+    )
     relevant_decisions: List[str] = Field(default_factory=list, description="相关决策")
     relevant_risks: List[str] = Field(default_factory=list, description="相关风险")
-    interface_contracts: Dict[str, Any] = Field(default_factory=dict, description="接口契约")
-    output_schema: Dict[str, Any] = Field(default_factory=dict, description="输出 Schema")
-    output_example: Dict[str, Any] = Field(default_factory=dict, description="高质量 WP 示例")
-    domain_analysis: Optional[Dict[str, Any]] = Field(default=None, description="领域分析（来自 Planner，含 domain/end_users/deliverable_form/split_dimension）")
+    interface_contracts: Dict[str, Any] = Field(
+        default_factory=dict, description="接口契约"
+    )
+    output_schema: Dict[str, Any] = Field(
+        default_factory=dict, description="输出 Schema"
+    )
+    output_example: Dict[str, Any] = Field(
+        default_factory=dict, description="高质量 WP 示例"
+    )
+    domain_analysis: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="领域分析（来自 Planner，含 domain/end_users/deliverable_form/split_dimension）",
+    )
     # Semantic Anchors — 信息守恒实体，注入到每个 Worker 的 context.json
     semantic_anchors: List[Dict[str, Any]] = Field(
         default_factory=list,
         description="语义锚点（来自 Living Spec / Frozen Spec，全链路透传）。"
-                    "每条包含 name/category/constraint，"
-                    "Worker 在 WP 描述中应语义引用相关锚点。"
+        "每条包含 name/category/constraint，"
+        "Worker 在 WP 描述中应语义引用相关锚点。",
     )
 
 
@@ -154,9 +194,10 @@ class WorkerContext(BaseModel):
 # 契约笼子：输入验证
 # ============================================================================
 
+
 def validate_solution_pro_input(data: Dict[str, Any]) -> Dict[str, Any]:
     """验证 Solution Pro 输入（living_spec），缺失关键字段时 raise ValueError
-    
+
     Phase 3 迁移完成：Ship Pro 直接消费 living_spec，不再消费 frozen_spec。
     契约笼子：验证 living_spec 必需字段（requirement_index, semantic_anchors, guardrails）。
     """
@@ -165,17 +206,19 @@ def validate_solution_pro_input(data: Dict[str, Any]) -> Dict[str, Any]:
     for field in required_fields:
         if field not in data:
             raise ValueError(f"契约笼子: living_spec 缺少必需字段 '{field}'")
-    
+
     # requirement_index 必须是列表且非空
     reqs = data["requirement_index"]
     if not isinstance(reqs, list) or len(reqs) == 0:
-        raise ValueError(f"契约笼子: requirement_index 必须是非空列表，实际: {type(reqs).__name__}, len={len(reqs) if isinstance(reqs, list) else 'N/A'}")
-    
+        raise ValueError(
+            f"契约笼子: requirement_index 必须是非空列表，实际: {type(reqs).__name__}, len={len(reqs) if isinstance(reqs, list) else 'N/A'}"
+        )
+
     # 每个 requirement 必须有 id
     for i, req in enumerate(reqs):
         if not isinstance(req, dict) or "id" not in req:
             raise ValueError(f"契约笼子: requirement_index[{i}] 缺少 'id' 字段")
-    
+
     # semantic_anchors 必须是 list
     if not isinstance(data["semantic_anchors"], list):
         raise ValueError(
@@ -184,6 +227,7 @@ def validate_solution_pro_input(data: Dict[str, Any]) -> Dict[str, Any]:
     # AI Native 契约笼子：空 semantic_anchors 不 raise 但标记降级
     if len(data["semantic_anchors"]) == 0:
         import warnings
+
         warnings.warn(
             "契约笼子: semantic_anchors 为空列表。"
             "信息守恒降级 — Worker 将收到'无上游约束'提示。"
@@ -194,13 +238,13 @@ def validate_solution_pro_input(data: Dict[str, Any]) -> Dict[str, Any]:
         data["_degradation_reason"] = "semantic_anchors 为空列表"
     else:
         data["_info_conservation_degraded"] = False
-    
+
     # guardrails 必须是 dict
     if not isinstance(data["guardrails"], dict):
         raise ValueError(
             f"契约笼子: guardrails 必须是 dict，实际: {type(data['guardrails']).__name__}"
         )
-    
+
     return data
 
 
@@ -208,26 +252,28 @@ def validate_solution_pro_input(data: Dict[str, Any]) -> Dict[str, Any]:
 # 核心逻辑：PipelineDesigner
 # ============================================================================
 
+
 class PipelineDesigner:
     """
     PipelineDesigner
-    
+
     在 Python 内部调用 LLM，分析 Solution Pro 输出，设计 Worker 拆分方案。
     """
 
     @staticmethod
-    def verify_decision_coverage(planner_output: Dict[str, Any],
-                                  solution_pro_input: Dict[str, Any]) -> None:
+    def verify_decision_coverage(
+        planner_output: Dict[str, Any], solution_pro_input: Dict[str, Any]
+    ) -> None:
         """
         L0 契约笼子: 验证所有 key_decisions 被至少一个 Worker 引用。
-        
+
         防止 "决策完全未分配" 的二元失败。
         raise ValueError 而非事后报告。
         """
         all_decisions = solution_pro_input.get("key_decisions", [])
         if not all_decisions:
             return  # 无决策则无需检查
-        
+
         # 归一化: 提取每个决策的标识符（前 40 字符作为匹配 key）
         decision_keys = []
         for d in all_decisions:
@@ -238,24 +284,27 @@ class PipelineDesigner:
                 decision_keys.append(desc[:40])
             else:
                 decision_keys.append(str(d)[:40])
-        
+
         # 收集所有 Worker 引用的决策文本
         all_referenced = []
         for w in planner_output.get("workers", []):
             all_referenced.extend(w.get("relevant_decisions", []))
-        
+
         # 检查: 每个决策 key 必须出现在至少一个 Worker 的 relevant_decisions 中
         uncovered = []
         for i, key in enumerate(decision_keys):
             found = any(key in ref for ref in all_referenced)
             if not found:
                 # 也检查反向: ref 是否在 key 中（Planner 可能截断）
-                found = any(ref in all_decisions[i] if isinstance(all_decisions[i], str)
-                           else ref in str(all_decisions[i])
-                           for ref in all_referenced)
+                found = any(
+                    ref in all_decisions[i]
+                    if isinstance(all_decisions[i], str)
+                    else ref in str(all_decisions[i])
+                    for ref in all_referenced
+                )
             if not found:
-                uncovered.append(f"D{i+1}: {key}...")
-        
+                uncovered.append(f"D{i + 1}: {key}...")
+
         if uncovered:
             raise ValueError(
                 f"契约笼子 L0: {len(uncovered)}/{len(all_decisions)} 个关键决策未被任何 Worker 引用:\n"
@@ -263,7 +312,6 @@ class PipelineDesigner:
                 + "\n\n修复: Planner 必须将每个 key_decision 分配给至少一个 Worker 的 relevant_decisions。"
             )
 
-    
     # 高质量 WP 示例（嵌入每个 Worker 的 context.json）
     HIGH_QUALITY_WP_EXAMPLE = {
         "id": "CORE-001",
@@ -273,50 +321,58 @@ class PipelineDesigner:
             "AC1: 支持 create/read/update/delete/snapshot/restore 六种核心操作",
             "AC2: 三层命名空间隔离（project/domain/phase），各层互不干扰",
             "AC3: 所有读写操作经过 JSON 统一序列化层，无直接 pickle/marshal",
-            "AC4: 崩溃恢复测试：kill -9 后重启，状态恢复到最近一次成功 checkpoint"
+            "AC4: 崩溃恢复测试：kill -9 后重启，状态恢复到最近一次成功 checkpoint",
         ],
         "deliverables": ["blackboard_manager.py", "test_blackboard.py"],
         "effort_hours": 48,
-        "dependencies": []
+        "dependencies": [],
     }
-    
+
     def __init__(self, blackboard_path: Path):
         self.blackboard_path = Path(blackboard_path)
         self.stages_dir = self.blackboard_path / "stages"
         self.stages_dir.mkdir(parents=True, exist_ok=True)
-    
-    def design_pipeline(self, solution_pro_input: Dict[str, Any], auto: bool = True, plan_output_dir: str = None, semantic_anchors: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+
+    def design_pipeline(
+        self,
+        solution_pro_input: Dict[str, Any],
+        auto: bool = True,
+        plan_output_dir: str = None,
+        semantic_anchors: List[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         主入口：分析 Solution Pro → 设计拆分 → 返回 PipelinePlan 或 prompt
-        
+
         auto=True: 尝试内部调用 LLM 直接生成 plan（省去 Orchestrator 重复分析）
         auto=False: 只返回 prompt，由 Orchestrator 自行分析
-        
+
         Args:
             solution_pro_input: Solution Pro 输出 dict
             auto: 是否尝试自动设计（默认 True）
             plan_output_dir: plan 输出目录（可选）
             semantic_anchors: 从 Track 读取的语义锚点（可选，覆盖 solution_pro_input 中的 semantic_anchors）
-        
+
         契约笼子：
         - 输入必须通过 validate_solution_pro_input
         - 输出必须通过 PipelinePlan Pydantic 验证
         """
         # 1. 验证输入（契约笼子）
         validated_input = validate_solution_pro_input(solution_pro_input)
-        
+
         # Track 增强: 如果提供了 semantic_anchors，覆盖 solution_pro_input 中的
         if semantic_anchors is not None:
             validated_input["semantic_anchors"] = semantic_anchors
-            logger.info(f"Overrode semantic_anchors from Track: {len(semantic_anchors)} anchors")
-        
+            logger.info(
+                f"Overrode semantic_anchors from Track: {len(semantic_anchors)} anchors"
+            )
+
         input_summary = {
             "req_count": len(validated_input["requirements"]),
             "decision_count": len(validated_input.get("key_decisions", [])),
             "risk_count": len(validated_input.get("risk_mitigations", [])),
             "anchor_count": len(validated_input.get("semantic_anchors", [])),
         }
-        
+
         # 2. 尝试自动设计（契约笼子：确定性 LLM 调用，非 prompt 委托）
         if auto:
             auto_result = self._auto_design(validated_input)
@@ -334,15 +390,17 @@ class PipelineDesigner:
                     plan_dir.mkdir(parents=True, exist_ok=True)
                     plan_path = plan_dir / "pipeline_plan.json"
                     plan_path.write_text(
-                        json.dumps(auto_result.model_dump(), ensure_ascii=False, indent=2),
-                        encoding="utf-8"
+                        json.dumps(
+                            auto_result.model_dump(), ensure_ascii=False, indent=2
+                        ),
+                        encoding="utf-8",
                     )
                     result["plan_written"] = True
                     result["plan_path"] = str(plan_path)
                     logger.info(f"Auto-design: plan written to {plan_path}")
                 return result
             logger.warning("Auto-design failed, falling back to prompt mode")
-        
+
         # 3. Fallback：返回 prompt（Orchestrator 自行分析）
         prompt = self._build_designer_prompt(validated_input)
         return {
@@ -351,7 +409,7 @@ class PipelineDesigner:
             "expected_schema": PipelinePlan.model_json_schema(),
             "input_summary": input_summary,
         }
-    
+
     # Multi-provider fallback chain: (env_key, model, api_url, payload_builder, response_parser)
     _LLM_PROVIDERS = [
         {
@@ -359,15 +417,24 @@ class PipelineDesigner:
             "env_key": "DASHSCOPE_API_KEY",
             "model": "qwen-plus",
             "api_url": "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
-            "build_payload": lambda prompt, model: json.dumps({
-                "model": model,
-                "input": {"messages": [
-                    {"role": "system", "content": "你是任务拆解与交付规划专家，输出纯 JSON，不要 markdown 包裹。"},
-                    {"role": "user", "content": prompt}
-                ]},
-                "parameters": {"result_format": "message"}
-            }).encode("utf-8"),
-            "parse_response": lambda result: result["output"]["choices"][0]["message"]["content"],
+            "build_payload": lambda prompt, model: json.dumps(
+                {
+                    "model": model,
+                    "input": {
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "你是任务拆解与交付规划专家，输出纯 JSON，不要 markdown 包裹。",
+                            },
+                            {"role": "user", "content": prompt},
+                        ]
+                    },
+                    "parameters": {"result_format": "message"},
+                }
+            ).encode("utf-8"),
+            "parse_response": lambda result: result["output"]["choices"][0]["message"][
+                "content"
+            ],
         },
         {
             "name": "openai_compatible",
@@ -375,14 +442,19 @@ class PipelineDesigner:
             "env_url": "OPENAI_BASE_URL",
             "model": "gpt-4o-mini",
             "api_url": None,  # resolved at runtime from env
-            "build_payload": lambda prompt, model: json.dumps({
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": "你是任务拆解与交付规划专家，输出纯 JSON，不要 markdown 包裹。"},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.2,
-            }).encode("utf-8"),
+            "build_payload": lambda prompt, model: json.dumps(
+                {
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "你是任务拆解与交付规划专家，输出纯 JSON，不要 markdown 包裹。",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.2,
+                }
+            ).encode("utf-8"),
             "parse_response": lambda result: result["choices"][0]["message"]["content"],
         },
     ]
@@ -427,53 +499,58 @@ class PipelineDesigner:
 
                 content = provider["parse_response"](result)
                 from .orchestrator.ship_orchestrator import extract_json_from_completion
+
                 data = extract_json_from_completion(content)
                 if data is None:
-                    logger.warning(f"Provider {provider['name']}: failed to extract JSON from completion")
+                    logger.warning(
+                        f"Provider {provider['name']}: failed to extract JSON from completion"
+                    )
                     continue
 
                 return PipelinePlan(**data)
             except Exception as e:
-                logger.warning(f"Provider {provider['name']} failed: {e}; trying next provider")
+                logger.warning(
+                    f"Provider {provider['name']} failed: {e}; trying next provider"
+                )
                 continue
 
         logger.warning("All LLM providers exhausted without successful auto-design")
         return None
-    
+
     def parse_designer_output(self, raw_output: str) -> PipelinePlan:
         """
         解析 PipelineDesigner LLM 输出 → PipelinePlan
-        
+
         契约笼子：解析失败 raise ValueError
         """
         from .orchestrator.ship_orchestrator import extract_json_from_completion
-        
+
         data = extract_json_from_completion(raw_output)
         if data is None:
             raise ValueError("契约笼子: PipelineDesigner 输出无法解析为 JSON")
-        
+
         try:
             plan = PipelinePlan(**data)
         except Exception as e:
-            raise ValueError(f"契约笼子: PipelineDesigner 输出不符合 PipelinePlan Schema: {e}")
-        
+            raise ValueError(
+                f"契约笼子: PipelineDesigner 输出不符合 PipelinePlan Schema: {e}"
+            )
+
         return plan
-    
+
     def generate_worker_contexts(
-        self,
-        plan: PipelinePlan,
-        solution_pro_input: Dict[str, Any]
+        self, plan: PipelinePlan, solution_pro_input: Dict[str, Any]
     ) -> Dict[str, WorkerContext]:
         """
         为每个 Worker 裁剪上下文 → context.json
-        
+
         契约笼子：
         - 每个 context.json 序列化后 ≤ 3KB
         - 每个 Worker 的 covered_req_ids 必须在 requirements 中存在
         """
         contexts = {}
         req_map = {r["id"]: r for r in solution_pro_input["requirements"]}
-        
+
         # Semantic Anchors 提取（全链路透传，不改语义）
         # 从 Solution Pro 输出读取 semantic_anchors（主路，不允许旁路）
         # validate_solution_pro_input() 已保证 semantic_anchors 存在且是 list
@@ -484,14 +561,12 @@ class PipelineDesigner:
                     f"契约笼子: semantic_anchors[{i}] 必须是 dict，实际: {type(anchor).__name__}"
                 )
             if "name" not in anchor:
-                raise ValueError(
-                    f"契约笼子: semantic_anchors[{i}] 缺少 'name' 字段"
-                )
+                raise ValueError(f"契约笼子: semantic_anchors[{i}] 缺少 'name' 字段")
             if "category" not in anchor:
                 raise ValueError(
                     f"契约笼子: semantic_anchors[{i}] 缺少 'category' 字段"
                 )
-        
+
         # 契约笼子：REQ-ID 不重叠检查
         all_req_ids = []
         for worker in plan.workers:
@@ -507,7 +582,7 @@ class PipelineDesigner:
                 f"契约笼子: REQ-ID 被多个 Worker 重复分配: {sorted(duplicates)}。"
                 f"每个 REQ-ID 只能分配给一个 Worker。"
             )
-        
+
         for worker in plan.workers:
             # 验证 REQ-ID 存在性
             for req_id in worker.covered_req_ids:
@@ -516,31 +591,33 @@ class PipelineDesigner:
                         f"契约笼子: Worker '{worker.role}' 引用的 REQ-ID '{req_id}' "
                         f"在 Solution Pro 输入中不存在"
                     )
-            
+
             # 裁剪
-            module_reqs = [req_map[rid] for rid in worker.covered_req_ids if rid in req_map]
-            
+            module_reqs = [
+                req_map[rid] for rid in worker.covered_req_ids if rid in req_map
+            ]
+
             # 语义提取隐含约束（AI Native：从 key_decisions + architecture 推断）
             extracted_constraints = self._extract_implicit_constraints(
                 worker, solution_pro_input
             )
-            
+
             # Semantic Anchors 按需裁剪注入
             # 核心约束（applicable_to == ['all']）广播
             # 领域特定约束按 Worker role 裁剪
             worker_anchors = []
             if all_anchors:
                 core_anchors = [
-                    a for a in all_anchors
-                    if a.get("applicable_to", ["all"]) == ["all"]
+                    a for a in all_anchors if a.get("applicable_to", ["all"]) == ["all"]
                 ]
                 specific_anchors = [
-                    a for a in all_anchors
+                    a
+                    for a in all_anchors
                     if a.get("applicable_to", ["all"]) != ["all"]
                     and worker.role in a.get("applicable_to", [])
                 ]
                 worker_anchors = core_anchors + specific_anchors
-            
+
             context = WorkerContext(
                 module_overview=worker.module_purpose,
                 module_reqs=module_reqs,
@@ -557,7 +634,7 @@ class PipelineDesigner:
                 domain_analysis=plan.domain_analysis,
                 semantic_anchors=worker_anchors,
             )
-            
+
             # 契约笼子：context 大小检查
             serialized = json.dumps(context.model_dump(), ensure_ascii=False)
             if len(serialized) > 3072:  # 3KB
@@ -567,46 +644,61 @@ class PipelineDesigner:
                 )
                 # 自动裁剪：req description 截短 + extracted_constraints 限数 + risks 截短
                 trimmed_reqs = [
-                    {"id": r["id"], "description": r.get("description", "")[:40], "priority": r.get("priority", "P1")}
+                    {
+                        "id": r["id"],
+                        "description": r.get("description", "")[:40],
+                        "priority": r.get("priority", "P1"),
+                    }
                     for r in module_reqs
                 ]
-                trimmed_constraints = [c[:80] for c in context.extracted_constraints[:3]] if context.extracted_constraints else []
+                trimmed_constraints = (
+                    [c[:80] for c in context.extracted_constraints[:3]]
+                    if context.extracted_constraints
+                    else []
+                )
                 trimmed_risks = [r[:60] for r in context.relevant_risks[:2]]
                 trimmed_decisions = [d[:60] for d in context.relevant_decisions[:3]]
-                context = context.model_copy(update={
-                    "module_reqs": trimmed_reqs,
-                    "extracted_constraints": trimmed_constraints,
-                    "relevant_risks": trimmed_risks,
-                    "relevant_decisions": trimmed_decisions,
-                })
+                context = context.model_copy(
+                    update={
+                        "module_reqs": trimmed_reqs,
+                        "extracted_constraints": trimmed_constraints,
+                        "relevant_risks": trimmed_risks,
+                        "relevant_decisions": trimmed_decisions,
+                    }
+                )
                 serialized = json.dumps(context.model_dump(), ensure_ascii=False)
-                if len(serialized) > 8192:  # context.json 8KB 上限（prompt 3KB 限制在 __init__.py 执行）
+                if (
+                    len(serialized) > 8192
+                ):  # context.json 8KB 上限（prompt 3KB 限制在 __init__.py 执行）
                     raise ValueError(
                         f"契约笼子: Worker '{worker.role}' context.json 裁剪后仍超 8KB ({len(serialized)} bytes)"
                     )
-            
+
             contexts[worker.role] = context
-        
+
         return contexts
-    
+
     def save_contexts(self, contexts: Dict[str, WorkerContext]) -> Dict[str, str]:
         """将 context.json 写入 blackboard"""
         paths = {}
         for role, ctx in contexts.items():
             safe_name = role.replace(" ", "_").replace("/", "_")
             path = self.stages_dir / f"context_{safe_name}.json"
-            path.write_text(json.dumps(ctx.model_dump(), ensure_ascii=False, indent=2), encoding="utf-8")
+            path.write_text(
+                json.dumps(ctx.model_dump(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
             paths[role] = str(path)
         return paths
-    
+
     def get_execution_order(self, plan: PipelinePlan) -> List[List[str]]:
         """返回拓扑排序后的执行顺序"""
         return plan.execution_order
-    
+
     # ============================================================================
     # 内部方法
     # ============================================================================
-    
+
     def _build_designer_prompt(self, solution_pro_input: Dict[str, Any]) -> str:
         """构建 PipelineDesigner LLM prompt（领域无关版本）"""
         reqs = solution_pro_input["requirements"]
@@ -654,13 +746,13 @@ execution_order: [["Researcher"],["OutlineWriter"],["ChapterWriter"]]
 - 需求数量：{len(reqs)}
 - 关键决策：{len(decisions)} 条
 - 风险缓解：{len(risks)} 条
-- 架构/方案概述：{json.dumps(arch, ensure_ascii=False)[:500] if arch else '无'}
+- 架构/方案概述：{json.dumps(arch, ensure_ascii=False)[:500] if arch else "无"}
 
 ## 需求列表
 {json.dumps(reqs[:80], ensure_ascii=False, indent=2)[:3000]}
 
 ## 关键决策
-{json.dumps(decisions, ensure_ascii=False, indent=2)[:1000] if decisions else '无'}
+{json.dumps(decisions, ensure_ascii=False, indent=2)[:1000] if decisions else "无"}
 
 ## 输出格式（严格 JSON，PipelinePlan Schema）
 {{
@@ -706,15 +798,13 @@ execution_order: [["Researcher"],["OutlineWriter"],["ChapterWriter"]]
 - relevant_risks ≤ 3 个
 
 只输出 JSON，不要其他文字。"""
-    
+
     def _extract_implicit_constraints(
-        self,
-        worker: WorkerSpec,
-        solution_pro_input: Dict[str, Any]
+        self, worker: WorkerSpec, solution_pro_input: Dict[str, Any]
     ) -> List[str]:
         """
         AI Native 语义提取：从 Solution Pro 输出中推断每个 Worker 的隐含约束。
-        
+
         不依赖上游显式声明 must_constraints，而是从：
         - key_decisions 中的技术决策（如"统一 JSON 序列化"）
         - architecture 中的架构约束（如"分层架构"）
@@ -722,7 +812,7 @@ execution_order: [["Researcher"],["OutlineWriter"],["ChapterWriter"]]
         中语义提取与本 Worker 相关的约束。
         """
         constraints = []
-        
+
         # 从 key_decisions 提取
         decisions = solution_pro_input.get("key_decisions", [])
         for d in decisions:
@@ -731,7 +821,7 @@ execution_order: [["Researcher"],["OutlineWriter"],["ChapterWriter"]]
             elif isinstance(d, dict):
                 desc = d.get("description", d.get("decision", str(d)))
                 constraints.append(f"技术决策: {desc}")
-        
+
         # 从 architecture 提取
         arch = solution_pro_input.get("architecture", {})
         if isinstance(arch, dict):
@@ -740,8 +830,10 @@ execution_order: [["Researcher"],["OutlineWriter"],["ChapterWriter"]]
                 constraints.append(f"架构约束: {pattern}")
             layers = arch.get("layers", [])
             if layers:
-                constraints.append(f"架构约束: 分层架构 {', '.join(str(l) for l in layers[:3])}")
-        
+                constraints.append(
+                    f"架构约束: 分层架构 {', '.join(str(l) for l in layers[:3])}"
+                )
+
         # 从 guardrails / must_constraints 提取（如果存在）
         for field in ["guardrails", "must_constraints", "constraints"]:
             items = solution_pro_input.get(field, [])
@@ -750,12 +842,14 @@ execution_order: [["Researcher"],["OutlineWriter"],["ChapterWriter"]]
                     if isinstance(item, str):
                         constraints.append(f"硬约束: {item}")
                     elif isinstance(item, dict):
-                        desc = item.get("description", item.get("constraint", str(item)))
+                        desc = item.get(
+                            "description", item.get("constraint", str(item))
+                        )
                         constraints.append(f"硬约束: {desc}")
-        
+
         # 限制数量（避免 context 膨胀）
         return constraints[:10]
-    
+
     def _find_downstream(self, role: str, plan: PipelinePlan) -> List[str]:
         """找到依赖当前 Worker 的下游 Worker"""
         downstream = []
@@ -763,7 +857,7 @@ execution_order: [["Researcher"],["OutlineWriter"],["ChapterWriter"]]
             if role in worker.depends_on:
                 downstream.append(worker.role)
         return downstream
-    
+
     def _get_worker_schema_compact(self) -> Dict[str, Any]:
         """精简版 Worker 输出 Schema（P2-2-FIX: object 而非 array）"""
         return {
@@ -780,9 +874,9 @@ execution_order: [["Researcher"],["OutlineWriter"],["ChapterWriter"]]
                         "acceptance_criteria": ["string (≥2 条，每条可测试)"],
                         "deliverables": ["string (≥1 项)"],
                         "effort_hours": "number",
-                        "dependencies": ["string (其他 WP ID)"]
-                    }
-                }
+                        "dependencies": ["string (其他 WP ID)"],
+                    },
+                },
             },
-            "required": ["worker_role", "wp_id_prefix", "work_packages"]
+            "required": ["worker_role", "wp_id_prefix", "work_packages"],
         }

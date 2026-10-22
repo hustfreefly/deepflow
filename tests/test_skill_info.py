@@ -21,6 +21,7 @@ from src.skill_health.skill_info import SkillInfo
 # Construction & field defaults
 # ---------------------------------------------------------------------------
 
+
 class TestSkillInfoConstruction:
     """Test that SkillInfo can be constructed with valid data."""
 
@@ -89,6 +90,7 @@ class TestSkillInfoConstruction:
 # Path coercion
 # ---------------------------------------------------------------------------
 
+
 class TestPathCoercion:
     """Test that string paths are coerced to Path objects."""
 
@@ -116,6 +118,7 @@ class TestPathCoercion:
 # ---------------------------------------------------------------------------
 # skill_name validation
 # ---------------------------------------------------------------------------
+
 
 class TestSkillNameValidation:
     """Test skill_name min_length=1 constraint."""
@@ -161,6 +164,7 @@ class TestSkillNameValidation:
 # Missing required fields
 # ---------------------------------------------------------------------------
 
+
 class TestRequiredFields:
     """Test that missing required fields raise ValidationError."""
 
@@ -192,6 +196,7 @@ class TestRequiredFields:
 # ---------------------------------------------------------------------------
 # warnings field type validation
 # ---------------------------------------------------------------------------
+
 
 class TestWarningsField:
     """Test warnings List[str] field type constraints."""
@@ -231,6 +236,7 @@ class TestWarningsField:
 # Default list isolation (no shared mutable state)
 # ---------------------------------------------------------------------------
 
+
 class TestDefaultListIsolation:
     """Test that default warnings list is not shared between instances."""
 
@@ -264,6 +270,7 @@ class TestDefaultListIsolation:
 # ---------------------------------------------------------------------------
 # Serialization
 # ---------------------------------------------------------------------------
+
 
 class TestSerialization:
     """Test model_dump and model_dump_json."""

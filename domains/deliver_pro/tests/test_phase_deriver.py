@@ -3,6 +3,7 @@
 验证 phase_deriver.derive_phase() 在 delivery_manifest.json 损坏时
 返回 PACKAGING 而非 DONE，让 package agent 重试。
 """
+
 import pytest
 import tempfile
 from pathlib import Path
@@ -137,6 +138,7 @@ def test_legacy_path_corrupted_manifest_returns_packaging():
         from domains.deliver_pro.phase_deriver import derive_phase, PHASE_PACKAGING
 
         import warnings
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")  # 忽略 DeprecationWarning
             phase = derive_phase(wp_dir)

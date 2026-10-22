@@ -2,6 +2,7 @@
 
 验证 finalize 相位生成 final_solution.md。
 """
+
 import pytest
 import json
 import tempfile
@@ -32,6 +33,7 @@ def test_finalize_writes_final_solution_md():
 
         # 直接测试 render_final_solution_md 被正确调用
         from domains.solution_pro.solution_living_md import render_final_solution_md
+
         md_content = render_final_solution_md(final_solution)
 
         # 验证 MD 内容非空且包含关键 section
@@ -42,6 +44,7 @@ def test_finalize_writes_final_solution_md():
         md_path = stages_dir / "final_solution.md"
         import tempfile as tf
         import os
+
         fd, tmp = tf.mkstemp(dir=md_path.parent, suffix=".md")
         try:
             os.write(fd, md_content.encode("utf-8"))

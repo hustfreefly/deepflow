@@ -38,7 +38,8 @@ def list_agents() -> list[str]:
     if not AGENTS_ROOT.exists():
         return []
     return sorted(
-        d.name for d in AGENTS_ROOT.iterdir()
+        d.name
+        for d in AGENTS_ROOT.iterdir()
         if d.is_dir() and agent_db_path(d.name).exists()
     )
 
@@ -51,7 +52,9 @@ def _iso_to_ms(ts: Any) -> int:
         return int(ts)
     if isinstance(ts, str):
         try:
-            return int(datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp() * 1000)
+            return int(
+                datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp() * 1000
+            )
         except ValueError:
             return 0
     return 0
@@ -63,7 +66,9 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
-def iter_transcript_records(session_id: str, agent_id: str | None = None) -> Iterator[dict]:
+def iter_transcript_records(
+    session_id: str, agent_id: str | None = None
+) -> Iterator[dict]:
     """
     从 transcript_events 产出与原 .jsonl 行等价的 record dict 流。
     timestamp 已统一为 epoch ms int（原 ISO 字符串 / 缺失时以 created_at 兜底）。
@@ -85,7 +90,9 @@ def iter_transcript_records(session_id: str, agent_id: str | None = None) -> Ite
                     record = json.loads(event_json)
                 except json.JSONDecodeError:
                     continue
-                record["timestamp"] = _iso_to_ms(record.get("timestamp")) or (created_at or 0)
+                record["timestamp"] = _iso_to_ms(record.get("timestamp")) or (
+                    created_at or 0
+                )
                 yield record
             return
         finally:
@@ -118,8 +125,10 @@ def list_sessions(agent_id: str | None = None) -> dict[str, dict]:
                         entry = json.loads(entry_raw)
                     except json.JSONDecodeError:
                         pass
-                tokens = (entry.get("inputTokens") or 0) + (entry.get("outputTokens") or 0)
-                clean_label = (label or dname or "")
+                tokens = (entry.get("inputTokens") or 0) + (
+                    entry.get("outputTokens") or 0
+                )
+                clean_label = label or dname or ""
                 if clean_label:
                     clean_label = clean_label.replace("\n", " ").strip()[:50]
                 sessions[key] = {
@@ -130,7 +139,8 @@ def list_sessions(agent_id: str | None = None) -> dict[str, dict]:
                     "status": status or entry.get("status", "unknown"),
                     "tokens": tokens,
                     "runtime_ms": entry.get("runtimeMs", 0) or 0,
-                    "started_at": _iso_to_ms(entry.get("startedAt")) or (created_at or 0),
+                    "started_at": _iso_to_ms(entry.get("startedAt"))
+                    or (created_at or 0),
                     "agent_id": aid,
                 }
         finally:
@@ -144,7 +154,11 @@ def list_sessions(agent_id: str | None = None) -> dict[str, dict]:
                 "SELECT child_session_key, requester_session_key FROM subagent_runs"
             )
             for child_key, parent_key in cur:
-                if child_key in sessions and not sessions[child_key]["parent"] and parent_key:
+                if (
+                    child_key in sessions
+                    and not sessions[child_key]["parent"]
+                    and parent_key
+                ):
                     sessions[child_key]["parent"] = parent_key
         finally:
             conn.close()
@@ -164,7 +178,8 @@ def build_tree(agent_id: str | None = None) -> dict:
         if parent:
             children.setdefault(parent, []).append(key)
     roots = [
-        k for k in sessions
+        k
+        for k in sessions
         if not sessions[k].get("parent") or sessions[k]["parent"] not in sessions
     ]
     return {"roots": roots, "children": children, "sessions": sessions}

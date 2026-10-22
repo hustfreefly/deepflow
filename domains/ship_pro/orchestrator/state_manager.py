@@ -7,6 +7,7 @@ State manager: manages pipeline state.
 pipeline_state.json 已废弃（2026-09-05）。
 Relaxed state transitions (warn instead of raise).
 """
+
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -21,7 +22,10 @@ logger = logging.getLogger(__name__)
 
 class StageState(BaseModel):
     """Stage state"""
-    status: str = Field(default="pending", description="pending/running/completed/failed")
+
+    status: str = Field(
+        default="pending", description="pending/running/completed/failed"
+    )
     started_at: Optional[str] = Field(default=None)
     completed_at: Optional[str] = Field(default=None)
     retry_count: int = Field(default=0)
@@ -30,6 +34,7 @@ class StageState(BaseModel):
 
 class PipelineState(BaseModel):
     """Pipeline state (single source of truth)"""
+
     run_id: str = Field(..., description="Run ID")
     status: str = Field(default="pending")
     stages: Dict[str, StageState] = Field(
@@ -90,7 +95,9 @@ class StateManager:
         Returns:
             bool: 转换是否合法
         """
-        allowed = self.VALID_TRANSITIONS.get(current, []) + self._extra_transitions.get(current, [])
+        allowed = self.VALID_TRANSITIONS.get(current, []) + self._extra_transitions.get(
+            current, []
+        )
         return target in allowed
 
     def __init__(self, blackboard_path: Path):
@@ -146,7 +153,7 @@ class StateManager:
     def write_stage(self, stage_name: str, data: Dict[str, Any]):
         output_file = self.stages_dir / f"{stage_name}.json"
         with tempfile.NamedTemporaryFile(
-            mode='w', dir=self.stages_dir, delete=False, suffix='.tmp'
+            mode="w", dir=self.stages_dir, delete=False, suffix=".tmp"
         ) as tmp:
             json.dump(data, tmp, indent=2, ensure_ascii=False)
             tmp_path = tmp.name

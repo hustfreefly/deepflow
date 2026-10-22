@@ -17,7 +17,7 @@ from datetime import datetime
 class KeywordGenerator:
     """
     关键词自动生成器 — 6维扩展。
-    
+
     从分析计划自动提取关键词组，每组生成 3-5 个变体。
     """
 
@@ -89,11 +89,13 @@ class KeywordGenerator:
                 break
 
             variants = self.expand(base)
-            groups.append({
-                "base": base,
-                "variants": variants[:5],  # 最多 5 个变体
-                "priority": min(i + 1, 5),  # 1-5, 1 最高
-            })
+            groups.append(
+                {
+                    "base": base,
+                    "variants": variants[:5],  # 最多 5 个变体
+                    "priority": min(i + 1, 5),  # 1-5, 1 最高
+                }
+            )
 
         # 如果不够, 补充时间维度和来源定向
         if len(groups) < max_groups:
@@ -101,15 +103,17 @@ class KeywordGenerator:
                 if len(groups) >= max_groups:
                     break
                 # 时间维度
-                groups.append({
-                    "base": f"{base} {self.current_year}",
-                    "variants": [
-                        f"{base} {self.current_year}",
-                        f"{base} latest",
-                        f"{base} 最新",
-                    ],
-                    "priority": 3,
-                })
+                groups.append(
+                    {
+                        "base": f"{base} {self.current_year}",
+                        "variants": [
+                            f"{base} {self.current_year}",
+                            f"{base} latest",
+                            f"{base} 最新",
+                        ],
+                        "priority": 3,
+                    }
+                )
 
         return groups[:max_groups]
 
@@ -138,7 +142,7 @@ class KeywordGenerator:
                 break
 
         # 维度 2: 中英文切换
-        if any('\u4e00' <= c <= '\u9fff' for c in base_keyword):
+        if any("\u4e00" <= c <= "\u9fff" for c in base_keyword):
             # 中文关键词 → 加英文版
             for key, syns in self._SYNONYMS.items():
                 if key in base_keyword:

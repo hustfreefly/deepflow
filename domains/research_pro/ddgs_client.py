@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 DDGS_TIMEOUT_SECONDS = 12
 
 
-def search_ddgs(query: str, max_results: int = 5, timeout: int = DDGS_TIMEOUT_SECONDS) -> list[dict[str, str]]:
+def search_ddgs(
+    query: str, max_results: int = 5, timeout: int = DDGS_TIMEOUT_SECONDS
+) -> list[dict[str, str]]:
     """通过 DuckDuckGo Search 搜索。
 
     Args:
@@ -49,11 +51,13 @@ def search_ddgs(query: str, max_results: int = 5, timeout: int = DDGS_TIMEOUT_SE
                 title = item.get("title") or query
                 snippet = item.get("body") or item.get("snippet") or ""
                 if url:
-                    output.append({
-                        "url": str(url),
-                        "title": str(title),
-                        "snippet": str(snippet),
-                    })
+                    output.append(
+                        {
+                            "url": str(url),
+                            "title": str(title),
+                            "snippet": str(snippet),
+                        }
+                    )
         return output
 
     except Exception as exc:

@@ -265,7 +265,9 @@ class TestEdgeCases:
 
     def test_ascii_no_warning(self, checker):
         """Pure ASCII → no warnings."""
-        desc = "Build and deploy the application to production servers with zero downtime"
+        desc = (
+            "Build and deploy the application to production servers with zero downtime"
+        )
         result = checker.check(desc)
         assert result.warnings == []
 
@@ -305,7 +307,9 @@ class TestRealisticDescriptions:
         result = checker.check(desc)
         assert result.is_valid is False
         assert result.status == "too_short"
-        assert result.quality_score == 50  # base only (no verbs/objects matched, not ideal length)
+        assert (
+            result.quality_score == 50
+        )  # base only (no verbs/objects matched, not ideal length)
 
     def test_chinese_description(self, checker):
         """Chinese description with action verbs and target objects."""

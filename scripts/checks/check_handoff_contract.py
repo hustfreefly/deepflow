@@ -77,7 +77,8 @@ def check_spec_pro_handoff_integration(root: Path) -> bool:
     checks = {
         "HandoffPackage import": "HandoffPackage" in content,
         "handoff_contract import": "handoff_contract" in content,
-        "save_handoff_package 验证": "HandoffPackage(**package)" in content or "HandoffPackage(" in content,
+        "save_handoff_package 验证": "HandoffPackage(**package)" in content
+        or "HandoffPackage(" in content,
     }
 
     all_pass = True

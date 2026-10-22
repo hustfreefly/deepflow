@@ -22,9 +22,11 @@ logger = logging.getLogger(__name__)
 
 # ─── 契约笼子: 数据结构 ─────────────────────────────────────────────────────
 
+
 @dataclass
 class SectionDiff:
     """单个 section 的 diff 结果"""
+
     section: str
     status: str  # "stable" | "modified" | "missing" | "new"
     old_lines: int = 0
@@ -46,6 +48,7 @@ class SectionDiff:
 @dataclass
 class MergeValidationResult:
     """Merge 验证结果（契约笼子输出）"""
+
     passed: bool
     missing_sections: list[str] = field(default_factory=list)
     modified_sections: list[str] = field(default_factory=list)
@@ -79,28 +82,32 @@ class MergeValidationResult:
 # ─── 常量 ────────────────────────────────────────────────────────────────────
 
 # 必需 sections（V2 Schema 定义）
-REQUIRED_SECTIONS = frozenset([
-    "meta_info",
-    "confirmed_reqs",
-    "capability_boundary",
-    "constraints",
-    "gate_decisions",
-])
+REQUIRED_SECTIONS = frozenset(
+    [
+        "meta_info",
+        "confirmed_reqs",
+        "capability_boundary",
+        "constraints",
+        "gate_decisions",
+    ]
+)
 
 # 可选 sections（V2 Schema 定义）
-OPTIONAL_SECTIONS = frozenset([
-    "overview",
-    "inferred",
-    "quality_attrs",
-    "user_directives",
-    "open_questions",
-    "guardrails",
-    "traceability",
-    "solution_pro_hints",
-    "route_recommendation",
-    "semantic_anchors",
-    "conversation_summary",
-])
+OPTIONAL_SECTIONS = frozenset(
+    [
+        "overview",
+        "inferred",
+        "quality_attrs",
+        "user_directives",
+        "open_questions",
+        "guardrails",
+        "traceability",
+        "solution_pro_hints",
+        "route_recommendation",
+        "semantic_anchors",
+        "conversation_summary",
+    ]
+)
 
 # 所有合法 section 名
 ALL_SECTIONS = REQUIRED_SECTIONS | OPTIONAL_SECTIONS
@@ -111,14 +118,15 @@ SEMANTIC_REVIEW_THRESHOLD = 0.80
 
 # ─── 核心函数 ────────────────────────────────────────────────────────────────
 
+
 def parse_sections(md_content: str) -> dict[str, str]:
     """
     从 MD 文本中解析 sections。
-    
+
     Returns:
         dict[section_name, section_content]
-    
-    契约: 
+
+    契约:
         - section_name 是 ## 后面的第一个单词（不含空格）
         - 忽略 # 一级标题
         - 忽略 YAML frontmatter
@@ -131,7 +139,7 @@ def parse_sections(md_content: str) -> dict[str, str]:
     if content.startswith("---"):
         end = content.find("---", 3)
         if end != -1:
-            content = content[end + 3:]
+            content = content[end + 3 :]
 
     sections: dict[str, str] = {}
     current_section: Optional[str] = None
@@ -173,7 +181,7 @@ def parse_sections(md_content: str) -> dict[str, str]:
 def _line_similarity(text_a: str, text_b: str) -> float:
     """
     计算两段文本的行级相似度（Jaccard）。
-    
+
     简单高效：把每行当作集合元素，计算 Jaccard 系数。
     不做语义比较（那是 LLM 的事）。
     """
@@ -370,7 +378,9 @@ def detect_missing_content(
 
         if not new_content:
             # 整个 section 丢失
-            missing_items.append(f"Section '{name}' is completely missing in updated version")
+            missing_items.append(
+                f"Section '{name}' is completely missing in updated version"
+            )
             continue
 
         # 检查 section 内的表格行是否丢失
@@ -401,6 +411,7 @@ def detect_missing_content(
 
 
 # ─── 辅助函数 ────────────────────────────────────────────────────────────────
+
 
 def _extract_table_rows(content: str) -> set[str]:
     """提取表格中的数据行（跳过头行和分隔行）"""

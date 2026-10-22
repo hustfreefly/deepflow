@@ -13,7 +13,7 @@ import sys as _sys
 from pathlib import Path as _Path
 
 _p = _Path(__file__).resolve()
-_r = next((d for d in _p.parents if (d / 'core' / 'blackboard').is_dir()), None)
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 if _r and str(_r) not in _sys.path:
     _sys.path.insert(0, str(_r))
 
@@ -29,6 +29,7 @@ from domains.solution_pro.blackboard import BlackboardManager
 # ============================================================================
 # Test _acceptance_from_living_spec
 # ============================================================================
+
 
 class TestAcceptanceFromLivingSpec:
     def _make_bm_with_living_spec(self, living_spec_data=None, living_spec_exists=True):
@@ -66,11 +67,14 @@ class TestAcceptanceFromLivingSpec:
             bm = BlackboardManager("test_ls_no_req", base_dir=tmpdir)
             bm.init_session()
             # 写入 living_spec 但无 requirement_index
-            bm.write("data/living_spec.json", {
-                "topic": "test",
-                "confirmed": {"objective": "test"},
-                # 无 requirement_index
-            })
+            bm.write(
+                "data/living_spec.json",
+                {
+                    "topic": "test",
+                    "confirmed": {"objective": "test"},
+                    # 无 requirement_index
+                },
+            )
 
             with pytest.raises(ValueError, match="requirement_index 为空"):
                 _acceptance_from_living_spec(bm)
@@ -85,13 +89,20 @@ class TestAcceptanceFromLivingSpec:
         try:
             bm = BlackboardManager("test_ls_ok", base_dir=tmpdir)
             bm.init_session()
-            bm.write("data/living_spec.json", {
-                "topic": "test",
-                "requirement_index": [
-                    {"id": "REQ-001", "description": "功能 A", "priority": "MUST"},
-                    {"id": "REQ-002", "description": "功能 B", "priority": "SHOULD"},
-                ],
-            })
+            bm.write(
+                "data/living_spec.json",
+                {
+                    "topic": "test",
+                    "requirement_index": [
+                        {"id": "REQ-001", "description": "功能 A", "priority": "MUST"},
+                        {
+                            "id": "REQ-002",
+                            "description": "功能 B",
+                            "priority": "SHOULD",
+                        },
+                    ],
+                },
+            )
 
             criteria = _acceptance_from_living_spec(bm)
             assert len(criteria) == 2
@@ -106,11 +117,13 @@ class TestAcceptanceFromLivingSpec:
 # Test _extract_requirements_from_input 已物理删除
 # ============================================================================
 
+
 class TestExtractRequirementsDeleted:
     def test_function_no_longer_exists(self):
         """_extract_requirements_from_input 已被物理删除"""
         import domains.solution_pro as sp
-        assert not hasattr(sp, '_extract_requirements_from_input'), (
+
+        assert not hasattr(sp, "_extract_requirements_from_input"), (
             "_extract_requirements_from_input 应该已被物理删除（Track B）"
         )
 
@@ -124,27 +137,33 @@ class TestExtractRequirementsDeleted:
 # Test run_solution_pro living_spec 缺失 → raise
 # ============================================================================
 
+
 class TestRunSolutionProContract:
     def test_no_living_spec_raises(self):
         """run_solution_pro: 无 living_spec 且无 handoff package → raise"""
         from domains.solution_pro import run_solution_pro
 
         # 用 mock 阻止实际 blackboard 创建
-        with patch('domains.solution_pro.BlackboardManager') as MockBM:
+        with patch("domains.solution_pro.BlackboardManager") as MockBM:
             mock_bm = MagicMock()
             mock_bm.session_id = "test_session"
             mock_bm.session_dir = _Path(tempfile.mkdtemp())
             MockBM.return_value = mock_bm
 
             # _try_load_handoff_package returns None (no handoff package)
-            with patch('domains.solution_pro._try_load_handoff_package', return_value=None):
-                with pytest.raises(ValueError, match="Track B 契约铁律|requirement_index 为空"):
+            with patch(
+                "domains.solution_pro._try_load_handoff_package", return_value=None
+            ):
+                with pytest.raises(
+                    ValueError, match="Track B 契约铁律|requirement_index 为空"
+                ):
                     run_solution_pro(user_input="test input without spec")
 
 
 # ============================================================================
 # Test raw_user_input.txt 持久化
 # ============================================================================
+
 
 class TestRawUserInputPersistence:
     def test_coordinator_writes_raw_user_input(self):

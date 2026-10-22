@@ -89,6 +89,7 @@ def run_research_pro(
 
     # 生成 session_id
     import hashlib
+
     query_hash = hashlib.md5(query.encode()).hexdigest()[:8]
     session_id = f"research_pro_{query_hash}_{int(time.time())}"
 
@@ -120,16 +121,21 @@ def run_research_pro(
             logger.error(f"research_pro cleanup failed: {e}")
 
     # Step 4: 初始化通知状态文件
-    bm.write(".notified_stages.json", json.dumps({"notified": [], "total_messages_sent": 0}))
-    bm.write(".cron_run_count", json.dumps({"count": 0, "max_runs": 20, "run_start_at": "PENDING"}))
+    bm.write(
+        ".notified_stages.json", json.dumps({"notified": [], "total_messages_sent": 0})
+    )
+    bm.write(
+        ".cron_run_count",
+        json.dumps({"count": 0, "max_runs": 20, "run_start_at": "PENDING"}),
+    )
 
     # Step 5: 构建 orchestrator prompt（仅替换 {session_id}, {mode}, {query}）
     # Load orchestrator prompt from registry
     from core.prompt_registry import read_prompt
+
     _orchestrator_template = read_prompt(_ORCHESTRATOR_PROMPT_FILE)
     orchestrator_prompt = (
-        _orchestrator_template
-        .replace("{session_id}", session_id)
+        _orchestrator_template.replace("{session_id}", session_id)
         .replace("{mode}", mode)
         .replace("{query}", query)
     )
@@ -142,19 +148,19 @@ def run_research_pro(
     # orchestrator prompt > 6KB → 自动写入 blackboard + 替换为 bootstrap 引用
     # ═══════════════════════════════════════════
     deepflow_root = Path(__file__).resolve().parent.parent.parent
-    prompt_bytes = len(orchestrator_prompt.encode('utf-8'))
-    
+    prompt_bytes = len(orchestrator_prompt.encode("utf-8"))
+
     if prompt_bytes > BOOTSTRAP_SIZE_THRESHOLD:
         prompt_filename = "orchestrator_prompt.md"
         bm.write(prompt_filename, orchestrator_prompt, subdir="stages")
-        
+
         # 写入验证（read 与 write 对称：同 filename + 同 subdir）
         verify = bm.read(prompt_filename, subdir="stages")
         if not verify:
             raise RuntimeError(
                 f"Bootstrap write-back verification failed for {prompt_filename}"
             )
-        
+
         task = build_bootstrap_task(
             deepflow_root=deepflow_root,
             blackboard_id=session_id,
@@ -174,7 +180,12 @@ def run_research_pro(
             "runtime": "subagent",
             "mode": "run",
             "label": "research_pro_orchestrator",
-            "task": auto_bootstrap(deepflow_root, bm.get_session_dir() / "stages", task, "research_orchestrator"),
+            "task": auto_bootstrap(
+                deepflow_root,
+                bm.get_session_dir() / "stages",
+                task,
+                "research_orchestrator",
+            ),
             "cwd": str(deepflow_root),
             "lightContext": True,
             "runTimeoutSeconds": timeout_seconds,

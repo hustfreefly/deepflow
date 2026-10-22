@@ -28,7 +28,9 @@ class DeliverProBlackboard:
         └── final_deliverable/ # Package 最终交付物
     """
 
-    def __init__(self, project_name: str, base_dir: Optional[Path] = None, wp_subdir: str = ""):
+    def __init__(
+        self, project_name: str, base_dir: Optional[Path] = None, wp_subdir: str = ""
+    ):
         """
         初始化 Blackboard。
 
@@ -41,7 +43,9 @@ class DeliverProBlackboard:
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
         # Fix(commit 3489118): 路径必须包含 wp_subdir 层，与 wp_runner.py 对齐
         self.wp_subdir = wp_subdir
-        self.root = self.base_dir / "blackboard" / project_name / "deliver_pro" / wp_subdir
+        self.root = (
+            self.base_dir / "blackboard" / project_name / "deliver_pro" / wp_subdir
+        )
 
         # 创建目录结构
         self._init_directories()
@@ -103,9 +107,7 @@ class DeliverProBlackboard:
 
         # 原子写入：先写 .tmp，再 rename
         fd, tmp_path = tempfile.mkstemp(
-            dir=target_dir,
-            suffix=".tmp",
-            prefix=f".{filename}_"
+            dir=target_dir, suffix=".tmp", prefix=f".{filename}_"
         )
         try:
             content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
@@ -139,7 +141,9 @@ class DeliverProBlackboard:
             return None
 
         try:
-            return json.loads(target.read_text(encoding="utf-8"))  # safe-json: 通用工具方法，解析失败显式 raise ValueError 由调用方处理（当前无生产调用方）
+            return json.loads(
+                target.read_text(encoding="utf-8")
+            )  # safe-json: 通用工具方法，解析失败显式 raise ValueError 由调用方处理（当前无生产调用方）
         except (json.JSONDecodeError, OSError) as e:
             raise ValueError(f"Failed to load JSON from {target}: {e}") from e
 
@@ -160,9 +164,7 @@ class DeliverProBlackboard:
 
         # 原子写入
         fd, tmp_path = tempfile.mkstemp(
-            dir=target_dir,
-            suffix=".tmp",
-            prefix=f".{filename}_"
+            dir=target_dir, suffix=".tmp", prefix=f".{filename}_"
         )
         try:
             os.write(fd, content.encode("utf-8"))

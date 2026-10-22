@@ -104,18 +104,18 @@ def gate_quality_trajectory(data: dict) -> Tuple[QualityTrajectory | None, list[
 def gate_living_spec_density(spec: LivingSpec) -> dict:
     """
     契约笼子：Living Spec 需求密度 Gate
-    
+
     泛化性改进：防止稀疏输入导致下游 Solution Pro 被迫"脑补"需求。
-    
+
     检查维度（5 维，4/5 通过即达标）：
     1. requirement_index 非空（至少有 1 条 REQ）       [硬检查]
     2. confirmed.objective 非空（≥10 字）              [硬检查]
     3. confirmed.success_metrics 非空                   [硬检查]
     4. core_summary 或 narrative 非空                   [硬检查]
     5. semantic_anchors 非空                            [软检查，不单独阻断]
-    
+
     通过条件：4 个硬检查全部通过（软检查不影响 passed）。
-    
+
     Returns:
         dict:
             passed: bool — 密度是否达标
@@ -154,7 +154,9 @@ def gate_living_spec_density(spec: LivingSpec) -> dict:
 
     # 5. Semantic Anchors 非空 [软检查 — 警告但不阻断]
     if not spec.semantic_anchors:
-        warnings.append("semantic_anchors 为空 — 建议添加语义锚点（如平台 API、架构原则）以增强下游信息守恒")
+        warnings.append(
+            "semantic_anchors 为空 — 建议添加语义锚点（如平台 API、架构原则）以增强下游信息守恒"
+        )
     else:
         passed_count += 1
 
@@ -257,10 +259,10 @@ def gate_harness_decision(layer1_result: dict, layer2_scores: dict) -> dict:
     l1_passed = layer1_result.get("passed", False)
 
     # 兼容 dimensions 数组格式（来自 assess.md 输出）
-    if 'dimensions' in layer2_scores and isinstance(layer2_scores['dimensions'], list):
+    if "dimensions" in layer2_scores and isinstance(layer2_scores["dimensions"], list):
         l2_scores = {
-            d.get('dimension', d.get('name', '')): d.get('score', 50)
-            for d in layer2_scores['dimensions']
+            d.get("dimension", d.get("name", "")): d.get("score", 50)
+            for d in layer2_scores["dimensions"]
             if isinstance(d, dict)
         }
         meta_source = "dimensions_array"
@@ -283,8 +285,7 @@ def gate_harness_decision(layer1_result: dict, layer2_scores: dict) -> dict:
     }
 
     weighted_sum = sum(
-        l2_scores.get(dim, 50) * weight
-        for dim, weight in weights.items()
+        l2_scores.get(dim, 50) * weight for dim, weight in weights.items()
     )
 
     # Layer 1 不通过 → 至少 WARN

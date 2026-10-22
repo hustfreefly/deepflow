@@ -17,11 +17,11 @@ from typing import Optional, Callable
 def resolve_spawn_fn() -> Optional[Callable]:
     """
     解析 spawn_fn 函数
-    
+
     Returns:
         Callable: sessions_spawn 函数（如果在主 Agent 环境中）
         None: 如果在子 Agent 环境中或 sessions_spawn 不可用
-    
+
     注意:
         - 子 Agent 环境中调用此函数不会崩溃
         - 返回 None 时，调用方应该优雅降级
@@ -29,13 +29,13 @@ def resolve_spawn_fn() -> Optional[Callable]:
     try:
         # 尝试导入 sessions_spawn
         from openclaw import sessions_spawn
-        
+
         # 验证是否可用
         if callable(sessions_spawn):
             return sessions_spawn
         else:
             return None
-            
+
     except ImportError:
         # 子 Agent 环境中 openclaw 不可用
         return None
@@ -47,7 +47,7 @@ def resolve_spawn_fn() -> Optional[Callable]:
 def is_spawn_available() -> bool:
     """
     检查 spawn_fn 是否可用
-    
+
     Returns:
         bool: True 如果 spawn_fn 可用，False 否则
     """
@@ -57,10 +57,10 @@ def is_spawn_available() -> bool:
 def require_spawn_fn() -> Callable:
     """
     获取 spawn_fn，如果不可用则抛出异常
-    
+
     Returns:
         Callable: sessions_spawn 函数
-        
+
     Raises:
         RuntimeError: 如果 spawn_fn 不可用
     """

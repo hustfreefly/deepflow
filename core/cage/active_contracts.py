@@ -93,7 +93,9 @@ def validate_contract(path: Path) -> ContractResult:
     if status is None:
         result.errors.append("missing status")
     elif str(status) not in ALLOWED_STATUS:
-        result.errors.append(f"invalid status {status!r}, allowed {sorted(ALLOWED_STATUS)}")
+        result.errors.append(
+            f"invalid status {status!r}, allowed {sorted(ALLOWED_STATUS)}"
+        )
 
     if kind == "frontmatter" and not body.strip():
         result.errors.append("frontmatter contract has empty body")
@@ -169,7 +171,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if files else 1
 
     module = next((a for a in args if not a.startswith("-")), None)
-    results, global_errors = validate_all(cage_dir, min_contracts=0 if module else MIN_CONTRACTS)
+    results, global_errors = validate_all(
+        cage_dir, min_contracts=0 if module else MIN_CONTRACTS
+    )
 
     if module:
         selected = [r for r in results if r.identity == module]

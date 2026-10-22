@@ -27,6 +27,7 @@ import pytest
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def ship_package_data():
     return {
@@ -49,6 +50,7 @@ def mock_blackboard(tmp_path, ship_package_data):
     (ship_dir / "ship_package.json").write_text(json.dumps(ship_package_data))
     return bb_root, project_name
 
+
 def _setup_living_spec(bb_root, project_name):
     """Create living_spec.json for tests."""
     data_dir = bb_root / project_name / "data"
@@ -63,12 +65,12 @@ def _setup_living_spec(bb_root, project_name):
     return data_dir / "living_spec.json"
 
 
-
 @contextmanager
 def _make_orchestrator(mock_blackboard):
     bb_root, project_name = mock_blackboard
     with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
         from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
         orch = DeliverOrchestrator(project_name)
         yield orch, bb_root, project_name
 
@@ -81,11 +83,7 @@ def _setup_generating_wp(bb_root, project_name, wp_id, task_ids, timeout_task=No
     """构造 GENERATING 状态的 WP：plan + 可选的超时 task 目录。"""
     stages = _wp_dir(bb_root, project_name, wp_id) / "stages"
     stages.mkdir(parents=True)
-    plan = {
-        "task_graph": [
-            {"task_id": t, "depends_on": []} for t in task_ids
-        ]
-    }
+    plan = {"task_graph": [{"task_id": t, "depends_on": []} for t in task_ids]}
     (stages / "execution_plan.json").write_text(json.dumps(plan))
     if timeout_task:
         task_dir = stages / "worker_outputs" / timeout_task
@@ -130,6 +128,7 @@ def _mock_driver_for_retry(bb_root, project_name, wp_id, task_ids, timed_out=())
 # A1: 原子写 + 文件锁
 # ---------------------------------------------------------------------------
 
+
 class TestAtomicWrite:
     def test_save_progress_atomic_with_version(self, mock_blackboard):
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
@@ -152,6 +151,7 @@ class TestPulseLock:
                 assert report["actions"] == []
             finally:
                 import fcntl
+
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
                 fh.close()
 
@@ -167,6 +167,7 @@ class TestPulseLock:
                 assert any(a["code"] == "LOCK_STALE" for a in report["alerts"])
             finally:
                 import fcntl
+
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
                 fh.close()
 
@@ -174,6 +175,7 @@ class TestPulseLock:
 # ---------------------------------------------------------------------------
 # A4: 两阶段 dispatch
 # ---------------------------------------------------------------------------
+
 
 class TestTwoPhaseDispatch:
     def test_orphan_window_unconfirmed(self, mock_blackboard):
@@ -197,7 +199,9 @@ class TestTwoPhaseDispatch:
 
     def test_orphan_sweep_drops_empty_dirs(self, mock_blackboard):
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(bb_root, project, "AAA-001", ["T-001", "T-002"])
+            stages = _setup_generating_wp(
+                bb_root, project, "AAA-001", ["T-001", "T-002"]
+            )
             empty_dir = stages / "worker_outputs" / "T-001"
             empty_dir.mkdir(parents=True)  # 空目录（params 生成时创建，spawn 未发生）
             orch.progress["AAA-001"] = {
@@ -212,7 +216,9 @@ class TestTwoPhaseDispatch:
 
     def test_confirm_dispatches_ok_and_rollback(self, mock_blackboard):
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(bb_root, project, "AAA-001", ["T-001", "T-002"])
+            stages = _setup_generating_wp(
+                bb_root, project, "AAA-001", ["T-001", "T-002"]
+            )
             for t in ("T-001", "T-002"):
                 (stages / "worker_outputs" / t).mkdir(parents=True)
             orch.progress["AAA-001"] = {
@@ -220,10 +226,22 @@ class TestTwoPhaseDispatch:
                 "last_spawned_at": time.time(),
                 "dispatch_confirmed": False,
             }
-            out = orch.confirm_dispatches([
-                {"wp_id": "AAA-001", "label": "deliver-worker-aaa-001-t-001", "ok": True, "error": None},
-                {"wp_id": "AAA-001", "label": "deliver-worker-aaa-001-t-002", "ok": False, "error": "429"},
-            ])
+            out = orch.confirm_dispatches(
+                [
+                    {
+                        "wp_id": "AAA-001",
+                        "label": "deliver-worker-aaa-001-t-001",
+                        "ok": True,
+                        "error": None,
+                    },
+                    {
+                        "wp_id": "AAA-001",
+                        "label": "deliver-worker-aaa-001-t-002",
+                        "ok": False,
+                        "error": "429",
+                    },
+                ]
+            )
             assert out["confirmed"] == 1
             assert out["rolled_back"] == 1
             entry = orch.progress["AAA-001"]
@@ -239,6 +257,7 @@ class TestTwoPhaseDispatch:
 # ---------------------------------------------------------------------------
 # A2/A3: 重试预算 + derive 判死直接重派
 # ---------------------------------------------------------------------------
+
 
 class TestRetryBudget:
     def test_timed_out_task_retried_immediately(self, mock_blackboard):
@@ -256,8 +275,10 @@ class TestRetryBudget:
                 bb_root, project, "AAA-001", ["T-001", "T-002"], timed_out=("T-001",)
             )
             orch.progress["AAA-001"] = {"task_attempts": {"T-001": 2}}
-            with patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_count_in_flight", return_value=0):
+            with (
+                patch.object(orch, "_get_driver", return_value=driver),
+                patch.object(orch, "_count_in_flight", return_value=0),
+            ):
                 report = orch.pulse()
 
             assert report["status"] == "active"
@@ -281,10 +302,12 @@ class TestRetryBudget:
             # 设置 task_attempts 和 task_spawned_at，防止 orphan sweep 删除目录
             orch.progress["AAA-001"] = {
                 "task_attempts": {"T-001": 3},
-                "task_spawned_at": {"T-001": time.time() - 60}  # 1分钟前 spawn
+                "task_spawned_at": {"T-001": time.time() - 60},  # 1分钟前 spawn
             }
-            with patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_count_in_flight", return_value=0):
+            with (
+                patch.object(orch, "_get_driver", return_value=driver),
+                patch.object(orch, "_count_in_flight", return_value=0),
+            ):
                 report = orch.pulse()
 
             # 合成 MANIFEST 已写入
@@ -294,7 +317,9 @@ class TestRetryBudget:
             assert manifest["status"] == "FAILED"
             assert "retry_budget_exceeded" in manifest["failure_reason"]
             # 不再重派
-            assert all(a["label"] != "deliver-worker-aaa-001-t-001" for a in report["actions"])
+            assert all(
+                a["label"] != "deliver-worker-aaa-001-t-001" for a in report["actions"]
+            )
             assert any(a["code"] == "TASK_RETRY_EXHAUSTED" for a in report["alerts"])
 
 
@@ -302,19 +327,24 @@ class TestRetryBudget:
 # A5: MAX_IN_FLIGHT
 # ---------------------------------------------------------------------------
 
+
 class TestInFlightCap:
     def test_budget_truncation(self, mock_blackboard):
         """in_flight=7 → 预算 1 → 2 个候选只派 1 个 + truncated + 告警。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             _setup_living_spec(bb_root, project)
             # Create contract to skip inference
-            (bb_root / project / "_deliverable_contract.json").write_text('{}')
+            (bb_root / project / "_deliverable_contract.json").write_text("{}")
             driver = MagicMock()
             driver.step1_analyze.side_effect = lambda: {
-                "task": "analyze", "label": f"analyze-{id(driver)}", "mode": "run",
+                "task": "analyze",
+                "label": f"analyze-{id(driver)}",
+                "mode": "run",
             }
-            with patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_count_in_flight", return_value=7):
+            with (
+                patch.object(orch, "_get_driver", return_value=driver),
+                patch.object(orch, "_count_in_flight", return_value=7),
+            ):
                 report = orch.pulse()
 
             assert len(report["actions"]) == 1
@@ -330,23 +360,37 @@ class TestInFlightCap:
         bb_root = tmp_path / "blackboard"
         ship_dir = bb_root / project_name / "ship_pro" / "stages"
         ship_dir.mkdir(parents=True)
-        wps = [{"wp_id": f"WP-{i:03d}", "dependencies": [], "title": f"T{i}"} for i in range(8)]
-        (ship_dir / "ship_package.json").write_text(json.dumps({
-            "work_packages": wps,
-            "dependency_graph": {"execution_layers": [[w["wp_id"] for w in wps]]},
-        }))
+        wps = [
+            {"wp_id": f"WP-{i:03d}", "dependencies": [], "title": f"T{i}"}
+            for i in range(8)
+        ]
+        (ship_dir / "ship_package.json").write_text(
+            json.dumps(
+                {
+                    "work_packages": wps,
+                    "dependency_graph": {
+                        "execution_layers": [[w["wp_id"] for w in wps]]
+                    },
+                }
+            )
+        )
         with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
             from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
             orch = DeliverOrchestrator(project_name)
         _setup_living_spec(bb_root, project_name)
         # Create contract to skip inference
-        (bb_root / project_name / "_deliverable_contract.json").write_text('{}')
+        (bb_root / project_name / "_deliverable_contract.json").write_text("{}")
         driver = MagicMock()
         driver.step1_analyze.side_effect = lambda: {
-            "task": "analyze", "label": "analyze-x", "mode": "run",
+            "task": "analyze",
+            "label": "analyze-x",
+            "mode": "run",
         }
-        with patch.object(orch, "_get_driver", return_value=driver), \
-             patch.object(orch, "_count_in_flight", return_value=0):
+        with (
+            patch.object(orch, "_get_driver", return_value=driver),
+            patch.object(orch, "_count_in_flight", return_value=0),
+        ):
             report = orch.pulse()
             assert len(report["actions"]) == MAX_SPAWN_PER_PULSE == 5
             assert report["summary"]["truncated"] is True
@@ -355,6 +399,7 @@ class TestInFlightCap:
 # ---------------------------------------------------------------------------
 # A2/P1-4: 终态 all_resolved
 # ---------------------------------------------------------------------------
+
 
 class TestAllResolved:
     def test_completed_marker_written(self, mock_blackboard):
@@ -368,10 +413,14 @@ class TestAllResolved:
             # BBB-001 → terminal_failed
             orch.progress["BBB-001"] = {"terminal_failed": True}
             # Final Synthesis done (2026-07-29 新完成条件)
-            (bb_root / project / "_final_deliverable_done.json").write_text(json.dumps({
-                "completed_at": time.time(),
-                "gate_passed": True,
-            }))
+            (bb_root / project / "_final_deliverable_done.json").write_text(
+                json.dumps(
+                    {
+                        "completed_at": time.time(),
+                        "gate_passed": True,
+                    }
+                )
+            )
             with patch.object(orch, "_count_in_flight", return_value=0):
                 report = orch.pulse()
 
@@ -387,9 +436,15 @@ class TestAllResolved:
     def test_completed_fast_path(self, mock_blackboard):
         """完成标记存在 → 快速通道，零扫描。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            (bb_root / project / ".deliver_completed.json").write_text(json.dumps({
-                "total_wps": 2, "completed": 2, "terminal_failed": 0,
-            }))
+            (bb_root / project / ".deliver_completed.json").write_text(
+                json.dumps(
+                    {
+                        "total_wps": 2,
+                        "completed": 2,
+                        "terminal_failed": 0,
+                    }
+                )
+            )
             report = orch.pulse()
             assert report["status"] == "completed"
             assert report["actions"] == []
@@ -399,21 +454,33 @@ class TestAllResolved:
 # A7: STALLED 告警 + 冷却
 # ---------------------------------------------------------------------------
 
+
 class TestStalledAlert:
     def test_stalled_after_threshold_with_cooldown(self, mock_blackboard):
         """连续 3 次零进展 → STALLED；冷却期内不再报。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             # GENERATING 且全部 running（无超时、无 ready）→ 每次 pulse 零动作
             _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
-            running_dir = _wp_dir(bb_root, project, "AAA-001") / "stages" / "worker_outputs" / "T-001"
+            running_dir = (
+                _wp_dir(bb_root, project, "AAA-001")
+                / "stages"
+                / "worker_outputs"
+                / "T-001"
+            )
             running_dir.mkdir(parents=True)  # 新鲜 mtime → running
 
             driver = MagicMock()
-            plan = SimpleNamespace(task_graph=[SimpleNamespace(task_id="T-001", depends_on=[])])
+            plan = SimpleNamespace(
+                task_graph=[SimpleNamespace(task_id="T-001", depends_on=[])]
+            )
             driver.orch.load_execution_plan.return_value = plan
             driver.orch._derive_worker_progress.return_value = {
-                "completed": set(), "failed": set(), "blocked": set(),
-                "running": {"T-001"}, "pending": set(), "timed_out": set(),
+                "completed": set(),
+                "failed": set(),
+                "blocked": set(),
+                "running": {"T-001"},
+                "pending": set(),
+                "timed_out": set(),
                 "failure_reasons": {},
             }
             driver.worker_outputs_dir = running_dir.parent
@@ -422,20 +489,28 @@ class TestStalledAlert:
             driver.step3_workers.return_value = []
 
             alerts_seen = []
-            with patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_count_in_flight", return_value=0):
+            with (
+                patch.object(orch, "_get_driver", return_value=driver),
+                patch.object(orch, "_count_in_flight", return_value=0),
+            ):
                 for _ in range(4):
                     report = orch.pulse()
                     alerts_seen.append(
                         any(a["code"] == "STALLED" for a in report["alerts"])
                     )
 
-            assert alerts_seen == [False, False, True, False]  # 第 3 次告警，第 4 次冷却
+            assert alerts_seen == [
+                False,
+                False,
+                True,
+                False,
+            ]  # 第 3 次告警，第 4 次冷却
 
 
 # ---------------------------------------------------------------------------
 # 契约笼子
 # ---------------------------------------------------------------------------
+
 
 class TestContractCage:
     def test_pulse_report_rejects_unknown_field(self):
@@ -443,11 +518,19 @@ class TestContractCage:
 
         with pytest.raises(Exception):
             PulseReport(
-                pulse_id="p1", project_name="x", generated_at=time.time(),
-                status="active", actions=[], alerts=[],
+                pulse_id="p1",
+                project_name="x",
+                generated_at=time.time(),
+                status="active",
+                actions=[],
+                alerts=[],
                 summary={
-                    "total_wps": 1, "completed": 0, "terminal_failed": 0,
-                    "in_progress": 1, "in_flight": 0, "zero_progress_count": 0,
+                    "total_wps": 1,
+                    "completed": 0,
+                    "terminal_failed": 0,
+                    "in_progress": 1,
+                    "in_flight": 0,
+                    "zero_progress_count": 0,
                 },
                 unknown_field="boom",
             )
@@ -487,6 +570,7 @@ class TestContractCage:
 # K3（Pulse V1.1）: DONE 契约要求实质交付物
 # ---------------------------------------------------------------------------
 
+
 class TestSubstantialFileContract:
     """空交付物 / worker_outputs 灌入 不得判 DONE（2026-07-24 STORE-003 / SDK-001 实证）。"""
 
@@ -522,6 +606,7 @@ class TestSubstantialFileContract:
 # K5-B（Pulse V1.1）: 零产出 assembly → terminal_failed
 # ---------------------------------------------------------------------------
 
+
 class TestAssemblyEmptyGuard:
     """plan 非空但 workers_integrated=0 → 不烧 validate/package 两轮 LLM，直接 terminal。"""
 
@@ -530,7 +615,9 @@ class TestAssemblyEmptyGuard:
 
         driver = object.__new__(DeliverRunner)
         driver.wp_id = "TEST-001"
-        plan = SimpleNamespace(task_graph=[SimpleNamespace(task_id="T-001", depends_on=[])])
+        plan = SimpleNamespace(
+            task_graph=[SimpleNamespace(task_id="T-001", depends_on=[])]
+        )
         driver.orch = MagicMock()
         driver.orch.load_execution_plan.return_value = plan
         driver.orch.run_integrate.return_value = SimpleNamespace(
@@ -561,16 +648,27 @@ class TestAssemblyEmptyGuard:
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             _setup_living_spec(bb_root, project)
             # Create contract to skip inference
-            (bb_root / project / "_deliverable_contract.json").write_text('{}')
+            (bb_root / project / "_deliverable_contract.json").write_text("{}")
             driver = MagicMock()
             driver.step5_integrate.return_value = {
-                "status": "ASSEMBLY_EMPTY", "workers_integrated": 0,
+                "status": "ASSEMBLY_EMPTY",
+                "workers_integrated": 0,
                 "error": "zero workers integrated",
             }
-            with patch.object(orch, "_get_wp_next_action", return_value={
-                "wp_id": "AAA-001", "action": "assemble", "spawn_params": None, "error": None,
-            }), patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_count_in_flight", return_value=0):
+            with (
+                patch.object(
+                    orch,
+                    "_get_wp_next_action",
+                    return_value={
+                        "wp_id": "AAA-001",
+                        "action": "assemble",
+                        "spawn_params": None,
+                        "error": None,
+                    },
+                ),
+                patch.object(orch, "_get_driver", return_value=driver),
+                patch.object(orch, "_count_in_flight", return_value=0),
+            ):
                 report = orch.pulse()
             assert orch.progress["AAA-001"]["terminal_failed"] is True
             assert any(a["code"] == "TERMINAL_FAILED" for a in report["alerts"])

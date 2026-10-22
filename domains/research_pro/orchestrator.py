@@ -17,7 +17,13 @@ Orchestrator — ResearchPro 核心编排器
 
 from __future__ import annotations
 
-import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
+import sys as _sys
+
+_p = __import__("pathlib").Path(__file__).resolve()
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
+_sys.path.insert(0, str(_r)) if _r and str(
+    _r
+) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 import json
 import os
 import threading
@@ -40,15 +46,16 @@ from domains.research_pro.ddgs_client import search_ddgs
 from domains.research_pro.safe_fetcher import _SafeFetcher, SafeFetchError
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 # PathConfig 跨平台路径管理
 _path_config = PathConfig.resolve()
 _BASE_DIR = _path_config.base_dir
 _SKILL_DIR = Path(__file__).resolve().parent
-_CONFIG_DIR = _SKILL_DIR / 'config'
-_TIME_BUDGETS_PATH = _CONFIG_DIR / 'time_budgets.json'
-_COMPLETION_CRITERIA_PATH = _CONFIG_DIR / 'completion_criteria.json'
+_CONFIG_DIR = _SKILL_DIR / "config"
+_TIME_BUDGETS_PATH = _CONFIG_DIR / "time_budgets.json"
+_COMPLETION_CRITERIA_PATH = _CONFIG_DIR / "completion_criteria.json"
 
 DDGS_TIMEOUT_SECONDS = 12
 QUERY_MIN_LENGTH = 10
@@ -62,7 +69,7 @@ MAX_SUBTASKS = 20
 def _load_json_file(path: str, fallback: Dict[str, Any]) -> Dict[str, Any]:
     """加载 JSON 配置文件，失败时回退默认值。"""
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, PermissionError, OSError):
         return fallback
@@ -70,21 +77,35 @@ def _load_json_file(path: str, fallback: Dict[str, Any]) -> Dict[str, Any]:
 
 def _load_time_budgets() -> Dict[str, Any]:
     """加载 time_budgets.json (P1-6: 契约 L4 harness.safety_valve)。"""
-    return _load_json_file(_TIME_BUDGETS_PATH, {
-        "quick_mode": {"total_timeout": 600},
-        "standard_mode": {"total_timeout": 2700},
-        "progress_report_interval_seconds": 30,
-        "user_confirmation_timeout_seconds": 86400,
-    })
+    return _load_json_file(
+        _TIME_BUDGETS_PATH,
+        {
+            "quick_mode": {"total_timeout": 600},
+            "standard_mode": {"total_timeout": 2700},
+            "progress_report_interval_seconds": 30,
+            "user_confirmation_timeout_seconds": 86400,
+        },
+    )
 
 
 def _load_completion_criteria() -> Dict[str, Any]:
     """加载 completion_criteria.json (P2-9: 契约 L4 output_guard)。"""
-    return _load_json_file(_COMPLETION_CRITERIA_PATH, {
-        "quick_mode": {"min_data_sources": 3, "min_tier_1_sources": 1, "min_citations": 3},
-        "standard_mode": {"min_data_sources": 5, "min_tier_1_sources": 2, "min_citations": 8},
-        "quality_scoring": {"min_trust_score": 0.7, "tier_1_ratio_min": 0.3},
-    })
+    return _load_json_file(
+        _COMPLETION_CRITERIA_PATH,
+        {
+            "quick_mode": {
+                "min_data_sources": 3,
+                "min_tier_1_sources": 1,
+                "min_citations": 3,
+            },
+            "standard_mode": {
+                "min_data_sources": 5,
+                "min_tier_1_sources": 2,
+                "min_citations": 8,
+            },
+            "quality_scoring": {"min_trust_score": 0.7, "tier_1_ratio_min": 0.3},
+        },
+    )
 
 
 def _normalize_phase_timeouts(mode_budget: Dict[str, Any]) -> Dict[str, float]:
@@ -113,9 +134,9 @@ def _normalize_phase_timeouts(mode_budget: Dict[str, Any]) -> Dict[str, float]:
 class ResearchProOrchestrator:
     """
     ResearchPro 核心编排器 — 四阶段状态机 + 三级 Agent 模式。
-    
+
     契约: cage/active/research_pro_v1.0.yaml (L1: orchestrator)
-    
+
     状态机:
     - planning: 生成研究计划
     - confirming: 等待用户确认
@@ -123,7 +144,7 @@ class ResearchProOrchestrator:
     - reporting: 生成最终报告
     - completed: 完成
     - cancelled: 取消
-    
+
     Agent 模式:
     - mode A (快速模式): 单 Agent, 串行, ≤10 分钟
     - mode B (标准模式, ≤2 子任务): 单 Agent, 串行, ≤30 分钟
@@ -132,14 +153,14 @@ class ResearchProOrchestrator:
 
     def __init__(
         self,
-        mode: str = 'standard',
-        base_path: str = '',
+        mode: str = "standard",
+        base_path: str = "",
         spawn_fn: Callable[[str, str], dict | None] | None = None,
         web_search_fn: Callable[[str, int], list[dict[str, str]]] | None = None,
     ) -> None:
         """
         初始化 ResearchProOrchestrator。
-        
+
         契约: cage/active/research_pro_v1.0.yaml L1 (__init__)
 
         Args:
@@ -153,12 +174,12 @@ class ResearchProOrchestrator:
                            主搜索引擎。如不提供，降级使用 DuckDuckGo (DDGS)。
         """
         # PathConfig 跨平台路径管理
-        self.base_path = Path(base_path) if base_path else _BASE_DIR / 'blackboard'
+        self.base_path = Path(base_path) if base_path else _BASE_DIR / "blackboard"
         self.mode = mode
         self.registry = SourceRegistry(str(self.base_path / "source_registry.json"))
         self.classifier = TierClassifier()
         self._fetcher = _SafeFetcher(timeout=ORCH_FETCH_TIMEOUT)
-        
+
         # P1-6/P1-10: 加载超时配置
         self._time_budgets = _load_time_budgets()
         # P2-9: 加载完成标准配置
@@ -176,8 +197,12 @@ class ResearchProOrchestrator:
             self._phase_timeouts.get("confirming", 86400),
         )
         self._max_search_calls = self._mode_time_budget.get("max_search_calls", 15)
-        self._max_web_fetch_calls = self._mode_time_budget.get("max_web_fetch_calls", 15)
-        self._max_professional_data_calls = self._mode_time_budget.get("max_professional_data_calls", 0)
+        self._max_web_fetch_calls = self._mode_time_budget.get(
+            "max_web_fetch_calls", 15
+        )
+        self._max_professional_data_calls = self._mode_time_budget.get(
+            "max_professional_data_calls", 0
+        )
         self._completion = self._completion_criteria.get(mode_key, {})
         self._quality_scoring = self._completion_criteria.get("quality_scoring", {})
         self._degradation_rules = self._completion_criteria.get("degradation_rules", {})
@@ -186,30 +211,32 @@ class ResearchProOrchestrator:
         self._web_fetch_calls_used = 0
         self._professional_data_calls_used = 0
         self._timeout_reached = False
-        
+
         # P2-10: 并发锁保护状态写入
         self._state_lock = threading.RLock()
-        
+
         # P2-Mode C: 注入 spawn 回调
         self._spawn_fn = spawn_fn
-        
+
         # P0-1: 注入 web_search 工具（主搜索引擎）
         self._web_search_fn = web_search_fn
-        
+
         # 初始化 BlackboardManager（API：替代直接路径操作）
         # 使用 base_path.parent 作为 base_dir，确保与外部传入路径一致
-        self._bm = BlackboardManager(session_id=self.base_path.name, base_dir=self.base_path.parent)
+        self._bm = BlackboardManager(
+            session_id=self.base_path.name, base_dir=self.base_path.parent
+        )
         self._bm.init_session()
         # 创建子目录（research/ 和 report/ 供非 stage 文件使用）
         (self.base_path / "research").mkdir(parents=True, exist_ok=True)
         (self.base_path / "report").mkdir(parents=True, exist_ok=True)
-        
+
         # 加载或创建状态
         self.state = self._load_or_create_state()
 
     def _load_or_create_state(self) -> Dict[str, Any]:
         """加载或创建初始状态。
-        
+
         契约: CWE-754 (JSON 异常处理)
         """
         existing = self._bm.read_json("state.json")
@@ -233,12 +260,14 @@ class ResearchProOrchestrator:
 
     def _save_state(self, state: Dict[str, Any]) -> None:
         """原子写入 state.json。
-        
+
         P2-10: 并发锁保护，防止多线程同时写入导致状态损坏。
         """
         with self._state_lock:
             state["updated_at"] = datetime.now().isoformat()
-            self._bm.write("state.json", json.dumps(state, indent=2, ensure_ascii=False))
+            self._bm.write(
+                "state.json", json.dumps(state, indent=2, ensure_ascii=False)
+            )
 
     def _update_state(
         self,
@@ -287,31 +316,37 @@ class ResearchProOrchestrator:
         if len(query) > QUERY_MAX_LENGTH:
             query = query[:QUERY_MAX_LENGTH]  # 截断过长查询
 
-        self._update_state({
-            "current_stage": "planning",
-            "stage_status": "in_progress",
-            "query": query,
-        })
+        self._update_state(
+            {
+                "current_stage": "planning",
+                "stage_status": "in_progress",
+                "query": query,
+            }
+        )
 
         # 生成分析计划 (这里简化, 实际应调用 LLM)
         plan = self._generate_analysis_plan(query)
-        
-        # 保存计划
-        self._bm.write("analysis_plan.json", json.dumps(plan, indent=2, ensure_ascii=False))
 
-        state = self._update_state({
-            "current_stage": "confirming",
-            "stage_status": "waiting_user",
-            "analysis_plan": plan,
-            "confirmation_deadline_at": datetime.fromtimestamp(
-                time.time() + float(self._user_confirmation_timeout_seconds)
-            ).isoformat(),
-        })
+        # 保存计划
+        self._bm.write(
+            "analysis_plan.json", json.dumps(plan, indent=2, ensure_ascii=False)
+        )
+
+        state = self._update_state(
+            {
+                "current_stage": "confirming",
+                "stage_status": "waiting_user",
+                "analysis_plan": plan,
+                "confirmation_deadline_at": datetime.fromtimestamp(
+                    time.time() + float(self._user_confirmation_timeout_seconds)
+                ).isoformat(),
+            }
+        )
 
         return {
             "analysis_plan": plan,
             "state": state,
-            "message": "分析计划已生成, 请确认后开始执行。"
+            "message": "分析计划已生成, 请确认后开始执行。",
         }
 
     def _generate_analysis_plan(self, query: str) -> Dict[str, Any]:
@@ -351,14 +386,14 @@ class ResearchProOrchestrator:
     def confirm_plan(self, user_confirmation: Dict[str, Any]) -> Dict[str, Any]:
         """
         确认、修改或取消分析计划。
-        
+
         契约: cage/active/research_pro_v1.0.yaml L1 (confirm_plan)
-        
+
         Args:
             user_confirmation: dict, 必须包含:
                 - action: 'approve' | 'modify' | 'cancel'
                 - modifications: list[dict] (仅 action='modify' 时)
-        
+
         Returns:
             dict: {state, message}
         """
@@ -377,7 +412,10 @@ class ResearchProOrchestrator:
                 confirmation_deadline = datetime.fromisoformat(confirmation_deadline_at)
             except ValueError:
                 confirmation_deadline = None
-            if confirmation_deadline is not None and datetime.now() > confirmation_deadline:
+            if (
+                confirmation_deadline is not None
+                and datetime.now() > confirmation_deadline
+            ):
                 state = self._update_state(
                     {"current_stage": "cancelled", "stage_status": "cancelled"},
                     append_errors=["用户确认超时"],
@@ -388,65 +426,78 @@ class ResearchProOrchestrator:
                     "state": state,
                 }
 
-        action = user_confirmation.get('action', '')
-        
-        if action == 'cancel':
+        action = user_confirmation.get("action", "")
+
+        if action == "cancel":
             state = self._update_state(
                 {"current_stage": "cancelled", "stage_status": "cancelled"},
                 append_errors=["用户取消计划"],
             )
             return {"state": state, "message": "计划已取消"}
-        
-        if action == 'modify':
+
+        if action == "modify":
             # 应用修改
-            modifications = user_confirmation.get('modifications', [])
+            modifications = user_confirmation.get("modifications", [])
             if modifications:
                 with self._state_lock:
                     plan = copy.deepcopy(self.state.get("analysis_plan", {}))
                 for mod in modifications:
-                    field = mod.get('field')
-                    value = mod.get('value')
-                    if field == "subtasks" and isinstance(value, list) and len(value) > 20:
+                    field = mod.get("field")
+                    value = mod.get("value")
+                    if (
+                        field == "subtasks"
+                        and isinstance(value, list)
+                        and len(value) > 20
+                    ):
                         raise ValueError("subtasks 最多允许 20 个")
                     if field and value is not None:
                         plan[field] = value
-                
+
                 # 保存修改后的计划
-                self._bm.write("analysis_plan.json", json.dumps(plan, indent=2, ensure_ascii=False))
+                self._bm.write(
+                    "analysis_plan.json", json.dumps(plan, indent=2, ensure_ascii=False)
+                )
                 self._update_state({"analysis_plan": plan})
-            
+
             # modify 后回到 confirming 状态，等待再次确认
             return {
                 "state": self._state_snapshot(),
-                "message": "计划已修改, 请再次确认。"
+                "message": "计划已修改, 请再次确认。",
             }
-        
-        if action == 'approve':
-            state = self._update_state({
-                "current_stage": "executing",
-                "stage_status": "in_progress",
-            })
-            
+
+        if action == "approve":
+            state = self._update_state(
+                {
+                    "current_stage": "executing",
+                    "stage_status": "in_progress",
+                }
+            )
+
             # P1-1: 写入 confirmed_plan.json (契约 L3: data.confirmed_plan)
             confirmed_plan = {
                 "plan": state.get("analysis_plan", {}),
                 "confirmed_at": datetime.now().isoformat(),
                 "action": "approve",
             }
-            self._bm.write("confirmed_plan.json", json.dumps(confirmed_plan, indent=2, ensure_ascii=False))
-            
+            self._bm.write(
+                "confirmed_plan.json",
+                json.dumps(confirmed_plan, indent=2, ensure_ascii=False),
+            )
+
             return {
                 "state": state,
                 "message": "计划已确认, 开始执行研究。",
             }
-        
+
         # 未知 action
-        raise ValueError(f"无效的 action: {action}, 必须是 'approve', 'modify', 或 'cancel'")
+        raise ValueError(
+            f"无效的 action: {action}, 必须是 'approve', 'modify', 或 'cancel'"
+        )
 
     def execute_research(self) -> Dict[str, Any]:
         """
         执行研究 (搜索 + 抓取 + 注册)。
-        
+
         P1-10: 超时控制 (契约 L4: safety_valve.hard_limits)
         P2-9: 完成后校验 completion_criteria
 
@@ -472,18 +523,20 @@ class ResearchProOrchestrator:
         self._web_fetch_calls_used = 0
         self._professional_data_calls_used = 0
         self._timeout_reached = False
-        self._update_state({
-            "execution_started_at": datetime.now().isoformat(),
-            "execution_budget": {
-                "total_timeout": self._total_timeout,
-                "phase_timeouts": self._phase_timeouts,
-                "progress_report_interval_seconds": self._progress_report_interval_seconds,
-                "user_confirmation_timeout_seconds": self._user_confirmation_timeout_seconds,
-                "max_search_calls": self._max_search_calls,
-                "max_web_fetch_calls": self._max_web_fetch_calls,
-                "max_professional_data_calls": self._max_professional_data_calls,
-            },
-        })
+        self._update_state(
+            {
+                "execution_started_at": datetime.now().isoformat(),
+                "execution_budget": {
+                    "total_timeout": self._total_timeout,
+                    "phase_timeouts": self._phase_timeouts,
+                    "progress_report_interval_seconds": self._progress_report_interval_seconds,
+                    "user_confirmation_timeout_seconds": self._user_confirmation_timeout_seconds,
+                    "max_search_calls": self._max_search_calls,
+                    "max_web_fetch_calls": self._max_web_fetch_calls,
+                    "max_professional_data_calls": self._max_professional_data_calls,
+                },
+            }
+        )
 
         with self._state_lock:
             plan = copy.deepcopy(self.state.get("analysis_plan", {}))
@@ -498,22 +551,30 @@ class ResearchProOrchestrator:
         else:
             result = self._execute_mode_c(keyword_groups, subtasks)
 
-        completion_check = self._evaluate_completion(timeout_reached=self._timeout_reached)
-        state = self._update_state({
-            "completion_check": completion_check,
-            "progress": result.get("progress", {}),
-            "current_stage": "reporting",
-            "stage_status": "in_progress",
-        })
+        completion_check = self._evaluate_completion(
+            timeout_reached=self._timeout_reached
+        )
+        state = self._update_state(
+            {
+                "completion_check": completion_check,
+                "progress": result.get("progress", {}),
+                "current_stage": "reporting",
+                "stage_status": "in_progress",
+            }
+        )
 
         return {
-            "sources_count": completion_check.get("actual_sources", len(self.registry.sources)),
+            "sources_count": completion_check.get(
+                "actual_sources", len(self.registry.sources)
+            ),
             "batches": result.get("batches", []),
             "state": state,
             "completion_check": completion_check,
         }
 
-    def _execute_mode_a(self, keyword_groups: List[Dict], subtasks: List[Dict]) -> Dict[str, Any]:
+    def _execute_mode_a(
+        self, keyword_groups: List[Dict], subtasks: List[Dict]
+    ) -> Dict[str, Any]:
         """Mode A: 快速模式, 单 Agent 串行。"""
         max_sources = max(self._completion.get("min_data_sources", 3), 3)
         return self._execute_search_pipeline(
@@ -522,7 +583,9 @@ class ResearchProOrchestrator:
             results_per_group=2,
         )
 
-    def _execute_mode_b(self, keyword_groups: List[Dict], subtasks: List[Dict]) -> Dict[str, Any]:
+    def _execute_mode_b(
+        self, keyword_groups: List[Dict], subtasks: List[Dict]
+    ) -> Dict[str, Any]:
         """Mode B: 标准模式 (≤2 子任务), 单 Agent 串行。"""
         max_sources = max(self._completion.get("min_data_sources", 5), 5)
         max_sources = max(max_sources, self._completion.get("min_citations", 5))
@@ -532,9 +595,11 @@ class ResearchProOrchestrator:
             results_per_group=3,
         )
 
-    def _execute_mode_c(self, keyword_groups: List[Dict], subtasks: List[Dict]) -> Dict[str, Any]:
+    def _execute_mode_c(
+        self, keyword_groups: List[Dict], subtasks: List[Dict]
+    ) -> Dict[str, Any]:
         """Mode C: 标准模式 (≥3 子任务), 并行子 Agent。
-        
+
         P2-Mode C: 实际调用 sessions_spawn (通过注入的 spawn_fn)。
         如 spawn_fn 不可用，降级为 Mode B 串行执行。
         """
@@ -542,16 +607,12 @@ class ResearchProOrchestrator:
         if self._spawn_fn is None:
             # 降级: 无 spawn_fn 可用时回退到串行执行
             return self._execute_mode_b(keyword_groups, subtasks)
-        
-        subagent_timeout = (
-            self._time_budgets
-            .get("subagent_timeouts", {})
-            .get("mode_C_subagent", 600)
+
+        subagent_timeout = self._time_budgets.get("subagent_timeouts", {}).get(
+            "mode_C_subagent", 600
         )
-        orchestrator_timeout = (
-            self._time_budgets
-            .get("subagent_timeouts", {})
-            .get("mode_C_orchestrator", self._total_timeout)
+        orchestrator_timeout = self._time_budgets.get("subagent_timeouts", {}).get(
+            "mode_C_orchestrator", self._total_timeout
         )
         orchestrator_started_at = time.monotonic()
         batches_by_index: Dict[int, List[Dict[str, Any]]] = {}
@@ -566,7 +627,9 @@ class ResearchProOrchestrator:
                     f"关键词组: {keyword_groups[i] if i < len(keyword_groups) else {}}\n"
                     f"请将搜索结果写入 Blackboard。"
                 )
-                future = executor.submit(self._spawn_fn, task=task_prompt, mode=self.mode)
+                future = executor.submit(
+                    self._spawn_fn, task=task_prompt, mode=self.mode
+                )
                 pending[future] = {
                     "index": i,
                     "subtask": subtask,
@@ -653,7 +716,10 @@ class ResearchProOrchestrator:
 
         return {
             "batches": batches,
-            "progress": {"searched": len(batches), "registered": len(self.registry.sources)},
+            "progress": {
+                "searched": len(batches),
+                "registered": len(self.registry.sources),
+            },
         }
 
     def _handle_mode_c_result(
@@ -664,7 +730,7 @@ class ResearchProOrchestrator:
         result: Any,
     ) -> List[Dict[str, Any]]:
         """处理单个 Mode C 子任务结果；失败时执行本地降级搜索。"""
-        batch_id = f"batch_{index+1:02d}"
+        batch_id = f"batch_{index + 1:02d}"
         if result and isinstance(result, dict):
             sources = result.get("sources", [])
             if not isinstance(sources, list):
@@ -677,7 +743,14 @@ class ResearchProOrchestrator:
                     ],
                     save=False,
                 )
-                return [{"id": batch_id, "subtask": subtask, "spawn_result": result, "results": []}]
+                return [
+                    {
+                        "id": batch_id,
+                        "subtask": subtask,
+                        "spawn_result": result,
+                        "results": [],
+                    }
+                ]
 
             required_fields = {"url", "title", "content", "quality_tier"}
             registered_results = []
@@ -725,11 +798,13 @@ class ResearchProOrchestrator:
                     )
                     continue
 
-                registered_results.append({
-                    "source_id": source_id,
-                    "url": src.get("url", ""),
-                    "title": src.get("title", ""),
-                })
+                registered_results.append(
+                    {
+                        "source_id": source_id,
+                        "url": src.get("url", ""),
+                        "title": src.get("title", ""),
+                    }
+                )
 
             if sources and invalid_count == len(sources):
                 self._update_state(
@@ -742,18 +817,26 @@ class ResearchProOrchestrator:
                     save=False,
                 )
 
-            return [{
-                "id": batch_id,
-                "subtask": subtask,
-                "spawn_result": result,
-                "results": registered_results,
-            }]
+            return [
+                {
+                    "id": batch_id,
+                    "subtask": subtask,
+                    "spawn_result": result,
+                    "results": registered_results,
+                }
+            ]
 
         return self._fallback_mode_c_batches(index=index, keyword_groups=keyword_groups)
 
-    def _fallback_mode_c_batches(self, index: int, keyword_groups: List[Dict]) -> List[Dict[str, Any]]:
+    def _fallback_mode_c_batches(
+        self, index: int, keyword_groups: List[Dict]
+    ) -> List[Dict[str, Any]]:
         """Mode C 单个子任务失败或超时时的本地搜索降级。"""
-        kg = keyword_groups[index] if index < len(keyword_groups) else self._fallback_keyword_group(index)
+        kg = (
+            keyword_groups[index]
+            if index < len(keyword_groups)
+            else self._fallback_keyword_group(index)
+        )
         fallback = self._execute_search_pipeline(
             keyword_groups=[kg],
             max_sources=max(self._completion.get("min_data_sources", 5), 1),
@@ -768,7 +851,7 @@ class ResearchProOrchestrator:
         results_per_group: int,
     ) -> Dict[str, Any]:
         """基于 keyword_groups 搜索、抓取、分类、去重并注册来源。
-        
+
         P0 fix: 搜索全空时不再注册假结果到 SourceRegistry，
         改为写 degraded_search_plan.json 记录搜索失败原因和降级查询。
         """
@@ -795,7 +878,9 @@ class ResearchProOrchestrator:
 
             # P0 fix: 搜索全空时不再调 fallback 注册假结果，改为记录降级计划
             if not results:
-                degraded_entries.append(self._build_degraded_search_plan_entry(kg, query))
+                degraded_entries.append(
+                    self._build_degraded_search_plan_entry(kg, query)
+                )
                 continue
 
             batch = {"id": batch_id, "keywords": kg, "query": query, "results": []}
@@ -806,11 +891,13 @@ class ResearchProOrchestrator:
                     break
                 registered_id = self._register_search_result(result, kg)
                 if registered_id is not None:
-                    batch["results"].append({
-                        "source_id": registered_id,
-                        "url": result.get("url", ""),
-                        "title": result.get("title", ""),
-                    })
+                    batch["results"].append(
+                        {
+                            "source_id": registered_id,
+                            "url": result.get("url", ""),
+                            "title": result.get("title", ""),
+                        }
+                    )
 
             batches.append(batch)
 
@@ -839,7 +926,10 @@ class ResearchProOrchestrator:
 
     def _search_budget_available(self) -> bool:
         """搜索循环内的 deadline 和调用配额检查。"""
-        if self._execution_deadline is not None and time.monotonic() >= self._execution_deadline:
+        if (
+            self._execution_deadline is not None
+            and time.monotonic() >= self._execution_deadline
+        ):
             self._timeout_reached = True
             return False
         return (
@@ -848,7 +938,10 @@ class ResearchProOrchestrator:
         )
 
     def _consume_search_call(self) -> bool:
-        if self._execution_deadline is not None and time.monotonic() >= self._execution_deadline:
+        if (
+            self._execution_deadline is not None
+            and time.monotonic() >= self._execution_deadline
+        ):
             self._timeout_reached = True
             return False
         if self._search_calls_used >= self._max_search_calls:
@@ -857,7 +950,10 @@ class ResearchProOrchestrator:
         return True
 
     def _consume_fetch_call(self) -> bool:
-        if self._execution_deadline is not None and time.monotonic() >= self._execution_deadline:
+        if (
+            self._execution_deadline is not None
+            and time.monotonic() >= self._execution_deadline
+        ):
             self._timeout_reached = True
             return False
         if self._web_fetch_calls_used >= self._max_web_fetch_calls:
@@ -881,7 +977,7 @@ class ResearchProOrchestrator:
 
     def _search_web(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """主搜索引擎：通过 OpenClaw web_search 工具搜索。
-        
+
         web_search_fn 由调用方注入（签名为 web_search_fn(query, count) -> list[dict]）。
         未注入或失败时返回空列表，由上层降级到 DDGS。
         """
@@ -898,7 +994,12 @@ class ResearchProOrchestrator:
                     continue
                 url = str(item.get("url") or item.get("href") or "")
                 title = str(item.get("title") or query)
-                snippet = str(item.get("snippet") or item.get("description") or item.get("body") or "")
+                snippet = str(
+                    item.get("snippet")
+                    or item.get("description")
+                    or item.get("body")
+                    or ""
+                )
                 if url:
                     results.append({"url": url, "title": title, "snippet": snippet})
             return results
@@ -911,11 +1012,13 @@ class ResearchProOrchestrator:
 
     def _search_ddgs(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """备选搜索引擎：通过 DuckDuckGo Search 搜索。
-        
+
         仅在 web_search 不可用或返回空结果时调用。
         直接 import ddgs_client，不使用 subprocess。
         """
-        results = search_ddgs(query, max_results=max_results, timeout=DDGS_TIMEOUT_SECONDS)
+        results = search_ddgs(
+            query, max_results=max_results, timeout=DDGS_TIMEOUT_SECONDS
+        )
         if not results:
             self._update_state(
                 append_warnings=[f"DDGS 搜索失败，使用关键词降级数据: {query}"],
@@ -923,9 +1026,11 @@ class ResearchProOrchestrator:
             )
         return results
 
-    def _register_search_result(self, result: Dict[str, str], keyword_group: Dict[str, Any]) -> Optional[int]:
+    def _register_search_result(
+        self, result: Dict[str, str], keyword_group: Dict[str, Any]
+    ) -> Optional[int]:
         """注册搜索结果到 SourceRegistry，附带证据来源标记。
-        
+
         P0 fix: fetch 成功和失败的源有不同的 provenance 标记，
         fetch 失败的源不再伪装成真实证据。
         """
@@ -953,7 +1058,9 @@ class ResearchProOrchestrator:
             source_kind = "web_search"
             content_origin = "fallback_content"
             fetch_status = "failed"
-            fetch_error = "web_fetch failed for this URL; content is search snippet only"
+            fetch_error = (
+                "web_fetch failed for this URL; content is search snippet only"
+            )
             # 记录 debug log（不喂 SourceRegistry 伪内容）
             debug_fallback = self._fallback_content(keyword_group, title, snippet, url)
             logger.debug(f"[P0 fallback debug] {url}: {debug_fallback[:200]}")
@@ -998,7 +1105,7 @@ class ResearchProOrchestrator:
         query: str,
     ) -> Dict[str, Any]:
         """搜索失败时构建降级计划条目，写入 degraded_search_plan.json 而非 SourceRegistry。
-        
+
         P0 fix: 不再生成假 URL 注册到 SourceRegistry，
         而是记录搜索失败原因和建议的降级查询，供后续重试或人工参考。
         """
@@ -1013,12 +1120,12 @@ class ResearchProOrchestrator:
             ],
             "timestamp": datetime.now().isoformat(),
             "note": "This is a degraded search plan entry, NOT a citation source. "
-                    "Do not use as evidence in the final report.",
+            "Do not use as evidence in the final report.",
         }
 
     def _write_degraded_search_plan(self, entries: List[Dict[str, Any]]) -> str:
         """将降级搜索计划写入 research/degraded_search_plan.json。
-        
+
         Returns:
             文件路径字符串，无降级条目时返回空字符串。
         """
@@ -1028,12 +1135,14 @@ class ResearchProOrchestrator:
             "degraded_group_count": len(entries),
             "entries": entries,
             "warning": "These entries represent failed search groups. "
-                       "They are NOT citation sources and must NOT appear in the final report.",
+            "They are NOT citation sources and must NOT appear in the final report.",
         }
         try:
-            with open(plan_path, 'w', encoding='utf-8') as f:
+            with open(plan_path, "w", encoding="utf-8") as f:
                 json.dump(plan_data, f, ensure_ascii=False, indent=2)
-            logger.info(f"[P0] Wrote degraded_search_plan.json with {len(entries)} entries")
+            logger.info(
+                f"[P0] Wrote degraded_search_plan.json with {len(entries)} entries"
+            )
             return str(plan_path)
         except OSError as e:
             logger.warning(f"[P0] Failed to write degraded_search_plan.json: {e}")
@@ -1047,7 +1156,7 @@ class ResearchProOrchestrator:
         url: str,
     ) -> str:
         """生成 fallback 内容用于 debug log。
-        
+
         P0 fix: 此函数不再被 _register_search_result 调用以填充 SourceRegistry。
         仅用于 debug 日志记录，帮助诊断搜索失败原因。
         Fallback content 不得出现在最终报告中。
@@ -1055,7 +1164,11 @@ class ResearchProOrchestrator:
         query = self._query_from_keyword_group(keyword_group)
         domain = urlparse(url).hostname or "unknown"
         variants = keyword_group.get("variants", [])
-        variant_text = ", ".join(str(v) for v in variants[:5]) if isinstance(variants, list) else ""
+        variant_text = (
+            ", ".join(str(v) for v in variants[:5])
+            if isinstance(variants, list)
+            else ""
+        )
         return (
             f"Title: {title}\n"
             f"Query: {query}\n"
@@ -1085,12 +1198,14 @@ class ResearchProOrchestrator:
         # 生成报告草稿 (简化版, 实际应调用 LLM)
         report_md = self._generate_report_draft()
         if self._timeout_reached:
-            report_md += "\n\n> PARTIAL_REPORT_TIMEOUT: 执行预算已耗尽，本报告为部分结果。\n"
-        
+            report_md += (
+                "\n\n> PARTIAL_REPORT_TIMEOUT: 执行预算已耗尽，本报告为部分结果。\n"
+            )
+
         # 引用验证 (RED-DC-005)
         verifier = CitationVerifier(self.registry)
         citations = verifier.verify_all(report_md)
-        
+
         # P2-9: 如果 completion_check 未通过，在报告中标注
         with self._state_lock:
             completion_check = copy.deepcopy(self.state.get("completion_check", {}))
@@ -1108,7 +1223,9 @@ class ResearchProOrchestrator:
         self._bm.write("report/final.md", report_md)
 
         # 保存引用验证结果
-        self._bm.write("report/citations.json", json.dumps(citations, indent=2, ensure_ascii=False))
+        self._bm.write(
+            "report/citations.json", json.dumps(citations, indent=2, ensure_ascii=False)
+        )
 
         final_completion_check = self._evaluate_completion(
             report_md=report_md,
@@ -1116,15 +1233,21 @@ class ResearchProOrchestrator:
             timeout_reached=self._timeout_reached,
         )
         stage_status = self._report_stage_status(citations, final_completion_check)
-        message = "报告已生成" if stage_status == "completed" else "报告已生成，但存在完成标准或引用可信度警告"
+        message = (
+            "报告已生成"
+            if stage_status == "completed"
+            else "报告已生成，但存在完成标准或引用可信度警告"
+        )
 
-        state = self._update_state({
-            "current_stage": "completed",
-            "stage_status": stage_status,
-            "report_path": str(report_path),
-            "citations": citations,
-            "completion_check": final_completion_check,
-        })
+        state = self._update_state(
+            {
+                "current_stage": "completed",
+                "stage_status": stage_status,
+                "report_path": str(report_path),
+                "citations": citations,
+                "completion_check": final_completion_check,
+            }
+        )
 
         return {
             "report_path": report_path,
@@ -1134,10 +1257,14 @@ class ResearchProOrchestrator:
             "message": message,
         }
 
-    def _report_stage_status(self, citations: Dict[str, Any], completion_check: Dict[str, Any]) -> str:
+    def _report_stage_status(
+        self, citations: Dict[str, Any], completion_check: Dict[str, Any]
+    ) -> str:
         recommendation = citations.get("recommendation")
         if recommendation == "reject":
-            action = self._degradation_rules.get("citation_verification_below_60_percent", "")
+            action = self._degradation_rules.get(
+                "citation_verification_below_60_percent", ""
+            )
             if action == "mark_report_as_unreliable":
                 return "completed_with_warnings"
         if not completion_check.get("overall_pass", False):
@@ -1151,7 +1278,7 @@ class ResearchProOrchestrator:
         timeout_reached: bool = False,
     ) -> Dict[str, Any]:
         """按 completion_criteria.json 全字段计算完成状态。
-        
+
         P0 fix: 只计 eligible_for_completion=True 的源为 actual_sources，
         fallback-only 报告不能通过 completion gate。
         """
@@ -1165,12 +1292,12 @@ class ResearchProOrchestrator:
         ]
         actual_sources = len(eligible_sources)
         fallback_source_count = sum(
-            1 for s in ineligible_sources_list
+            1
+            for s in ineligible_sources_list
             if s.get("content_origin") == "fallback_content"
         )
         actual_tier_1_sources = sum(
-            1 for source in eligible_sources
-            if source.get("quality_tier") == "tier_1"
+            1 for source in eligible_sources if source.get("quality_tier") == "tier_1"
         )
         min_sources = self._completion.get("min_data_sources", 3)
         min_tier_1_sources = self._completion.get("min_tier_1_sources", 1)
@@ -1194,7 +1321,12 @@ class ResearchProOrchestrator:
         ineligible_citation_count = int(citation_summary.get("ineligible_source", 0))
         suspect_count = sum(
             int(citation_summary.get(status, 0))
-            for status in ("unreachable", "not_found", "content_mismatch", "ineligible_source")
+            for status in (
+                "unreachable",
+                "not_found",
+                "content_mismatch",
+                "ineligible_source",
+            )
         )
         verified_ratio = verified_count / unique_citations if unique_citations else 0.0
         url_reachability = (
@@ -1202,25 +1334,37 @@ class ResearchProOrchestrator:
             if unique_citations
             else (1.0 if actual_sources else 0.0)
         )
-        citation_suspect_rate = suspect_count / unique_citations if unique_citations else 0.0
+        citation_suspect_rate = (
+            suspect_count / unique_citations if unique_citations else 0.0
+        )
         trust_score = float((citations or {}).get("trust_score", verified_ratio))
         tier_1_ratio = actual_tier_1_sources / actual_sources if actual_sources else 0.0
 
         required_reachability = float(self._completion.get("url_reachability", 0.0))
         max_suspect_rate = float(self._completion.get("max_citation_suspect_rate", 1.0))
-        max_time_seconds = float(self._completion.get("max_time_seconds", self._total_timeout))
+        max_time_seconds = float(
+            self._completion.get("max_time_seconds", self._total_timeout)
+        )
         elapsed_seconds = self._elapsed_execution_seconds()
         timeout_marker_required = timeout_reached or elapsed_seconds > max_time_seconds
-        timeout_marker_present = "PARTIAL_REPORT_TIMEOUT" in report_md if report_md else False
+        timeout_marker_present = (
+            "PARTIAL_REPORT_TIMEOUT" in report_md if report_md else False
+        )
         timeout_pass = not timeout_marker_required or timeout_marker_present
 
         degradation_actions = []
         if verified_ratio < 0.60 and citations is not None:
-            degradation_actions.append(self._degradation_rules.get("citation_verification_below_60_percent"))
+            degradation_actions.append(
+                self._degradation_rules.get("citation_verification_below_60_percent")
+            )
         if url_reachability < 0.50 and citations is not None:
-            degradation_actions.append(self._degradation_rules.get("url_reachability_below_50_percent"))
+            degradation_actions.append(
+                self._degradation_rules.get("url_reachability_below_50_percent")
+            )
         if actual_sources == 0:
-            degradation_actions.append(self._degradation_rules.get("no_data_sources_after_search"))
+            degradation_actions.append(
+                self._degradation_rules.get("no_data_sources_after_search")
+            )
         if timeout_marker_required:
             degradation_actions.append(self._degradation_rules.get("timeout_reached"))
         # P0 fix: fallback-only 报告（所有源都是 ineligible）必须触发降级
@@ -1274,7 +1418,9 @@ class ResearchProOrchestrator:
         }
 
     @staticmethod
-    def _missing_report_sections(report_md: str, required_sections: List[str]) -> List[str]:
+    def _missing_report_sections(
+        report_md: str, required_sections: List[str]
+    ) -> List[str]:
         if not report_md:
             return list(required_sections)
         return [
@@ -1305,11 +1451,11 @@ class ResearchProOrchestrator:
         citation_marks = " ".join(f"[{citation_id}]" for citation_id in citation_ids)
         first_half_marks = " ".join(
             f"[{citation_id}]"
-            for citation_id in citation_ids[:max(1, citation_total // 2 or 1)]
+            for citation_id in citation_ids[: max(1, citation_total // 2 or 1)]
         )
         second_half_marks = " ".join(
             f"[{citation_id}]"
-            for citation_id in citation_ids[max(0, citation_total // 2):]
+            for citation_id in citation_ids[max(0, citation_total // 2) :]
         )
 
         report = f"""# ResearchPro 研究报告
@@ -1361,7 +1507,7 @@ class ResearchProOrchestrator:
     def resume_from_state(self, state_path: str = None) -> Dict[str, Any]:
         """
         从当前状态恢复执行。
-        
+
         契约: cage/active/research_pro_v1.0.yaml L1 (resume_from_state)
 
         Args:
@@ -1373,7 +1519,7 @@ class ResearchProOrchestrator:
         # P1-2: 支持从指定路径加载状态
         if state_path and Path(state_path).exists():
             try:
-                with open(state_path, 'r', encoding='utf-8') as f:
+                with open(state_path, "r", encoding="utf-8") as f:
                     loaded_state = json.load(f)
                 with self._state_lock:
                     self.state = loaded_state
@@ -1382,12 +1528,12 @@ class ResearchProOrchestrator:
                 return {
                     "state": self._state_snapshot(),
                     "next_action": "error",
-                    "message": f"无法加载 state.json: {e}"
+                    "message": f"无法加载 state.json: {e}",
                 }
-        
+
         state = self._state_snapshot()
         stage = state.get("current_stage", "planning")
-        
+
         if stage == "planning":
             return {"state": state, "next_action": "init_session"}
         elif stage == "confirming":

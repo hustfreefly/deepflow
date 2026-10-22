@@ -3,6 +3,7 @@
 F3: LLM API 任何失败 → gate 判定 FAIL（不 pass）。
 F4: Ship Pro 从 guardrails 确定性派生 serving_principles 并注入 ship_package。
 """
+
 import json
 
 import pytest
@@ -22,6 +23,7 @@ from domains.ship_pro.orchestrator.ship_orchestrator import (
 # ============================================================================
 # F3: Gate fail-closed
 # ============================================================================
+
 
 class TestGateFailClosed:
     """mock LLM API 失败/超时 → gate 不得 pass"""
@@ -59,9 +61,11 @@ class TestGateFailClosed:
             CompletenessGate.check({}, {}, judge_results=None)
 
     def test_harness_gate_missing_judge_raises(self):
-        valid_package = {"work_packages": [
-            {"id": f"WP-{i}", "acceptance_criteria": ["a", "b"]} for i in range(3)
-        ]}
+        valid_package = {
+            "work_packages": [
+                {"id": f"WP-{i}", "acceptance_criteria": ["a", "b"]} for i in range(3)
+            ]
+        }
         with pytest.raises(ValueError, match="harness_v3"):
             HarnessV3.check(valid_package, judge_results=None)
 
@@ -84,10 +88,12 @@ class TestAnalyzeWorkerMustFailuresFailClosed:
 
     def test_missing_judge_with_must_constraints_is_failure(self, tmp_path):
         orch = self._orch(tmp_path)
-        planner = {"workers": [
-            {"role": "core", "must_constraints": ["必须保留 anchor"]},
-            {"role": "docs", "must_constraints": []},
-        ]}
+        planner = {
+            "workers": [
+                {"role": "core", "must_constraints": ["必须保留 anchor"]},
+                {"role": "docs", "must_constraints": []},
+            ]
+        }
         # core 有 MUST 约束但 judge 结果缺失（LLM API 失败未产出）
         failures = orch.analyze_worker_must_failures({}, planner)
         assert len(failures) == 1
@@ -120,16 +126,19 @@ class TestAnalyzeWorkerMustFailuresFailClosed:
 # F4: serving_principles 生产方补建
 # ============================================================================
 
+
 class TestDeriveServingPrinciples:
     def test_explicit_passthrough(self):
         explicit = [{"obligation": "x"}]
         assert _derive_serving_principles({"serving_principles": explicit}) == explicit
 
     def test_derive_from_guardrails_dict(self):
-        sol_input = {"guardrails": {
-            "always_do": ["保持真实性", "保留证据链"],
-            "never_do": ["虚构数据"],
-        }}
+        sol_input = {
+            "guardrails": {
+                "always_do": ["保持真实性", "保留证据链"],
+                "never_do": ["虚构数据"],
+            }
+        }
         result = _derive_serving_principles(sol_input)
         assert len(result) == 3
         obligations = [p["obligation"] for p in result if "obligation" in p]
@@ -190,7 +199,9 @@ class TestValidateShipPackageInjectsServingPrinciples:
         assert result["valid"] is True
         assert result["serving_principles_count"] == 2
 
-        written = json.loads((bp / "stages" / "ship_package.json").read_text(encoding="utf-8"))
+        written = json.loads(
+            (bp / "stages" / "ship_package.json").read_text(encoding="utf-8")
+        )
         sp = written["serving_principles"]
         assert len(sp) == 2
         assert any(p.get("obligation") == "保持真实性" for p in sp)
@@ -204,7 +215,9 @@ class TestValidateShipPackageInjectsServingPrinciples:
 
         assert result["valid"] is True
         assert result["serving_principles_count"] == 0
-        written = json.loads((bp / "stages" / "ship_package.json").read_text(encoding="utf-8"))
+        written = json.loads(
+            (bp / "stages" / "ship_package.json").read_text(encoding="utf-8")
+        )
         assert "serving_principles" not in written
 
     def test_existing_wp_level_not_overwritten(self, tmp_path):
@@ -219,5 +232,7 @@ class TestValidateShipPackageInjectsServingPrinciples:
         orch = ShipOrchestrator(bp)
         orch.validate_ship_package_v8(str(bp))
 
-        written = json.loads((bp / "stages" / "ship_package.json").read_text(encoding="utf-8"))
+        written = json.loads(
+            (bp / "stages" / "ship_package.json").read_text(encoding="utf-8")
+        )
         assert written["serving_principles"] == [{"obligation": "已有原则"}]

@@ -90,8 +90,14 @@ class TestSafeFetcher(unittest.TestCase):
     def test_get_body_is_limited_and_truncation_recorded(self):
         fetcher = _SafeFetcher(max_body_bytes=MAX_BODY_BYTES)
 
-        with patch("domains.research_pro.safe_fetcher.socket.getaddrinfo", side_effect=_public_addrinfo):
-            with patch("domains.research_pro.safe_fetcher._ResolvedHTTPConnection", _FakeConnection):
+        with patch(
+            "domains.research_pro.safe_fetcher.socket.getaddrinfo",
+            side_effect=_public_addrinfo,
+        ):
+            with patch(
+                "domains.research_pro.safe_fetcher._ResolvedHTTPConnection",
+                _FakeConnection,
+            ):
                 response = fetcher.get("http://example.com/big")
 
         self.assertEqual(len(response.body), MAX_BODY_BYTES)
@@ -106,15 +112,26 @@ class TestSafeFetcher(unittest.TestCase):
         fetcher = _SafeFetcher()
 
         class _TimeoutConnection:
-            def __init__(self, *args, **kwargs): pass
+            def __init__(self, *args, **kwargs):
+                pass
+
             def request(self, *args, **kwargs):
                 raise socket.timeout("Connection timed out")
+
             def getresponse(self):
                 return _FakeHTTPResponse()
-            def close(self): pass
 
-        with patch("domains.research_pro.safe_fetcher.socket.getaddrinfo", side_effect=_public_addrinfo):
-            with patch("domains.research_pro.safe_fetcher._ResolvedHTTPConnection", _TimeoutConnection):
+            def close(self):
+                pass
+
+        with patch(
+            "domains.research_pro.safe_fetcher.socket.getaddrinfo",
+            side_effect=_public_addrinfo,
+        ):
+            with patch(
+                "domains.research_pro.safe_fetcher._ResolvedHTTPConnection",
+                _TimeoutConnection,
+            ):
                 with self.assertRaises((SafeFetchError, socket.timeout)):
                     fetcher.get("http://example.com/")
 
@@ -122,7 +139,10 @@ class TestSafeFetcher(unittest.TestCase):
         """模拟 DNS 解析失败（mock socket.gaierror）"""
         fetcher = _SafeFetcher()
 
-        with patch("domains.research_pro.safe_fetcher.socket.getaddrinfo", side_effect=socket.gaierror("Name or service not known")):
+        with patch(
+            "domains.research_pro.safe_fetcher.socket.getaddrinfo",
+            side_effect=socket.gaierror("Name or service not known"),
+        ):
             with self.assertRaises(SafeFetchError) as ctx:
                 fetcher.get("http://nonexistent.domain.xyz/")
             self.assertIn("DNS resolution failed", str(ctx.exception))
@@ -133,22 +153,34 @@ class TestSafeFetcher(unittest.TestCase):
 
         class _Fake404Response:
             status = 404
+
             def getheaders(self):
                 return [("content-type", "text/html")]
+
             def read(self, size=-1):
                 return b"Not Found"
 
         class _Fake404Connection:
-            def __init__(self, *args, **kwargs): pass
+            def __init__(self, *args, **kwargs):
+                pass
+
             def request(self, *args, **kwargs):
                 return None
+
             def getresponse(self):
                 return _Fake404Response()
+
             def close(self):
                 pass
 
-        with patch("domains.research_pro.safe_fetcher.socket.getaddrinfo", side_effect=_public_addrinfo):
-            with patch("domains.research_pro.safe_fetcher._ResolvedHTTPConnection", _Fake404Connection):
+        with patch(
+            "domains.research_pro.safe_fetcher.socket.getaddrinfo",
+            side_effect=_public_addrinfo,
+        ):
+            with patch(
+                "domains.research_pro.safe_fetcher._ResolvedHTTPConnection",
+                _Fake404Connection,
+            ):
                 response = fetcher.get("http://example.com/notfound")
 
         self.assertEqual(response.status, 404)
@@ -162,24 +194,39 @@ class TestSafeFetcher(unittest.TestCase):
             def __init__(self, location):
                 self.status = 302
                 self._location = location
+
             def getheaders(self):
                 return [("location", self._location)]
+
             def read(self, size=-1):
                 return b""
 
         class _FakeRedirectConnection:
             _call_count = 0
-            def __init__(self, *args, **kwargs): pass
+
+            def __init__(self, *args, **kwargs):
+                pass
+
             def request(self, *args, **kwargs):
                 pass
+
             def getresponse(self):
                 _FakeRedirectConnection._call_count += 1
-                return _FakeRedirectResponse(f"http://example.com/redirect{_FakeRedirectConnection._call_count}")
+                return _FakeRedirectResponse(
+                    f"http://example.com/redirect{_FakeRedirectConnection._call_count}"
+                )
+
             def close(self):
                 pass
 
-        with patch("domains.research_pro.safe_fetcher.socket.getaddrinfo", side_effect=_public_addrinfo):
-            with patch("domains.research_pro.safe_fetcher._ResolvedHTTPConnection", _FakeRedirectConnection):
+        with patch(
+            "domains.research_pro.safe_fetcher.socket.getaddrinfo",
+            side_effect=_public_addrinfo,
+        ):
+            with patch(
+                "domains.research_pro.safe_fetcher._ResolvedHTTPConnection",
+                _FakeRedirectConnection,
+            ):
                 with self.assertRaises(SafeFetchError) as ctx:
                     fetcher.get("http://example.com/start")
                 self.assertIn("Too many redirects", str(ctx.exception))
@@ -190,22 +237,34 @@ class TestSafeFetcher(unittest.TestCase):
 
         class _FakeHeadResponse:
             status = 200
+
             def getheaders(self):
                 return [("content-length", "1024")]
+
             def read(self, size=-1):
                 return b""  # HEAD should not return body
 
         class _FakeHeadConnection:
-            def __init__(self, *args, **kwargs): pass
+            def __init__(self, *args, **kwargs):
+                pass
+
             def request(self, method, path, headers=None):
                 pass
+
             def getresponse(self):
                 return _FakeHeadResponse()
+
             def close(self):
                 pass
 
-        with patch("domains.research_pro.safe_fetcher.socket.getaddrinfo", side_effect=_public_addrinfo):
-            with patch("domains.research_pro.safe_fetcher._ResolvedHTTPConnection", _FakeHeadConnection):
+        with patch(
+            "domains.research_pro.safe_fetcher.socket.getaddrinfo",
+            side_effect=_public_addrinfo,
+        ):
+            with patch(
+                "domains.research_pro.safe_fetcher._ResolvedHTTPConnection",
+                _FakeHeadConnection,
+            ):
                 response = fetcher.head("http://example.com/resource")
 
         self.assertEqual(response.status, 200)

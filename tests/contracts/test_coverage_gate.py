@@ -1,4 +1,5 @@
 """Contract tests for the coverage gate (P0-3)."""
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]

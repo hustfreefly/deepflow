@@ -22,6 +22,7 @@ from domains.deliver_pro.orchestrator import DeliverOrchestrator, RETRY_BUDGET
 # Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def orch_instance(tmp_path):
     """Create a minimal DeliverOrchestrator-like object for _filter_spawnable_tasks.
@@ -34,10 +35,14 @@ def orch_instance(tmp_path):
     instance.project_name = "test_project"
 
     # Bind real methods
-    instance._filter_spawnable_tasks = DeliverOrchestrator._filter_spawnable_tasks.__get__(
+    instance._filter_spawnable_tasks = (
+        DeliverOrchestrator._filter_spawnable_tasks.__get__(
+            instance, DeliverOrchestrator
+        )
+    )
+    instance._wp_dir = DeliverOrchestrator._wp_dir.__get__(
         instance, DeliverOrchestrator
     )
-    instance._wp_dir = DeliverOrchestrator._wp_dir.__get__(instance, DeliverOrchestrator)
     instance._get_wp_project_name = DeliverOrchestrator._get_wp_project_name.__get__(
         instance, DeliverOrchestrator
     )
@@ -52,7 +57,9 @@ def _setup_wp_dirs(orch, wp_id):
     return wo
 
 
-def _write_manifest(wo_dir, task_id, status="FAILED", failure_class=None, failure_reason="test"):
+def _write_manifest(
+    wo_dir, task_id, status="FAILED", failure_class=None, failure_reason="test"
+):
     """Write a MANIFEST.json for a task."""
     manifest_path = wo_dir / task_id / "MANIFEST.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -79,6 +86,7 @@ def _make_params(task_ids):
 # Test 1: L1 存活测试 — contract_violation params 必须存活
 # ============================================================================
 
+
 class TestL1ContractViolationSurvival:
     """集成测试：contract_violation + 预算未耗尽 → params 过 L1 存活。"""
 
@@ -100,13 +108,16 @@ class TestL1ContractViolationSurvival:
         params = _make_params(["T-001"])
         result = orch_instance._filter_spawnable_tasks(wp_id, params)
 
-        assert len(result) == 1, f"contract_violation params should survive L1, got {len(result)} items"
+        assert len(result) == 1, (
+            f"contract_violation params should survive L1, got {len(result)} items"
+        )
         assert result[0]["task_id"] == "T-001"
 
 
 # ============================================================================
 # Test 2: 反向测试 — substance_failure 必须被过滤
 # ============================================================================
+
 
 class TestL1SubstanceFailureFiltered:
     """集成测试：substance_failure MANIFEST → 被 L1 过滤。"""
@@ -126,12 +137,15 @@ class TestL1SubstanceFailureFiltered:
         params = _make_params(["T-001"])
         result = orch_instance._filter_spawnable_tasks(wp_id, params)
 
-        assert len(result) == 0, f"substance_failure params should be filtered, got {len(result)} items"
+        assert len(result) == 0, (
+            f"substance_failure params should be filtered, got {len(result)} items"
+        )
 
 
 # ============================================================================
 # Test 3: 无 failure_class 旧 MANIFEST → 被过滤（向后兼容）
 # ============================================================================
+
 
 class TestL1LegacyManifestFiltered:
     """集成测试：无 failure_class 的旧 MANIFEST → 被 L1 过滤。"""
@@ -152,12 +166,15 @@ class TestL1LegacyManifestFiltered:
         params = _make_params(["T-001"])
         result = orch_instance._filter_spawnable_tasks(wp_id, params)
 
-        assert len(result) == 0, f"legacy manifest (no failure_class) should be filtered, got {len(result)} items"
+        assert len(result) == 0, (
+            f"legacy manifest (no failure_class) should be filtered, got {len(result)} items"
+        )
 
 
 # ============================================================================
 # Test 4: attempts 递增测试
 # ============================================================================
+
 
 class TestAttemptsIncrement:
     """集成测试：contract 重试派发后 attempts_map 对应任务 +1。
@@ -190,7 +207,9 @@ class TestAttemptsIncrement:
             if tid:
                 attempts_map[tid] = attempts_map.get(tid, 0) + 1
 
-        assert attempts_map["T-001"] == 2, f"attempts should be 2 after dispatch, got {attempts_map['T-001']}"
+        assert attempts_map["T-001"] == 2, (
+            f"attempts should be 2 after dispatch, got {attempts_map['T-001']}"
+        )
 
     def test_attempts_eventually_exhausts_budget(self, orch_instance, tmp_path):
         """attempts 递增到 RETRY_BUDGET 后，params 被 L1 过滤。"""
@@ -209,12 +228,15 @@ class TestAttemptsIncrement:
         params = _make_params(["T-001"])
         result = orch_instance._filter_spawnable_tasks(wp_id, params)
 
-        assert len(result) == 0, f"budget-exhausted contract_violation should be filtered, got {len(result)} items"
+        assert len(result) == 0, (
+            f"budget-exhausted contract_violation should be filtered, got {len(result)} items"
+        )
 
 
 # ============================================================================
 # Test 5: 预算耗尽的 contract_violation → 被过滤
 # ============================================================================
+
 
 class TestL1BudgetExhaustedFiltered:
     """集成测试：contract_violation + attempts >= RETRY_BUDGET → 被过滤。"""
@@ -234,12 +256,15 @@ class TestL1BudgetExhaustedFiltered:
         params = _make_params(["T-001"])
         result = orch_instance._filter_spawnable_tasks(wp_id, params)
 
-        assert len(result) == 0, "contract_violation with exhausted budget should be filtered"
+        assert len(result) == 0, (
+            "contract_violation with exhausted budget should be filtered"
+        )
 
 
 # ============================================================================
 # Test 6: 混合场景 — 多 task 同时过 L1
 # ============================================================================
+
 
 class TestL1MixedScenario:
     """集成测试：多 task 混合场景，只有 contract_violation+预算未耗尽 的存活。"""
@@ -278,6 +303,7 @@ class TestL1MixedScenario:
 # Test 7: MANIFEST 损坏 → 保持原过滤行为（不误放行）
 # ============================================================================
 
+
 class TestL1CorruptManifest:
     """集成测试：MANIFEST 解析失败 → 保持原过滤行为（不过滤放行）。"""
 
@@ -300,4 +326,6 @@ class TestL1CorruptManifest:
         params = _make_params(["T-001"])
         result = orch_instance._filter_spawnable_tasks(wp_id, params)
 
-        assert len(result) == 0, "corrupt manifest should result in filtering (safe default)"
+        assert len(result) == 0, (
+            "corrupt manifest should result in filtering (safe default)"
+        )

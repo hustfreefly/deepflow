@@ -17,7 +17,9 @@ import core.bootstrap  # 契约笼子: 通过 bootstrap 自动加入 sys.path
 from typing import Type
 
 from core.blackboard.registry_base import DomainRegistry
-from core.blackboard.blackboard_manager import BlackboardManager as CoreBlackboardManager
+from core.blackboard.blackboard_manager import (
+    BlackboardManager as CoreBlackboardManager,
+)
 
 
 # ============================================================================
@@ -72,23 +74,19 @@ STAGE_PATH_REGISTRY_V2 = {
     "convergence_planning": _sp("convergence_planning"),
     "unified_constraints": _sp("unified_constraints"),
     "verification_checklist": _sp("verification_checklist"),
-    
     # Module 2: Research（扩展为动态 M 个专家）
     "research_experts": "stages/research_experts/",  # 目录，包含 M 个 research_expert_{name}.json
     "research_consolidator": _sp("research_consolidator"),
     "architecture": _sp("architecture"),
     "detailed_design": _sp("detailed_design"),
-    
     # Module 3: Review & QC（Fix Loop 替代 Audit+Fix+Fixer）
     "consolidation": _sp("consolidation"),
     "harness_report": _sp("harness_report"),
     "fix_loop_state": _sp("fix_loop_state"),
-    
     # 收敛点文件（Module 间通信契约）
     "planning_convergence": "planning_convergence.json",
     "research_convergence": "research_convergence.json",
     "final_convergence": "final_convergence.json",
-    
     # 信息守恒契约
     "information_contract": _sp("information_contract"),
 }
@@ -108,28 +106,22 @@ STAGE_PATH_REGISTRY = {
 DEPRECATED_STAGE_ALIASES = {
     # Planning → Meta-Planning
     "planning": "meta_planning",
-    
     # 固定 3 Reviewer → Reviewer_Meta（合并）
     "reviewer_technical": "meta_planning",  # Reviewer 职责并入 Meta-Planner
     "reviewer_business": "meta_planning",
     "reviewer_risk": "meta_planning",
-    
     # 固定 3 Research Expert → 动态 M 个（目录）
     "research_expert_1": "research_experts",
     "research_expert_2": "research_experts",
     "research_expert_3": "research_experts",
-    
     # Design → Architecture + Detailed Design
     "design": "detailed_design",
-    
     # Audit + Fix + Fixer → Fix Loop
     "audit": "fix_loop_state",
     "fix": "fix_loop_state",
     "fixer_expert": "fix_loop_state",
-    
     # Consolidator → Consolidation
     "consolidator": "consolidation",
-    
     # Harness Final → Harness Report
     "harness_final": "harness_report",
 }
@@ -151,9 +143,9 @@ PIPELINE_STAGES_V1 = (
 
 # V2 three-module pipeline (2026-07-13)
 PIPELINE_STAGES = (
-    "planning",        # Planning Module (Meta-Planner → Expert Planning → Convergence)
-    "research",        # Research Module (Expert Research → Consolidation)
-    "summary",         # Summary Module (Synthesis → Refinement → Harness Check)
+    "planning",  # Planning Module (Meta-Planner → Expert Planning → Convergence)
+    "research",  # Research Module (Expert Research → Consolidation)
+    "summary",  # Summary Module (Synthesis → Refinement → Harness Check)
 )
 
 
@@ -162,6 +154,7 @@ PIPELINE_STAGES = (
 # ============================================================================
 class SolutionRegistry(DomainRegistry):
     """Solution Pro 路径注册表 — @deprecated: 推荐使用 BlackboardManager API"""
+
     STAGE_PATH_REGISTRY = STAGE_PATH_REGISTRY
 
 
@@ -184,14 +177,14 @@ class BlackboardManager(CoreBlackboardManager):
     def write(self, filename: str, content, subdir=None):
         """
         重写 write() 以支持 list 类型
-        
+
         原 core 实现只支持 dict 和 str，这里扩展为 dict/list → JSON，str → 文本
         """
         import json
         import os
         import tempfile
         from pathlib import Path
-        
+
         target = self._resolve(filename, subdir)
         target.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=target.parent, suffix=".tmp")

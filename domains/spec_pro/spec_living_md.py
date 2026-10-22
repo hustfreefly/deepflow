@@ -49,6 +49,7 @@ ALL_SECTIONS = REQUIRED_SECTIONS + OPTIONAL_SECTIONS
 
 # ─── render: dict → MD ──────────────────────────────────────────────────────
 
+
 def render_living_spec_md(data: dict) -> str:
     """
     将 living_spec dict 渲染为 V2 schema 的 Markdown。
@@ -66,7 +67,7 @@ def render_living_spec_md(data: dict) -> str:
     # ── YAML Frontmatter ──
     meta = data.get("meta", {})
     lines.append("---")
-    lines.append(f'domain: spec_pro')
+    lines.append(f"domain: spec_pro")
     lines.append(f'version: "{meta.get("spec_version", "1.0")}"')
     lines.append(f'session: "{data.get("session_id", "unknown")}"')
     lines.append("---")
@@ -219,7 +220,9 @@ def render_living_spec_md(data: dict) -> str:
         lines.append("|----------|------|----------|")
         for item in qa:
             if isinstance(item, dict):
-                lines.append(f"| {item.get('category', '?')} | {item.get('spec', '')} | {item.get('priority', '?')} |")
+                lines.append(
+                    f"| {item.get('category', '?')} | {item.get('spec', '')} | {item.get('priority', '?')} |"
+                )
             else:
                 lines.append(f"| ? | {item} | ? |")
         lines.append("")
@@ -249,7 +252,9 @@ def render_living_spec_md(data: dict) -> str:
                 qid = item.get("id", "?")
                 question = item.get("question", str(item))
                 blocking = item.get("blocking", False)
-                lines.append(f"- [{qid}] {question} {'🔴 blocking' if blocking else ''}")
+                lines.append(
+                    f"- [{qid}] {question} {'🔴 blocking' if blocking else ''}"
+                )
             else:
                 lines.append(f"- {item}")
         lines.append("")
@@ -339,14 +344,20 @@ def render_living_spec_md(data: dict) -> str:
         # F3 fix (W3): Align with authoritative SemanticAnchor schema
         # Removed ghost column 'priority' (not in SemanticAnchor model)
         # Added 'confidence' and 'applicable_to' (authoritative fields)
-        lines.append("| name | category | constraint | confidence | applicable_to | source_quote |")
-        lines.append("|------|----------|------------|------------|---------------|--------------|")
+        lines.append(
+            "| name | category | constraint | confidence | applicable_to | source_quote |"
+        )
+        lines.append(
+            "|------|----------|------------|------------|---------------|--------------|"
+        )
         for item in sa:
             if isinstance(item, dict):
-                sq = item.get('source_quote', '')
-                conf = item.get('confidence', 0.9)
-                applicable = ', '.join(item.get('applicable_to', ['all']))
-                lines.append(f"| {item.get('name', '?')} | {item.get('category', '?')} | {item.get('constraint', '')} | {conf} | {applicable} | {sq} |")
+                sq = item.get("source_quote", "")
+                conf = item.get("confidence", 0.9)
+                applicable = ", ".join(item.get("applicable_to", ["all"]))
+                lines.append(
+                    f"| {item.get('name', '?')} | {item.get('category', '?')} | {item.get('constraint', '')} | {conf} | {applicable} | {sq} |"
+                )
             else:
                 lines.append(f"| {item} | ? | | 0.9 | all | |")
         lines.append("")
@@ -374,13 +385,29 @@ def render_living_spec_md(data: dict) -> str:
 
     # ── Walk remaining confirmed.* keys (never silently drop) ──
     _handled_confirmed = {
-        "objective", "description", "pain_points", "terms", "success_metrics",
-        "users", "key_scenarios", "capabilities", "quality_attributes",
-        "constraints", "integration", "risks_and_assumptions", "risks",
-        "user_directives", "deprecated", "requirement_index",
+        "objective",
+        "description",
+        "pain_points",
+        "terms",
+        "success_metrics",
+        "users",
+        "key_scenarios",
+        "capabilities",
+        "quality_attributes",
+        "constraints",
+        "integration",
+        "risks_and_assumptions",
+        "risks",
+        "user_directives",
+        "deprecated",
+        "requirement_index",
         # B4-FIX: fields now rendered as separate ## sections above
-        "narrative", "core_summary", "stakeholders",
-        "conversation_digest", "open_questions", "traceability",
+        "narrative",
+        "core_summary",
+        "stakeholders",
+        "conversation_digest",
+        "open_questions",
+        "traceability",
     }
     for key, val in confirmed.items():
         if key in _handled_confirmed or not val:
@@ -394,7 +421,9 @@ def render_living_spec_md(data: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_confirmed_reqs(lines: list[str], confirmed: dict, data: dict | None = None) -> None:
+def _render_confirmed_reqs(
+    lines: list[str], confirmed: dict, data: dict | None = None
+) -> None:
     """Render the confirmed_reqs section."""
     # REQ-ID Table
     lines.append("### REQ-ID Table")
@@ -408,14 +437,16 @@ def _render_confirmed_reqs(lines: list[str], confirmed: dict, data: dict | None 
         lines.append("|--------|-----------|-------------|----------|--------|")
         for i, req in enumerate(req_index):
             if isinstance(req, dict):
-                rid = req.get("id", f"REQ-{i+1:03d}")
+                rid = req.get("id", f"REQ-{i + 1:03d}")
                 dim = req.get("dimension", req.get("category", "functional"))
                 desc = req.get("description", req.get("title", str(req)))[:80]
                 pri = req.get("priority", "P0")
                 status = req.get("status", "confirmed")
                 lines.append(f"| {rid} | {dim} | {desc} | {pri} | {status} |")
             else:
-                lines.append(f"| REQ-{i+1:03d} | functional | {str(req)[:80]} | P0 | confirmed |")
+                lines.append(
+                    f"| REQ-{i + 1:03d} | functional | {str(req)[:80]} | P0 | confirmed |"
+                )
     else:
         # Build from sub-fields
         idx = 1
@@ -428,8 +459,14 @@ def _render_confirmed_reqs(lines: list[str], confirmed: dict, data: dict | None 
             if not isinstance(items, list):
                 continue
             for item in items:
-                desc = item if isinstance(item, str) else item.get("description", str(item))[:80]
-                lines.append(f"| REQ-{idx:03d} | {dimension} | {desc} | P0 | confirmed |")
+                desc = (
+                    item
+                    if isinstance(item, str)
+                    else item.get("description", str(item))[:80]
+                )
+                lines.append(
+                    f"| REQ-{idx:03d} | {dimension} | {desc} | P0 | confirmed |"
+                )
                 idx += 1
         if idx == 1:
             lines.append("| REQ-001 | general | See overview | P0 | confirmed |")
@@ -479,7 +516,9 @@ def _render_confirmed_reqs(lines: list[str], confirmed: dict, data: dict | None 
             lines.append("| metric | target | priority |")
             lines.append("|--------|--------|----------|")
             for item in sm:
-                lines.append(f"| {item.get('metric', '?')} | {item.get('target', '')} | {item.get('priority', '?')} |")
+                lines.append(
+                    f"| {item.get('metric', '?')} | {item.get('target', '')} | {item.get('priority', '?')} |"
+                )
         else:
             for item in sm:
                 lines.append(f"- {item}")
@@ -566,6 +605,7 @@ def _render_value(lines: list[str], val: Any) -> None:
 
 # ─── parse: MD → dict ────────────────────────────────────────────────────────
 
+
 def parse_living_spec_md(md: str) -> dict:
     """
     从 V2 schema MD 解析为 living_spec dict。
@@ -587,7 +627,7 @@ def parse_living_spec_md(md: str) -> dict:
         end = md.find("---", 3)
         if end != -1:
             fm_text = md[3:end].strip()
-            body = md[end + 3:]
+            body = md[end + 3 :]
             for line in fm_text.split("\n"):
                 if ":" in line:
                     key, _, val = line.partition(":")
@@ -687,7 +727,9 @@ def parse_living_spec_md(md: str) -> dict:
     # stakeholders: from ## stakeholders section
     sh_text = sections.get("stakeholders", "")
     if sh_text and sh_text != "(none)":
-        result["stakeholders"] = _parse_bullet_list(sh_text) or _parse_table_to_dicts(sh_text)
+        result["stakeholders"] = _parse_bullet_list(sh_text) or _parse_table_to_dicts(
+            sh_text
+        )
 
     # conversation_digest: from ## conversation_summary section
     cd_text = sections.get("conversation_summary", "")
@@ -772,7 +814,9 @@ def _parse_confirmed_reqs(confirmed: dict, text: str) -> None:
     # Users
     users_text = sub_sections.get("users", "")
     if users_text:
-        confirmed["users"] = _parse_table_to_dicts(users_text) or _parse_bullet_list(users_text)
+        confirmed["users"] = _parse_table_to_dicts(users_text) or _parse_bullet_list(
+            users_text
+        )
 
     # Pain Points
     pp_text = sub_sections.get("pain points", "")
@@ -787,7 +831,9 @@ def _parse_confirmed_reqs(confirmed: dict, text: str) -> None:
     # Success Metrics
     sm_text = sub_sections.get("success metrics", "")
     if sm_text:
-        confirmed["success_metrics"] = _parse_table_to_dicts(sm_text) or _parse_bullet_list(sm_text)
+        confirmed["success_metrics"] = _parse_table_to_dicts(
+            sm_text
+        ) or _parse_bullet_list(sm_text)
 
     # Terms
     terms_text = sub_sections.get("terms", "")
@@ -922,6 +968,7 @@ def _parse_bullet_list(text: str) -> list[str]:
 
 
 # ─── validate: MD 结构校验 ───────────────────────────────────────────────────
+
 
 def validate_living_spec_md(md: str) -> tuple[bool, list[str]]:
     """

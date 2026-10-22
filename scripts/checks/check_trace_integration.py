@@ -9,6 +9,7 @@
 
 契约笼子检查脚本 — 确保统一 trace_id 接入不被破坏。
 """
+
 import sys
 import re
 from pathlib import Path
@@ -39,12 +40,15 @@ def check_core_trace_module():
     content = trace_file.read_text(encoding="utf-8")
 
     # 检查必要的函数定义
-    required_functions = ["start_trace", "get_trace_id", "span", "end_trace", "save_to_blackboard"]
+    required_functions = [
+        "start_trace",
+        "get_trace_id",
+        "span",
+        "end_trace",
+        "save_to_blackboard",
+    ]
     for func in required_functions:
-        check(
-            f"def {func}(" in content,
-            f"core/trace.py 包含 def {func}()"
-        )
+        check(f"def {func}(" in content, f"core/trace.py 包含 def {func}()")
 
     # 检查 TraceContext 类
     check("class TraceContext" in content, "core/trace.py 包含 TraceContext 类")
@@ -53,7 +57,7 @@ def check_core_trace_module():
     check("threading.Lock" in content, "core/trace.py 使用 threading.Lock（线程安全）")
 
     # 检查零外部依赖（只用 stdlib）
-    imports = re.findall(r'^import\s+(\w+)|^from\s+(\w+)', content, re.MULTILINE)
+    imports = re.findall(r"^import\s+(\w+)|^from\s+(\w+)", content, re.MULTILINE)
     stdlib_modules = {"uuid", "time", "json", "threading", "pathlib", "typing"}
     external_imports = set()
     for match in imports:
@@ -62,7 +66,7 @@ def check_core_trace_module():
             external_imports.add(mod)
     check(
         len(external_imports) == 0,
-        f"core/trace.py 零外部依赖（发现: {external_imports or '无'}）"
+        f"core/trace.py 零外部依赖（发现: {external_imports or '无'}）",
     )
 
 
@@ -78,19 +82,15 @@ def check_spec_pro_integration():
     content = coordinator.read_text(encoding="utf-8")
     check(
         "from core.trace import" in content,
-        "coordinator.py 有 from core.trace import 引用"
+        "coordinator.py 有 from core.trace import 引用",
     )
-    check(
-        "start_trace" in content,
-        "coordinator.py 调用 start_trace()"
-    )
+    check("start_trace" in content, "coordinator.py 调用 start_trace()")
     check(
         'domain="spec_pro"' in content or "domain='spec_pro'" in content,
-        "coordinator.py 记录 spec_pro domain span"
+        "coordinator.py 记录 spec_pro domain span",
     )
     check(
-        "trace_id" in content,
-        "coordinator.py 包含 trace_id（传递给 handoff package）"
+        "trace_id" in content, "coordinator.py 包含 trace_id（传递给 handoff package）"
     )
 
 
@@ -106,20 +106,14 @@ def check_ship_pro_integration():
     content = ship_init.read_text(encoding="utf-8")
     check(
         "from core.trace import" in content,
-        "__init__.py 有 from core.trace import 引用"
+        "__init__.py 有 from core.trace import 引用",
     )
-    check(
-        "start_trace" in content,
-        "__init__.py 调用 start_trace()"
-    )
+    check("start_trace" in content, "__init__.py 调用 start_trace()")
     check(
         'domain="ship_pro"' in content or "domain='ship_pro'" in content,
-        "__init__.py 记录 ship_pro domain span"
+        "__init__.py 记录 ship_pro domain span",
     )
-    check(
-        "trace_id" in content,
-        "__init__.py 包含 trace_id（接受或传递）"
-    )
+    check("trace_id" in content, "__init__.py 包含 trace_id（接受或传递）")
 
 
 def check_solution_pro_integration():
@@ -134,17 +128,17 @@ def check_solution_pro_integration():
     content = master.read_text(encoding="utf-8")
     check(
         "from core.trace import" in content,
-        "master_orchestrator.py 有 from core.trace import 引用"
+        "master_orchestrator.py 有 from core.trace import 引用",
     )
     check(
         'domain="solution_pro"' in content or "domain='solution_pro'" in content,
-        "master_orchestrator.py 记录 solution_pro domain span"
+        "master_orchestrator.py 记录 solution_pro domain span",
     )
     # 检查三个模块都有 span 记录
     for module in ["planning", "research", "summary"]:
         check(
             f'module="{module}"' in content or f"module='{module}'" in content,
-            f"master_orchestrator.py 记录 {module} 模块 span"
+            f"master_orchestrator.py 记录 {module} 模块 span",
         )
 
 

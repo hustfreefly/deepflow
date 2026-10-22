@@ -29,6 +29,7 @@ from domains.deliver_pro.orchestrator import DeliverOrchestrator, RETRY_BUDGET
 # Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def mock_driver(tmp_path):
     driver = MagicMock()
@@ -42,7 +43,9 @@ def mock_driver(tmp_path):
         stages_dir = tmp_path / "stages"
         stages_dir.mkdir(parents=True, exist_ok=True)
         prompt_file = stages_dir / f"_bootstrap_worker_{task_id}.md"
-        prompt_file.write_text(f"# Worker Prompt for {task_id}\nDo the task.\n", encoding="utf-8")
+        prompt_file.write_text(
+            f"# Worker Prompt for {task_id}\nDo the task.\n", encoding="utf-8"
+        )
         return {
             "runtime": "subagent",
             "mode": "run",
@@ -63,20 +66,28 @@ def orch_instance(tmp_path):
     instance.progress = {}
     instance.blackboard_root = tmp_path / "blackboard"
     instance.project_name = "test_project"
-    instance._prepare_worker_retries = DeliverOrchestrator._prepare_worker_retries.__get__(
+    instance._prepare_worker_retries = (
+        DeliverOrchestrator._prepare_worker_retries.__get__(
+            instance, DeliverOrchestrator
+        )
+    )
+    instance._filter_spawnable_tasks = (
+        DeliverOrchestrator._filter_spawnable_tasks.__get__(
+            instance, DeliverOrchestrator
+        )
+    )
+    instance._wp_dir = DeliverOrchestrator._wp_dir.__get__(
         instance, DeliverOrchestrator
     )
-    instance._filter_spawnable_tasks = DeliverOrchestrator._filter_spawnable_tasks.__get__(
-        instance, DeliverOrchestrator
-    )
-    instance._wp_dir = DeliverOrchestrator._wp_dir.__get__(instance, DeliverOrchestrator)
     instance._get_wp_project_name = DeliverOrchestrator._get_wp_project_name.__get__(
         instance, DeliverOrchestrator
     )
     return instance
 
 
-def _write_manifest(wo_dir, task_id, failure_class=None, quality_feedback=None, failure_reason="test"):
+def _write_manifest(
+    wo_dir, task_id, failure_class=None, quality_feedback=None, failure_reason="test"
+):
     manifest_path = wo_dir / task_id / "MANIFEST.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     data = {
@@ -110,11 +121,15 @@ def _setup_wp_dirs(orch, wp_id):
 # Test 1: quality_failure 被重试循环拾取 + feedback 文本正确
 # ============================================================================
 
+
 class TestQualityFailureRetryPickup:
-    def test_quality_failure_enters_retry_with_feedback(self, orch_instance, mock_driver, tmp_path):
+    def test_quality_failure_enters_retry_with_feedback(
+        self, orch_instance, mock_driver, tmp_path
+    ):
         """quality_failure + quality_feedback 存在 → 进入 retry，prompt 含失败原因"""
         _write_manifest(
-            mock_driver.worker_outputs_dir, "T-001",
+            mock_driver.worker_outputs_dir,
+            "T-001",
             failure_class="quality_failure",
             quality_feedback="算术错误：总成本计算使用了错误的汇率（1.2 应为 7.2）",
         )
@@ -164,11 +179,15 @@ class TestQualityFailureRetryPickup:
 # Test 2: quality_feedback 缺失 → 跳过 + warning
 # ============================================================================
 
+
 class TestQualityFeedbackMissing:
-    def test_no_quality_feedback_skips_task(self, orch_instance, mock_driver, tmp_path, caplog):
+    def test_no_quality_feedback_skips_task(
+        self, orch_instance, mock_driver, tmp_path, caplog
+    ):
         """quality_failure 但无 quality_feedback → 跳过 + warning"""
         _write_manifest(
-            mock_driver.worker_outputs_dir, "T-001",
+            mock_driver.worker_outputs_dir,
+            "T-001",
             failure_class="quality_failure",
             # 不写 quality_feedback
         )
@@ -196,11 +215,16 @@ class TestQualityFeedbackMissing:
         }
 
         import logging
+
         with caplog.at_level(logging.WARNING):
-            params, alerts = orch_instance._prepare_worker_retries("WP-001", mock_driver)
+            params, alerts = orch_instance._prepare_worker_retries(
+                "WP-001", mock_driver
+            )
 
         task_ids = [p.get("task_id") for p in params]
-        assert "T-001" not in task_ids, "T-001 should NOT be in retry without quality_feedback"
+        assert "T-001" not in task_ids, (
+            "T-001 should NOT be in retry without quality_feedback"
+        )
 
         # Verify warning was logged
         assert any("quality_feedback" in record.message for record in caplog.records)
@@ -210,11 +234,15 @@ class TestQualityFeedbackMissing:
 # Test 3: deps 未全 COMPLETE → 不派发
 # ============================================================================
 
+
 class TestQualityFailureDepsNotComplete:
-    def test_deps_not_complete_skips_dispatch(self, orch_instance, mock_driver, tmp_path):
+    def test_deps_not_complete_skips_dispatch(
+        self, orch_instance, mock_driver, tmp_path
+    ):
         """quality_failure + deps 含 running → 不派发"""
         _write_manifest(
-            mock_driver.worker_outputs_dir, "T-002",
+            mock_driver.worker_outputs_dir,
+            "T-002",
             failure_class="quality_failure",
             quality_feedback="数据引用过时",
         )
@@ -224,7 +252,12 @@ class TestQualityFailureDepsNotComplete:
             scenario="code",
             task_graph=[
                 TaskNode(task_id="T-001", title="Task 1", scenario_type="code"),
-                TaskNode(task_id="T-002", title="Task 2", scenario_type="code", depends_on=["T-001"]),
+                TaskNode(
+                    task_id="T-002",
+                    title="Task 2",
+                    scenario_type="code",
+                    depends_on=["T-001"],
+                ),
             ],
             concurrency_plan=ConcurrencyPlan(
                 suggested_parallelism=2,
@@ -246,12 +279,17 @@ class TestQualityFailureDepsNotComplete:
         params, alerts = orch_instance._prepare_worker_retries("WP-001", mock_driver)
 
         task_ids = [p.get("task_id") for p in params]
-        assert "T-002" not in task_ids, "T-002 should NOT be dispatched when T-001 is still running"
+        assert "T-002" not in task_ids, (
+            "T-002 should NOT be dispatched when T-001 is still running"
+        )
 
-    def test_deps_all_complete_allows_dispatch(self, orch_instance, mock_driver, tmp_path):
+    def test_deps_all_complete_allows_dispatch(
+        self, orch_instance, mock_driver, tmp_path
+    ):
         """quality_failure + deps 全 COMPLETE → 正常派发"""
         _write_manifest(
-            mock_driver.worker_outputs_dir, "T-002",
+            mock_driver.worker_outputs_dir,
+            "T-002",
             failure_class="quality_failure",
             quality_feedback="数据引用过时",
         )
@@ -260,7 +298,12 @@ class TestQualityFailureDepsNotComplete:
             scenario="code",
             task_graph=[
                 TaskNode(task_id="T-001", title="Task 1", scenario_type="code"),
-                TaskNode(task_id="T-002", title="Task 2", scenario_type="code", depends_on=["T-001"]),
+                TaskNode(
+                    task_id="T-002",
+                    title="Task 2",
+                    scenario_type="code",
+                    depends_on=["T-001"],
+                ),
             ],
             concurrency_plan=ConcurrencyPlan(
                 suggested_parallelism=2,
@@ -282,19 +325,24 @@ class TestQualityFailureDepsNotComplete:
         params, alerts = orch_instance._prepare_worker_retries("WP-001", mock_driver)
 
         task_ids = [p.get("task_id") for p in params]
-        assert "T-002" in task_ids, "T-002 should be dispatched when all deps are COMPLETE"
+        assert "T-002" in task_ids, (
+            "T-002 should be dispatched when all deps are COMPLETE"
+        )
 
 
 # ============================================================================
 # Test 4: L1 豁免对 quality_failure 生效；预算耗尽不豁免
 # ============================================================================
 
+
 class TestL1QualityFailureExemption:
     def test_quality_failure_survives_l1(self, orch_instance, tmp_path):
         """quality_failure + 预算未耗尽 → params 过 L1 存活"""
         wp_id = "WP-QF-001"
         wo = _setup_wp_dirs(orch_instance, wp_id)
-        _write_manifest(wo, "T-001", failure_class="quality_failure", quality_feedback="test")
+        _write_manifest(
+            wo, "T-001", failure_class="quality_failure", quality_feedback="test"
+        )
 
         orch_instance.progress = {
             wp_id: {
@@ -306,14 +354,18 @@ class TestL1QualityFailureExemption:
         params = _make_params(["T-001"])
         result = orch_instance._filter_spawnable_tasks(wp_id, params)
 
-        assert len(result) == 1, f"quality_failure params should survive L1, got {len(result)}"
+        assert len(result) == 1, (
+            f"quality_failure params should survive L1, got {len(result)}"
+        )
         assert result[0]["task_id"] == "T-001"
 
     def test_quality_failure_budget_exhausted_filtered(self, orch_instance, tmp_path):
         """quality_failure + 预算耗尽 → 被 L1 过滤"""
         wp_id = "WP-QF-002"
         wo = _setup_wp_dirs(orch_instance, wp_id)
-        _write_manifest(wo, "T-001", failure_class="quality_failure", quality_feedback="test")
+        _write_manifest(
+            wo, "T-001", failure_class="quality_failure", quality_feedback="test"
+        )
 
         orch_instance.progress = {
             wp_id: {
@@ -325,12 +377,15 @@ class TestL1QualityFailureExemption:
         params = _make_params(["T-001"])
         result = orch_instance._filter_spawnable_tasks(wp_id, params)
 
-        assert len(result) == 0, "quality_failure with exhausted budget should be filtered"
+        assert len(result) == 0, (
+            "quality_failure with exhausted budget should be filtered"
+        )
 
 
 # ============================================================================
 # Test 5: 守卫类 3 对 quality_failure 生效
 # ============================================================================
+
 
 class TestGuardClass3QualityFailure:
     """守卫类 3 _has_unexecuted_tasks 对 quality_failure 生效。"""
@@ -342,7 +397,9 @@ class TestGuardClass3QualityFailure:
         driver = MagicMock()
         wo = tmp_path / "worker_outputs"
         driver.worker_outputs_dir = wo
-        _write_manifest(wo, "T-001", failure_class="quality_failure", quality_feedback="test")
+        _write_manifest(
+            wo, "T-001", failure_class="quality_failure", quality_feedback="test"
+        )
 
         driver.orch.load_execution_plan.return_value = ExecutionPlan(
             wp_id=wp_id,
@@ -369,20 +426,28 @@ class TestGuardClass3QualityFailure:
         }
 
         # Bind the real _has_unexecuted_tasks method
-        orch_instance._has_unexecuted_tasks = DeliverOrchestrator._has_unexecuted_tasks.__get__(
-            orch_instance, DeliverOrchestrator
+        orch_instance._has_unexecuted_tasks = (
+            DeliverOrchestrator._has_unexecuted_tasks.__get__(
+                orch_instance, DeliverOrchestrator
+            )
         )
 
         result = orch_instance._has_unexecuted_tasks(wp_id, driver)
-        assert "T-001" in result, f"Guard class 3 should intercept quality_failure T-001, got {result}"
+        assert "T-001" in result, (
+            f"Guard class 3 should intercept quality_failure T-001, got {result}"
+        )
 
-    def test_guard3_quality_failure_budget_exhausted_no_intercept(self, orch_instance, tmp_path):
+    def test_guard3_quality_failure_budget_exhausted_no_intercept(
+        self, orch_instance, tmp_path
+    ):
         """quality_failure + 预算耗尽 → 守卫类 3 不拦截（已无救）"""
         wp_id = "WP-QF-004"
         driver = MagicMock()
         wo = tmp_path / "worker_outputs"
         driver.worker_outputs_dir = wo
-        _write_manifest(wo, "T-001", failure_class="quality_failure", quality_feedback="test")
+        _write_manifest(
+            wo, "T-001", failure_class="quality_failure", quality_feedback="test"
+        )
 
         driver.orch.load_execution_plan.return_value = ExecutionPlan(
             wp_id=wp_id,
@@ -408,25 +473,33 @@ class TestGuardClass3QualityFailure:
             wp_id: {"task_attempts": {"T-001": RETRY_BUDGET}},  # budget exhausted
         }
 
-        orch_instance._has_unexecuted_tasks = DeliverOrchestrator._has_unexecuted_tasks.__get__(
-            orch_instance, DeliverOrchestrator
+        orch_instance._has_unexecuted_tasks = (
+            DeliverOrchestrator._has_unexecuted_tasks.__get__(
+                orch_instance, DeliverOrchestrator
+            )
         )
 
         result = orch_instance._has_unexecuted_tasks(wp_id, driver)
-        assert "T-001" not in result, "Guard class 3 should NOT intercept when budget exhausted"
+        assert "T-001" not in result, (
+            "Guard class 3 should NOT intercept when budget exhausted"
+        )
 
 
 # ============================================================================
 # Test 6: contract_violation 回归（现有路径不被破坏）
 # ============================================================================
 
+
 class TestContractViolationRegression:
     """确保 contract_violation 现有路径不被破坏。"""
 
-    def test_contract_violation_still_retried(self, orch_instance, mock_driver, tmp_path):
+    def test_contract_violation_still_retried(
+        self, orch_instance, mock_driver, tmp_path
+    ):
         """contract_violation 仍然被重试循环拾取"""
         _write_manifest(
-            mock_driver.worker_outputs_dir, "T-001",
+            mock_driver.worker_outputs_dir,
+            "T-001",
             failure_class="contract_violation",
         )
         mock_driver.orch.load_execution_plan.return_value = ExecutionPlan(
@@ -465,10 +538,13 @@ class TestContractViolationRegression:
         assert "契约违规重试" in prompt_content
         assert "DELIVERABLE.md" in prompt_content
 
-    def test_substance_failure_still_not_retried(self, orch_instance, mock_driver, tmp_path):
+    def test_substance_failure_still_not_retried(
+        self, orch_instance, mock_driver, tmp_path
+    ):
         """substance_failure 仍然不被重试"""
         _write_manifest(
-            mock_driver.worker_outputs_dir, "T-001",
+            mock_driver.worker_outputs_dir,
+            "T-001",
             failure_class="substance_failure",
         )
         mock_driver.orch.load_execution_plan.return_value = ExecutionPlan(

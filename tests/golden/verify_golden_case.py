@@ -23,6 +23,7 @@ DEEPFLOW_ROOT = Path(__file__).resolve().parent.parent.parent  # .deepflow/
 from domains.solution_pro.blackboard import STAGE_PATH_REGISTRY
 import core.bootstrap
 
+
 class GoldenCaseVerifier:
     """Golden Case E2E 验证器"""
 
@@ -40,16 +41,20 @@ class GoldenCaseVerifier:
         with open(golden_case_path, "r", encoding="utf-8") as f:
             self.golden = json.load(f)
 
-    def _check(self, name: str, condition: bool, detail: str = "", critical: bool = False):
+    def _check(
+        self, name: str, condition: bool, detail: str = "", critical: bool = False
+    ):
         """记录一个检查项"""
         status = "✅ PASS" if condition else ("🔴 FAIL" if critical else "🟡 WARN")
-        self.results.append({
-            "name": name,
-            "status": status,
-            "detail": detail,
-            "critical": critical,
-            "passed": condition,
-        })
+        self.results.append(
+            {
+                "name": name,
+                "status": status,
+                "detail": detail,
+                "critical": critical,
+                "passed": condition,
+            }
+        )
         if condition:
             self.passed += 1
         elif critical:
@@ -114,7 +119,9 @@ class GoldenCaseVerifier:
 
         plan = self._read_json("execution_plan.json")
         if plan is None:
-            self._check("execution_plan可读", False, "文件不存在或JSON格式错误", critical=True)
+            self._check(
+                "execution_plan可读", False, "文件不存在或JSON格式错误", critical=True
+            )
             return
 
         self._check("execution_plan可读", True, critical=True)
@@ -130,9 +137,16 @@ class GoldenCaseVerifier:
         # 检查关键阶段存在
         stage_names = [p.get("stage") for p in phases]
         required_stages = [
-            "data_collection", "planning", "reviewers", "research",
-            "consolidator", "audit", "fix", "fixer_expert",
-            "harness_final", "summarizer"
+            "data_collection",
+            "planning",
+            "reviewers",
+            "research",
+            "consolidator",
+            "audit",
+            "fix",
+            "fixer_expert",
+            "harness_final",
+            "summarizer",
         ]
         for stage in required_stages:
             self._check(
@@ -142,7 +156,9 @@ class GoldenCaseVerifier:
             )
 
         # 检查并行阶段
-        reviewers_phase = next((p for p in phases if p.get("stage") == "reviewers"), None)
+        reviewers_phase = next(
+            (p for p in phases if p.get("stage") == "reviewers"), None
+        )
         research_phase = next((p for p in phases if p.get("stage") == "research"), None)
 
         if reviewers_phase:
@@ -403,7 +419,9 @@ class GoldenCaseVerifier:
                 f"字符数: {len(content)}",
             )
 
-            for section in summarizer_exp.get("final_solution_must_contain_sections", []):
+            for section in summarizer_exp.get(
+                "final_solution_must_contain_sections", []
+            ):
                 self._check(
                     f"包含章节 '{section}'",
                     section in content,
@@ -428,13 +446,16 @@ class GoldenCaseVerifier:
 
             # 检查矩阵是否覆盖所有 P0 REQ-ID
             p0_ids = [
-                r["id"] for r in spec.get("requirements", [])
+                r["id"]
+                for r in spec.get("requirements", [])
                 if r.get("priority") == "P0"
             ]
             matrix_req_ids = set()
             if isinstance(matrix, dict):
                 # 矩阵可能是 {REQ-001: {...}} 或 {requirements: [{req_id/id: ...}]}
-                if "requirements" in matrix and isinstance(matrix["requirements"], list):
+                if "requirements" in matrix and isinstance(
+                    matrix["requirements"], list
+                ):
                     for item in matrix["requirements"]:
                         if isinstance(item, dict):
                             # 支持 req_id 或 id 两种命名
@@ -514,6 +535,7 @@ class GoldenCaseVerifier:
 
         return exit_code
 
+
 def main():
     if len(sys.argv) < 2:
         print(f"用法: {sys.argv[0]} <session_id> [golden_case_path]")
@@ -526,6 +548,7 @@ def main():
     verifier = GoldenCaseVerifier(session_id, golden_path)
     exit_code = verifier.run_all()
     sys.exit(exit_code)
+
 
 if __name__ == "__main__":
     main()
