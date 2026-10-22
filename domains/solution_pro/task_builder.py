@@ -6,24 +6,24 @@ Author: DeepFlow Solution Pro
 Date: 2026-06-01
 """
 
-"""
-Solution Task Builder 2.0.0 - Harness 修复版
-===============================================
-
-为 Solution 领域 Workers 构建 Task。
-包含 Harness 修复:Layer 2 约束注入、格式标准化
-
-禁止:直接调用 openclaw
-
-变更日志:
-- Harness P0/P1 修复
-  - P0-1: Layer 2 约束 Prompt 注入
-  - P0-2: 文件格式标准化
-  - P1-1: 约束数量限制(最多2条)
-- 使用PromptRegistry(Phase 2试点)
-- 使用统一prompt读取函数
-- 初始版本
-"""
+# """
+# Solution Task Builder 2.0.0 - Harness 修复版
+# ===============================================
+#
+# 为 Solution 领域 Workers 构建 Task。
+# 包含 Harness 修复:Layer 2 约束注入、格式标准化
+#
+# 禁止:直接调用 openclaw
+#
+# 变更日志:
+# - Harness P0/P1 修复
+#   - P0-1: Layer 2 约束 Prompt 注入
+#   - P0-2: 文件格式标准化
+#   - P1-1: 约束数量限制(最多2条)
+# - 使用PromptRegistry(Phase 2试点)
+# - 使用统一prompt读取函数
+# - 初始版本
+# """
 
 from typing import Tuple
 import logging

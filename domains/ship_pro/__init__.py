@@ -45,6 +45,7 @@ from core.process_manager import (
     ModuleLifecycleManager,
     SingleSourceStateManager,
 )  # 通用模块: 生命周期 + 单源状态管理
+from .orchestrator.ship_orchestrator import extract_json_from_completion
 
 
 # ============================================================================
@@ -1356,7 +1357,6 @@ def generate_ship_track(base_path: str) -> dict | None:
 # Re-exports
 # ============================================================================
 
-from .orchestrator.ship_orchestrator import extract_json_from_completion
 
 __all__ = [
     "run_ship_pro",  # 2.0.0 唯一入口

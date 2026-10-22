@@ -6,20 +6,20 @@ Author: DeepFlow Solution Pro
 Date: 2026-06-01
 """
 
-"""
-Harness Scorer 2.0.0
-===================
-
-4维度评分器（权重：完整性30% / 必要性20% / 目标一致性30% / 全局影响20%）
-
-决策层级：
-- PASS (≥0.85): 质量达标
-- WARNING (0.70-0.84): 咨询意见
-- CRITICAL_WARNING (0.60-0.69): 强烈建议修改
-- BLOCK_RECOMMENDATION (<0.60): 建议重新规划（仍不阻断）
-
-特殊规则：目标一致性<0.6 → 至少CRITICAL_WARNING
-"""
+# """
+# Harness Scorer 2.0.0
+# ===================
+#
+# 4维度评分器（权重：完整性30% / 必要性20% / 目标一致性30% / 全局影响20%）
+#
+# 决策层级：
+# - PASS (≥0.85): 质量达标
+# - WARNING (0.70-0.84): 咨询意见
+# - CRITICAL_WARNING (0.60-0.69): 强烈建议修改
+# - BLOCK_RECOMMENDATION (<0.60): 建议重新规划（仍不阻断）
+#
+# 特殊规则：目标一致性<0.6 → 至少CRITICAL_WARNING
+# """
 
 from typing import Dict, Literal, Optional
 from dataclasses import dataclass

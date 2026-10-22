@@ -9,11 +9,11 @@ REQ 去重验证脚本 - 代码做确定性执行
 4. REQ 覆盖完整性（所有原始 REQ-ID 都在 req_mapping 中）
 """
 
-"""
-This file is part of pipeline (10-stage architecture).
-uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator.
-Do not import this file for new workflows.
-"""
+# """
+# This file is part of pipeline (10-stage architecture).
+# uses MasterOrchestrator + PlanningOrchestrator + ResearchOrchestrator + SummaryOrchestrator.
+# Do not import this file for new workflows.
+# """
 
 import json
 import sys

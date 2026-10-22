@@ -11,11 +11,11 @@ Living Spec 数据归一化 + 渲染
                                                               ↑ 唯一的渲染入口
 """
 
-"""
-This file is part of pipeline (10-stage architecture).
-V3.1 纯 Agent Orchestrator 架构（Python orchestrator 层已删除）。
-Do not import this file for new workflows.
-"""
+# """
+# This file is part of pipeline (10-stage architecture).
+# V3.1 纯 Agent Orchestrator 架构（Python orchestrator 层已删除）。
+# Do not import this file for new workflows.
+# """
 
 from typing import Any
 
