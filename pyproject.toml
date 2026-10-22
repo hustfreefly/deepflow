@@ -40,3 +40,8 @@ include = ["core*", "domains*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "check_*.py"]
+
+[tool.ruff]
+# 与 cage/active/dev_quality_v1.0.yaml 保持一致
+target-version = "py310"
+extend-exclude = ["blackboard", "_archive", "domains/*/_archive", "contracts/shared/_archived"]

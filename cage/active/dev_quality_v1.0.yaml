@@ -1,0 +1,43 @@
+cage_version: "2.0.0"
+component: dev_quality
+status: active
+module: dev_quality
+version: "1.0.0"
+created: '2026-10-22'
+updated: '2026-10-22'
+complexity: simple
+description: |
+  研发质量闸门契约：格式全量锁定 + 错误类规则全量锁定，风格类规则按轮次递增。
+  目标不是“一次清零”，而是债务只降不升（ratchet）。
+interface:
+  format_gate: "ruff format --check ."
+  error_rules: "ruff check --select E9,F63,F7,F82 ."
+  full_scan: "ruff check --statistics"
+behavior:
+  format_gate:
+    success: "0 files would be reformatted -> exit 0"
+    failure: "任一文件需重排 -> exit 1"
+  error_rules:
+    success: "E9/F63/F7/F82 全量为 0 -> exit 0"
+    failure: "出现语法错误/未定义名/无效导入 -> exit 1"
+  ratchet:
+    success: "全量统计条目数 <= 基线 344"
+    failure: "条目数上升 -> 视为引入新债"
+boundaries:
+  - "不修改业务逻辑；格式与规则的修复必须单独提交"
+  - "auto-fix 后必须跑全量 pytest；以 import 为断言的测试不得被自动改写"
+  - "死代码先归档（_archive，gitignored），不直接删除有引用的文件"
+redlines:
+  - id: RED-DQ-001
+    rule: "CI 必须全量跑 E9/F63/F7/F82，不允许只查改动文件"
+    check: "ci.yml 中存在 ruff check --select E9,F63,F7,F82 ."
+  - id: RED-DQ-002
+    rule: "禁止用 # noqa 冻结 F821 未定义名"
+    check: "仓库中不存在 noqa: F821"
+  - id: RED-DQ-003
+    rule: "格式基线不得回退"
+    check: "ruff format --check . -> 0"
+baseline:
+  date: '2026-10-22'
+  total: 344
+  note: "E9/F63/F7/F82 = 0；剩余为 E402/F841/E741/F401/E712/F402 等风格项，按轮次下降"

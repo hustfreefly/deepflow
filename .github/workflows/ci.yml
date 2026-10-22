@@ -29,6 +29,12 @@ jobs:
         run: python -m pytest tests/contracts -q
       - name: Validator CLI
         run: python scripts/validate.py --all
+      - name: Install ruff
+        run: python -m pip install "ruff==0.15.20"
+      - name: Quality gate (format + error rules)
+        run: |
+          ruff format --check .
+          ruff check --select E9,F63,F7,F82 .
 
   full-suite:
     name: Full suite (staged)
