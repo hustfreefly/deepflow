@@ -48,6 +48,14 @@ def _send_feishu_alert(alerts: list[dict], project: str) -> None:
     if not critical_alerts:
         return
 
+    # 安全默认：dry-run。显式设置 DEEPFLOW_PULSE_ALLOW_ALERTS=1 才允许外发。
+    if os.getenv("DEEPFLOW_PULSE_ALLOW_ALERTS") != "1":
+        print(
+            "INFO: CRITICAL 告警已抑制（默认 dry-run；设置 DEEPFLOW_PULSE_ALLOW_ALERTS=1 启用外发）",
+            file=sys.stderr,
+        )
+        return
+
     # 构建告警消息
     message_lines = [f"🚨 Deliver Pro 告警 - {project}", ""]
     for alert in critical_alerts[:5]:  # 最多显示 5 条
