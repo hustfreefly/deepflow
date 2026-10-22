@@ -507,8 +507,14 @@ def print_validation_report(results: Dict[str, ValidationResult]):
 if __name__ == "__main__":
     validator = CageValidator()
     results = validator.validate_all()
-    print_validation_report(results)
     
+    # 空集必须失败：没有契约文件不等于全部通过
+    if not results:
+        print("❌ NO CONTRACT FILES FOUND — refusing to report success")
+        sys.exit(2)
+
+    print_validation_report(results)
+
     # 退出码：有错误则返回 1
     has_errors = any(not r.valid for r in results.values())
     sys.exit(1 if has_errors else 0)

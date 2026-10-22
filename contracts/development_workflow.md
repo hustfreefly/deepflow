@@ -63,8 +63,9 @@ updated: "2026-06-01"
 - 代码必须处理契约中定义的所有边界条件
 
 ### 3. 验证闭环
-- 实现后必须运行：python scripts/validate.py [module]
-- 必须运行：python scripts/check_standards.py [module].py
+- 实现后必须运行（权威）：cd .deepflow && python3 -m pytest tests/contracts -q
+- 便捷入口：python scripts/validate.py [module]
+- 必须运行：python scripts/checks/check_standards.py [module].py
 - 必须运行：python -m pytest tests/contract/test_[module].py
 - 验证失败必须返工，不得声称完成
 
@@ -74,7 +75,7 @@ updated: "2026-06-01"
 - 验证失败 = 失败，不是"基本完成"
 
 ## 验收标准
-□ cage/active/[module]_v[X.Y].yaml 存在且通过 validate.py
+□ cage/active/[module]_v[X.Y].yaml 存在且通过 pytest tests/contracts
 □ [module].py 通过 check_standards.py（P0=0）
 □ tests/contract/test_[module].py 全部通过
 □ 无 bare except

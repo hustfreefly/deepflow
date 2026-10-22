@@ -125,3 +125,7 @@ sdk/*/dist/
 # SDK node_modules (2026-07-30 GitHub 清理)
 sdk/*/build/
 .deepflow/
+# 测试运行时产物
+.coverage
+.pytest_cache/
+test_results/

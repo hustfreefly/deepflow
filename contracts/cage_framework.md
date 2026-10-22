@@ -94,8 +94,9 @@ Step 3: 实现代码（[module].py）
   └── 在笼子约束下写代码
 
 Step 4: 自动验证（AI 自己跑）
-  ├── Step 4.1: 契约验证
-  │     python scripts/validate.py [module]
+  ├── Step 4.1: 契约验证（权威）
+  │     cd .deepflow && python3 -m pytest tests/contracts -q
+  │     便捷入口：python scripts/validate.py [module]
   │     └── 通过 → 继续
   │     └── 失败 → 返工
   │
@@ -116,13 +117,14 @@ Step 5: 写入 PROGRESS → 进入下一模块
 
 ## 四、验证脚本
 
-### 4.1 契约验证（scripts/validate.py）
+### 4.1 契约验证（tests/contracts + scripts/validate.py）
 
 ```bash
-# 验证单个模块契约
-python scripts/validate.py config_loader
+# 权威闸门（G3）
+cd .deepflow && python3 -m pytest tests/contracts -q
 
-# 验证所有模块契约
+# 人类便捷入口（同一校验内核）
+python scripts/validate.py config_loader
 python scripts/validate.py --all
 ```
 
