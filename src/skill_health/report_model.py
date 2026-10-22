@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 # CheckResult — single check outcome
 # ---------------------------------------------------------------------------
 
+
 class CheckResult(BaseModel):
     """Result of a single checker against a Skill.
 
@@ -46,7 +47,10 @@ class CheckResult(BaseModel):
     )
     message: str = Field(
         description="Human-readable summary of the check outcome.",
-        examples=["Description length 120 chars (OK)", "Missing SKILL.md version field"],
+        examples=[
+            "Description length 120 chars (OK)",
+            "Missing SKILL.md version field",
+        ],
     )
     details: Optional[dict] = Field(
         default=None,
@@ -58,6 +62,7 @@ class CheckResult(BaseModel):
 # ---------------------------------------------------------------------------
 # SkillInfo — pipeline input metadata
 # ---------------------------------------------------------------------------
+
 
 class SkillInfo(BaseModel):
     """Skill metadata as consumed by the validation pipeline.
@@ -92,6 +97,7 @@ class SkillInfo(BaseModel):
 # ScanMetadata — scan context
 # ---------------------------------------------------------------------------
 
+
 class ScanMetadata(BaseModel):
     """Contextual information about the scan that produced the report."""
 
@@ -101,7 +107,10 @@ class ScanMetadata(BaseModel):
     )
     target_path: str = Field(
         description="Root directory path that was scanned for Skills.",
-        examples=["/Users/allen/.openclaw/workspace/skills", "/opt/homebrew/lib/node_modules/openclaw/skills"],
+        examples=[
+            "/Users/allen/.openclaw/workspace/skills",
+            "/opt/homebrew/lib/node_modules/openclaw/skills",
+        ],
     )
     skill_count: int = Field(
         description="Total number of Skills discovered during the scan.",
@@ -113,6 +122,7 @@ class ScanMetadata(BaseModel):
 # ---------------------------------------------------------------------------
 # Summary — aggregate statistics
 # ---------------------------------------------------------------------------
+
 
 class Summary(BaseModel):
     """Aggregate pass/warn/fail counts across all scanned Skills.
@@ -147,6 +157,7 @@ class Summary(BaseModel):
 # ---------------------------------------------------------------------------
 # SkillReport — per-Skill report entry
 # ---------------------------------------------------------------------------
+
 
 class SkillReport(BaseModel):
     """Per-Skill report entry in the final ReportModel output.
@@ -189,6 +200,7 @@ class SkillReport(BaseModel):
 # + Serialization methods (T-003)
 # ---------------------------------------------------------------------------
 
+
 def _common_prefix(paths: list[str]) -> str:
     """Compute the longest common directory prefix of a list of paths.
 
@@ -207,7 +219,9 @@ def _common_prefix(paths: list[str]) -> str:
         return ""
 
 
-def _skill_status(check_results: list[CheckResult]) -> Literal["passed", "warned", "failed"]:
+def _skill_status(
+    check_results: list[CheckResult],
+) -> Literal["passed", "warned", "failed"]:
     """Determine the aggregate status of a single Skill from its check results.
 
     Rules (per WP specification):
@@ -255,9 +269,7 @@ class ReportModel(BaseModel):
     )
     summary: Summary = Field(
         description="Aggregate pass/warn/fail statistics across all Skills.",
-        examples=[
-            Summary(total=10, passed=7, warned=2, failed=1)
-        ],
+        examples=[Summary(total=10, passed=7, warned=2, failed=1)],
     )
     skill_reports: list[SkillReport] = Field(
         description="Detailed report for each scanned Skill.",
@@ -432,24 +444,12 @@ class ReportModel(BaseModel):
         lines.append("")
         lines.append("| Metric | Value |")
         lines.append("|--------|-------|")
-        lines.append(
-            f"| Scan Time | {self.scan_metadata.scan_timestamp} |"
-        )
-        lines.append(
-            f"| Target | {self.scan_metadata.target_path} |"
-        )
-        lines.append(
-            f"| Total Skills | {self.summary.total} |"
-        )
-        lines.append(
-            f"| Passed | {self.summary.passed} |"
-        )
-        lines.append(
-            f"| Warnings | {self.summary.warned} |"
-        )
-        lines.append(
-            f"| Failed | {self.summary.failed} |"
-        )
+        lines.append(f"| Scan Time | {self.scan_metadata.scan_timestamp} |")
+        lines.append(f"| Target | {self.scan_metadata.target_path} |")
+        lines.append(f"| Total Skills | {self.summary.total} |")
+        lines.append(f"| Passed | {self.summary.passed} |")
+        lines.append(f"| Warnings | {self.summary.warned} |")
+        lines.append(f"| Failed | {self.summary.failed} |")
         lines.append("")
 
         # --- Skill Details ---

@@ -46,9 +46,9 @@ _STATUS_ICONS: dict[str, str] = {
 _ANSI_RESET = "\033[0m"
 _ANSI_BOLD = "\033[1m"
 _ANSI_COLORS: dict[str, str] = {
-    "passed": "\033[32m",   # green
+    "passed": "\033[32m",  # green
     "warning": "\033[33m",  # yellow
-    "failed": "\033[31m",   # red
+    "failed": "\033[31m",  # red
 }
 
 # Rich style names matching the ANSI palette
@@ -62,14 +62,15 @@ _RICH_STYLES: dict[str, str] = {
 # Exit code constants (follow POSIX / argparse conventions)
 # ---------------------------------------------------------------------------
 
-EXIT_SUCCESS = 0        # All passed, or warnings only (no failures)
-EXIT_FAILURE = 1        # One or more checks failed
-EXIT_USAGE_ERROR = 2    # Parameter / input error (invalid data, bad args)
+EXIT_SUCCESS = 0  # All passed, or warnings only (no failures)
+EXIT_FAILURE = 1  # One or more checks failed
+EXIT_USAGE_ERROR = 2  # Parameter / input error (invalid data, bad args)
 
 
 # ---------------------------------------------------------------------------
 # Internal adapter — wraps a status string for determine_exit_code()
 # ---------------------------------------------------------------------------
+
 
 class _StatusHolder:
     """Minimal object with a ``status`` attribute, used by ``get_exit_code``
@@ -84,6 +85,7 @@ class _StatusHolder:
 # ---------------------------------------------------------------------------
 # Exit-code decision logic (pure function — no I/O, no side effects)
 # ---------------------------------------------------------------------------
+
 
 def determine_exit_code(results: list[Any] | None) -> int:
     """Determine the CLI exit code from a list of skill result objects.
@@ -171,7 +173,10 @@ def determine_exit_code(results: list[Any] | None) -> int:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _skill_aggregate_status(checks: list[Any]) -> Literal["passed", "warning", "failed"]:
+
+def _skill_aggregate_status(
+    checks: list[Any],
+) -> Literal["passed", "warning", "failed"]:
     """Derive the worst status from a list of check results.
 
     Priority: failed > warning > passed.  An empty check list counts as passed.
@@ -198,6 +203,7 @@ def _checker_summary(checks: list[Any]) -> str:
 # TerminalSummaryPrinter
 # ---------------------------------------------------------------------------
 
+
 class TerminalSummaryPrinter:
     """Print a three-section coloured terminal summary of a *ReportModel*.
 
@@ -216,6 +222,7 @@ class TerminalSummaryPrinter:
         self._has_rich: bool
         try:
             import rich.console  # noqa: F401
+
             self._has_rich = True
         except ImportError:
             self._has_rich = False
@@ -361,10 +368,7 @@ class TerminalSummaryPrinter:
             icon = _STATUS_ICONS[status]
             color = _ANSI_COLORS[status]
             detail = _checker_summary(skill.checks)
-            w(
-                f"  {icon} {color}{_ANSI_BOLD}"
-                f"{skill.skill_name}{_ANSI_RESET} {detail}\n"
-            )
+            w(f"  {icon} {color}{_ANSI_BOLD}{skill.skill_name}{_ANSI_RESET} {detail}\n")
 
         w("\n")
 

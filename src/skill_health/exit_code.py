@@ -48,6 +48,7 @@ EXIT_USAGE_ERROR = 2
 # Core exit code determination
 # ---------------------------------------------------------------------------
 
+
 def determine_exit_code(report: "ReportModel") -> int:
     """Determine the CLI exit code from a completed report.
 
@@ -101,7 +102,7 @@ def determine_exit_code(report: "ReportModel") -> int:
     # Check if any skill has failed
     if report.summary.failed > 0:
         return EXIT_FAILURE
-    
+
     # Warnings are non-blocking; all-pass and warn-only both return success
     return EXIT_SUCCESS
 
@@ -149,13 +150,14 @@ def determine_exit_code_from_skills(skill_reports: list["SkillReport"]) -> int:
         for check_result in skill_report.check_results:
             if check_result.status == "fail":
                 return EXIT_FAILURE
-    
+
     return EXIT_SUCCESS
 
 
 # ---------------------------------------------------------------------------
 # CLI integration helpers
 # ---------------------------------------------------------------------------
+
 
 def exit_with_code(report: "ReportModel") -> None:
     """Print summary and exit with the appropriate code.

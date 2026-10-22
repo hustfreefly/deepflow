@@ -37,6 +37,7 @@ class SpanRecord:
         mem_usage: Memory usage percentage at span time.
         replica_count: Total replicas of the service.
     """
+
     trace_id: str
     span_id: str
     parent_span_id: Optional[str]
@@ -70,6 +71,7 @@ class Node:
         request_count: Total requests seen in current window.
         last_seen_ms: Timestamp of last observed span.
     """
+
     service_name: str
     service_type: str = "unknown"
     language: str = "unknown"
@@ -97,6 +99,7 @@ class Edge:
         error_count: Number of errored calls.
         last_seen_ms: Timestamp of last observed call.
     """
+
     source: str
     target: str
     call_count: int = 0
@@ -168,7 +171,9 @@ class ServiceGraph:
         # Update the edge if this span has a caller
         if span.caller_service:
             self._get_or_create_node(span.caller_service, span)
-            edge = self._get_or_create_edge(span.caller_service, span.service_name, span)
+            edge = self._get_or_create_edge(
+                span.caller_service, span.service_name, span
+            )
             self._update_edge_from_span(edge, span)
 
     def snapshot(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -187,9 +192,7 @@ class ServiceGraph:
         edge_list = list(self._edges.values())
 
         node_features = extractor.extract_node_features(node_list)
-        edge_index, edge_attr = extractor.extract_edge_features(
-            node_list, edge_list
-        )
+        edge_index, edge_attr = extractor.extract_edge_features(node_list, edge_list)
 
         return node_features, edge_index, edge_attr
 
@@ -206,9 +209,15 @@ class ServiceGraph:
         if service_name not in self._nodes:
             self._nodes[service_name] = Node(
                 service_name=service_name,
-                service_type=span.service_type if span.service_name == service_name else "unknown",
-                language=span.language if span.service_name == service_name else "unknown",
-                replica_count=span.replica_count if span.service_name == service_name else 0,
+                service_type=span.service_type
+                if span.service_name == service_name
+                else "unknown",
+                language=span.language
+                if span.service_name == service_name
+                else "unknown",
+                replica_count=span.replica_count
+                if span.service_name == service_name
+                else 0,
             )
         return self._nodes[service_name]
 
@@ -238,9 +247,7 @@ class ServiceGraph:
             self._node_success_count[node.service_name] / node.request_count
         )
 
-    def _get_or_create_edge(
-        self, source: str, target: str, span: SpanRecord
-    ) -> Edge:
+    def _get_or_create_edge(self, source: str, target: str, span: SpanRecord) -> Edge:
         key = (source, target)
         if key not in self._edges:
             self._edges[key] = Edge(
@@ -263,7 +270,11 @@ class ServiceGraph:
 
         latencies = self._edge_latencies[key]
         edge.avg_latency_ms = sum(latencies) / len(latencies)
-        edge.latency_p99_ms = float(np.percentile(latencies, 99)) if len(latencies) >= 100 else max(latencies)
+        edge.latency_p99_ms = (
+            float(np.percentile(latencies, 99))
+            if len(latencies) >= 100
+            else max(latencies)
+        )
 
         # Track success rate
         edge.error_count += 1 if span.status_code != 0 else 0

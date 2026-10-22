@@ -107,11 +107,15 @@ class FeatureExtractor:
         # Collect raw values for normalization
         replica_counts = np.array([n.replica_count for n in nodes], dtype=np.float32)
         request_counts = np.array([n.request_count for n in nodes], dtype=np.float32)
-        avg_response_times = np.array([n.avg_response_time_ms for n in nodes], dtype=np.float32)
+        avg_response_times = np.array(
+            [n.avg_response_time_ms for n in nodes], dtype=np.float32
+        )
 
         for i, node in enumerate(nodes):
             # Column 0-8: service_type one-hot
-            st_idx = self.service_type_index.get(node.service_type, len(SERVICE_TYPES) - 1)
+            st_idx = self.service_type_index.get(
+                node.service_type, len(SERVICE_TYPES) - 1
+            )
             features[i, st_idx] = 1.0
 
             # Column 9: language index (normalized to [0, 1])
@@ -174,7 +178,9 @@ class FeatureExtractor:
         # Collect raw values for normalization
         call_counts = np.array([e.call_count for e in edge_list], dtype=np.float32)
         latency_p99s = np.array([e.latency_p99_ms for e in edge_list], dtype=np.float32)
-        avg_latencies = np.array([e.avg_latency_ms for e in edge_list], dtype=np.float32)
+        avg_latencies = np.array(
+            [e.avg_latency_ms for e in edge_list], dtype=np.float32
+        )
         error_counts = np.array([e.error_count for e in edge_list], dtype=np.float32)
 
         for i, edge in enumerate(edge_list):
@@ -193,9 +199,7 @@ class FeatureExtractor:
             edge_attr[i, p_idx] = 1.0
 
             # Column 6: call_count (log-normalized)
-            edge_attr[i, 6] = self._log_normalize(
-                edge.call_count, call_counts.max()
-            )
+            edge_attr[i, 6] = self._log_normalize(edge.call_count, call_counts.max())
 
             # Column 7: latency_p99_ms (log-normalized)
             edge_attr[i, 7] = self._log_normalize(
@@ -211,9 +215,7 @@ class FeatureExtractor:
             edge_attr[i, 9] = np.clip(edge.success_rate, 0.0, 1.0)
 
             # Column 10: error_count (log-normalized)
-            edge_attr[i, 10] = self._log_normalize(
-                edge.error_count, error_counts.max()
-            )
+            edge_attr[i, 10] = self._log_normalize(edge.error_count, error_counts.max())
 
         return edge_index, edge_attr
 

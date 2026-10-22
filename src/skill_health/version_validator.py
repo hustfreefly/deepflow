@@ -76,8 +76,17 @@ _VERSION_TAG_RE: re.Pattern[str] = re.compile(
 
 # Names that are likely CHANGELOG files (case-insensitive)
 _CHANGELOG_NAMES: frozenset[str] = frozenset(
-    {"changelog", "changelog.md", "changelog.txt", "changes", "changes.md",
-     "history", "history.md", "release_notes", "release_notes.md"}
+    {
+        "changelog",
+        "changelog.md",
+        "changelog.txt",
+        "changes",
+        "changes.md",
+        "history",
+        "history.md",
+        "release_notes",
+        "release_notes.md",
+    }
 )
 
 
@@ -269,10 +278,25 @@ class VersionValidator:
 
         # --- Priority 3: File names (non-CHANGELOG) ---
         # Skip common non-version files
-        _SKIP_EXTENSIONS = frozenset({
-            ".py", ".pyc", ".pyo", ".md", ".txt", ".json", ".yaml", ".yml",
-            ".toml", ".cfg", ".ini", ".sh", ".bash", ".env", ".git",
-        })
+        _SKIP_EXTENSIONS = frozenset(
+            {
+                ".py",
+                ".pyc",
+                ".pyo",
+                ".md",
+                ".txt",
+                ".json",
+                ".yaml",
+                ".yml",
+                ".toml",
+                ".cfg",
+                ".ini",
+                ".sh",
+                ".bash",
+                ".env",
+                ".git",
+            }
+        )
         for entry_name in sorted(entries):
             entry_path = os.path.join(skill_path, entry_name)
             if not os.path.isfile(entry_path):

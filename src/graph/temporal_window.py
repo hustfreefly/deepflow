@@ -137,7 +137,9 @@ class TemporalWindow:
             if snapshot is not None:
                 yield snapshot
 
-    def get_current_snapshot(self) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    def get_current_snapshot(
+        self,
+    ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
         """Get the current graph state without advancing the window.
 
         Returns:

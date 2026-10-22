@@ -61,6 +61,7 @@ end
 
 class LockAcquireError(Exception):
     """分布式锁获取失败"""
+
     pass
 
 
@@ -117,10 +118,14 @@ class DistributedLock:
 
         for attempt in range(self._retry_times):
             acquired = await self._client.set_nx_px(
-                self._lock_key, self._token, self._lock_ttl_ms,
+                self._lock_key,
+                self._token,
+                self._lock_ttl_ms,
             )
             if acquired:
-                logger.debug("Lock acquired: %s (attempt=%d)", self._resource_key, attempt + 1)
+                logger.debug(
+                    "Lock acquired: %s (attempt=%d)", self._resource_key, attempt + 1
+                )
                 if self._auto_extend:
                     self._start_extend()
                 return True
@@ -141,14 +146,18 @@ class DistributedLock:
         self._stop_extend()
         try:
             result = await self._client.eval_lua(
-                _RELEASE_LOCK_SCRIPT, 1, self._lock_key, self._token,
+                _RELEASE_LOCK_SCRIPT,
+                1,
+                self._lock_key,
+                self._token,
             )
             success = bool(result)
             if success:
                 logger.debug("Lock released: %s", self._resource_key)
             else:
                 logger.warning(
-                    "Lock release failed (token mismatch or key expired): %s", self._resource_key,
+                    "Lock release failed (token mismatch or key expired): %s",
+                    self._resource_key,
                 )
             return success
         finally:
@@ -160,12 +169,17 @@ class DistributedLock:
             return False
 
         result = await self._client.eval_lua(
-            _EXTEND_LOCK_SCRIPT, 1, self._lock_key, self._token, str(self._lock_ttl_ms),
+            _EXTEND_LOCK_SCRIPT,
+            1,
+            self._lock_key,
+            self._token,
+            str(self._lock_ttl_ms),
         )
         return bool(result)
 
     def _start_extend(self) -> None:
         """启动自动续期后台任务"""
+
         async def _extend_loop():
             while self._token:
                 await asyncio.sleep(self._extend_interval_ms / 1000.0)
@@ -173,7 +187,8 @@ class DistributedLock:
                     success = await self.extend()
                     if not success:
                         logger.warning(
-                            "Lock auto-extend failed (lost?): %s", self._resource_key,
+                            "Lock auto-extend failed (lost?): %s",
+                            self._resource_key,
                         )
                         break
 
@@ -197,16 +212,19 @@ class DistributedLock:
 # 缓存策略
 # ============================================================================
 
+
 class CacheStrategy(Enum):
     """缓存策略枚举"""
+
     WRITE_THROUGH = "write_through"  # 写入时同步更新缓存
-    WRITE_BEHIND = "write_behind"    # 异步更新缓存
-    TTL_BASED = "ttl_based"          # 纯 TTL 过期
+    WRITE_BEHIND = "write_behind"  # 异步更新缓存
+    TTL_BASED = "ttl_based"  # 纯 TTL 过期
 
 
 @dataclass
 class CacheStats:
     """缓存统计信息"""
+
     hits: int = 0
     misses: int = 0
     writes: int = 0
@@ -270,7 +288,11 @@ class WriteThroughCache(Generic[T]):
         return f"{self._cache_key_prefix}{KEY_SEPARATOR}{identifier}"
 
     async def get(
-        self, identifier: str, db_fetcher, serializer=None, deserializer=None,
+        self,
+        identifier: str,
+        db_fetcher,
+        serializer=None,
+        deserializer=None,
     ) -> Optional[T]:
         """
         读取缓存，未命中时从数据库获取并回写。
@@ -337,7 +359,8 @@ class WriteThroughCache(Generic[T]):
         while True:
             cursor, keys = await self._client._execute(
                 lambda r, c, p: r.scan(cursor=c, match=p, count=100),
-                0, pattern,
+                0,
+                pattern,
             )
             if keys:
                 deleted += await self._client.delete(*keys)
@@ -349,6 +372,7 @@ class WriteThroughCache(Generic[T]):
 # ============================================================================
 # 查询结果缓存 Repository
 # ============================================================================
+
 
 class QueryCacheRepository:
     """
@@ -395,14 +419,21 @@ class QueryCacheRepository:
             try:
                 return _deserialize(cached)
             except Exception:
-                logger.warning("Query cache deserialization failed: hash=%s", query_hash)
+                logger.warning(
+                    "Query cache deserialization failed: hash=%s", query_hash
+                )
                 await self._client.delete(cache_key)
 
         self._stats.record_miss()
         return None
 
-    async def set(self, query: str, result: dict, ttl_seconds: Optional[int] = None,
-                  serializer=None) -> None:
+    async def set(
+        self,
+        query: str,
+        result: dict,
+        ttl_seconds: Optional[int] = None,
+        serializer=None,
+    ) -> None:
         """
         设置查询结果缓存。
 
@@ -438,6 +469,7 @@ class QueryCacheRepository:
 # 指标最新值缓存 Repository
 # ============================================================================
 
+
 class MetricCacheRepository:
     """
     指标最新值缓存 — 使用 Hash 存储指标快照。
@@ -453,19 +485,28 @@ class MetricCacheRepository:
         self._ttl_seconds = ttl_seconds
 
     def _cache_key(self, tenant_id: int, metric_name: str) -> str:
-        return build_key(self._env, "metrics", "latest", f"{tenant_id}{KEY_SEPARATOR}{metric_name}")
+        return build_key(
+            self._env, "metrics", "latest", f"{tenant_id}{KEY_SEPARATOR}{metric_name}"
+        )
 
     async def set_metric(
-        self, tenant_id: int, metric_name: str,
-        value: float, timestamp_ms: int, attributes: dict,
+        self,
+        tenant_id: int,
+        metric_name: str,
+        value: float,
+        timestamp_ms: int,
+        attributes: dict,
     ) -> None:
         """设置指标最新值"""
         cache_key = self._cache_key(tenant_id, metric_name)
-        await self._client.hset(cache_key, {
-            "value": str(value),
-            "timestamp": str(timestamp_ms),
-            "attributes": json.dumps(attributes, ensure_ascii=False),
-        })
+        await self._client.hset(
+            cache_key,
+            {
+                "value": str(value),
+                "timestamp": str(timestamp_ms),
+                "attributes": json.dumps(attributes, ensure_ascii=False),
+            },
+        )
         await self._client.expire(cache_key, self._ttl_seconds)
 
     async def get_metric(self, tenant_id: int, metric_name: str) -> Optional[dict]:
@@ -495,6 +536,7 @@ class MetricCacheRepository:
 # 服务 Trace 统计缓存 Repository
 # ============================================================================
 
+
 class ServiceStatsRepository:
     """
     服务级 Trace 统计缓存 — 使用 Hash 存储。
@@ -511,24 +553,33 @@ class ServiceStatsRepository:
 
     def _cache_key(self, tenant_id: int, service_name: str) -> str:
         return build_key(
-            self._env, "traces", "svc_stats",
+            self._env,
+            "traces",
+            "svc_stats",
             f"{tenant_id}{KEY_SEPARATOR}{service_name}",
         )
 
     async def set_stats(
-        self, tenant_id: int, service_name: str,
-        span_count: int, error_count: int,
-        p50_latency_ns: int, p99_latency_ns: int,
+        self,
+        tenant_id: int,
+        service_name: str,
+        span_count: int,
+        error_count: int,
+        p50_latency_ns: int,
+        p99_latency_ns: int,
     ) -> None:
         """设置服务统计"""
         cache_key = self._cache_key(tenant_id, service_name)
-        await self._client.hset(cache_key, {
-            "span_count": str(span_count),
-            "error_count": str(error_count),
-            "p50_latency_ns": str(p50_latency_ns),
-            "p99_latency_ns": str(p99_latency_ns),
-            "updated_at": str(int(time.time() * 1000)),
-        })
+        await self._client.hset(
+            cache_key,
+            {
+                "span_count": str(span_count),
+                "error_count": str(error_count),
+                "p50_latency_ns": str(p50_latency_ns),
+                "p99_latency_ns": str(p99_latency_ns),
+                "updated_at": str(int(time.time() * 1000)),
+            },
+        )
         await self._client.expire(cache_key, self._ttl_seconds)
 
     async def get_stats(self, tenant_id: int, service_name: str) -> Optional[dict]:
@@ -547,7 +598,8 @@ class ServiceStatsRepository:
                 "updated_at": int(fields.get("updated_at", "0")),
                 "error_rate": (
                     int(fields["error_count"]) / int(fields["span_count"])
-                    if int(fields["span_count"]) > 0 else 0.0
+                    if int(fields["span_count"]) > 0
+                    else 0.0
                 ),
             }
         except (KeyError, ValueError) as e:
@@ -563,6 +615,7 @@ class ServiceStatsRepository:
 # ============================================================================
 # 实时排行榜 Repository (ZSet)
 # ============================================================================
+
 
 class RankingRepository:
     """
@@ -590,35 +643,43 @@ class RankingRepository:
 
     def _cache_key(self, tenant_id: int, metric: str) -> str:
         if metric not in self.VALID_METRICS:
-            raise ValueError(f"Invalid metric '{metric}'. Must be one of {self.VALID_METRICS}")
+            raise ValueError(
+                f"Invalid metric '{metric}'. Must be one of {self.VALID_METRICS}"
+            )
         return build_key(
-            self._env, "ranking", "services",
+            self._env,
+            "ranking",
+            "services",
             f"{tenant_id}{KEY_SEPARATOR}{metric}",
         )
 
-    async def set_score(self, tenant_id: int, metric: str,
-                        service_name: str, score: float) -> None:
+    async def set_score(
+        self, tenant_id: int, metric: str, service_name: str, score: float
+    ) -> None:
         """设置/更新服务排名分数"""
         cache_key = self._cache_key(tenant_id, metric)
         await self._client.zadd(cache_key, {service_name: score})
         await self._client.expire(cache_key, self._ttl_seconds)
 
-    async def increment_score(self, tenant_id: int, metric: str,
-                              service_name: str, delta: float) -> float:
+    async def increment_score(
+        self, tenant_id: int, metric: str, service_name: str, delta: float
+    ) -> float:
         """原子增量更新排名分数"""
         cache_key = self._cache_key(tenant_id, metric)
         new_score = await self._client.zincrby(cache_key, delta, service_name)
         await self._client.expire(cache_key, self._ttl_seconds)
         return new_score
 
-    async def get_score(self, tenant_id: int, metric: str,
-                        service_name: str) -> Optional[float]:
+    async def get_score(
+        self, tenant_id: int, metric: str, service_name: str
+    ) -> Optional[float]:
         """获取服务排名分数"""
         cache_key = self._cache_key(tenant_id, metric)
         return await self._client.zscore(cache_key, service_name)
 
-    async def get_rank(self, tenant_id: int, metric: str,
-                       service_name: str) -> Optional[int]:
+    async def get_rank(
+        self, tenant_id: int, metric: str, service_name: str
+    ) -> Optional[int]:
         """
         获取服务排名 (1-based, 1=最高分)。
 
@@ -631,8 +692,7 @@ class RankingRepository:
             return None
         return rank_0 + 1
 
-    async def get_top_n(self, tenant_id: int, metric: str,
-                        n: int = 10) -> list[dict]:
+    async def get_top_n(self, tenant_id: int, metric: str, n: int = 10) -> list[dict]:
         """
         获取 Top N 排名。
 
@@ -647,8 +707,9 @@ class RankingRepository:
             for i, (member, score) in enumerate(results)
         ]
 
-    async def get_around(self, tenant_id: int, metric: str,
-                         service_name: str, radius: int = 2) -> list[dict]:
+    async def get_around(
+        self, tenant_id: int, metric: str, service_name: str, radius: int = 2
+    ) -> list[dict]:
         """
         获取指定服务周边排名。
 
@@ -674,14 +735,12 @@ class RankingRepository:
         cache_key = self._cache_key(tenant_id, metric)
         return await self._client.zcard(cache_key)
 
-    async def remove(self, tenant_id: int, metric: str,
-                     service_name: str) -> int:
+    async def remove(self, tenant_id: int, metric: str, service_name: str) -> int:
         """移除服务排名"""
         cache_key = self._cache_key(tenant_id, metric)
         return await self._client.zrem(cache_key, service_name)
 
-    async def trim(self, tenant_id: int, metric: str,
-                   max_size: int = 1000) -> int:
+    async def trim(self, tenant_id: int, metric: str, max_size: int = 1000) -> int:
         """
         裁剪排行榜，仅保留 Top N。
 
@@ -691,8 +750,9 @@ class RankingRepository:
         cache_key = self._cache_key(tenant_id, metric)
         return await self._client.zremrangebyrank(cache_key, 0, -(max_size + 1))
 
-    async def batch_set_scores(self, tenant_id: int, metric: str,
-                               scores: dict[str, float]) -> None:
+    async def batch_set_scores(
+        self, tenant_id: int, metric: str, scores: dict[str, float]
+    ) -> None:
         """批量设置排名分数 (使用 Pipeline)"""
         cache_key = self._cache_key(tenant_id, metric)
         pipe = await self._client.pipeline()
@@ -710,6 +770,7 @@ class RankingRepository:
 # 会话上下文 Repository
 # ============================================================================
 
+
 class SessionContextRepository:
     """
     分析会话上下文 — 使用 Hash 存储当前筛选条件与时间范围。
@@ -725,7 +786,9 @@ class SessionContextRepository:
         self._ttl_seconds = ttl_seconds
 
     def _cache_key(self, session_id: str) -> str:
-        return build_key(self._env, "session", self._context, f"{session_id}{KEY_SEPARATOR}context")
+        return build_key(
+            self._env, "session", self._context, f"{session_id}{KEY_SEPARATOR}context"
+        )
 
     @property
     def _context(self) -> str:
@@ -734,18 +797,26 @@ class SessionContextRepository:
     def _cache_key_v2(self, session_id: str) -> str:
         return build_key(self._env, "session", session_id, "context")
 
-    async def save(self, session_id: str, tenant_id: int,
-                   time_range_start: int, time_range_end: int,
-                   filters: dict) -> None:
+    async def save(
+        self,
+        session_id: str,
+        tenant_id: int,
+        time_range_start: int,
+        time_range_end: int,
+        filters: dict,
+    ) -> None:
         """保存会话上下文"""
         cache_key = self._cache_key_v2(session_id)
-        await self._client.hset(cache_key, {
-            "tenant_id": str(tenant_id),
-            "time_range_start": str(time_range_start),
-            "time_range_end": str(time_range_end),
-            "filters": json.dumps(filters, ensure_ascii=False),
-            "created_at": str(int(time.time() * 1000)),
-        })
+        await self._client.hset(
+            cache_key,
+            {
+                "tenant_id": str(tenant_id),
+                "time_range_start": str(time_range_start),
+                "time_range_end": str(time_range_end),
+                "filters": json.dumps(filters, ensure_ascii=False),
+                "created_at": str(int(time.time() * 1000)),
+            },
+        )
         await self._client.expire(cache_key, self._ttl_seconds)
 
     async def load(self, session_id: str) -> Optional[dict]:

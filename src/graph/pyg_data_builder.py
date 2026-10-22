@@ -20,6 +20,7 @@ import numpy as np
 # Optional PyTorch / PyG imports
 try:
     import torch
+
     TORCH_AVAILABLE = True
 except ImportError:  # pragma: no cover
     torch = None  # type: ignore
@@ -27,6 +28,7 @@ except ImportError:  # pragma: no cover
 
 try:
     from torch_geometric.data import Data as PyGData
+
     PYG_AVAILABLE = True
 except ImportError:  # pragma: no cover
     PyGData = None  # type: ignore
@@ -156,9 +158,7 @@ class PyGDataBuilder:
             edge_attr=torch.empty((0, 0), dtype=getattr(torch, self._dtype_str)),
         )
 
-    def _to_tensor(
-        self, array: np.ndarray, dtype: type = np.float32
-    ) -> "torch.Tensor":
+    def _to_tensor(self, array: np.ndarray, dtype: type = np.float32) -> "torch.Tensor":
         """Convert NumPy array to PyTorch tensor on configured device."""
         t = torch.from_numpy(np.asarray(array, dtype=dtype))
         if self.device != "cpu":
@@ -188,9 +188,7 @@ class PyGDataBuilder:
             return
 
         if edge_index.ndim != 2 or edge_index.shape[0] != 2:
-            raise ValueError(
-                f"edge_index must be (2, E), got {edge_index.shape}"
-            )
+            raise ValueError(f"edge_index must be (2, E), got {edge_index.shape}")
 
         E = edge_index.shape[1]
 
@@ -205,6 +203,5 @@ class PyGDataBuilder:
 
         if edge_attr.shape[0] != E:
             raise ValueError(
-                f"edge_attr has {edge_attr.shape[0]} rows but "
-                f"edge_index has {E} edges"
+                f"edge_attr has {edge_attr.shape[0]} rows but edge_index has {E} edges"
             )

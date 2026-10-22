@@ -38,11 +38,13 @@ KEY_MAX_LENGTH = 128
 # 熔断器
 # ============================================================================
 
+
 class CircuitState(Enum):
     """熔断器状态"""
-    CLOSED = "CLOSED"          # 正常，请求通过
-    OPEN = "OPEN"              # 熔断，直接拒绝
-    HALF_OPEN = "HALF_OPEN"    # 半开，探测恢复
+
+    CLOSED = "CLOSED"  # 正常，请求通过
+    OPEN = "OPEN"  # 熔断，直接拒绝
+    HALF_OPEN = "HALF_OPEN"  # 半开，探测恢复
 
 
 @dataclass
@@ -56,6 +58,7 @@ class CircuitBreaker:
         HALF_OPEN ──(success)──────────────────> CLOSED
         HALF_OPEN ──(failure)──────────────────> OPEN
     """
+
     failure_threshold: int = 5
     recovery_timeout: float = 30.0
     half_open_max_requests: int = 3
@@ -104,11 +107,15 @@ class CircuitBreaker:
             self._failure_count += 1
             self._last_failure_time = time.monotonic()
 
-            if self._state == CircuitState.CLOSED and self._failure_count >= self.failure_threshold:
+            if (
+                self._state == CircuitState.CLOSED
+                and self._failure_count >= self.failure_threshold
+            ):
                 self._state = CircuitState.OPEN
                 logger.warning(
                     "Circuit breaker: CLOSED → OPEN (failures=%d/%d)",
-                    self._failure_count, self.failure_threshold,
+                    self._failure_count,
+                    self.failure_threshold,
                 )
             elif self._state == CircuitState.HALF_OPEN:
                 self._state = CircuitState.OPEN
@@ -127,9 +134,11 @@ class CircuitBreaker:
 # 连接池配置
 # ============================================================================
 
+
 @dataclass
 class RedisClientConfig:
     """Redis 客户端连接池配置 — 覆盖 AC-4 连接池压测要求"""
+
     # 连接地址
     url: str = "redis://localhost:6379/0"
     host: str = "localhost"
@@ -201,8 +210,10 @@ class RedisClientConfig:
 # Key 命名工具
 # ============================================================================
 
-def build_key(env: str, domain: str, entity: str, identifier: str,
-              field: Optional[str] = None) -> str:
+
+def build_key(
+    env: str, domain: str, entity: str, identifier: str, field: Optional[str] = None
+) -> str:
     """
     构建 Redis Key 遵循命名规范: {env}:{service}:{domain}:{entity}:{id}[:{field}]
 
@@ -255,7 +266,7 @@ def validate_key(key: str, max_length: int = KEY_MAX_LENGTH) -> bool:
         return False
     # 只允许小写字母、数字、冒号、连字符、下划线
     for ch in key:
-        if not (ch.islower() or ch.isdigit() or ch in (':', '-', '_')):
+        if not (ch.islower() or ch.isdigit() or ch in (":", "-", "_")):
             return False
     return True
 
@@ -268,6 +279,7 @@ def compute_query_hash(query: str) -> str:
 # ============================================================================
 # Redis 异步客户端
 # ============================================================================
+
 
 class RedisClient:
     """
@@ -306,7 +318,9 @@ class RedisClient:
         await self._redis.ping()
         logger.info(
             "Redis connected: %s (pool=max=%d,min=%d)",
-            self.config.url, self.config.max_connections, self.config.min_connections,
+            self.config.url,
+            self.config.max_connections,
+            self.config.min_connections,
         )
 
     async def close(self) -> None:
@@ -329,7 +343,9 @@ class RedisClient:
         if self.config.circuit_breaker_enabled:
             allowed = await self._circuit_breaker.before_request()
             if not allowed:
-                raise CircuitBreakerOpenError("Circuit breaker is OPEN — Redis is unavailable")
+                raise CircuitBreakerOpenError(
+                    "Circuit breaker is OPEN — Redis is unavailable"
+                )
 
         last_error: Optional[Exception] = None
         for attempt in range(self.config.retry_max_attempts):
@@ -345,14 +361,18 @@ class RedisClient:
 
                 if attempt < self.config.retry_max_attempts - 1:
                     delay = min(
-                        self.config.retry_min_delay * (2 ** attempt),
+                        self.config.retry_min_delay * (2**attempt),
                         self.config.retry_max_delay,
                     )
                     import random
-                    delay *= (1 + random.random() * 0.5)  # jitter
+
+                    delay *= 1 + random.random() * 0.5  # jitter
                     logger.warning(
                         "Redis operation failed (attempt %d/%d): %s. Retrying in %.2fs",
-                        attempt + 1, self.config.retry_max_attempts, e, delay,
+                        attempt + 1,
+                        self.config.retry_max_attempts,
+                        e,
+                        delay,
                     )
                     await asyncio.sleep(delay)
 
@@ -364,7 +384,9 @@ class RedisClient:
         return await self._execute(lambda r, k: r.get(k), key)
 
     async def set(self, key: str, value: str, ex: Optional[int] = None) -> bool:
-        return await self._execute(lambda r, k, v, ex: r.set(k, v, ex=ex), key, value, ex)
+        return await self._execute(
+            lambda r, k, v, ex: r.set(k, v, ex=ex), key, value, ex
+        )
 
     async def delete(self, *keys: str) -> int:
         return await self._execute(lambda r, *ks: r.delete(*ks), *keys)
@@ -401,7 +423,9 @@ class RedisClient:
         return await self._execute(lambda r, k, m: r.zadd(k, m), key, mapping)
 
     async def zincrby(self, key: str, amount: float, member: str) -> float:
-        return await self._execute(lambda r, k, a, m: r.zincrby(k, a, m), key, amount, member)
+        return await self._execute(
+            lambda r, k, a, m: r.zincrby(k, a, m), key, amount, member
+        )
 
     async def zscore(self, key: str, member: str) -> Optional[float]:
         return await self._execute(lambda r, k, m: r.zscore(k, m), key, member)
@@ -409,11 +433,15 @@ class RedisClient:
     async def zrevrank(self, key: str, member: str) -> Optional[int]:
         return await self._execute(lambda r, k, m: r.zrevrank(k, m), key, member)
 
-    async def zrevrange(self, key: str, start: int, end: int,
-                        withscores: bool = False) -> list:
+    async def zrevrange(
+        self, key: str, start: int, end: int, withscores: bool = False
+    ) -> list:
         return await self._execute(
             lambda r, k, s, e, ws: r.zrevrange(k, s, e, withscores=ws),
-            key, start, end, withscores,
+            key,
+            start,
+            end,
+            withscores,
         )
 
     async def zcard(self, key: str) -> int:
@@ -424,7 +452,10 @@ class RedisClient:
 
     async def zremrangebyrank(self, key: str, start: int, end: int) -> int:
         return await self._execute(
-            lambda r, k, s, e: r.zremrangebyrank(k, s, e), key, start, end,
+            lambda r, k, s, e: r.zremrangebyrank(k, s, e),
+            key,
+            start,
+            end,
         )
 
     # === 分布式锁专用 (SET NX PX) ===
@@ -432,13 +463,19 @@ class RedisClient:
     async def set_nx_px(self, key: str, value: str, px: int) -> bool:
         """SET key value NX PX milliseconds — 分布式锁获取"""
         return await self._execute(
-            lambda r, k, v, px: r.set(k, v, nx=True, px=px), key, value, px,
+            lambda r, k, v, px: r.set(k, v, nx=True, px=px),
+            key,
+            value,
+            px,
         )
 
     async def eval_lua(self, script: str, numkeys: int, *keys_and_args) -> Any:
         """执行 Lua 脚本 — 分布式锁释放 (原子 compare-and-delete)"""
         return await self._execute(
-            lambda r, s, n, *ka: r.eval(s, n, *ka), script, numkeys, *keys_and_args,
+            lambda r, s, n, *ka: r.eval(s, n, *ka),
+            script,
+            numkeys,
+            *keys_and_args,
         )
 
     # === Pipeline ===
@@ -469,4 +506,5 @@ class RedisClient:
 
 class CircuitBreakerOpenError(Exception):
     """熔断器打开异常 — Redis 不可用时抛出"""
+
     pass
