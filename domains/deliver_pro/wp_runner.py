@@ -573,7 +573,7 @@ class DeliverWPRunner:
                 deepflow_root=str(self.blackboard_path.parent.parent),
             )
             # B3 fix: 追加语义上下文到 template prompt
-            return prompt + semantic_context_section
+            return prompt + semantic_context_section + rules_section
         except FileNotFoundError:
             pass
 
