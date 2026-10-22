@@ -202,9 +202,9 @@ class CageValidator:
 
         # 检查必需字段
         required_top_level = ["cage_version", "domain", "interface", "behavior", "data"]
-        for field in required_top_level:
-            if field not in contract:
-                result.add_error(f"Missing required top-level field: '{field}'")
+        for field_name in required_top_level:
+            if field_name not in contract:
+                result.add_error(f"Missing required top-level field: '{field_name}'")
 
         if not result.valid:
             return result
@@ -276,9 +276,9 @@ class CageValidator:
             "behavior",
             "data",
         ]
-        for field in required_top_level:
-            if field not in contract:
-                result.add_error(f"Missing required top-level field: '{field}'")
+        for field_name in required_top_level:
+            if field_name not in contract:
+                result.add_error(f"Missing required top-level field: '{field_name}'")
 
         if not result.valid:
             return result
@@ -344,9 +344,9 @@ class CageValidator:
             "checks",
             "data",
         ]
-        for field in required_top_level:
-            if field not in contract:
-                result.add_error(f"Missing required top-level field: '{field}'")
+        for field_name in required_top_level:
+            if field_name not in contract:
+                result.add_error(f"Missing required top-level field: '{field_name}'")
 
         if not result.valid:
             return result
@@ -421,9 +421,9 @@ class CageValidator:
 
         # 检查必需字段
         required_top_level = ["domain", "cage_version", "rules"]
-        for field in required_top_level:
-            if field not in contract:
-                result.add_error(f"Missing required top-level field: '{field}'")
+        for field_name in required_top_level:
+            if field_name not in contract:
+                result.add_error(f"Missing required top-level field: '{field_name}'")
 
         if not result.valid:
             return result

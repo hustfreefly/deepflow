@@ -679,9 +679,9 @@ def validate_context(domain_config: DomainConfig, user_context: Dict[str, Any]) 
         是否通过验证
     """
     required_fields = domain_config.context_schema.get("required", [])
-    for field in required_fields:
-        if field not in user_context:
-            raise DomainConfigError(f"Missing required context field: {field}")
+    for field_name in required_fields:
+        if field_name not in user_context:
+            raise DomainConfigError(f"Missing required context field: {field_name}")
     return True
 
 

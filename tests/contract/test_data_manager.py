@@ -144,19 +144,19 @@ class TestConditionEvaluator:
             "data_request.type == 'competitor'",
             {"data_request": {"type": "competitor"}},
         )
-        assert result == True
+        assert result
 
     def test_string_neq(self):
         result = ConditionEvaluator.evaluate(
             "data_request.type == 'competitor'", {"data_request": {"type": "other"}}
         )
-        assert result == False
+        assert not result
 
     def test_dict_eq(self):
         result = ConditionEvaluator.evaluate(
             {"eq": ["data_request.type", "test"]}, {"data_request": {"type": "test"}}
         )
-        assert result == True
+        assert result
 
     def test_dict_and(self):
         result = ConditionEvaluator.evaluate(
@@ -168,7 +168,7 @@ class TestConditionEvaluator:
             },
             {"a": 1, "b": 2},
         )
-        assert result == True
+        assert result
 
     def test_dict_or(self):
         result = ConditionEvaluator.evaluate(
@@ -180,7 +180,7 @@ class TestConditionEvaluator:
             },
             {"a": 2},
         )
-        assert result == True
+        assert result
 
 
 # ============================================================
@@ -317,7 +317,7 @@ class TestDataEvolutionLoop:
         loop.bootstrap_phase({"code": "300604"})
 
         # 新数据应该是新鲜的
-        assert loop.is_data_fresh("test_data", max_age_hours=720) == True
+        assert loop.is_data_fresh("test_data", max_age_hours=720)
 
     def test_list_datasets(self, mock_blackboard, mock_provider, sample_config):
         ProviderRegistry.register("mock_provider", mock_provider)
@@ -344,7 +344,7 @@ class TestDataFindingValidation:
             source="https://example.com",
             confidence=0.9,
         )
-        assert mock_provider.validate_finding(finding) == True
+        assert mock_provider.validate_finding(finding)
 
     def test_invalid_source(self, mock_provider):
         finding = DataFinding(
@@ -355,7 +355,7 @@ class TestDataFindingValidation:
             source="unknown",
             confidence=0.9,
         )
-        assert mock_provider.validate_finding(finding) == False
+        assert not mock_provider.validate_finding(finding)
 
     def test_low_confidence(self, mock_provider):
         finding = DataFinding(
@@ -366,7 +366,7 @@ class TestDataFindingValidation:
             source="https://example.com",
             confidence=0.5,  # 低于 0.7 阈值
         )
-        assert mock_provider.validate_finding(finding) == False
+        assert not mock_provider.validate_finding(finding)
 
 
 # ============================================================

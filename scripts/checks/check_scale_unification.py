@@ -49,7 +49,7 @@ def test_score_comparison_consistency():
     normalized_score = score_01 * 100 if score_01 <= 1.0 else score_01
     correct_result = normalized_score >= target_100  # True
 
-    if wrong_result == False and correct_result == True:
+    if not wrong_result and correct_result:
         print("✅ 尺度转换避免错误比较 (0.88 vs 88)")
     else:
         print("❌ 尺度比较逻辑错误")
@@ -62,7 +62,7 @@ def test_score_comparison_consistency():
     normalized_target = target_01 * 100 if target_01 <= 1.0 else target_01
     result = score_100 >= normalized_target  # True
 
-    if result == True:
+    if result:
         print("✅ 尺度转换正确处理 (92 vs 0.90 -> 90)")
     else:
         print("❌ 尺度比较逻辑错误")
