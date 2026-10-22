@@ -230,6 +230,12 @@ class WorkerGate:
         wps = worker_output.get("work_packages", [])
         web_search_scope = worker_spec.get("web_search_scope", "")
         search_logs = worker_output.get("web_search_logs", [])
+        search_log_text = (
+            "搜索日志:\n"
+            + json.dumps([l.get("query", "") for l in search_logs], ensure_ascii=False)
+            if search_logs
+            else "无搜索日志"
+        )
         return f"""你是一个约束验证专家。判断 Worker 交付物是否保留了所有 MUST 约束。
 
 ## MUST 约束
@@ -249,7 +255,7 @@ class WorkerGate:
 
 ### 2. web_search 范围检查
 {f"要求的搜索范围: {web_search_scope}" if web_search_scope else "无搜索范围要求"}
-{"搜索日志:\n" + json.dumps([l.get("query", "") for l in search_logs], ensure_ascii=False) if search_logs else "无搜索日志"}
+{search_log_text}
 {f'判断每次搜索是否在 "{web_search_scope}" 范围内。语义判断即可，不要求关键词精确匹配。' if web_search_scope else ""}
 
 ## 判断标准
