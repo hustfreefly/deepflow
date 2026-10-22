@@ -265,7 +265,7 @@ def get_next_step(domain: str, base_path: str) -> dict:
 
     stage_dir = base / domain_def["stage_dir"]
     total = domain_def["total_phases"]
-    phases = domain_def["phases"]
+    domain_def["phases"]
 
     # ── Check if already completed ──
     if domain_def["completion_file"]:

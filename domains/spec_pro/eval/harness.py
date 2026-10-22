@@ -578,7 +578,7 @@ class InferenceAuditGate:
             notes = f"{len(pending)}个推断待确认（超过{INFERENCE_AUDIT_THRESHOLD}个）"
 
         # 检查拒绝的推断是否覆盖关键维度
-        confirmed = living_spec.get("confirmed", {})
+        living_spec.get("confirmed", {})
         critical_dims = ["objectives", "capabilities", "quality_attributes"]
 
         for rejected_item in rejected:

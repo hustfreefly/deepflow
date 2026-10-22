@@ -167,7 +167,7 @@ class PipelineDriver:
             self._set_module_status(module, "prompt_written")
 
         elif action_type == "ACQUIRE_RUN" and success:
-            run_id = details.get("run_id", "")
+            details.get("run_id", "")
             already_running = details.get("already_running", False)
             if already_running:
                 # 已经在运行，跳到等待

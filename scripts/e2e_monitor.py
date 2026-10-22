@@ -197,7 +197,7 @@ def _check_subagent_health(session_path: Path) -> list[str]:
         try:
             data = json.loads(progress_file.read_text(encoding="utf-8"))
             if isinstance(data, dict):
-                current = data.get("current_stage", "")
+                data.get("current_stage", "")
                 status = data.get("status", "")
                 if status in ("error", "failed", "timeout"):
                     issues.append(f"进度文件显示状态: {status}")

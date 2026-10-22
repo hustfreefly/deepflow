@@ -126,7 +126,7 @@ class TestNoOrphanedPrompts:
                     rel = str(md_file.relative_to(DEEPFLOW_ROOT))
                     all_prompts.add(rel)
         # Report any uncovered prompts (warning, not failure)
-        uncovered = all_prompts - covered
+        all_prompts - covered
         # These are expected to exist but not require shared rules reference
         # (e.g., deprecated files, parse_response.md, etc.)
         # Just assert the critical ones are covered

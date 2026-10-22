@@ -1476,7 +1476,7 @@ Planner → **【你(Worker)】** → Consolidator → 用户
         # N3-FIX: prefer ship_package.md (parse_ship_package_md), fallback to .json
         md_path = stages_dir / "ship_package.md"
         json_path = stages_dir / "ship_package.json"
-        sp_path = md_path  # canonical path for error messages
+        md_path  # canonical path for error messages
         if md_path.exists():
             from ..ship_living_md import parse_ship_package_md
 

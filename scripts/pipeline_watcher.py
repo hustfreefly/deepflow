@@ -465,7 +465,7 @@ class MessageFormatter:
                 break
         if current_seq == 0 and phase_defs:
             current_name, current_seq = phase_defs[-1][0], phase_defs[-1][1]
-        elapsed_v3 = self._elapsed_v3(run_start_at)
+        self._elapsed_v3(run_start_at)
         elapsed_min = self._elapsed_minutes(run_start_at)
         bar = self._progress_bar(completed_count, total)
         chain = self._build_icon_chain(completed_seqs, current_seq)

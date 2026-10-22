@@ -160,7 +160,7 @@ class DeliverRunner:
         from domains.deliver_pro.phase_deriver import migrate_legacy_worker_outputs
 
         # 幂等搬迁 legacy 路径
-        wp_subdir = self.wp_id.lower().replace("-", "_")
+        self.wp_id.lower().replace("-", "_")
         migrate_legacy_worker_outputs(self.deliver_pro_dir)
 
         plan = self.orch.load_execution_plan()

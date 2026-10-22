@@ -36,7 +36,7 @@ def check_orchestrator_agent():
 
     with open(filepath) as f:
         source = f.read()
-        lines = source.split("\n")
+        source.split("\n")
 
     try:
         tree = ast.parse(source)

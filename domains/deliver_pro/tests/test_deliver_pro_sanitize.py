@@ -12,7 +12,7 @@ def test_run_deliver_pro_sanitizes_slash_in_project_name():
     """project_name 含 / 时，sanitize 后应替换为 _"""
     # 模拟 BLACKBOARD_ROOT 和 ship_package 存在
     # 注: V3 Pulse 模式不再调用 auto_bootstrap（2026-07-28 防呆改造）
-    with patch("domains.deliver_pro.BLACKBOARD_ROOT", Path("/tmp/test_bb")) as mock_bb:
+    with patch("domains.deliver_pro.BLACKBOARD_ROOT", Path("/tmp/test_bb")):
         with patch("domains.deliver_pro.DEEPFLOW_ROOT", Path("/tmp/df")):
             with patch("domains.deliver_pro.Path.exists", return_value=True):
                 from domains.deliver_pro import run_deliver_pro

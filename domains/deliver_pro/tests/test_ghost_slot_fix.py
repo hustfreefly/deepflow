@@ -180,7 +180,7 @@ class TestEvidenceBasedInFlight:
     def test_analyze_evidence_releases_slot(self, mock_blackboard):
         """analyze confirmed + execution_plan.json 存在 → 不计 in_flight。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
+            _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
             # plan 已存在（_setup_generating_wp 已写）= analyze 完成证据
             orch.progress["AAA-001"] = {
                 "last_spawned_action": "analyze",
@@ -246,7 +246,7 @@ class TestCascadeGuardGenerating:
     def test_all_done_blocked_by_retriable_timed_out(self, mock_blackboard):
         """all_done=True 但存在 timed_out(attempts<budget) → 不进 assemble，走重试。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(
+            _setup_generating_wp(
                 bb_root, project, "AAA-001", ["T-001", "T-002"], timeout_task="T-002"
             )
             driver = _mock_driver_for_retry(
@@ -344,7 +344,7 @@ class TestTerminalWriteGuard:
     def test_packaging_passes_when_all_executed(self, mock_blackboard):
         """所有任务都有执行证据 → 正常 package。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
+            _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
             driver = _mock_driver_for_retry(
                 bb_root, project, "AAA-001", ["T-001"], timed_out=()
             )

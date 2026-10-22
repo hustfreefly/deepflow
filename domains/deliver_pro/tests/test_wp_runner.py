@@ -99,12 +99,12 @@ class TestInit:
 
     def test_wp_not_overwritten(self, wp, bb_path):
         """If wp.json already exists, don't overwrite."""
-        orch1 = DeliverWPRunner(wp, bb_path)
+        DeliverWPRunner(wp, bb_path)
         # Modify the file
         wp_path = bb_path / "deliver_pro" / "wp_001" / "data" / "wp.json"
         wp_path.write_text('{"modified": true}', encoding="utf-8")
 
-        orch2 = DeliverWPRunner(wp, bb_path)
+        DeliverWPRunner(wp, bb_path)
         data = json.loads(wp_path.read_text(encoding="utf-8"))
         assert data.get("modified") is True
 

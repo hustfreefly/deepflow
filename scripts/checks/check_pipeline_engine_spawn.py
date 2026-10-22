@@ -45,7 +45,6 @@ def check_pipeline_engine():
 
     # 1. 检查 PipelineEngine 类的 __init__ 是否接受 spawn_fn 参数
     init_found = False
-    spawn_fn_param = False
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and node.name == "PipelineEngine":
             for item in node.body:
@@ -55,7 +54,7 @@ def check_pipeline_engine():
                     arg_names = [arg.arg for arg in args.args + args.kwonlyargs]
 
                     if "spawn_fn" in arg_names:
-                        spawn_fn_param = True
+                        pass
                         print("✅ PipelineEngine.__init__ 接受 spawn_fn 参数")
                     else:
                         violations.append(
@@ -107,7 +106,6 @@ def check_pipeline_engine():
 
     # 3. 检查 _run_single_agent 是否返回 Worker 结果（不是元数据）
     run_single_found = False
-    returns_result = False
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == "_run_single_agent":
             run_single_found = True
@@ -143,7 +141,7 @@ def check_pipeline_engine():
                                                     )
                                                 )
                                             else:
-                                                returns_result = True
+                                                pass
             break
 
     if not run_single_found:

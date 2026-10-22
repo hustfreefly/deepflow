@@ -78,7 +78,7 @@ def analyze_session(sid, events):
     }
 
     prev_tool_error = None
-    tool_chain = []
+    []
     exec_errors = []
 
     for i, e in enumerate(events):
@@ -483,7 +483,7 @@ def main():
         for e in r["tool_errors"]
         if e["error_type"] == "key_error"
     ]
-    cmd_errors = [
+    [
         e
         for r in all_reports
         for e in r["tool_errors"]
@@ -495,7 +495,7 @@ def main():
         for e in r["tool_errors"]
         if e["error_type"] == "json_parse_error"
     ]
-    type_errors = [
+    [
         e
         for r in all_reports
         for e in r["tool_errors"]

@@ -27,12 +27,12 @@ def test_cb_result_type_handling():
         try:
             # 模拟 pipeline_engine 的处理逻辑
             if isinstance(cb_result, dict):
-                content = cb_result.get("content", "")
+                cb_result.get("content", "")
                 success = cb_result.get("success", False)
                 score = cb_result.get("score", 0.0)
             elif hasattr(cb_result, "content"):
                 # StageResult-like 对象
-                content = getattr(cb_result, "content", "")
+                getattr(cb_result, "content", "")
                 success = getattr(cb_result, "success", False)
                 score = getattr(cb_result, "score", 0.0)
             else:

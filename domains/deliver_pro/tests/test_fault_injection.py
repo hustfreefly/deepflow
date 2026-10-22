@@ -308,7 +308,7 @@ class TestInvariants:
             from domains.deliver_pro.orchestrator import DeliverOrchestrator
 
             orch = DeliverOrchestrator(project_name)
-            report = orch.pulse()
+            orch.pulse()
 
             # _pulse_actions 可解析
             actions_path = bb_root / project_name / "_pulse_actions.json"

@@ -237,7 +237,7 @@ def _append_to_dimension(
     elif dim == "capabilities":
         # capabilities 是子字典
         if isinstance(content, dict):
-            caps = parsed_updates.setdefault(
+            parsed_updates.setdefault(
                 "capabilities", {"always_do": [], "should_do": [], "never_do": []}
             )
             # content 可能有 action=modify，这里只处理 add

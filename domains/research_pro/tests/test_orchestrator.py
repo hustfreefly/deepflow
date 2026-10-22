@@ -51,14 +51,14 @@ class TestOrchestrator(unittest.TestCase):
 
     def test_init_creates_directories(self):
         """__init__() 创建必要目录。"""
-        orch = ResearchProOrchestrator(mode="quick", base_path=self.bp)
+        ResearchProOrchestrator(mode="quick", base_path=self.bp)
         self.assertTrue(os.path.isdir(self.bp))
         self.assertTrue(os.path.isdir(os.path.join(self.bp, "research")))
         self.assertTrue(os.path.isdir(os.path.join(self.bp, "report")))
 
     def test_init_creates_state_json(self):
         """__init__() 创建 state.json。"""
-        orch = ResearchProOrchestrator(mode="quick", base_path=self.bp)
+        ResearchProOrchestrator(mode="quick", base_path=self.bp)
         state_path = os.path.join(self.bp, "state.json")
         self.assertTrue(os.path.exists(state_path))
         with open(state_path) as f:
@@ -629,7 +629,7 @@ class TestOrchestrator(unittest.TestCase):
         orch = ResearchProOrchestrator(mode="quick", base_path=self.bp)
         orch.init_session(QUERY)
         orch.confirm_plan({"action": "approve"})
-        result = orch.execute_research()
+        orch.execute_research()
         self.assertNotIn("subagents", orch.state)
 
     # --- RED-DC-003 合规 ---

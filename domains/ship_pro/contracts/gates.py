@@ -324,7 +324,7 @@ class InformationConservationGate:
         # 契约笼子：提取 semantic_anchors 纳入信息守恒检查
         sol_anchors = solution_pro_output.get("semantic_anchors", [])
         anchor_names = [a.get("name", "?") for a in sol_anchors] if sol_anchors else []
-        ship_anchor_coverage = ship_package.get("anchor_coverage", {})
+        ship_package.get("anchor_coverage", {})
         ship_anchors_preserved = ship_package.get("semantic_anchors", [])
 
         anchors_section = ""

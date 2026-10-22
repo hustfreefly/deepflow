@@ -507,8 +507,8 @@ def check_contradictions(spec: dict) -> list:
 
     # Check 3: constraints.conflicts (e.g., platform vs tech_stack)
     constraints = spec.get("confirmed", {}).get("constraints", {})
-    platform = constraints.get("platform")
-    tech_stack = constraints.get("tech_stack", [])
+    constraints.get("platform")
+    constraints.get("tech_stack", [])
     # Simple heuristic: if platform constraints conflict with tech_stack choices, flag it
     # (This is a placeholder for more sophisticated checks)
 

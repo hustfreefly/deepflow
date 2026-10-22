@@ -267,7 +267,7 @@ class TestRetryBudget:
         derive 报事实，账本管节奏）。
         """
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(
+            _setup_generating_wp(
                 bb_root, project, "AAA-001", ["T-001", "T-002"], timeout_task="T-001"
             )
             driver = _mock_driver_for_retry(

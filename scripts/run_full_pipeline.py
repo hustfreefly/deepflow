@@ -169,7 +169,7 @@ def cmd_ship(args):
     print(f"   input: {json.dumps(result['input_summary'], ensure_ascii=False)}")
 
     # 3. 输出 spawn 命令（Main Agent 需要 sessions_spawn）
-    spawn = result["spawn_params"]
+    result["spawn_params"]
     print("\n📦 Main Agent 执行:")
     print("   sessions_spawn(")
     print("     task='<见 spawn_params>',")

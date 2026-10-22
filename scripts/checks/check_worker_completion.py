@@ -19,7 +19,7 @@ def test_spawn_metadata_detection():
     # 创建临时目录模拟 blackboard
     with tempfile.TemporaryDirectory() as tmpdir:
         session_id = "test_session"
-        stage = PipelineStage(id="researcher_finance", agent="researcher")
+        PipelineStage(id="researcher_finance", agent="researcher")
 
         # 创建 PipelineEngine 实例（mock）
         engine = PipelineEngine.__new__(PipelineEngine)
@@ -35,7 +35,7 @@ def test_spawn_metadata_detection():
             json.dump({"status": "accepted", "childSessionKey": "abc123"}, f)
 
         # 修改 engine 的路径指向临时目录
-        original_path = f"str(Path(__file__).resolve().parent.parent.parent)/blackboard/{session_id}/stages/researcher_finance_output.json"
+        f"str(Path(__file__).resolve().parent.parent.parent)/blackboard/{session_id}/stages/researcher_finance_output.json"
 
         # 手动测试 _wait_for_worker_completion 的逻辑
         def check_file():
@@ -185,7 +185,7 @@ def test_valid_worker_output():
     print("测试 4: 有效 Worker 输出处理")
     print("=" * 60)
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory():
         session_id = "test_valid"
         stage = PipelineStage(id="summarizer", agent="summarizer")
 

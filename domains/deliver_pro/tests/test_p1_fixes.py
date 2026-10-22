@@ -135,7 +135,7 @@ class TestF1PhaseRefresh:
             orch.progress["AAA-001"] = {"phase": "PACKAGING"}
 
             with patch.object(orch, "_count_in_flight", return_value=0):
-                report = orch.pulse()
+                orch.pulse()
 
             # batch_progress 中的 phase 应已刷新
             entry = orch.progress.get("AAA-001", {})
@@ -188,7 +188,7 @@ class TestF1PhaseRefresh:
                 patch.object(orch, "_count_in_flight", return_value=0),
                 patch.object(orch, "tick", return_value=[]),
             ):
-                report = orch.pulse()
+                orch.pulse()
 
             entry = orch.progress.get("AAA-001", {})
             # phase 应保持 GENERATING（derive 判 running）
@@ -206,7 +206,7 @@ class TestF2LabelConflict:
     def test_label_suffix_added_on_spawn_failure(self, mock_blackboard):
         """spawn_failures > 0 时，pulse 应在 worker label 追加时间戳后缀。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(
+            _setup_generating_wp(
                 bb_root, project, "AAA-001", ["T-001", "T-002"], timeout_task="T-001"
             )
             driver = _mock_driver_for_retry(
@@ -237,7 +237,7 @@ class TestF2LabelConflict:
     def test_first_spawn_no_suffix(self, mock_blackboard):
         """首次 spawn（spawn_failures=0）不应加后缀，保持确定性格式。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(
+            _setup_generating_wp(
                 bb_root, project, "AAA-001", ["T-001", "T-002"], timeout_task="T-001"
             )
             driver = _mock_driver_for_retry(
@@ -562,7 +562,7 @@ class TestF3ReconcileRunningTasks:
     def test_reconcile_called_in_tick(self, mock_blackboard):
         """tick() 应在处理每个 WP 时调用 _reconcile_running_tasks。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
+            _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
             orch.progress["AAA-001"] = {}
 
             driver = MagicMock()

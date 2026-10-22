@@ -218,7 +218,7 @@ def calculate_harness_score_dynamic(
     t_crit = thresholds.get(
         "CRITICAL", thresholds.get("CRITICAL_WARNING", THRESHOLD_CRITICAL)
     )
-    t_block = thresholds.get("BLOCK_RECOMMENDATION", 0.0)
+    thresholds.get("BLOCK_RECOMMENDATION", 0.0)
 
     # 基础决策
     if overall >= t_pass:

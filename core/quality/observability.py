@@ -228,7 +228,7 @@ class Observability:
     def log_stage_end(
         stage: str, success: bool, duration: float, trace_id: str, **kw: Any
     ) -> None:
-        span = _trace.pop(trace_id, success)
+        _trace.pop(trace_id, success)
         _log.info(
             "stage_end" if success else "stage_fail",
             trace_id=trace_id,

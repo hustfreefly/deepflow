@@ -285,9 +285,7 @@ class PipelineOrchestrator:
             self._save_progress()
 
         # 最终状态
-        total_workers = (
-            self.progress["workers_completed"] + self.progress["workers_failed"]
-        )
+        (self.progress["workers_completed"] + self.progress["workers_failed"])
         if self.progress["workers_failed"] == 0 and self.progress[
             "phases_completed"
         ] == len(phases):
@@ -580,7 +578,7 @@ class PipelineOrchestrator:
             {"success": bool, "result": any, "error": str, "label": str}
         """
         try:
-            spawn_meta = spawn(
+            spawn(
                 runtime="subagent",
                 mode="run",
                 label=label,

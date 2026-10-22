@@ -257,8 +257,8 @@ def main() -> None:
             all_violations[module] = violations
 
             p0_count = sum(1 for v in violations if v.level == "P0")
-            p1_count = sum(1 for v in violations if v.level == "P1")
-            p2_count = sum(1 for v in violations if v.level == "P2")
+            sum(1 for v in violations if v.level == "P1")
+            sum(1 for v in violations if v.level == "P2")
             total_p0 += p0_count
 
             if violations:

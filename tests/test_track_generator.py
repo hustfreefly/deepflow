@@ -407,7 +407,7 @@ class TestDomainIntegrationFunctions:
 
         from domains.spec_pro.spec_pro_api import generate_spec_track
 
-        result = generate_spec_track(tmp_path)
+        generate_spec_track(tmp_path)
 
         # Should generate MD
         md_path = spec_dir / "spec_requirements.md"
@@ -495,7 +495,7 @@ Simple architecture.
 
         from domains.ship_pro import generate_ship_track
 
-        result = generate_ship_track(str(tmp_path))
+        generate_ship_track(str(tmp_path))
 
         # Should generate MD
         md_path = stages_dir / "ship_package.md"

@@ -76,7 +76,7 @@ class TestSemanticREQIDs:
     def test_unknown_category_uses_3char_prefix(self):
         """Unknown category → first 3 chars uppercase"""
         # This tests the fallback prefix logic
-        spec = {"confirmed": {"custom_field": "test"}}
+        {"confirmed": {"custom_field": "test"}}
         # custom_field is not in _CATEGORY_PREFIX, but it's not parsed by the function
         # So we test with a known mapping
         assert _CATEGORY_PREFIX.get("objective") == "OBJ"

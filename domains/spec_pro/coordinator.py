@@ -613,7 +613,7 @@ class SpecProCoordinator:
         if not self.session_id or self._bb is None:
             raise RuntimeError("Session not initialized. Call init_session() first.")
 
-        session_dir = self._bb.session_dir
+        self._bb.session_dir
 
         return """你是 Requirement Structuring Worker。
 
@@ -1350,7 +1350,7 @@ python3 .deepflow/domains/spec_pro/merge_spec.py --revisions spec/user_confirmat
 ```
 """
         elif phase == "collecting":
-            prev = round_num - 1
+            round_num - 1
             task += f"""\n## 你的任务
 
 1. 使用 read 读取 living_spec.md（已由 merge_spec.py 合并更新）

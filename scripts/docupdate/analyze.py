@@ -111,7 +111,7 @@ def analyze(changed_files: list[str] = None, since: str = None):
     affected_docs = defaultdict(lambda: {"reasons": [], "level": "green"})
 
     for changed_file in changed_files:
-        changed_path = Path(changed_file)
+        Path(changed_file)
 
         # 3a: 文件删除/重命名检查
         if not (DEEPFLOW_ROOT / changed_file).exists():

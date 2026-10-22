@@ -293,7 +293,7 @@ def cmd_resume(args):
 
     # 从 current_round 恢复执行
     try:
-        result = coord.run(start_round=current_round)
+        coord.run(start_round=current_round)
         save_coord_state(coord)
         return {
             "success": True,

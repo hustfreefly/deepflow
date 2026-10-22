@@ -108,9 +108,9 @@ class TestPromptRegistry:
             ):
                 with patch.object(Path, "exists", return_value=True):
                     # 多次获取实例
-                    r1 = PromptRegistry()
-                    r2 = PromptRegistry()
-                    r3 = PromptRegistry()
+                    PromptRegistry()
+                    PromptRegistry()
+                    PromptRegistry()
 
                     # _load_registry只应被调用一次
                     assert call_count[0] == 1
@@ -126,7 +126,7 @@ class TestPromptRegistry:
             with patch.object(Path, "exists", return_value=True):
                 # 创建多个实例
                 r1 = PromptRegistry()
-                r2 = PromptRegistry()
+                PromptRegistry()
 
                 # 修改r1的数据（通过直接访问内部变量）
                 r1._prompts_by_id["test/new"] = PromptInfo(

@@ -79,7 +79,7 @@ def html_to_pdf(html_path: str, pdf_path: str) -> bool:
         str(html_path),
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     return os.path.exists(pdf_path)
 
 

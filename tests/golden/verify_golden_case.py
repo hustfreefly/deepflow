@@ -435,7 +435,7 @@ class GoldenCaseVerifier:
             self._check("frozen_spec可读(跳过追踪验证)", False)
             return
 
-        valid_req_ids = set(r["id"] for r in spec.get("requirements", []))
+        set(r["id"] for r in spec.get("requirements", []))
 
         matrix = self._read_json("requirements_traceability_matrix.json")
         if matrix:

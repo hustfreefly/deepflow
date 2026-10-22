@@ -75,7 +75,7 @@ def check_progress_rate(
 
 def check_inference_integrity(trajectory: list) -> list:
     anomalies = []
-    total_created = 0
+    0
     total_confirmed = 0
 
     for point in trajectory:

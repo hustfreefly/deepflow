@@ -582,6 +582,7 @@ class DeliverWPRunner:
         forced_actions = self._get_forced_actions(scenario)
 
         return f"""你是 Deliver Pro 的 Worker。
+{rules_section}
 
 ## 你的任务
 - Task ID: {task.task_id}
@@ -935,6 +936,7 @@ cd {self.blackboard_path.parent.parent}
 """
 
         return f"""你是 Deliver Pro 的 Integrate Agent。
+{rules_section}
 
 ## 任务
 组装所有 Worker 输出为统一交付物草稿。
@@ -1138,6 +1140,7 @@ cd {self.blackboard_path.parent.parent}
                 ac_list.append(f"- [{task.task_id}] {ac}")
 
         return f"""你是 Deliver Pro 的 Validate Judge（独立质量裁判）。
+{rules_section}
 
 ## 任务
 独立评估交付物质量，输出判定结果。
@@ -1519,6 +1522,7 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
             task_status.append(f"- {task.task_id}: {status}")
 
         return f"""你是 Deliver Pro 的 Package Agent。
+{rules_section}
 
 ## 任务
 最终打包 + 组件级诚实交付。

@@ -223,7 +223,7 @@ def migrate_domains():
         # 从内容中推断
         data = yaml.safe_load(content) or {}
         component_name = data.get("name", filepath.stem)
-        domain = data.get("domain", filepath.stem)
+        data.get("domain", filepath.stem)
 
         # 已有 version 字段就用，否则 1.0.0
         version = data.get("version", data.get("component_version", "1.0.0"))
