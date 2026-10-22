@@ -56,12 +56,12 @@ updated: "2026-07-07"
 - `spec/conversation_log.json`（用于问题去重）
 
 ### 输出
-- `stages/round_NN_questions.json`（action="questions"，含 **2-3 个引导问题，硬上限 4 个**）
+- `stages/round_NN_questions.json`（action="questions"，含 **2-3 个引导问题，硬上限 3 个**）
 
 ### Phase 连接逻辑
 1. Phase 1 的 `top_missing` 和维度分数决定 Phase 2 的提问优先级
 2. 如果 ProcessGuard 输出了 `adjustment_instruction`，其建议优先级高于默认策略
-3. 问题数量硬性限制：**硬上限 4 个**（超过必须删除优先级最低的）
+3. 问题数量硬性限制：**硬上限 3 个**（想到第 4 个时必须删除优先级最低的）
 4. 混合至少 2 种问题类型（苏格拉底六类）
 
 ### 收敛信号检测（在生成问题前检查）
