@@ -15,10 +15,8 @@ import json
 import logging
 import os
 import re
-import tempfile
 import time
 from pathlib import Path
-from typing import Any
 
 from core.utils.atomic_io import atomic_write_json
 
@@ -27,8 +25,12 @@ logger = logging.getLogger(__name__)
 # === Pulse Scheduling V1 常量（2026-07-24 评审裁决 A1-A8 落地） ===
 MAX_IN_FLIGHT = 8  # A5: 全局在途 agent 硬上限（防 429 风暴）
 MAX_SPAWN_PER_PULSE = 5  # 单次 pulse spawn 上限（对齐平台 maxChildrenPerAgent 默认值）
-ORPHAN_DISPATCH_WINDOW_SECONDS = 600  # A4: 未确认 dispatch 的孤儿窗口（2 个 pulse 周期）
-RECORDLESS_ORPHAN_GRACE_SECONDS = 300  # F1b: 无记录孤儿空目录宽限期（正常 spawn→首文件写入 <70s 的 4x 余量）
+ORPHAN_DISPATCH_WINDOW_SECONDS = (
+    600  # A4: 未确认 dispatch 的孤儿窗口（2 个 pulse 周期）
+)
+RECORDLESS_ORPHAN_GRACE_SECONDS = (
+    300  # F1b: 无记录孤儿空目录宽限期（正常 spawn→首文件写入 <70s 的 4x 余量）
+)
 RETRY_BUDGET = 3  # A2: task/WP 级重试预算上限
 PULSE_LOCK_STALE_SECONDS = 600  # A1: 锁持有超 10min → 告警（holder 疑似挂起）
 STALLED_ALERT_THRESHOLD = 3  # A7: 连续 N 次零进展 → 告警
@@ -38,8 +40,12 @@ PULSE_COMPLETED_FILENAME = ".deliver_completed.json"
 PULSE_STATE_FILENAME = "_pulse_state.json"
 PULSE_LOCK_FILENAME = "_pulse.lock"
 # === 2026-08-14 体检修复：结构化阻塞 + 熔断标记 ===
-PULSE_BLOCKED_FILENAME = "_pulse_blocked.json"  # P0-A: 前置条件缺失（living_spec），条件恢复后自愈
-PULSE_CIRCUIT_BREAKER_FILENAME = "_circuit_breaker.json"  # P1-C: 熔断触发，需人工 unfreeze 解除
+PULSE_BLOCKED_FILENAME = (
+    "_pulse_blocked.json"  # P0-A: 前置条件缺失（living_spec），条件恢复后自愈
+)
+PULSE_CIRCUIT_BREAKER_FILENAME = (
+    "_circuit_breaker.json"  # P1-C: 熔断触发，需人工 unfreeze 解除
+)
 
 # === Final Synthesis 常量（2026-07-29 架构更新） ===
 DELIVERABLE_CONTRACT_FILENAME = "_deliverable_contract.json"
@@ -52,10 +58,10 @@ FINAL_GATE_SPAWNED_FILENAME = "_gate_action_spawned.json"  # Flag: gate action�
 # 防 session 死亡/中断导致 dedup 记录永久阻塞流水线（2026-07-23 smk_001 停摆事故）。
 # A3: 仅适用于「已确认」的 dispatch；未确认的记录走 ORPHAN_DISPATCH_WINDOW_SECONDS。
 _STALE_DISPATCH_TIMEOUTS = {
-    "analyze": 1800,         # 30 min
-    "spawn_workers": 5400,   # 90 min（Worker 跑大任务耗时长）
-    "validate": 1800,        # 30 min
-    "package": 1800,         # 30 min
+    "analyze": 1800,  # 30 min
+    "spawn_workers": 5400,  # 90 min（Worker 跑大任务耗时长）
+    "validate": 1800,  # 30 min
+    "package": 1800,  # 30 min
 }
 _DEFAULT_STALE_TIMEOUT = 1800
 
@@ -106,7 +112,11 @@ def circuit_breaker_freeze(project_name: str, exc) -> dict:
         python3 -m domains.deliver_pro.pulse_cli unfreeze --project <name>
     """
     from domains.deliver_pro import BLACKBOARD_ROOT
-    from domains.deliver_pro.contracts.pulse_report import PulseAlert, PulseReport, PulseSummary
+    from domains.deliver_pro.contracts.pulse_report import (
+        PulseAlert,
+        PulseReport,
+        PulseSummary,
+    )
 
     project_dir = Path(BLACKBOARD_ROOT) / project_name
     marker = {
@@ -123,11 +133,13 @@ def circuit_breaker_freeze(project_name: str, exc) -> dict:
         generated_at=time.time(),
         status="frozen",
         actions=[],
-        alerts=[PulseAlert(
-            severity="CRITICAL",
-            code="CIRCUIT_BREAKER",
-            message=str(exc),
-        )],
+        alerts=[
+            PulseAlert(
+                severity="CRITICAL",
+                code="CIRCUIT_BREAKER",
+                message=str(exc),
+            )
+        ],
         summary=PulseSummary(
             total_wps=0,
             completed=0,
@@ -148,7 +160,9 @@ class DeliverOrchestrator:
         from domains.deliver_pro import BLACKBOARD_ROOT
 
         # Sanitize project_name: 防止路径穿越
-        self.project_name = project_name.replace("/", "_").replace("\\", "_").replace("..", "_")
+        self.project_name = (
+            project_name.replace("/", "_").replace("\\", "_").replace("..", "_")
+        )
         self.blackboard_root = BLACKBOARD_ROOT
         # F1 fix (W3): ship_package 缺失 → raise（禁止静默降级）
         # 与 run_deliver_pro 行为一致——缺失即 raise，不允许空包运行。
@@ -156,9 +170,11 @@ class DeliverOrchestrator:
         # ADR-009 MD-first: 根据文件扩展名选择解析方式
         if ship_pkg_path.suffix == ".md":
             from domains.ship_pro.ship_living_md import parse_ship_package_md
+
             self.ship_package = parse_ship_package_md(ship_pkg_path.read_text())
         else:
             from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
             result = SafeJsonLoader.load_raw(ship_pkg_path, mtime_window=0)
             if result.state == "ok":
                 self.ship_package = result.data
@@ -251,12 +267,13 @@ class DeliverOrchestrator:
 
     def _load_progress(self) -> dict:
         """从 JSON 文件加载进度（剥离 _meta 版本字段，内存只存 WP 进度）。
-        
+
         H2 fix（2026-07-31）：损坏保护 — 备份 + 从文件证据重建关键字段。
         """
         if self.progress_path.exists():
             try:
                 from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
                 result = SafeJsonLoader.load_raw(self.progress_path, mtime_window=0)
                 if result.state == "ok":
                     data = result.data
@@ -264,14 +281,18 @@ class DeliverOrchestrator:
                     return data
                 else:
                     # batch_progress.json 损坏，备份后重建
-                    logger.warning(f"batch_progress.json corrupted ({result.state}), backing up and rebuilding")
+                    logger.warning(
+                        f"batch_progress.json corrupted ({result.state}), backing up and rebuilding"
+                    )
                     backup_path = self.progress_path.with_suffix(".corrupted")
                     self.progress_path.rename(backup_path)
                     return {}
             except Exception as e:
                 # H2 fix: 备份损坏文件 + 尝试从文件系统证据重建
                 logger.warning(f"batch_progress.json corrupted, backing up: {e}")
-                backup_path = self.progress_path.with_suffix(f".corrupted.{int(time.time())}")
+                backup_path = self.progress_path.with_suffix(
+                    f".corrupted.{int(time.time())}"
+                )
                 try:
                     self.progress_path.rename(backup_path)
                 except OSError as e:
@@ -279,7 +300,9 @@ class DeliverOrchestrator:
                 # 从文件系统证据重建关键字段
                 recovered = self._recover_progress_from_filesystem()
                 if recovered:
-                    logger.info(f"Recovered progress for {len(recovered)} WPs from filesystem")
+                    logger.info(
+                        f"Recovered progress for {len(recovered)} WPs from filesystem"
+                    )
                     return recovered
         return {}
 
@@ -291,25 +314,25 @@ class DeliverOrchestrator:
 
     def _recover_progress_from_filesystem(self) -> dict:
         """H2 fix: 从文件系统证据重建 batch_progress。
-        
+
         证据来源：
         1. WP 目录下的 worker_outputs/*/MANIFEST.json（per-task 状态）
         2. WP 目录下的 delivery_state.json（per-WP 状态冗余）
-        
+
         Returns:
             重建的 progress dict，如果无法重建则返回空 dict
         """
         recovered = {}
         project_dir = self.blackboard_root / self.project_name
         deliver_pro_dir = project_dir / "deliver_pro"
-        
+
         if not deliver_pro_dir.exists():
             return {}
-        
+
         for wp_dir in deliver_pro_dir.iterdir():
             if not wp_dir.is_dir():
                 continue
-            
+
             wp_id = wp_dir.name.upper().replace("_", "-")
             entry = {
                 "task_attempts": {},
@@ -317,7 +340,7 @@ class DeliverOrchestrator:
                 "terminal_failed": False,
                 "dispatch_confirmed": {},
             }
-            
+
             # 证据 1: worker_outputs/*/MANIFEST.json
             wo_dir = wp_dir / "stages" / "worker_outputs"
             if wo_dir.exists():
@@ -326,17 +349,24 @@ class DeliverOrchestrator:
                         continue
                     tid = task_dir.name
                     manifest = task_dir / "MANIFEST.json"
-                    
+
                     if manifest.exists():
                         try:
-                            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
-                            from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
-                            result = SafeJsonLoader.load(manifest, WorkerOutputMeta, mtime_window=0)
+                            from domains.deliver_pro.utils.safe_json_loader import (
+                                SafeJsonLoader,
+                            )
+                            from domains.deliver_pro.contracts.worker_task import (
+                                WorkerOutputMeta,
+                            )
+
+                            result = SafeJsonLoader.load(
+                                manifest, WorkerOutputMeta, mtime_window=0
+                            )
                             if result.state == "ok":
                                 mdata = result.data
                                 entry["task_attempts"][tid] = 1
                                 entry["task_spawned_at"][tid] = manifest.stat().st_mtime
-                                
+
                                 # 检查是否终态失败
                                 if mdata.get("status") == "FAILED":
                                     reason = mdata.get("failure_reason", "")
@@ -350,26 +380,31 @@ class DeliverOrchestrator:
                             # MANIFEST 损坏，标记为已尝试但状态未知
                             entry["task_attempts"][tid] = 1
                             entry["task_spawned_at"][tid] = time.time()
-            
+
             # 证据 2: delivery_state.json（冗余备份）
             ds_path = wp_dir / "delivery_state.json"
             if ds_path.exists():
                 try:
-                    from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                    from domains.deliver_pro.utils.safe_json_loader import (
+                        SafeJsonLoader,
+                    )
+
                     result = SafeJsonLoader.load_raw(ds_path, mtime_window=0)
                     if result.state == "ok":
                         ds = result.data
                         if ds.get("phase") == "FAILED":
                             entry["terminal_failed"] = True
                     else:
-                        logger.warning(f"{wp_id}: delivery_state.json corrupted ({result.state})")
+                        logger.warning(
+                            f"{wp_id}: delivery_state.json corrupted ({result.state})"
+                        )
                 except Exception as e:
                     logger.debug(f"Failed to read delivery_state for {wp_id}: {e}")
-            
+
             # 只有有证据的 WP 才加入恢复结果
             if entry["task_attempts"] or entry["terminal_failed"]:
                 recovered[wp_id] = entry
-        
+
         return recovered
 
     # ------------------------------------------------------------------
@@ -416,10 +451,13 @@ class DeliverOrchestrator:
             "DONE" | "PACKAGING" | "VALIDATING" | "ASSEMBLING" |
             "GENERATING" | "PENDING"
         """
-        from domains.deliver_pro.phase_deriver import derive_phase, migrate_legacy_worker_outputs
+        from domains.deliver_pro.phase_deriver import (
+            derive_phase,
+            migrate_legacy_worker_outputs,
+        )
 
         wp_project = self._get_wp_project_name(wp_id)
-        wp_subdir = wp_id.lower().replace('-', '_')
+        wp_subdir = wp_id.lower().replace("-", "_")
         wp_dir = self.blackboard_root / wp_project / "deliver_pro" / wp_subdir
 
         # 幂等搬迁 legacy 路径（无操作若已是标准路径）
@@ -464,12 +502,14 @@ class DeliverOrchestrator:
                     action = self._get_wp_next_action(wp_id)
                     actions.append(action)
                 except Exception as e:
-                    actions.append({
-                        "wp_id": wp_id,
-                        "action": "error",
-                        "spawn_params": None,
-                        "error": str(e),
-                    })
+                    actions.append(
+                        {
+                            "wp_id": wp_id,
+                            "action": "error",
+                            "spawn_params": None,
+                            "error": str(e),
+                        }
+                    )
 
             return {"layer": layer_idx, "actions": actions}
 
@@ -482,8 +522,10 @@ class DeliverOrchestrator:
         from domains.deliver_pro.contracts import WorkPackage
 
         project_name = self._get_wp_project_name(wp_id)
-        wp_subdir = wp_id.lower().replace('-', '_')
-        deliver_pro_dir = self.blackboard_root / project_name / "deliver_pro" / wp_subdir
+        wp_subdir = wp_id.lower().replace("-", "_")
+        deliver_pro_dir = (
+            self.blackboard_root / project_name / "deliver_pro" / wp_subdir
+        )
         wp_path = deliver_pro_dir / "data" / "wp.json"
 
         if wp_path.exists():
@@ -532,12 +574,11 @@ class DeliverOrchestrator:
             if not timed_out:
                 return []
             attempts_map = self.progress.get(wp_id, {}).get("task_attempts", {})
-            return sorted(
-                t for t in timed_out
-                if attempts_map.get(t, 1) < RETRY_BUDGET
-            )
+            return sorted(t for t in timed_out if attempts_map.get(t, 1) < RETRY_BUDGET)
         except Exception as e:
-            logger.warning("%s: retriable-timed_out check failed (fail-open): %s", wp_id, e)
+            logger.warning(
+                "%s: retriable-timed_out check failed (fail-open): %s", wp_id, e
+            )
             return []  # 检查失败 → fail-open，不阻塞正常流程
 
     def _has_unexecuted_tasks(self, wp_id: str, driver) -> list[str]:
@@ -577,18 +618,32 @@ class DeliverOrchestrator:
                 if not manifest_path.exists():
                     continue
                 try:
-                    from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
-                    from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
-                    load_result = SafeJsonLoader.load(manifest_path, WorkerOutputMeta, mtime_window=0)
+                    from domains.deliver_pro.utils.safe_json_loader import (
+                        SafeJsonLoader,
+                    )
+                    from domains.deliver_pro.contracts.worker_task import (
+                        WorkerOutputMeta,
+                    )
+
+                    load_result = SafeJsonLoader.load(
+                        manifest_path, WorkerOutputMeta, mtime_window=0
+                    )
                     # 对于守卫逻辑，我们只需要读取 failure_class，不需要完整 schema 校验
                     # 接受 "ok" 和 "schema_validation_failed" 状态（后者仍有原始 data）
-                    if load_result.state in ("not_found", "write_in_progress", "invalid_json"):
+                    if load_result.state in (
+                        "not_found",
+                        "write_in_progress",
+                        "invalid_json",
+                    ):
                         continue
                     mdata = load_result.data or {}
                 except Exception as e:
                     logger.debug(f"Failed to load manifest: {e}")
                     continue
-                if mdata.get("failure_class") in ("contract_violation", "quality_failure"):
+                if mdata.get("failure_class") in (
+                    "contract_violation",
+                    "quality_failure",
+                ):
                     result.append(t)
             # 类 2：ready 但从未派发
             completed = progress.get("completed", set())
@@ -597,16 +652,26 @@ class DeliverOrchestrator:
             blocked = progress.get("blocked", set())
             for task_node in plan.task_graph:
                 tid = task_node.task_id
-                if tid in completed or tid in running or tid in failed or tid in blocked:
+                if (
+                    tid in completed
+                    or tid in running
+                    or tid in failed
+                    or tid in blocked
+                ):
                     continue
                 deps = set(getattr(task_node, "depends_on", None) or [])
                 if deps and not deps.issubset(completed | running):
                     continue  # 依赖未完成且不在途 → 不算可跑，不守卫；依赖在途 → 守卫（防打包抢跑）
-                if attempts_map.get(tid, 0) == 0 and not (wo / tid / "MANIFEST.json").exists():
+                if (
+                    attempts_map.get(tid, 0) == 0
+                    and not (wo / tid / "MANIFEST.json").exists()
+                ):
                     result.append(tid)
             return sorted(result)
         except Exception as e:
-            logger.warning("%s: unexecuted-tasks check failed (fail-open): %s", wp_id, e)
+            logger.warning(
+                "%s: unexecuted-tasks check failed (fail-open): %s", wp_id, e
+            )
             return []
 
     def _get_wp_next_action(self, wp_id: str) -> dict:
@@ -618,7 +683,12 @@ class DeliverOrchestrator:
 
         # DONE / PACKAGING → 无需 spawn
         if phase == "DONE":
-            return {"wp_id": wp_id, "action": "done", "spawn_params": None, "error": None}
+            return {
+                "wp_id": wp_id,
+                "action": "done",
+                "spawn_params": None,
+                "error": None,
+            }
 
         if phase == "PACKAGING":
             # BLK-02 fix: PACKAGING should spawn Package agent, not return done
@@ -631,33 +701,66 @@ class DeliverOrchestrator:
                 if unexecuted:
                     logger.warning(
                         "%s: PACKAGING 被 F3c 拦截——%s 从未真正执行，回退重跑",
-                        wp_id, unexecuted,
+                        wp_id,
+                        unexecuted,
                     )
-                    retry_params, retry_alerts = self._prepare_worker_retries(wp_id, driver)
+                    retry_params, retry_alerts = self._prepare_worker_retries(
+                        wp_id, driver
+                    )
                     params_list = driver.step3_workers()
                     merged_params = retry_params + params_list
-                    item = {"wp_id": wp_id, "action": "spawn_workers", "spawn_params": merged_params, "error": None}
+                    item = {
+                        "wp_id": wp_id,
+                        "action": "spawn_workers",
+                        "spawn_params": merged_params,
+                        "error": None,
+                    }
                     if retry_alerts:
                         item["alerts"] = retry_alerts
                     return item
                 params = driver.step7_package(verdict_str="PASS")
-                return {"wp_id": wp_id, "action": "package", "spawn_params": params, "error": None}
+                return {
+                    "wp_id": wp_id,
+                    "action": "package",
+                    "spawn_params": params,
+                    "error": None,
+                }
             except Exception as e:
-                return {"wp_id": wp_id, "action": "package_failed", "spawn_params": None, "error": str(e)}
+                return {
+                    "wp_id": wp_id,
+                    "action": "package_failed",
+                    "spawn_params": None,
+                    "error": str(e),
+                }
 
         # 需要 driver → 确保已初始化
         try:
             self._ensure_wp_initialized(wp_id)
             driver = self._get_driver(wp_id)
         except Exception as e:
-            return {"wp_id": wp_id, "action": "init_failed", "spawn_params": None, "error": str(e)}
+            return {
+                "wp_id": wp_id,
+                "action": "init_failed",
+                "spawn_params": None,
+                "error": str(e),
+            }
 
         if phase == "PENDING":
             try:
                 params = driver.step1_analyze()
-                return {"wp_id": wp_id, "action": "analyze", "spawn_params": params, "error": None}
+                return {
+                    "wp_id": wp_id,
+                    "action": "analyze",
+                    "spawn_params": params,
+                    "error": None,
+                }
             except Exception as e:
-                return {"wp_id": wp_id, "action": "analyze_failed", "spawn_params": None, "error": str(e)}
+                return {
+                    "wp_id": wp_id,
+                    "action": "analyze_failed",
+                    "spawn_params": None,
+                    "error": str(e),
+                }
 
         if phase == "GENERATING":
             ok, info = driver.step2_check_analyze()
@@ -665,21 +768,40 @@ class DeliverOrchestrator:
                 # A2 契约修复：plan 损坏 → 删除坏 plan + 清除 analyze dispatch 记录，
                 # 下一 pulse 从 PENDING 重新 analyze（WP 级重试预算在 tick stale-clear 守卫）
                 try:
-                    wp_subdir = wp_id.lower().replace('-', '_')
+                    wp_subdir = wp_id.lower().replace("-", "_")
                     plan_path = (
-                        self.blackboard_root / self._get_wp_project_name(wp_id)
-                        / "deliver_pro" / wp_subdir / "stages" / "execution_plan.json"
+                        self.blackboard_root
+                        / self._get_wp_project_name(wp_id)
+                        / "deliver_pro"
+                        / wp_subdir
+                        / "stages"
+                        / "execution_plan.json"
                     )
                     plan_path.unlink(missing_ok=True)
-                    for k in ("last_spawned_action", "last_spawned_at", "dispatch_confirmed"):
+                    for k in (
+                        "last_spawned_action",
+                        "last_spawned_at",
+                        "dispatch_confirmed",
+                    ):
                         progress_entry.pop(k, None)
-                    progress_entry["action_retries"] = progress_entry.get("action_retries", 0) + 1
+                    progress_entry["action_retries"] = (
+                        progress_entry.get("action_retries", 0) + 1
+                    )
                     self.progress[wp_id] = progress_entry
                     self._save_progress()
-                    logger.warning("%s: corrupt execution_plan invalidated, will re-analyze", wp_id)
+                    logger.warning(
+                        "%s: corrupt execution_plan invalidated, will re-analyze", wp_id
+                    )
                 except Exception as inv_e:
-                    logger.warning("%s: failed to invalidate corrupt plan: %s", wp_id, inv_e)
-                return {"wp_id": wp_id, "action": "analyze_check_failed", "spawn_params": None, "error": str(info)}
+                    logger.warning(
+                        "%s: failed to invalidate corrupt plan: %s", wp_id, inv_e
+                    )
+                return {
+                    "wp_id": wp_id,
+                    "action": "analyze_check_failed",
+                    "spawn_params": None,
+                    "error": str(info),
+                }
             try:
                 # BLK-05 fix: Check if workers are already done before spawning new ones
                 all_done, check_info = driver.step4_check_workers()
@@ -690,21 +812,37 @@ class DeliverOrchestrator:
                     retriable = self._has_retriable_timed_out(wp_id, driver)
                     if not retriable:
                         # Workers already completed → trigger assembly
-                        return {"wp_id": wp_id, "action": "assemble", "spawn_params": None, "error": None}
+                        return {
+                            "wp_id": wp_id,
+                            "action": "assemble",
+                            "spawn_params": None,
+                            "error": None,
+                        }
                     logger.warning(
                         "%s: all_done 但被 F3a 拦截——%s 超时且重试预算未耗尽，转重试路径",
-                        wp_id, retriable,
+                        wp_id,
+                        retriable,
                     )
                 # A2/A3: derive 判 timed_out 的 task 走重试路径（无视 stale dedup 直接重派）
                 retry_params, retry_alerts = self._prepare_worker_retries(wp_id, driver)
                 params_list = driver.step3_workers()
                 merged_params = retry_params + params_list
-                item = {"wp_id": wp_id, "action": "spawn_workers", "spawn_params": merged_params, "error": None}
+                item = {
+                    "wp_id": wp_id,
+                    "action": "spawn_workers",
+                    "spawn_params": merged_params,
+                    "error": None,
+                }
                 if retry_alerts:
                     item["alerts"] = retry_alerts
                 return item
             except Exception as e:
-                return {"wp_id": wp_id, "action": "workers_failed", "spawn_params": None, "error": str(e)}
+                return {
+                    "wp_id": wp_id,
+                    "action": "workers_failed",
+                    "spawn_params": None,
+                    "error": str(e),
+                }
 
         if phase == "ASSEMBLING":
             try:
@@ -715,26 +853,54 @@ class DeliverOrchestrator:
                 if retriable:
                     logger.warning(
                         "%s: ASSEMBLING 被 F3b 拦截——%s 超时且重试预算未耗尽，回退重试",
-                        wp_id, retriable,
+                        wp_id,
+                        retriable,
                     )
-                    retry_params, retry_alerts = self._prepare_worker_retries(wp_id, driver)
+                    retry_params, retry_alerts = self._prepare_worker_retries(
+                        wp_id, driver
+                    )
                     params_list = driver.step3_workers()
                     merged_params = retry_params + params_list
-                    item = {"wp_id": wp_id, "action": "spawn_workers", "spawn_params": merged_params, "error": None}
+                    item = {
+                        "wp_id": wp_id,
+                        "action": "spawn_workers",
+                        "spawn_params": merged_params,
+                        "error": None,
+                    }
                     if retry_alerts:
                         item["alerts"] = retry_alerts
                     return item
                 result = driver.step5_integrate()
                 # K5-B: 零产出 → terminal_failed（不烧 validate/package 两轮 LLM）
                 if result.get("status") == "ASSEMBLY_EMPTY":
-                    return {"wp_id": wp_id, "action": "terminal_failed", "spawn_params": None, "error": result.get("error", "零 worker 产出")}
+                    return {
+                        "wp_id": wp_id,
+                        "action": "terminal_failed",
+                        "spawn_params": None,
+                        "error": result.get("error", "零 worker 产出"),
+                    }
                 if result.get("status") == "ASSEMBLY_ERROR":
                     params = driver.step7_package(verdict_str="FAIL")
-                    return {"wp_id": wp_id, "action": "package_failed", "spawn_params": params, "error": "Assembly failed"}
+                    return {
+                        "wp_id": wp_id,
+                        "action": "package_failed",
+                        "spawn_params": params,
+                        "error": "Assembly failed",
+                    }
                 params = driver.step6_validate(round_num=1)
-                return {"wp_id": wp_id, "action": "validate", "spawn_params": params, "error": None}
+                return {
+                    "wp_id": wp_id,
+                    "action": "validate",
+                    "spawn_params": params,
+                    "error": None,
+                }
             except Exception as e:
-                return {"wp_id": wp_id, "action": "assembly_failed", "spawn_params": None, "error": str(e)}
+                return {
+                    "wp_id": wp_id,
+                    "action": "assembly_failed",
+                    "spawn_params": None,
+                    "error": str(e),
+                }
 
         if phase == "VALIDATING":
             verdict, details = driver.step6_check_validate()
@@ -746,40 +912,80 @@ class DeliverOrchestrator:
                 # 分发记录过期或从未分发 validate → 重新分发 validate agent。
                 progress_entry = self.progress.get(wp_id, {})
                 last_spawned = progress_entry.get("last_spawned_action", "")
-                validate_dispatched = last_spawned == "validate" or last_spawned.startswith("validate:")
-                if not validate_dispatched or self._is_stale_dispatch(progress_entry, "validate", wp_id):
+                validate_dispatched = (
+                    last_spawned == "validate" or last_spawned.startswith("validate:")
+                )
+                if not validate_dispatched or self._is_stale_dispatch(
+                    progress_entry, "validate", wp_id
+                ):
                     try:
                         round_num = progress_entry.get("validate_round", 1)
                         params = driver.step6_validate(round_num=round_num)
-                        logger.warning("%s: re-dispatching orphan validate (round=%s)", wp_id, round_num)
-                        return {"wp_id": wp_id, "action": "validate", "spawn_params": params, "error": None}
+                        logger.warning(
+                            "%s: re-dispatching orphan validate (round=%s)",
+                            wp_id,
+                            round_num,
+                        )
+                        return {
+                            "wp_id": wp_id,
+                            "action": "validate",
+                            "spawn_params": params,
+                            "error": None,
+                        }
                     except Exception as e:
-                        return {"wp_id": wp_id, "action": "validate_failed", "spawn_params": None, "error": str(e)}
-                return {"wp_id": wp_id, "action": "skip", "spawn_params": None, "error": "validate_pending"}
+                        return {
+                            "wp_id": wp_id,
+                            "action": "validate_failed",
+                            "spawn_params": None,
+                            "error": str(e),
+                        }
+                return {
+                    "wp_id": wp_id,
+                    "action": "skip",
+                    "spawn_params": None,
+                    "error": "validate_pending",
+                }
             try:
                 # F3c fix: 同 PACKAGING 分支——VALIDATING→package 派发前做最后防线
                 unexecuted = self._has_unexecuted_tasks(wp_id, driver)
                 if unexecuted:
                     logger.warning(
                         "%s: VALIDATING→package 被 F3c 拦截——%s 从未真正执行，回退重跑",
-                        wp_id, unexecuted,
+                        wp_id,
+                        unexecuted,
                     )
-                    retry_params, retry_alerts = self._prepare_worker_retries(wp_id, driver)
+                    retry_params, retry_alerts = self._prepare_worker_retries(
+                        wp_id, driver
+                    )
                     params_list = driver.step3_workers()
                     merged_params = retry_params + params_list
-                    item = {"wp_id": wp_id, "action": "spawn_workers", "spawn_params": merged_params, "error": None}
+                    item = {
+                        "wp_id": wp_id,
+                        "action": "spawn_workers",
+                        "spawn_params": merged_params,
+                        "error": None,
+                    }
                     if retry_alerts:
                         item["alerts"] = retry_alerts
                     return item
                 # B-2 fix: wire in validate fix loop
                 if verdict != "PASS":
                     # Load full verdict data for decide_validate_loop
-                    verdict_path = self._wp_dir(wp_id) / "stages" / "validation_result.json"
+                    verdict_path = (
+                        self._wp_dir(wp_id) / "stages" / "validation_result.json"
+                    )
                     if verdict_path.exists():
                         try:
-                            from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
-                            from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
-                            result = SafeJsonLoader.load(verdict_path, ValidationVerdict, mtime_window=0)
+                            from domains.deliver_pro.utils.safe_json_loader import (
+                                SafeJsonLoader,
+                            )
+                            from domains.deliver_pro.contracts.validation_verdict import (
+                                ValidationVerdict,
+                            )
+
+                            result = SafeJsonLoader.load(
+                                verdict_path, ValidationVerdict, mtime_window=0
+                            )
                             if result.state == "ok":
                                 verdict_data = result.data
                                 verdict_obj = result.parsed
@@ -787,30 +993,78 @@ class DeliverOrchestrator:
                                 if loop_decision == "fix":
                                     # Spawn fix_integrate agent
                                     round_num = progress_entry.get("validate_round", 1)
-                                    fix_params = driver.step6_5_fix_integrate(verdict_data)
-                                    logger.info("%s: validate FAIL → fix loop (round=%s)", wp_id, round_num)
-                                    return {"wp_id": wp_id, "action": "fix_integrate", "spawn_params": fix_params, "error": None}
+                                    fix_params = driver.step6_5_fix_integrate(
+                                        verdict_data
+                                    )
+                                    logger.info(
+                                        "%s: validate FAIL → fix loop (round=%s)",
+                                        wp_id,
+                                        round_num,
+                                    )
+                                    return {
+                                        "wp_id": wp_id,
+                                        "action": "fix_integrate",
+                                        "spawn_params": fix_params,
+                                        "error": None,
+                                    }
                             else:
-                                logger.warning("%s: verdict corrupted (%s), falling back to package_failed", wp_id, result.state)
-                                return {"wp_id": wp_id, "action": "package_failed", "spawn_params": None, "error": f"verdict corrupted: {result.error}"}
+                                logger.warning(
+                                    "%s: verdict corrupted (%s), falling back to package_failed",
+                                    wp_id,
+                                    result.state,
+                                )
+                                return {
+                                    "wp_id": wp_id,
+                                    "action": "package_failed",
+                                    "spawn_params": None,
+                                    "error": f"verdict corrupted: {result.error}",
+                                }
                         except Exception as e:
-                            logger.warning("%s: failed to process fix loop, falling back to package_failed: %s", wp_id, e)
-                            return {"wp_id": wp_id, "action": "package_failed", "spawn_params": None, "error": str(e)}
-                
-                params = driver.step7_package()  # P1-3 fix: auto-read verdict from validation_result.json
-                action = "package" if verdict == "PASS" else "package_failed"
-                return {"wp_id": wp_id, "action": action, "spawn_params": params, "error": None}
-            except Exception as e:
-                return {"wp_id": wp_id, "action": "package_failed", "spawn_params": None, "error": str(e)}
+                            logger.warning(
+                                "%s: failed to process fix loop, falling back to package_failed: %s",
+                                wp_id,
+                                e,
+                            )
+                            return {
+                                "wp_id": wp_id,
+                                "action": "package_failed",
+                                "spawn_params": None,
+                                "error": str(e),
+                            }
 
-        return {"wp_id": wp_id, "action": "unknown", "spawn_params": None, "error": f"Unknown phase: {phase}"}
+                params = (
+                    driver.step7_package()
+                )  # P1-3 fix: auto-read verdict from validation_result.json
+                action = "package" if verdict == "PASS" else "package_failed"
+                return {
+                    "wp_id": wp_id,
+                    "action": action,
+                    "spawn_params": params,
+                    "error": None,
+                }
+            except Exception as e:
+                return {
+                    "wp_id": wp_id,
+                    "action": "package_failed",
+                    "spawn_params": None,
+                    "error": str(e),
+                }
+
+        return {
+            "wp_id": wp_id,
+            "action": "unknown",
+            "spawn_params": None,
+            "error": f"Unknown phase: {phase}",
+        }
 
     def _get_wp_phase(self, wp_id: str) -> str:
         """获取 WP 的逻辑 phase（优先用 progress 记录，fallback 到文件系统检测）。"""
         # 先用文件系统检测实际 phase
         return self._check_wp_phase(wp_id)
 
-    def report_done(self, wp_id: str, action: str, success: bool = True, error: str = None) -> None:
+    def report_done(
+        self, wp_id: str, action: str, success: bool = True, error: str = None
+    ) -> None:
         """报告动作完成，更新 progress。"""
         if wp_id not in self.progress:
             self.progress[wp_id] = {}
@@ -897,7 +1151,6 @@ class DeliverOrchestrator:
             list of {"wp_id": str, "action": str, "spawn_params": dict|None}
             action: "analyze" | "spawn_workers" | "validate" | "package" | "done"
         """
-        import shutil
 
         self._last_tick_truncated = False
         results = []
@@ -914,7 +1167,9 @@ class DeliverOrchestrator:
                     driver = self._get_driver(wp_id)
                     n_cleared = self._reconcile_running_tasks(wp_id, driver)
                     if n_cleared:
-                        logger.info("%s: reconciled %d zombie running_tasks", wp_id, n_cleared)
+                        logger.info(
+                            "%s: reconciled %d zombie running_tasks", wp_id, n_cleared
+                        )
                 except Exception as e:
                     logger.warning("%s: reconcile running_tasks failed: %s", wp_id, e)
                 _reconciled_wps.add(wp_id)
@@ -932,11 +1187,16 @@ class DeliverOrchestrator:
                 action_item = dict(action_item, spawn_params=current_params)
                 has_real_params = len(current_params) > 0
                 # 更新 task_ids 用于 dedup_key 记录（L1 过滤后的准确列表）
-                current_task_ids = ",".join(sorted(
-                    p.get("task_id", p.get("label", "")) for p in current_params
-                    if isinstance(p, dict)
-                ))
-                dedup_key = f"{action}:{current_task_ids}" if current_task_ids else action
+                current_task_ids = ",".join(
+                    sorted(
+                        p.get("task_id", p.get("label", ""))
+                        for p in current_params
+                        if isinstance(p, dict)
+                    )
+                )
+                dedup_key = (
+                    f"{action}:{current_task_ids}" if current_task_ids else action
+                )
 
             # 去重：检查 progress 中是否已 spawn 同 action（含具体 task IDs）
             # spawn_workers 已通过 L1 per-task 过滤，不再走 Wave 级 dedup 短路
@@ -946,11 +1206,16 @@ class DeliverOrchestrator:
                 # P0-3 fix: dedup key 包含具体 task IDs，不同 wave 的 spawn_workers 不互相阻塞
                 current_task_ids = ""
                 if isinstance(current_params, list):
-                    current_task_ids = ",".join(sorted(
-                        p.get("task_id", p.get("label", "")) for p in current_params
-                        if isinstance(p, dict)
-                    ))
-                dedup_key = f"{action}:{current_task_ids}" if current_task_ids else action
+                    current_task_ids = ",".join(
+                        sorted(
+                            p.get("task_id", p.get("label", ""))
+                            for p in current_params
+                            if isinstance(p, dict)
+                        )
+                    )
+                dedup_key = (
+                    f"{action}:{current_task_ids}" if current_task_ids else action
+                )
             if last_spawned == dedup_key and has_real_params:
                 # 孤儿分发恢复：dedup 记录可能来自已死 session（agent 从未真正运行）。
                 # 过期则清除记录并继续分发；未过期才真正跳过。
@@ -965,14 +1230,18 @@ class DeliverOrchestrator:
                             self._save_progress()
                             logger.error(
                                 "%s: action '%s' exceeded retry budget (%d) → terminal_failed",
-                                wp_id, action, RETRY_BUDGET,
+                                wp_id,
+                                action,
+                                RETRY_BUDGET,
                             )
-                            results.append({
-                                "wp_id": wp_id,
-                                "action": "terminal_failed",
-                                "spawn_params": None,
-                                "error": f"action '{action}' 重试 {RETRY_BUDGET} 次仍失败",
-                            })
+                            results.append(
+                                {
+                                    "wp_id": wp_id,
+                                    "action": "terminal_failed",
+                                    "spawn_params": None,
+                                    "error": f"action '{action}' 重试 {RETRY_BUDGET} 次仍失败",
+                                }
+                            )
                             continue
                     # A4: 未确认的 spawn_workers 孤儿 → 删除空 task 目录（下次 pulse 可重派）
                     if action == "spawn_workers" and not progress_entry.get(
@@ -981,7 +1250,9 @@ class DeliverOrchestrator:
                         self._cleanup_orphan_worker_dirs(wp_id)
                     logger.warning(
                         "%s: clearing stale dispatch '%s' (spawned_at=%s)",
-                        wp_id, dedup_key, progress_entry.get("last_spawned_at"),
+                        wp_id,
+                        dedup_key,
+                        progress_entry.get("last_spawned_at"),
                     )
                     progress_entry.pop("last_spawned_action", None)
                     progress_entry.pop("last_spawned_at", None)
@@ -997,7 +1268,9 @@ class DeliverOrchestrator:
 
             # A5: spawn 预算硬上限（在记录 dispatch 之前拦截）
             if has_real_params and max_spawn_budget is not None:
-                n_params = len(current_params) if isinstance(current_params, list) else 1
+                n_params = (
+                    len(current_params) if isinstance(current_params, list) else 1
+                )
                 if max_spawn_budget <= 0:
                     self._last_tick_truncated = True
                     # F1a fix: budget=0 时 params 已构建（mkdir 副作用已发生），
@@ -1012,11 +1285,16 @@ class DeliverOrchestrator:
                     action_item["spawn_params"] = current_params[:max_spawn_budget]
                     current_params = action_item["spawn_params"]
                     has_real_params = len(current_params) > 0
-                    current_task_ids = ",".join(sorted(
-                        p.get("task_id", p.get("label", "")) for p in current_params
-                        if isinstance(p, dict)
-                    ))
-                    dedup_key = f"{action}:{current_task_ids}" if current_task_ids else action
+                    current_task_ids = ",".join(
+                        sorted(
+                            p.get("task_id", p.get("label", ""))
+                            for p in current_params
+                            if isinstance(p, dict)
+                        )
+                    )
+                    dedup_key = (
+                        f"{action}:{current_task_ids}" if current_task_ids else action
+                    )
                     self._last_tick_truncated = True
                     # 被截断的 task：删除空目录 → 下次 pulse 立即可重派（不等 30min 超时）
                     self._drop_worker_param_dirs(wp_id, dropped)
@@ -1030,17 +1308,44 @@ class DeliverOrchestrator:
                     # K5-B: 零产出 → terminal_failed（不烧 package agent 写失败报告）
                     if result.get("status") == "ASSEMBLY_EMPTY":
                         logger.error(f"{wp_id}: ASSEMBLY_EMPTY — terminal")
-                        self.report_done(wp_id, "assemble", False, error="ASSEMBLY_EMPTY")
-                        results.append({"wp_id": wp_id, "action": "terminal_failed", "spawn_params": None, "error": result.get("error", "零 worker 产出")})
+                        self.report_done(
+                            wp_id, "assemble", False, error="ASSEMBLY_EMPTY"
+                        )
+                        results.append(
+                            {
+                                "wp_id": wp_id,
+                                "action": "terminal_failed",
+                                "spawn_params": None,
+                                "error": result.get("error", "零 worker 产出"),
+                            }
+                        )
                     # P1-6 fix: Check assembly status — don't discard ASSEMBLY_ERROR
                     elif result.get("status") == "ASSEMBLY_ERROR":
-                        logger.error(f"{wp_id}: ASSEMBLY_ERROR — routing to failure packaging")
-                        self.report_done(wp_id, "assemble", False, error="ASSEMBLY_ERROR")
+                        logger.error(
+                            f"{wp_id}: ASSEMBLY_ERROR — routing to failure packaging"
+                        )
+                        self.report_done(
+                            wp_id, "assemble", False, error="ASSEMBLY_ERROR"
+                        )
                         try:
                             params = driver.step7_package(verdict_str="FAIL")
-                            results.append({"wp_id": wp_id, "action": "package_failed", "spawn_params": params, "error": "Assembly failed"})
+                            results.append(
+                                {
+                                    "wp_id": wp_id,
+                                    "action": "package_failed",
+                                    "spawn_params": params,
+                                    "error": "Assembly failed",
+                                }
+                            )
                         except Exception as pkg_e:
-                            results.append({"wp_id": wp_id, "action": "terminal_failed", "spawn_params": None, "error": f"Assembly+Package both failed: {pkg_e}"})
+                            results.append(
+                                {
+                                    "wp_id": wp_id,
+                                    "action": "terminal_failed",
+                                    "spawn_params": None,
+                                    "error": f"Assembly+Package both failed: {pkg_e}",
+                                }
+                            )
                     else:
                         self.report_done(wp_id, "assemble", True)
                         # 立即获取下一个动作（validate）
@@ -1049,7 +1354,10 @@ class DeliverOrchestrator:
                         # 否则 validate agent 死亡后，VALIDATING 分支的 stale 检查
                         # 只能看到旧的 spawn_workers 时间戳，可能误杀正常运行的 validate。
                         new_params = new_action.get("spawn_params")
-                        if new_params and new_action.get("action") not in ("done", "skip"):
+                        if new_params and new_action.get("action") not in (
+                            "done",
+                            "skip",
+                        ):
                             pe = self.progress.get(wp_id, {})
                             pe["last_spawned_action"] = new_action["action"]
                             pe["last_spawned_at"] = time.time()
@@ -1059,18 +1367,29 @@ class DeliverOrchestrator:
                 except Exception as e:
                     # P1-7 fix: assembly exception → terminal_failed (not retryable)
                     logger.error(f"{wp_id}: assembly exception — {e}")
-                    results.append({"wp_id": wp_id, "action": "terminal_failed", "spawn_params": None, "error": str(e)})
+                    results.append(
+                        {
+                            "wp_id": wp_id,
+                            "action": "terminal_failed",
+                            "spawn_params": None,
+                            "error": str(e),
+                        }
+                    )
                 continue
 
             # 4. 记录 spawn 状态（P0-3 fix: 用 dedup_key 而非 action，区分不同 wave）
             if has_real_params:
                 progress_entry["last_spawned_action"] = dedup_key
                 progress_entry["last_spawned_at"] = time.time()
-                progress_entry["dispatch_confirmed"] = False  # A4: 两阶段 dispatch（待 spawn 回执）
+                progress_entry["dispatch_confirmed"] = (
+                    False  # A4: 两阶段 dispatch（待 spawn 回执）
+                )
                 # A2: task 级 spawn 次数账本（重试预算的数据源）
                 if action == "spawn_workers" and isinstance(current_params, list):
                     attempts_map = progress_entry.setdefault("task_attempts", {})
-                    spawned_map = progress_entry.setdefault("task_spawned_at", {})  # L2: per-task 冷却窗口账本
+                    spawned_map = progress_entry.setdefault(
+                        "task_spawned_at", {}
+                    )  # L2: per-task 冷却窗口账本
                     for p in current_params:
                         tid = p.get("task_id") if isinstance(p, dict) else None
                         if tid:
@@ -1113,15 +1432,22 @@ class DeliverOrchestrator:
                 # MANIFEST 存在但 failure_class in (contract_violation, quality_failure) 且预算未耗尽 → 放行
                 exempt = False
                 try:
-                    from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
-                    from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
-                    
-                    result = SafeJsonLoader.load(manifest_file, WorkerOutputMeta, mtime_window=0)
-                    
+                    from domains.deliver_pro.utils.safe_json_loader import (
+                        SafeJsonLoader,
+                    )
+                    from domains.deliver_pro.contracts.worker_task import (
+                        WorkerOutputMeta,
+                    )
+
+                    result = SafeJsonLoader.load(
+                        manifest_file, WorkerOutputMeta, mtime_window=0
+                    )
+
                     if result.state == "ok":
                         mdata = result.data
                         if (
-                            mdata.get("failure_class") in ("contract_violation", "quality_failure")
+                            mdata.get("failure_class")
+                            in ("contract_violation", "quality_failure")
                             and attempts_map.get(tid, 1) < RETRY_BUDGET
                         ):
                             exempt = True
@@ -1129,7 +1455,8 @@ class DeliverOrchestrator:
                         # Schema 不匹配但 JSON 可读 → 尝试读取 failure_class（兼容旧逻辑）
                         mdata = result.data
                         if (
-                            mdata.get("failure_class") in ("contract_violation", "quality_failure")
+                            mdata.get("failure_class")
+                            in ("contract_violation", "quality_failure")
                             and attempts_map.get(tid, 1) < RETRY_BUDGET
                         ):
                             exempt = True
@@ -1149,16 +1476,19 @@ class DeliverOrchestrator:
                         }
                         try:
                             from core.utils.atomic_io import atomic_write_json
+
                             atomic_write_json(manifest_file, synthetic_manifest)
                         except Exception as write_err:
-                            logger.error(f"Failed to write synthetic MANIFEST: {write_err}")
+                            logger.error(
+                                f"Failed to write synthetic MANIFEST: {write_err}"
+                            )
                         # 不设置 exempt，让 task 被过滤（终态）
                     # write_in_progress / not_found / schema_validation_failed without data → 保持原过滤行为
-                        
+
                 except Exception as e:
                     # 其他异常 → 记录日志，保持原过滤行为
                     logger.warning(f"{wp_id}/{tid}: MANIFEST read error: {e}")
-                
+
                 if not exempt:
                     continue  # 终态（COMPLETE/失败/预算耗尽/非 contract_violation）
             if attempts_map.get(tid, 0) >= RETRY_BUDGET:  # 硬上限
@@ -1180,7 +1510,7 @@ class DeliverOrchestrator:
           - 已确认（spawn 成功回执）→ 超过该 action 类型的超时阈值才过期
 
         已确认的超时阈值取保守上限（30/90min 两个常数，A3），避免误杀仍在正常运行的 agent。
-        
+
         T-4 fix: 优先检查证据文件（_ACTION_COMPLETION_EVIDENCE），证据存在则直接判定为未过期。
         """
         # T-4 fix: 证据优先——产出已落盘 = 阶段已完成，立即判定为未过期
@@ -1189,7 +1519,7 @@ class DeliverOrchestrator:
         evidence_rel = _ACTION_COMPLETION_EVIDENCE.get(base_action)
         if evidence_rel and (wp_dir / evidence_rel).exists():
             return False  # 证据存在，未过期
-        
+
         # 回退到时间推断
         spawned_at = progress_entry.get("last_spawned_at")
         if spawned_at is None:
@@ -1204,10 +1534,12 @@ class DeliverOrchestrator:
     # ------------------------------------------------------------------
 
     def _wp_dir(self, wp_id: str) -> Path:
-        wp_subdir = wp_id.lower().replace('-', '_')
+        wp_subdir = wp_id.lower().replace("-", "_")
         return (
-            self.blackboard_root / self._get_wp_project_name(wp_id)
-            / "deliver_pro" / wp_subdir
+            self.blackboard_root
+            / self._get_wp_project_name(wp_id)
+            / "deliver_pro"
+            / wp_subdir
         )
 
     def _drop_task_dir_if_empty(self, wp_id: str, task_id: str) -> bool:
@@ -1289,7 +1621,8 @@ class DeliverOrchestrator:
                 cleared += 1
                 logger.warning(
                     "%s/%s: zombie running_task cleared (MANIFEST exists)",
-                    wp_id, task_id,
+                    wp_id,
+                    task_id,
                 )
                 continue
             spawn_time = spawned_at_map.get(task_id, 0)
@@ -1299,7 +1632,9 @@ class DeliverOrchestrator:
                 cleared += 1
                 logger.warning(
                     "%s/%s: zombie running_task cleared (stale >%ds, no MANIFEST)",
-                    wp_id, task_id, WORKER_TIMEOUT_SECONDS,
+                    wp_id,
+                    task_id,
+                    WORKER_TIMEOUT_SECONDS,
                 )
                 continue
             # 保守保留：无 MANIFEST 且未超时（或无 spawn 时间记录）
@@ -1308,7 +1643,9 @@ class DeliverOrchestrator:
             driver.orch._save_state()
         return cleared
 
-    def _prepare_worker_retries(self, wp_id: str, driver) -> tuple[list[dict], list[dict]]:
+    def _prepare_worker_retries(
+        self, wp_id: str, driver
+    ) -> tuple[list[dict], list[dict]]:
         """A2/A3: derive 判 timed_out 的 task 走重试路径（无视 stale dedup 直接重派）。
 
         契约笼子：
@@ -1342,42 +1679,55 @@ class DeliverOrchestrator:
                 attempts = attempts_map.get(task_id, 1)  # 目录存在 = 至少 spawn 过 1 次
                 if attempts >= RETRY_BUDGET:
                     # 终态：合成 MANIFEST（契约笼子：失败必须显式落盘，不允许无限重试）
-                    manifest_path = driver.worker_outputs_dir / task_id / "MANIFEST.json"
+                    manifest_path = (
+                        driver.worker_outputs_dir / task_id / "MANIFEST.json"
+                    )
                     if not manifest_path.exists():
                         # 确保目录存在（orphan sweep 可能已删除空目录）
                         manifest_path.parent.mkdir(parents=True, exist_ok=True)
-                        atomic_write_json(manifest_path, {
-                            "task_id": task_id,
-                            "wp_id": wp_id,
-                            "scenario": "unknown",
-                            "status": "FAILED",
-                            "failure_reason": f"retry_budget_exceeded ({attempts} attempts, no MANIFEST)",
-                            "completed_at": time.time(),
-                            "synthetic": True,
-                        })
-                    alerts.append({
-                        "severity": "CRITICAL",
-                        "code": "TASK_RETRY_EXHAUSTED",
-                        "message": f"{wp_id}/{task_id}: 重试 {attempts} 次仍无产出，已标记终态失败",
-                    })
+                        atomic_write_json(
+                            manifest_path,
+                            {
+                                "task_id": task_id,
+                                "wp_id": wp_id,
+                                "scenario": "unknown",
+                                "status": "FAILED",
+                                "failure_reason": f"retry_budget_exceeded ({attempts} attempts, no MANIFEST)",
+                                "completed_at": time.time(),
+                                "synthetic": True,
+                            },
+                        )
+                    alerts.append(
+                        {
+                            "severity": "CRITICAL",
+                            "code": "TASK_RETRY_EXHAUSTED",
+                            "message": f"{wp_id}/{task_id}: 重试 {attempts} 次仍无产出，已标记终态失败",
+                        }
+                    )
                     continue
                 task_node = task_nodes.get(task_id)
                 if task_node is None:
                     continue
                 try:
-                    new_params = driver.orch._prepare_single_worker_spawn(task_node, plan)
+                    new_params = driver.orch._prepare_single_worker_spawn(
+                        task_node, plan
+                    )
                 except Exception as e:
-                    logger.warning("%s/%s: retry spawn prep failed: %s", wp_id, task_id, e)
+                    logger.warning(
+                        "%s/%s: retry spawn prep failed: %s", wp_id, task_id, e
+                    )
                     continue
                 # L3 fix: 删除 os.utime（不再需要刷 mtime 欺骗 derive）
                 # 防下一 pulse 重复重派由 L2 task_spawned_at 冷却窗口承担
                 # 职责分离：derive 报事实，账本管节奏
                 params.append(new_params)
-                alerts.append({
-                    "severity": "INFO",
-                    "code": "TASK_RETRY",
-                    "message": f"{wp_id}/{task_id}: 第 {attempts + 1} 次重派（超时未产出）",
-                })
+                alerts.append(
+                    {
+                        "severity": "INFO",
+                        "code": "TASK_RETRY",
+                        "message": f"{wp_id}/{task_id}: 第 {attempts + 1} 次重派（超时未产出）",
+                    }
+                )
 
         # F-B + quality_failure: 可救失败重试循环（与 timed_out 同等地位）
         # contract_violation: 实质产出合格但缺契约文件
@@ -1392,7 +1742,10 @@ class DeliverOrchestrator:
             try:
                 from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
                 from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
-                result = SafeJsonLoader.load(manifest_path, WorkerOutputMeta, mtime_window=0)
+
+                result = SafeJsonLoader.load(
+                    manifest_path, WorkerOutputMeta, mtime_window=0
+                )
                 # 对于重试逻辑，我们只需要读取 failure_class，不需要完整 schema 校验
                 # 接受 "ok" 和 "schema_validation_failed" 状态（后者仍有原始 data）
                 if result.state in ("not_found", "write_in_progress", "invalid_json"):
@@ -1419,37 +1772,53 @@ class DeliverOrchestrator:
                 if not quality_feedback:
                     logger.warning(
                         "%s/%s: quality_failure but no quality_feedback in MANIFEST, skipping",
-                        wp_id, task_id,
+                        wp_id,
+                        task_id,
                     )
                     continue
             attempts = attempts_map.get(task_id, 1)
             if attempts >= RETRY_BUDGET:
                 exhausted_code = (
-                    "TASK_RETRY_CONTRACT_EXHAUSTED" if failure_class == "contract_violation"
+                    "TASK_RETRY_CONTRACT_EXHAUSTED"
+                    if failure_class == "contract_violation"
                     else "TASK_RETRY_QUALITY_EXHAUSTED"
                 )
-                class_desc = "契约违规" if failure_class == "contract_violation" else "质量验证"
-                alerts.append({
-                    "severity": "INFO",
-                    "code": exhausted_code,
-                    "message": (
-                        f"{wp_id}/{task_id}: {class_desc}重试预算耗尽 "
-                        f"({attempts} attempts)，保持终态 FAILED"
-                    ),
-                })
+                class_desc = (
+                    "契约违规" if failure_class == "contract_violation" else "质量验证"
+                )
+                alerts.append(
+                    {
+                        "severity": "INFO",
+                        "code": exhausted_code,
+                        "message": (
+                            f"{wp_id}/{task_id}: {class_desc}重试预算耗尽 "
+                            f"({attempts} attempts)，保持终态 FAILED"
+                        ),
+                    }
+                )
                 continue
             try:
                 new_params = driver.orch._prepare_single_worker_spawn(task_node, plan)
             except Exception as e:
-                retry_kind = "contract" if failure_class == "contract_violation" else "quality"
-                logger.warning("%s/%s: %s retry spawn prep failed: %s", wp_id, task_id, retry_kind, e)
+                retry_kind = (
+                    "contract" if failure_class == "contract_violation" else "quality"
+                )
+                logger.warning(
+                    "%s/%s: %s retry spawn prep failed: %s",
+                    wp_id,
+                    task_id,
+                    retry_kind,
+                    e,
+                )
                 continue
             # 在 prompt 末尾追加反馈段（检查 params 结构找 prompt 字段）
             prompt_key = "task" if "task" in new_params else None
             if prompt_key is None:
                 logger.warning(
                     "%s/%s: %s retry params has no 'task' field, skipping feedback append",
-                    wp_id, task_id, failure_class,
+                    wp_id,
+                    task_id,
+                    failure_class,
                 )
             else:
                 # auto_bootstrap 返回的 task 是引用字符串，实际 prompt 在文件中
@@ -1508,17 +1877,22 @@ class DeliverOrchestrator:
                         except OSError as e:
                             logger.warning(
                                 "%s/%s: failed to append feedback to prompt file: %s",
-                                wp_id, task_id, e,
+                                wp_id,
+                                task_id,
+                                e,
                             )
                     else:
                         logger.warning(
                             "%s/%s: prompt file %s does not exist, skipping feedback append",
-                            wp_id, task_id, prompt_file,
+                            wp_id,
+                            task_id,
+                            prompt_file,
                         )
                 else:
                     logger.warning(
                         "%s/%s: could not parse prompt file path from bootstrap string",
-                        wp_id, task_id,
+                        wp_id,
+                        task_id,
                     )
             params.append(new_params)
             if failure_class == "quality_failure":
@@ -1527,11 +1901,13 @@ class DeliverOrchestrator:
             else:
                 retry_code = "TASK_RETRY_CONTRACT"
                 retry_desc = "契约违规补写"
-            alerts.append({
-                "severity": "INFO",
-                "code": retry_code,
-                "message": f"{wp_id}/{task_id}: 第 {attempts + 1} 次重派（{retry_desc}）",
-            })
+            alerts.append(
+                {
+                    "severity": "INFO",
+                    "code": retry_code,
+                    "message": f"{wp_id}/{task_id}: 第 {attempts + 1} 次重派（{retry_desc}）",
+                }
+            )
         return params, alerts
 
     def _acquire_pulse_lock(self):
@@ -1583,13 +1959,18 @@ class DeliverOrchestrator:
                 plan_path = wp_dir / "stages" / "execution_plan.json"
                 if plan_path.exists():
                     try:
-                        from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+                        from domains.deliver_pro.utils.safe_json_loader import (
+                            SafeJsonLoader,
+                        )
+
                         result = SafeJsonLoader.load_raw(plan_path, mtime_window=0)
                         if result.state == "ok":
                             plan_data = result.data
                             task_graph = plan_data.get("task_graph", [])
                         else:
-                            logger.warning(f"{wp_id}: execution_plan.json corrupted ({result.state})")
+                            logger.warning(
+                                f"{wp_id}: execution_plan.json corrupted ({result.state})"
+                            )
                             task_graph = []
                         if task_graph:
                             plan_task_ids = {
@@ -1597,14 +1978,25 @@ class DeliverOrchestrator:
                                 for t in task_graph
                             }
                             task_deps = {
-                                (t.get("task_id", "") if isinstance(t, dict) else str(t)):
-                                    (t.get("depends_on", []) if isinstance(t, dict) else [])
+                                (
+                                    t.get("task_id", "")
+                                    if isinstance(t, dict)
+                                    else str(t)
+                                ): (
+                                    t.get("depends_on", [])
+                                    if isinstance(t, dict)
+                                    else []
+                                )
                                 for t in task_graph
                             }
-                            wp = derive_worker_progress(wp_dir, plan_task_ids, task_deps)
+                            wp = derive_worker_progress(
+                                wp_dir, plan_task_ids, task_deps
+                            )
                             n += len(wp["running"])
                     except Exception as e:
-                        logger.warning("%s: in-flight worker count failed: %s", wp_id, e)
+                        logger.warning(
+                            "%s: in-flight worker count failed: %s", wp_id, e
+                        )
                 # 非 worker 的已确认未过期 dispatch（analyze/validate/package）
                 entry = self.progress.get(wp_id, {})
                 spawned_at = entry.get("last_spawned_at")
@@ -1622,28 +2014,30 @@ class DeliverOrchestrator:
                         evidence_rel and (wp_dir / evidence_rel).exists()
                     )
                     if not evidence_done:
-                        timeout = _STALE_DISPATCH_TIMEOUTS.get(base_action, _DEFAULT_STALE_TIMEOUT)
+                        timeout = _STALE_DISPATCH_TIMEOUTS.get(
+                            base_action, _DEFAULT_STALE_TIMEOUT
+                        )
                         if now - spawned_at <= timeout:
                             n += 1
         return n
 
     def _check_new_evidence_files(self, since_timestamp: float) -> bool:
         """检查是否有新的产出文件（MANIFEST/delivery_manifest 等）。
-        
+
         INVESTIGATION-001 修复：重派不等于进展，必须有新产出文件才算进展。
-        
+
         Args:
             since_timestamp: 检查此时间戳之后修改的文件
-            
+
         Returns:
             True 如果有新产出文件，False 否则
         """
         project_dir = self.blackboard_root / self.project_name
         deliver_pro_dir = project_dir / "deliver_pro"
-        
+
         if not deliver_pro_dir.exists():
             return False
-        
+
         # 检查所有 WP 的关键产出文件
         evidence_patterns = [
             "stages/worker_outputs/*/MANIFEST.json",
@@ -1651,21 +2045,26 @@ class DeliverOrchestrator:
             "stages/validation_result.json",
             "stages/final_deliverable/*",
         ]
-        
+
         for wp_dir in deliver_pro_dir.iterdir():
             if not wp_dir.is_dir():
                 continue
-            
+
             for pattern in evidence_patterns:
                 for evidence_file in wp_dir.glob(pattern):
-                    if evidence_file.exists() and evidence_file.stat().st_mtime > since_timestamp:
+                    if (
+                        evidence_file.exists()
+                        and evidence_file.stat().st_mtime > since_timestamp
+                    ):
                         return True
-        
+
         return False
 
-    def _update_pulse_state(self, n_spawn_actions: int, status: dict) -> tuple[dict, dict | None]:
+    def _update_pulse_state(
+        self, n_spawn_actions: int, status: dict
+    ) -> tuple[dict, dict | None]:
         """A7: 零进展检测（连续 N 次无真实进展 → STALLED 告警，30min 冷却）。
-        
+
         M6 fix（2026-07-31）：损坏保护 — 备份 + 重建关键字段，不丢光。
         INVESTIGATION-001 fix（2026-07-31）：重派不等于进展，必须有新完成或新产出文件。
         """
@@ -1674,13 +2073,18 @@ class DeliverOrchestrator:
         if state_path.exists():
             try:
                 from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
                 result = SafeJsonLoader.load_raw(state_path, mtime_window=0)
                 if result.state == "ok":
                     state = result.data
                 else:
                     # M6 fix: 备份损坏文件 + 尝试重建关键字段
-                    logger.warning(f"pulse_state.json corrupted ({result.state}), backing up")
-                    backup_path = state_path.with_suffix(f".corrupted.{int(time.time())}")
+                    logger.warning(
+                        f"pulse_state.json corrupted ({result.state}), backing up"
+                    )
+                    backup_path = state_path.with_suffix(
+                        f".corrupted.{int(time.time())}"
+                    )
                     try:
                         state_path.rename(backup_path)
                     except OSError as e:
@@ -1710,20 +2114,20 @@ class DeliverOrchestrator:
 
         # INVESTIGATION-001 修复：检查是否有真实进展
         # 真实进展 = 新完成（completed + terminal_failed 变化）或 新产出文件
-        current_completed_count = status['completed'] + status.get('terminal_failed', 0)
+        current_completed_count = status["completed"] + status.get("terminal_failed", 0)
         last_completed_count = state.get("last_completed_count", 0)
         has_new_completions = current_completed_count > last_completed_count
-        
+
         # 检查自上次 pulse 以来是否有新产出文件
         last_pulse_time = state.get("last_pulse_time", 0)
         has_new_evidence = self._check_new_evidence_files(last_pulse_time)
-        
+
         has_real_progress = has_new_completions or has_new_evidence
-        
+
         signature = f"{status['completed']}+{status.get('terminal_failed', 0)}/{status['total_wps']}"
         alert = None
         last_sig = state.get("last_signature")
-        
+
         # INVESTIGATION-001 修复：只有真实进展才归零，重派不算
         if has_real_progress:
             # 有真实进展（新完成或新产出）→ 归零
@@ -1744,7 +2148,7 @@ class DeliverOrchestrator:
         else:
             # 签名变化（有进展）→ 归零
             state["zero_progress_count"] = 0
-        
+
         state["last_signature"] = signature
         state["last_completed_count"] = current_completed_count
         state["last_pulse_time"] = time.time()
@@ -1801,7 +2205,7 @@ class DeliverOrchestrator:
                 # 否则 matched 永远为空 → 回滚静默失效 + 失败目录不清理
                 wp_prefix = f"deliver-worker-{wp_id.lower()}-"
                 if label.lower().startswith(wp_prefix):
-                    tid = label[len(wp_prefix):]
+                    tid = label[len(wp_prefix) :]
                 else:  # 向后兼容旧格式（deliver-worker-{task_id}）
                     tid = label.replace("deliver-worker-", "")
                 # F2: strip 冲突 fallback 追加的时间戳后缀（_{10+ digits}）
@@ -1811,15 +2215,25 @@ class DeliverOrchestrator:
                 matched = [x for x in id_list if x.lower() == tid.lower()]
                 remaining = [x for x in id_list if x not in matched]
                 if remaining:
-                    entry["last_spawned_action"] = f"{base}:{','.join(sorted(remaining))}"
+                    entry["last_spawned_action"] = (
+                        f"{base}:{','.join(sorted(remaining))}"
+                    )
                     entry["dispatch_confirmed"] = True  # 其余 spawn 成功 → 部分确认
                 else:
-                    for k in ("last_spawned_action", "last_spawned_at", "dispatch_confirmed"):
+                    for k in (
+                        "last_spawned_action",
+                        "last_spawned_at",
+                        "dispatch_confirmed",
+                    ):
                         entry.pop(k, None)
                 for t in matched:
                     self._drop_task_dir_if_empty(wp_id, t)
             else:
-                for k in ("last_spawned_action", "last_spawned_at", "dispatch_confirmed"):
+                for k in (
+                    "last_spawned_action",
+                    "last_spawned_at",
+                    "dispatch_confirmed",
+                ):
                     entry.pop(k, None)
             entry["spawn_failures"] = entry.get("spawn_failures", 0) + 1
             # L2/L4 fix: 回滚时清理 per-task 账本（解禁冷却窗口 + 递减 attempts）
@@ -1827,14 +2241,22 @@ class DeliverOrchestrator:
                 spawned_at_map = entry.get("task_spawned_at", {})
                 attempts_map = entry.get("task_attempts", {})
                 for t in matched:
-                    spawned_at_map.pop(t, None)  # L2: 解禁冷却窗口，下次 pulse 可立即重派
+                    spawned_at_map.pop(
+                        t, None
+                    )  # L2: 解禁冷却窗口，下次 pulse 可立即重派
                     if t in attempts_map and attempts_map[t] > 0:
                         attempts_map[t] -= 1  # L4: spawn 失败不算执行，递减计数
             rolled_back += 1
             failures.append({"wp_id": wp_id, "label": label, "error": r.get("error")})
-            logger.warning("%s/%s: spawn rolled back — %s", wp_id, label, r.get("error"))
+            logger.warning(
+                "%s/%s: spawn rolled back — %s", wp_id, label, r.get("error")
+            )
         self._save_progress()
-        return {"confirmed": confirmed, "rolled_back": rolled_back, "failures": failures}
+        return {
+            "confirmed": confirmed,
+            "rolled_back": rolled_back,
+            "failures": failures,
+        }
 
     def _orphan_sweep(self) -> None:
         """A4: 未确认的 spawn_workers 记录超孤儿窗口 → 清除记录 + 删除空 task 目录。
@@ -1857,12 +2279,18 @@ class DeliverOrchestrator:
             spawned_at = entry.get("last_spawned_at")
             if spawned_at and now - spawned_at > ORPHAN_DISPATCH_WINDOW_SECONDS:
                 removed = self._cleanup_orphan_worker_dirs(wp_id)
-                for k in ("last_spawned_action", "last_spawned_at", "dispatch_confirmed"):
+                for k in (
+                    "last_spawned_action",
+                    "last_spawned_at",
+                    "dispatch_confirmed",
+                ):
                     entry.pop(k, None)
                 swept = True
                 logger.warning(
                     "%s: orphan spawn_workers sweep (unconfirmed >%ds, %d dirs dropped)",
-                    wp_id, ORPHAN_DISPATCH_WINDOW_SECONDS, removed,
+                    wp_id,
+                    ORPHAN_DISPATCH_WINDOW_SECONDS,
+                    removed,
                 )
         # F1b: 无记录孤儿空目录清扫（budget=0 分支若清理遗漏的兜底）
         if self._sweep_recordless_orphan_dirs():
@@ -1910,7 +2338,9 @@ class DeliverOrchestrator:
                     any_swept = True
                     logger.warning(
                         "%s/%s: recordless orphan dir swept (empty, no spawn record, age=%ds)",
-                        wp_id, tid, int(age),
+                        wp_id,
+                        tid,
+                        int(age),
                     )
         return any_swept
 
@@ -1945,10 +2375,12 @@ class DeliverOrchestrator:
         try:
             if path.suffix == ".md":
                 from domains.spec_pro.spec_living_md import parse_living_spec_md
+
                 content = path.read_text(encoding="utf-8")
                 return parse_living_spec_md(content)
             else:
                 from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
                 result = SafeJsonLoader.load_raw(path, mtime_window=0)
                 if result.state == "ok":
                     return result.data
@@ -1981,7 +2413,7 @@ class DeliverOrchestrator:
 
     def _should_infer_contract(self) -> bool:
         """是否应推断交付物契约（批次启动阶段，无 contract 文件时）。
-        
+
         仅在批次启动阶段（无 WP 活动）时返回 True。
         如果 WP 已经在运行或完成，说明已过启动阶段，不再推断 contract（兼容旧批次）。
         """
@@ -2013,9 +2445,13 @@ class DeliverOrchestrator:
         for layer in self.layers:
             for wp_id in layer:
                 entry = self.progress.get(wp_id, {})
-                if entry.get("last_spawned_action") and not entry.get("terminal_failed"):
+                if entry.get("last_spawned_action") and not entry.get(
+                    "terminal_failed"
+                ):
                     # 有未确认的分发记录 → 可能有 in-flight
-                    if not self._is_stale_dispatch(entry, entry["last_spawned_action"], wp_id):
+                    if not self._is_stale_dispatch(
+                        entry, entry["last_spawned_action"], wp_id
+                    ):
                         return False
         return True
 
@@ -2082,6 +2518,7 @@ class DeliverOrchestrator:
         # Write context to file instead of inlining large JSON
         living_spec = self._read_living_spec()
         from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
         result = SafeJsonLoader.load_raw(self._contract_path(), mtime_window=0)
         if result.state == "ok":
             contract = result.data
@@ -2128,6 +2565,7 @@ class DeliverOrchestrator:
             Spawn action dict for LLM to judge each req_element as COVERED/PARTIAL/MISSING
         """
         from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
         result = SafeJsonLoader.load_raw(self._contract_path(), mtime_window=0)
         if result.state == "ok":
             contract = result.data
@@ -2142,7 +2580,9 @@ class DeliverOrchestrator:
             for f in synthesis_dir.rglob("*"):
                 if f.is_file() and f.stat().st_size > 0:
                     try:
-                        synthesis_text += f.read_text(encoding="utf-8", errors="ignore")[:5000]
+                        synthesis_text += f.read_text(
+                            encoding="utf-8", errors="ignore"
+                        )[:5000]
                     except Exception as e:
                         logger.debug(f"Failed to read synthesis file: {e}")
 
@@ -2179,44 +2619,44 @@ class DeliverOrchestrator:
             "mode": "run",
             "thinking": "medium",
         }
-    
+
     def _check_wp_dwell_time(self) -> list[dict]:
         """INVESTIGATION-001: 检查每个 WP 在当前 phase 的停留时间。
-        
+
         告警阈值：
         - PACKAGING > 2h: WARN
         - PACKAGING > 6h: CRITICAL
         - VALIDATING > 1h: WARN
         - VALIDATING > 3h: CRITICAL
-        
+
         Returns:
             告警列表
         """
         alerts = []
         now = time.time()
-        
+
         # 阈值配置（秒）
         thresholds = {
             "PACKAGING": {"warn": 2 * 3600, "critical": 6 * 3600},
             "VALIDATING": {"warn": 1 * 3600, "critical": 3 * 3600},
             "GENERATING": {"warn": 1 * 3600, "critical": 4 * 3600},
         }
-        
+
         for layer in self.layers:
             for wp_id in layer:
                 entry = self.progress.get(wp_id, {})
                 if not isinstance(entry, dict):
                     continue
-                
+
                 # 跳过已完成的 WP
                 if entry.get("terminal_failed"):
                     continue
-                
+
                 # 获取当前 phase
                 phase = self._check_wp_phase(wp_id)
                 if phase == "DONE":
                     continue
-                
+
                 # 获取进入当前 phase 的时间
                 # 优先使用 last_spawned_at，其次使用 task_spawned_at 中最新的
                 entered_at = entry.get("last_spawned_at")
@@ -2225,59 +2665,64 @@ class DeliverOrchestrator:
                     spawned_at_map = entry.get("task_spawned_at", {})
                     if spawned_at_map:
                         entered_at = max(spawned_at_map.values())
-                
+
                 if not entered_at:
                     continue
-                
+
                 dwell_seconds = now - entered_at
-                
+
                 # 检查阈值
                 if phase in thresholds:
                     critical_threshold = thresholds[phase]["critical"]
                     warn_threshold = thresholds[phase]["warn"]
-                    
+
                     if dwell_seconds > critical_threshold:
-                        alerts.append({
-                            "severity": "CRITICAL",
-                            "code": "WP_DWELL_CRITICAL",
-                            "message": (
-                                f"{wp_id} 卡在 {phase} {dwell_seconds/3600:.1f} 小时"
-                                f"（阈值 {critical_threshold/3600:.0f}h），需立即检查"
-                            ),
-                        })
+                        alerts.append(
+                            {
+                                "severity": "CRITICAL",
+                                "code": "WP_DWELL_CRITICAL",
+                                "message": (
+                                    f"{wp_id} 卡在 {phase} {dwell_seconds / 3600:.1f} 小时"
+                                    f"（阈值 {critical_threshold / 3600:.0f}h），需立即检查"
+                                ),
+                            }
+                        )
                     elif dwell_seconds > warn_threshold:
-                        alerts.append({
-                            "severity": "WARN",
-                            "code": "WP_DWELL_WARN",
-                            "message": (
-                                f"{wp_id} 卡在 {phase} {dwell_seconds/3600:.1f} 小时"
-                                f"（阈值 {warn_threshold/3600:.0f}h）"
-                            ),
-                        })
-        
+                        alerts.append(
+                            {
+                                "severity": "WARN",
+                                "code": "WP_DWELL_WARN",
+                                "message": (
+                                    f"{wp_id} 卡在 {phase} {dwell_seconds / 3600:.1f} 小时"
+                                    f"（阈值 {warn_threshold / 3600:.0f}h）"
+                                ),
+                            }
+                        )
+
         return alerts
 
     def _process_gate_report(self) -> dict:
         """Process the gate report written by LLM judge.
-        
+
         Returns:
             {"passed": bool, "gaps": [...], "report_path": str}
-        
+
         Raises:
             ValueError: MUST 要素 MISSING → HARD_BLOCK, or report invalid/missing (fail-closed)
         """
         report_path = self._final_gate_report_path()
-        
+
         # Fail-closed: report must exist
         if not report_path.exists():
             raise ValueError(
                 f"Gate report not found at {report_path}. "
                 f"LLM judge failed to write judgment. Fail-closed: cannot proceed."
             )
-        
+
         # Fail-closed: report must be valid JSON
         try:
             from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
             result = SafeJsonLoader.load_raw(report_path, mtime_window=0)
             if result.state == "ok":
                 report = result.data
@@ -2291,7 +2736,7 @@ class DeliverOrchestrator:
                 f"Gate report at {report_path} is invalid JSON: {e}. "
                 f"Fail-closed: cannot proceed."
             ) from e
-        
+
         # Fail-closed: report must have expected structure
         gaps = report.get("gaps")
         if not isinstance(gaps, list):
@@ -2299,16 +2744,20 @@ class DeliverOrchestrator:
                 f"Gate report at {report_path} missing 'gaps' array. "
                 f"Fail-closed: cannot proceed."
             )
-        
+
         # Check MUST elements
-        must_missing = [g for g in gaps if g.get("criticality") == "MUST" and g.get("status") == "MISSING"]
+        must_missing = [
+            g
+            for g in gaps
+            if g.get("criticality") == "MUST" and g.get("status") == "MISSING"
+        ]
         report["passed"] = len(must_missing) == 0
         report["must_missing"] = must_missing
         report["report_path"] = str(report_path)
-        
+
         # Re-write with computed fields
         atomic_write_json(report_path, report)
-        
+
         if must_missing:
             raise ValueError(
                 f"HARD_BLOCK: MUST elements missing: {[m['element'] for m in must_missing]}. "
@@ -2375,11 +2824,14 @@ class DeliverOrchestrator:
         if completed_path.exists():
             try:
                 from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
                 result = SafeJsonLoader.load_raw(completed_path, mtime_window=0)
                 if result.state == "ok":
                     completed_data = result.data
                 else:
-                    logger.warning(f"completed.json corrupted: {result.state}, using empty")
+                    logger.warning(
+                        f"completed.json corrupted: {result.state}, using empty"
+                    )
                     completed_data = {}
             except Exception:
                 completed_data = {}
@@ -2456,25 +2908,32 @@ class DeliverOrchestrator:
                 except ValueError as e:
                     first_block = not blocked_path.exists()
                     if first_block:
-                        atomic_write_json(blocked_path, {
-                            "blocked_at": time.time(),
-                            "code": "PRECONDITION_MISSING",
-                            "reason": str(e),
-                        })
-                    alerts.append({
-                        "severity": "CRITICAL" if first_block else "INFO",
-                        "code": "PRECONDITION_MISSING" if first_block else "STILL_BLOCKED",
-                        "message": str(e),
-                    })
+                        atomic_write_json(
+                            blocked_path,
+                            {
+                                "blocked_at": time.time(),
+                                "code": "PRECONDITION_MISSING",
+                                "reason": str(e),
+                            },
+                        )
+                    alerts.append(
+                        {
+                            "severity": "CRITICAL" if first_block else "INFO",
+                            "code": "PRECONDITION_MISSING"
+                            if first_block
+                            else "STILL_BLOCKED",
+                            "message": str(e),
+                        }
+                    )
                     return _build_report(
                         status="blocked",
                         actions=[],
                         alerts=alerts,
                         summary={
-                            "total_wps": sum(len(l) for l in self.layers),
+                            "total_wps": sum(len(layer) for layer in self.layers),
                             "completed": 0,
                             "terminal_failed": 0,
-                            "in_progress": sum(len(l) for l in self.layers),
+                            "in_progress": sum(len(layer) for layer in self.layers),
                             "in_flight": 0,
                             "zero_progress_count": 0,
                             "truncated": False,
@@ -2489,10 +2948,10 @@ class DeliverOrchestrator:
                         actions=[contract_action],
                         alerts=[],
                         summary={
-                            "total_wps": sum(len(l) for l in self.layers),
+                            "total_wps": sum(len(layer) for layer in self.layers),
                             "completed": 0,
                             "terminal_failed": 0,
-                            "in_progress": sum(len(l) for l in self.layers),
+                            "in_progress": sum(len(layer) for layer in self.layers),
                             "in_flight": 0,
                             "zero_progress_count": 0,
                             "truncated": False,
@@ -2517,11 +2976,13 @@ class DeliverOrchestrator:
                     continue
                 if action == "terminal_failed":
                     self.progress.setdefault(wp_id, {})["terminal_failed"] = True
-                    alerts.append({
-                        "severity": "CRITICAL",
-                        "code": "TERMINAL_FAILED",
-                        "message": f"{wp_id}: {item.get('error', 'terminal failed')}",
-                    })
+                    alerts.append(
+                        {
+                            "severity": "CRITICAL",
+                            "code": "TERMINAL_FAILED",
+                            "message": f"{wp_id}: {item.get('error', 'terminal failed')}",
+                        }
+                    )
                     continue
                 if action.startswith("assemble"):
                     continue  # 确定性代码已在 tick 内执行
@@ -2529,11 +2990,13 @@ class DeliverOrchestrator:
                 if not params:
                     # A#1(DryRun R1): 错误 action 不静默丢弃 — 转 WARN alert（可观测性）
                     if item.get("error"):
-                        alerts.append({
-                            "severity": "WARN",
-                            "code": "ACTION_ERROR",
-                            "message": f"{wp_id}/{action}: {item['error']}",
-                        })
+                        alerts.append(
+                            {
+                                "severity": "WARN",
+                                "code": "ACTION_ERROR",
+                                "message": f"{wp_id}/{action}: {item['error']}",
+                            }
+                        )
                     continue
                 param_list = params if isinstance(params, list) else [params]
                 # F2: label 冲突 fallback — 若该 WP 有 spawn 失败记录（含 label already in use），
@@ -2551,31 +3014,37 @@ class DeliverOrchestrator:
                     _label = p.get("label", f"{action}-{wp_id.lower()}")
                     if _should_add_suffix and not re.search(r"_\d{10,}$", _label):
                         _label = f"{_label}_{int(time.time())}"
-                    candidates.append({
-                        "wp_id": wp_id,
-                        "action": action if action != "spawn_workers" else "spawn_workers",
-                        "task": p["task"],
-                        "label": _label,
-                        "model": p.get("model"),
-                        "mode": p.get("mode", "run"),
-                        "thinking": p.get("thinking", "medium"),
-                    })
+                    candidates.append(
+                        {
+                            "wp_id": wp_id,
+                            "action": action
+                            if action != "spawn_workers"
+                            else "spawn_workers",
+                            "task": p["task"],
+                            "label": _label,
+                            "model": p.get("model"),
+                            "mode": p.get("mode", "run"),
+                            "thinking": p.get("thinking", "medium"),
+                        }
+                    )
                 # P1-polish: 重置计数器移出循环，确保多 param wave 都获后缀
                 if _should_add_suffix:
                     _entry["spawn_failures"] = 0
                     self.progress[wp_id] = _entry
 
             if self._last_tick_truncated:
-                alerts.append({
-                    # INFO 而非 WARN：预算截断是正常节流行为，不值得飞书告警
-                    # （2026-07-24 首轮运行刷屏 15 条教训）
-                    "severity": "INFO",
-                    "code": "IN_FLIGHT_CAP",
-                    "message": (
-                        f"并发上限截断：in_flight={in_flight}，本次预算 {budget}，"
-                        f"部分动作延迟到下一 pulse"
-                    ),
-                })
+                alerts.append(
+                    {
+                        # INFO 而非 WARN：预算截断是正常节流行为，不值得飞书告警
+                        # （2026-07-24 首轮运行刷屏 15 条教训）
+                        "severity": "INFO",
+                        "code": "IN_FLIGHT_CAP",
+                        "message": (
+                            f"并发上限截断：in_flight={in_flight}，本次预算 {budget}，"
+                            f"部分动作延迟到下一 pulse"
+                        ),
+                    }
+                )
 
             # === Final Synthesis 触发检查（2026-07-29） ===
             # 阶段 2: 全部 WP DONE 后触发 final_synthesis
@@ -2584,18 +3053,17 @@ class DeliverOrchestrator:
                     synthesis_action = self._build_final_synthesis_action()
                     candidates.append(synthesis_action)
                 except Exception as e:
-                    alerts.append({
-                        "severity": "WARN",
-                        "code": "FINAL_SYNTHESIS_BUILD_FAILED",
-                        "message": str(e),
-                    })
+                    alerts.append(
+                        {
+                            "severity": "WARN",
+                            "code": "FINAL_SYNTHESIS_BUILD_FAILED",
+                            "message": str(e),
+                        }
+                    )
 
             # 阶段 3: final_synthesis 产出落盘后执行语义回溯 Gate（LLM-as-Judge）
             # 铁律：语义判断必须用 LLM，禁止关键词检查
-            if (
-                self._final_synthesis_dir().exists()
-                and self._contract_path().exists()
-            ):
+            if self._final_synthesis_dir().exists() and self._contract_path().exists():
                 # 检查 synthesis 是否有实质产出
                 synthesis_has_content = any(
                     f.is_file() and f.stat().st_size > 0
@@ -2604,7 +3072,7 @@ class DeliverOrchestrator:
                 if synthesis_has_content:
                     gate_report_exists = self._final_gate_report_path().exists()
                     gate_spawned = self._gate_spawned_path().exists()
-                    
+
                     if gate_report_exists:
                         # LLM 已写完 judgment → Python 侧处理
                         try:
@@ -2613,42 +3081,53 @@ class DeliverOrchestrator:
                                 self._mark_final_deliverable_done(gate_report)
                         except ValueError as e:
                             # MUST 要素 MISSING 或 report 非法 → HARD_BLOCK
-                            alerts.append({
-                                "severity": "CRITICAL",
-                                "code": "SEMANTIC_GATE_HARD_BLOCK",
-                                "message": str(e),
-                            })
+                            alerts.append(
+                                {
+                                    "severity": "CRITICAL",
+                                    "code": "SEMANTIC_GATE_HARD_BLOCK",
+                                    "message": str(e),
+                                }
+                            )
                     elif gate_spawned:
                         # Gate action 已 spawn 但无 report → LLM 失败 → fail-closed
-                        alerts.append({
-                            "severity": "CRITICAL",
-                            "code": "SEMANTIC_GATE_LLM_FAILED",
-                            "message": (
-                                "Gate action was spawned but LLM judge failed to write report. "
-                                "Fail-closed: cannot proceed. Please check LLM session and re-run."
-                            ),
-                        })
+                        alerts.append(
+                            {
+                                "severity": "CRITICAL",
+                                "code": "SEMANTIC_GATE_LLM_FAILED",
+                                "message": (
+                                    "Gate action was spawned but LLM judge failed to write report. "
+                                    "Fail-closed: cannot proceed. Please check LLM session and re-run."
+                                ),
+                            }
+                        )
                     else:
                         # 首次触发：spawn gate action + 写 flag
                         try:
                             gate_action = self._build_run_final_gate_action()
                             candidates.append(gate_action)
                             # 写 flag 标记已 spawn
-                            atomic_write_json(self._gate_spawned_path(), {
-                                "spawned_at": time.time(),
-                                "action": "run_final_gate",
-                            })
+                            atomic_write_json(
+                                self._gate_spawned_path(),
+                                {
+                                    "spawned_at": time.time(),
+                                    "action": "run_final_gate",
+                                },
+                            )
                         except Exception as e:
                             # 构建 action 失败（如 contract 不可读）→ fail-closed
-                            alerts.append({
-                                "severity": "CRITICAL",
-                                "code": "SEMANTIC_GATE_BUILD_FAILED",
-                                "message": f"Failed to build gate action: {e}. Fail-closed.",
-                            })
+                            alerts.append(
+                                {
+                                    "severity": "CRITICAL",
+                                    "code": "SEMANTIC_GATE_BUILD_FAILED",
+                                    "message": f"Failed to build gate action: {e}. Fail-closed.",
+                                }
+                            )
 
             # A7: 零进展检测
             status = self.get_status()
-            pulse_state, stalled_alert = self._update_pulse_state(len(candidates), status)
+            pulse_state, stalled_alert = self._update_pulse_state(
+                len(candidates), status
+            )
             if stalled_alert:
                 alerts.append(stalled_alert)
 
@@ -2661,44 +3140,56 @@ class DeliverOrchestrator:
             final_done = self._final_deliverable_done_path().exists()
             if status["all_resolved"] and final_done:
                 terminal_wps = [
-                    wp for layer in self.layers for wp in layer
+                    wp
+                    for layer in self.layers
+                    for wp in layer
                     if self.progress.get(wp, {}).get("terminal_failed")
                 ]
-                atomic_write_json(completed_path, {
-                    "completed_at": time.time(),
-                    "total_wps": status["total_wps"],
-                    "completed": status["completed"],
-                    "terminal_failed": status["terminal_failed"],
-                    "terminal_failed_wps": terminal_wps,
-                    "final_synthesis_done": True,
-                })
+                atomic_write_json(
+                    completed_path,
+                    {
+                        "completed_at": time.time(),
+                        "total_wps": status["total_wps"],
+                        "completed": status["completed"],
+                        "terminal_failed": status["terminal_failed"],
+                        "terminal_failed_wps": terminal_wps,
+                        "final_synthesis_done": True,
+                    },
+                )
                 pulse_status = "completed"
             elif status["all_resolved"] and status["terminal_failed"] > 0:
                 # P0-B 修复（2026-08-14）: 终态自停 — 全部已解决但含永久失败。
                 # 有 terminal_failed WP 时成功终态不可达（final synthesis 要求全部 DONE），
                 # 不写终态标记就会被调度器无限轮询（生产事故：僵尸项目被轮询 ~3700 次）。
                 terminal_wps = [
-                    wp for layer in self.layers for wp in layer
+                    wp
+                    for layer in self.layers
+                    for wp in layer
                     if self.progress.get(wp, {}).get("terminal_failed")
                 ]
-                atomic_write_json(completed_path, {
-                    "completed_at": time.time(),
-                    "total_wps": status["total_wps"],
-                    "completed": status["completed"],
-                    "terminal_failed": status["terminal_failed"],
-                    "terminal_failed_wps": terminal_wps,
-                    "final_synthesis_done": False,
-                    "outcome": "terminal_failed_self_stop",
-                })
-                alerts.append({
-                    "severity": "CRITICAL",
-                    "code": "TERMINAL_SELF_STOP",
-                    "message": (
-                        f"项目进入终态：{status['completed']}/{status['total_wps']} 成功，"
-                        f"{status['terminal_failed']} 永久失败（{', '.join(terminal_wps[:5])}）。"
-                        f"已写终态标记并自停调度。"
-                    ),
-                })
+                atomic_write_json(
+                    completed_path,
+                    {
+                        "completed_at": time.time(),
+                        "total_wps": status["total_wps"],
+                        "completed": status["completed"],
+                        "terminal_failed": status["terminal_failed"],
+                        "terminal_failed_wps": terminal_wps,
+                        "final_synthesis_done": False,
+                        "outcome": "terminal_failed_self_stop",
+                    },
+                )
+                alerts.append(
+                    {
+                        "severity": "CRITICAL",
+                        "code": "TERMINAL_SELF_STOP",
+                        "message": (
+                            f"项目进入终态：{status['completed']}/{status['total_wps']} 成功，"
+                            f"{status['terminal_failed']} 永久失败（{', '.join(terminal_wps[:5])}）。"
+                            f"已写终态标记并自停调度。"
+                        ),
+                    }
+                )
                 pulse_status = "completed"
             elif status["all_resolved"] and not final_done:
                 # 全部 WP DONE（无失败）但 final_synthesis 未完成 → 保持 active
@@ -2770,7 +3261,12 @@ class DeliverOrchestrator:
         _check_drive_mode_allowed("drive_once()")
         status = self.get_status()
         if status["all_done"]:
-            return {"all_done": True, "spawn_actions": [], "status": status, "auto_completed": []}
+            return {
+                "all_done": True,
+                "spawn_actions": [],
+                "status": status,
+                "auto_completed": [],
+            }
 
         tick_results = self.tick()
         spawn_actions = []
@@ -2803,25 +3299,29 @@ class DeliverOrchestrator:
                 # Extract spawn-relevant fields
                 if isinstance(params, list):
                     for p in params:
-                        spawn_actions.append({
+                        spawn_actions.append(
+                            {
+                                "wp_id": wp_id,
+                                "action": action,
+                                "task": p.get("task", ""),
+                                "label": p.get("label", ""),
+                                "model": p.get("model"),
+                                "mode": p.get("mode", "run"),
+                                "thinking": p.get("thinking", "medium"),
+                            }
+                        )
+                else:
+                    spawn_actions.append(
+                        {
                             "wp_id": wp_id,
                             "action": action,
-                            "task": p.get("task", ""),
-                            "label": p.get("label", ""),
-                            "model": p.get("model"),
-                            "mode": p.get("mode", "run"),
-                            "thinking": p.get("thinking", "medium"),
-                        })
-                else:
-                    spawn_actions.append({
-                        "wp_id": wp_id,
-                        "action": action,
-                        "task": params.get("task", ""),
-                        "label": params.get("label", ""),
-                        "model": params.get("model"),
-                        "mode": params.get("mode", "run"),
-                        "thinking": params.get("thinking", "medium"),
-                    })
+                            "task": params.get("task", ""),
+                            "label": params.get("label", ""),
+                            "model": params.get("model"),
+                            "mode": params.get("mode", "run"),
+                            "thinking": params.get("thinking", "medium"),
+                        }
+                    )
             elif item.get("error"):
                 logger.warning(f"{wp_id}: {action} failed — {item['error']}")
 
@@ -2871,7 +3371,8 @@ class DeliverOrchestrator:
                 return {
                     "all_done": True,
                     "spawn_actions": [],
-                    "auto_completed": all_auto_completed + result.get("auto_completed", []),
+                    "auto_completed": all_auto_completed
+                    + result.get("auto_completed", []),
                     "iterations": iterations,
                 }
 
@@ -2917,7 +3418,7 @@ class DeliverOrchestrator:
         """生成人类可读的 pipeline 进度报告。"""
         status = self.get_status()
         lines = [
-            f"## Deliver Pro Pipeline Status",
+            "## Deliver Pro Pipeline Status",
             f"Total: {status['total_wps']} | Done: {status['completed']} | Failed: {status['failed']} | In Progress: {status['in_progress']}",
             f"All Done: {status['all_done']}",
             "",
@@ -2929,14 +3430,28 @@ class DeliverOrchestrator:
                 phase = self._check_wp_phase(wp_id)
                 # Check validation score if available
                 proj = f"deliver_{wp_id.lower().replace('-', '_')}"
-                wp_subdir = wp_id.lower().replace('-', '_')
-                vr = self.blackboard_root / proj / "deliver_pro" / wp_subdir / "stages" / "validation_result.json"
+                wp_subdir = wp_id.lower().replace("-", "_")
+                vr = (
+                    self.blackboard_root
+                    / proj
+                    / "deliver_pro"
+                    / wp_subdir
+                    / "stages"
+                    / "validation_result.json"
+                )
                 score_str = ""
                 if vr.exists():
                     try:
-                        from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
-                        from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
-                        result = SafeJsonLoader.load(vr, ValidationVerdict, mtime_window=0)
+                        from domains.deliver_pro.utils.safe_json_loader import (
+                            SafeJsonLoader,
+                        )
+                        from domains.deliver_pro.contracts.validation_verdict import (
+                            ValidationVerdict,
+                        )
+
+                        result = SafeJsonLoader.load(
+                            vr, ValidationVerdict, mtime_window=0
+                        )
                         if result.state == "ok":
                             vdata = result.data
                             score = vdata.get("weighted_score", "?")

@@ -29,18 +29,28 @@ from pathlib import Path
 
 # 自动发现 .deepflow 根目录
 _script_path = Path(__file__).resolve()
-_deepflow_root = next((d for d in _script_path.parents if (d / 'core' / 'blackboard').is_dir()), None)
+_deepflow_root = next(
+    (d for d in _script_path.parents if (d / "core" / "blackboard").is_dir()), None
+)
 if _deepflow_root and str(_deepflow_root) not in sys.path:
     sys.path.insert(0, str(_deepflow_root))
 
-from contracts.shared.e2e_contract import E2EValidator, STANDARD_PIPELINE
+from contracts.shared.e2e_contract import E2EValidator
 
 
 def main():
-    parser = argparse.ArgumentParser(description="E2E Pipeline Stage Validator (契约笼子)")
-    parser.add_argument("--project", required=True, help="Project name (blackboard directory name)")
-    parser.add_argument("--completed", help="Stage name that just completed (e.g., solution_pro)")
-    parser.add_argument("--status", action="store_true", help="Check full pipeline status")
+    parser = argparse.ArgumentParser(
+        description="E2E Pipeline Stage Validator (契约笼子)"
+    )
+    parser.add_argument(
+        "--project", required=True, help="Project name (blackboard directory name)"
+    )
+    parser.add_argument(
+        "--completed", help="Stage name that just completed (e.g., solution_pro)"
+    )
+    parser.add_argument(
+        "--status", action="store_true", help="Check full pipeline status"
+    )
     parser.add_argument("--prerequisites", help="Check prerequisites for a stage")
     args = parser.parse_args()
 
@@ -49,11 +59,15 @@ def main():
     project_bb = bb_root / args.project
 
     if not project_bb.exists():
-        print(json.dumps({
-            "ok": False,
-            "error": f"Project blackboard not found: {project_bb}",
-            "hint": "Run Spec Pro or Solution Pro first",
-        }))
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": f"Project blackboard not found: {project_bb}",
+                    "hint": "Run Spec Pro or Solution Pro first",
+                }
+            )
+        )
         sys.exit(1)
 
     validator = E2EValidator(project_bb)
@@ -80,31 +94,47 @@ def main():
         try:
             next_action = validator.get_next_action(args.completed)
             if next_action is None:
-                print(json.dumps({
-                    "ok": True,
-                    "action": "done",
-                    "message": f"Pipeline complete after {args.completed}",
-                    "completed_stage": args.completed,
-                }))
+                print(
+                    json.dumps(
+                        {
+                            "ok": True,
+                            "action": "done",
+                            "message": f"Pipeline complete after {args.completed}",
+                            "completed_stage": args.completed,
+                        }
+                    )
+                )
             else:
-                print(json.dumps({
-                    "ok": True,
-                    "action": "continue",
-                    "completed_stage": args.completed,
-                    "next_stage": next_action["stage"],
-                    "domain": next_action["domain"],
-                    "entry_function": next_action["entry_function"],
-                    "prerequisites_ok": next_action["prerequisites_ok"],
-                    "prerequisites_missing": next_action["prerequisites_missing"],
-                    "instruction": f"Must run {next_action['entry_function']} next. Do NOT terminate.",
-                }, indent=2, ensure_ascii=False))
+                print(
+                    json.dumps(
+                        {
+                            "ok": True,
+                            "action": "continue",
+                            "completed_stage": args.completed,
+                            "next_stage": next_action["stage"],
+                            "domain": next_action["domain"],
+                            "entry_function": next_action["entry_function"],
+                            "prerequisites_ok": next_action["prerequisites_ok"],
+                            "prerequisites_missing": next_action[
+                                "prerequisites_missing"
+                            ],
+                            "instruction": f"Must run {next_action['entry_function']} next. Do NOT terminate.",
+                        },
+                        indent=2,
+                        ensure_ascii=False,
+                    )
+                )
         except ValueError as e:
-            print(json.dumps({
-                "ok": False,
-                "action": "blocked",
-                "error": str(e),
-                "instruction": "Fix the missing outputs before continuing.",
-            }))
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "action": "blocked",
+                        "error": str(e),
+                        "instruction": "Fix the missing outputs before continuing.",
+                    }
+                )
+            )
             sys.exit(1)
 
     elif args.prerequisites:

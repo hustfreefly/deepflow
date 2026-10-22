@@ -14,6 +14,7 @@ from __future__ import annotations
 
 class StateTransitionError(Exception):
     """非法状态转换（保留用于其他模块兼容）。"""
+
     pass
 
 

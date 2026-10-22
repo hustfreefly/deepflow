@@ -13,10 +13,9 @@ Usage:
 import json
 import os
 import sys
-from datetime import datetime
 import logging
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 
 FALLBACKS = {
@@ -66,7 +65,11 @@ FALLBACKS = {
         },
         "questions": {
             "questions": [
-                {"type": "clarification", "text": "请再展开说说你的需求？", "dimension": "objective"}
+                {
+                    "type": "clarification",
+                    "text": "请再展开说说你的需求？",
+                    "dimension": "objective",
+                }
             ],
             "strategy_note": "fallback",
         },
@@ -82,24 +85,24 @@ def cmd_fallback(worker_type: str, output_path: str) -> None:
         if fallback is None:
             print(f"Unknown worker type: {worker_type}", file=sys.stderr)
             sys.exit(1)
-        
+
         # 第一个输出路径是 quality_report
         quality_report_path = output_path
         # 第二个输出路径是 questions (通过命令行第二个路径参数)
         questions_path = sys.argv[3] if len(sys.argv) > 3 else None
-        
+
         os.makedirs(os.path.dirname(quality_report_path), exist_ok=True)
         with open(quality_report_path, "w", encoding="utf-8") as f:
             json.dump(fallback["quality_report"], f, ensure_ascii=False, indent=2)
         print(f"Wrote assess fallback to {quality_report_path}")
-        
+
         if questions_path:
             os.makedirs(os.path.dirname(questions_path), exist_ok=True)
             with open(questions_path, "w", encoding="utf-8") as f:
                 json.dump(fallback["questions"], f, ensure_ascii=False, indent=2)
             print(f"Wrote questions fallback to {questions_path}")
         return
-    
+
     fallback = FALLBACKS.get(worker_type)
     if fallback is None:
         print(f"Unknown worker type: {worker_type}", file=sys.stderr)
@@ -111,8 +114,14 @@ def cmd_fallback(worker_type: str, output_path: str) -> None:
     print(f"Wrote fallback to {output_path}")
 
 
-def cmd_append_trajectory(base_path: str, round_num: int, score: float,
-                          level: str, q_count: int = 0, inf_validated: int = 0) -> None:
+def cmd_append_trajectory(
+    base_path: str,
+    round_num: int,
+    score: float,
+    level: str,
+    q_count: int = 0,
+    inf_validated: int = 0,
+) -> None:
     """Append a trajectory point to quality_trajectory.json (dict format).
 
     契约笼子（2026-07-06）:
@@ -179,7 +188,9 @@ def cmd_append_trajectory(base_path: str, round_num: int, score: float,
 def main():
     if len(sys.argv) < 3:
         print("Usage: worker_fallback.py <worker_type> <output_path>")
-        print("       worker_fallback.py append_trajectory <base_path> <round> <score> <level> [<q_count> <inf_validated>]")
+        print(
+            "       worker_fallback.py append_trajectory <base_path> <round> <score> <level> [<q_count> <inf_validated>]"
+        )
         sys.exit(1)
 
     command = sys.argv[1]
@@ -191,7 +202,9 @@ def main():
         level = sys.argv[5]
         q_count = int(sys.argv[6]) if len(sys.argv) > 6 else 0
         inf_validated = int(sys.argv[7]) if len(sys.argv) > 7 else 0
-        cmd_append_trajectory(base_path, round_num, score, level, q_count, inf_validated)
+        cmd_append_trajectory(
+            base_path, round_num, score, level, q_count, inf_validated
+        )
     else:
         output_path = sys.argv[2]
         cmd_fallback(command, output_path)

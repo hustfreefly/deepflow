@@ -1,4 +1,5 @@
 """Contract test for the Phase 0 failure triage tool."""
+
 import json
 import subprocess
 import sys
@@ -17,10 +18,16 @@ def test_triage_cli_classifies_known_pass(tmp_path):
     )
     p = subprocess.run(
         [sys.executable, str(SCRIPT), "--log", str(log), "--json"],
-        cwd=ROOT, capture_output=True, text=True, timeout=90,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=90,
     )
     assert p.returncode == 0, p.stderr
     data = json.loads(p.stdout)
     assert data["total"] == 1
     assert data["counts"]["isolation-pass"] == 1
-    assert data["results"][0]["test"] == "tests/contracts/test_cage.py::test_active_contracts_exist"
+    assert (
+        data["results"][0]["test"]
+        == "tests/contracts/test_cage.py::test_active_contracts_exist"
+    )

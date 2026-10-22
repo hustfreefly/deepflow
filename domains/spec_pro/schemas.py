@@ -15,8 +15,6 @@ Schema 结构说明：
 - 类型标记: 'str', 'int', 'float', 'bool', 'list', 'dict', 'any'
 """
 
-from typing import Any, Dict, List, Tuple
-
 
 # ============================================================================
 # 常量 — 跨模块共享的确定性配置（禁止在其他地方硬编码）
@@ -24,8 +22,13 @@ from typing import Any, Dict, List, Tuple
 
 INFERENCE_AUDIT_THRESHOLD = 5  # pending 推断超过此数 → WARN
 QUALITY_DIMENSIONS = [
-    "objective", "users", "capabilities", "quality_attributes",
-    "constraints", "integration", "risks",
+    "objective",
+    "users",
+    "capabilities",
+    "quality_attributes",
+    "constraints",
+    "integration",
+    "risks",
 ]
 QUALITY_DIMENSION_WEIGHTS = {
     "objective": 0.20,
@@ -57,15 +60,22 @@ LIVING_SPEC_SCHEMA = {
                 "quality_score": {"type": "any"},  # int or float
                 "quality_level": {"type": "str"},
                 "scenario": {"type": "str"},
-                "mode": {"type": "str"}
-            }
+                "mode": {"type": "str"},
+            },
         },
         "confirmed": {
             "type": "dict",
             "required": [
-                "objective", "success_metrics", "pain_points", "users",
-                "key_scenarios", "capabilities", "quality_attributes",
-                "constraints", "risks_and_assumptions", "integration",
+                "objective",
+                "success_metrics",
+                "pain_points",
+                "users",
+                "key_scenarios",
+                "capabilities",
+                "quality_attributes",
+                "constraints",
+                "risks_and_assumptions",
+                "integration",
             ],
             "properties": {
                 "objective": {"type": "str"},
@@ -78,8 +88,8 @@ LIVING_SPEC_SCHEMA = {
                     "properties": {
                         "always_do": {"type": "list"},
                         "should_do": {"type": "list"},
-                        "never_do": {"type": "list"}
-                    }
+                        "never_do": {"type": "list"},
+                    },
                 },
                 "quality_attributes": {"type": "list"},
                 "constraints": {"type": "dict"},
@@ -87,25 +97,22 @@ LIVING_SPEC_SCHEMA = {
                     "type": "dict",
                     "properties": {
                         "risks": {"type": "list"},
-                        "assumptions": {"type": "list"}
-                    }
+                        "assumptions": {"type": "list"},
+                    },
                 },
                 "integration": {"type": "dict"},
                 "terms": {"type": "list"},
-                "user_directives": {"type": "list"}
-            }
+                "user_directives": {"type": "list"},
+            },
         },
         "inferred": {"type": "list"},
         "solution_pro_hints": {"type": "any"},  # None until StructureWorker fills it
         "route_recommendation": {"type": "any"},  # None until StructureWorker fills it
         "guardrails": {
             "type": "dict",
-            "properties": {
-                "always_do": {"type": "list"},
-                "never_do": {"type": "list"}
-            }
-        }
-    }
+            "properties": {"always_do": {"type": "list"}, "never_do": {"type": "list"}},
+        },
+    },
 }
 
 
@@ -118,7 +125,14 @@ ROUND_RESULT_SCHEMA = {
     "properties": {
         "action": {
             "type": "str",
-            "enum": ["questions", "summary", "proposal", "done", "safety_stop", "error"]
+            "enum": [
+                "questions",
+                "summary",
+                "proposal",
+                "done",
+                "safety_stop",
+                "error",
+            ],
         },
         "questions": {"type": "list"},
         "proposal_text": {"type": "str"},
@@ -139,14 +153,14 @@ ROUND_RESULT_SCHEMA = {
                         "quality_attributes": {"type": "dict"},
                         "constraints": {"type": "dict"},
                         "integration": {"type": "dict"},
-                        "risks": {"type": "dict"}
-                    }
+                        "risks": {"type": "dict"},
+                    },
                 },
-                "top_missing": {"type": "list"}
-            }
+                "top_missing": {"type": "list"},
+            },
         },
-        "conversation_log": {"type": "list"}
-    }
+        "conversation_log": {"type": "list"},
+    },
 }
 
 
@@ -184,17 +198,17 @@ RESPONSE_SCHEMA = {
                                     "design_delegation",
                                     "adaptive_expectation",
                                     "quality_priority",
-                                    "industry_reference"
-                                ]
+                                    "industry_reference",
+                                ],
                             },
                             "dimension": {"type": "str"},
                             "content": {"type": "str"},
                             "reason": {"type": "str"},
-                            "status": {"type": "str"}
-                        }
-                    }
-                }
-            }
+                            "status": {"type": "str"},
+                        },
+                    },
+                },
+            },
         },
         "meta_signals": {
             "type": "dict",
@@ -202,12 +216,12 @@ RESPONSE_SCHEMA = {
                 "user_said_enough": {"type": "bool"},
                 "user_wants_pivot": {"type": "bool"},
                 "directive_stop_asking": {"type": "bool"},
-                "stop_asking_dimensions": {"type": "list"}
-            }
+                "stop_asking_dimensions": {"type": "list"},
+            },
         },
         "inference_responses": {"type": "list"},
-        "new_inferences": {"type": "list"}
-    }
+        "new_inferences": {"type": "list"},
+    },
 }
 
 
@@ -230,13 +244,13 @@ QUALITY_REPORT_SCHEMA = {
                     "score": {"type": "int"},
                     "weight": {"type": "any"},  # int or float
                     "reasoning": {"type": "str"},
-                    "missing_items": {"type": "list"}
-                }
-            }
+                    "missing_items": {"type": "list"},
+                },
+            },
         },
         "top_missing": {"type": "list"},
-        "recommendation": {"type": "str"}
-    }
+        "recommendation": {"type": "str"},
+    },
 }
 
 
@@ -266,10 +280,10 @@ CONVERSATION_LOG_SCHEMA = {
                     "inferences_created": {"type": "int"},
                     "inferences_confirmed": {"type": "int"},
                     "inferences_rejected": {"type": "int"},
-                }
-            }
+                },
+            },
         }
-    }
+    },
 }
 
 # 空对话日志初始值（coordinator 初始化时使用）
@@ -287,7 +301,7 @@ QUALITY_TRAJECTORY_SCHEMA = {
         "scores": {
             "type": "list",
             "description": "每轮的 overall_score 列表（快速索引用）",
-            "items": {"type": "any"}  # int or float
+            "items": {"type": "any"},  # int or float
         },
         "trajectory": {
             "type": "list",
@@ -303,10 +317,10 @@ QUALITY_TRAJECTORY_SCHEMA = {
                     "delta": {"type": "any"},
                     "questions_asked": {"type": "int"},
                     "inferences_validated": {"type": "int"},
-                }
-            }
-        }
-    }
+                },
+            },
+        },
+    },
 }
 
 # 空质量轨迹初始值（coordinator 初始化时使用）
@@ -320,4 +334,3 @@ EMPTY_QUALITY_TRAJECTORY = {"scores": [], "trajectory": []}
 # 注意：Schema 验证由 Pydantic 契约笼子（contracts/ 目录）负责，
 # schemas.py 仅保留 Schema 定义作为 Single Source of Truth，
 # 不再提供 validate_* 函数（已被 gate_* 函数取代）。
-

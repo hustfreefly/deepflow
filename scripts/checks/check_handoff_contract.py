@@ -44,7 +44,7 @@ def check_contract_model_defined(root: Path) -> bool:
     """检查 1b: 契约文件中定义了 HandoffPackage 和 DensityGateResult"""
     contract_path = root / "contracts" / "shared" / "handoff_contract.py"
     if not contract_path.exists():
-        print(f"  ❌ FAIL: 契约文件不存在，无法检查模型定义")
+        print("  ❌ FAIL: 契约文件不存在，无法检查模型定义")
         return False
 
     content = contract_path.read_text(encoding="utf-8")
@@ -77,7 +77,8 @@ def check_spec_pro_handoff_integration(root: Path) -> bool:
     checks = {
         "HandoffPackage import": "HandoffPackage" in content,
         "handoff_contract import": "handoff_contract" in content,
-        "save_handoff_package 验证": "HandoffPackage(**package)" in content or "HandoffPackage(" in content,
+        "save_handoff_package 验证": "HandoffPackage(**package)" in content
+        or "HandoffPackage(" in content,
     }
 
     all_pass = True

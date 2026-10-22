@@ -395,6 +395,7 @@ created: "2026-07-11T15:00:00Z"
 
 # ─── Test Scenarios ─────────────────────────────────────────────────────────
 
+
 class TestValidateMdStructure:
     """Phase 2a: validate_md_structure tests"""
 
@@ -432,7 +433,11 @@ version: "1.0.0"
         # Missing: confirmed_reqs, capability_boundary, constraints
         passed, msg, warnings = validate_md_structure(bad_md, "spec_pro")
         assert not passed, "缺少必填章节应拒绝"
-        assert "confirmed_reqs" in msg or "capability_boundary" in msg or "constraints" in msg
+        assert (
+            "confirmed_reqs" in msg
+            or "capability_boundary" in msg
+            or "constraints" in msg
+        )
 
     def test_9_boundary_length_deliver_pro(self):
         # deliver_pro min_length = 200
@@ -523,7 +528,10 @@ version: "1.0.0"
 
     def test_unknown_domain_raises(self):
         with pytest.raises(ValueError, match="未知域"):
-            extract_track_json("---\nversion: 1\n---\n## meta_info\n| x | y |\n|---|---|\n| a | b |", "nonexistent_domain")
+            extract_track_json(
+                "---\nversion: 1\n---\n## meta_info\n| x | y |\n|---|---|\n| a | b |",
+                "nonexistent_domain",
+            )
 
     def test_no_frontmatter_raises(self):
         no_fm_md = "# No Frontmatter\n## meta_info\n| x | y |\n|---|---|\n| a | b |"

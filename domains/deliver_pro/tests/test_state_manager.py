@@ -3,8 +3,12 @@
 AgentDryRun V3.7 (2026-07-30): DeliverProStateManager 已废弃，
 实例化时 raise ValueError（契约笼子防呆）。
 """
+
 import pytest
-from domains.deliver_pro.state_manager import DeliverProStateManager, StateTransitionError
+from domains.deliver_pro.state_manager import (
+    DeliverProStateManager,
+    StateTransitionError,
+)
 
 
 class TestDeliverProStateManagerContractCage:

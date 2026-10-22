@@ -4,6 +4,7 @@
 Contract: cage/active/repair_program_v1.0.yaml
 Never modifies tests. Output: isolation-pass / isolation-fail / error.
 """
+
 import argparse
 import json
 import re
@@ -25,11 +26,20 @@ def extract(log: Path) -> list[str]:
 
 
 def run_one(test_id: str, timeout: int) -> tuple[str, str]:
-    command = [sys.executable, "-m", "pytest", test_id, "-q", "--tb=no",
-               "-p", "no:cacheprovider"]
+    command = [
+        sys.executable,
+        "-m",
+        "pytest",
+        test_id,
+        "-q",
+        "--tb=no",
+        "-p",
+        "no:cacheprovider",
+    ]
     try:
-        proc = subprocess.run(command, cwd=ROOT, capture_output=True,
-                              text=True, timeout=timeout)
+        proc = subprocess.run(
+            command, cwd=ROOT, capture_output=True, text=True, timeout=timeout
+        )
     except subprocess.TimeoutExpired:
         return "error", f"timeout>{timeout}s"
     if proc.returncode == 0:
@@ -56,7 +66,9 @@ def main(argv=None):
     counts = {"isolation-pass": 0, "isolation-fail": 0, "error": 0}
     for index, test_id in enumerate(ids, 1):
         status, detail = run_one(test_id, args.timeout)
-        bucket = {"pass": "isolation-pass", "fail": "isolation-fail"}.get(status, "error")
+        bucket = {"pass": "isolation-pass", "fail": "isolation-fail"}.get(
+            status, "error"
+        )
         counts[bucket] += 1
         results.append({"test": test_id, "bucket": bucket, "detail": detail})
         if not args.as_json:

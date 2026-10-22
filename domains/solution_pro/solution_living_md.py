@@ -49,6 +49,7 @@ ALL_SECTIONS = REQUIRED_SECTIONS + OPTIONAL_SECTIONS
 
 # ─── render: dict → MD ──────────────────────────────────────────────────────
 
+
 def render_final_solution_md(data: dict) -> str:
     """
     将 final_solution dict 渲染为 V2 schema 的 Markdown。
@@ -62,7 +63,7 @@ def render_final_solution_md(data: dict) -> str:
         try:
             data = json.loads(data)
         except json.JSONDecodeError:
-            raise TypeError(f"data is a string that cannot be parsed as JSON")
+            raise TypeError("data is a string that cannot be parsed as JSON")
     if not isinstance(data, dict):
         raise TypeError(f"data must be dict, got {type(data).__name__}")
 
@@ -110,7 +111,9 @@ def render_final_solution_md(data: dict) -> str:
         if breakdown:
             for level, stats in breakdown.items():
                 if isinstance(stats, dict):
-                    lines.append(f"- {level}: {stats.get('passed', 0)}/{stats.get('total', 0)}")
+                    lines.append(
+                        f"- {level}: {stats.get('passed', 0)}/{stats.get('total', 0)}"
+                    )
         lines.append("")
 
     # ── S3: key_decisions (required) ──
@@ -156,15 +159,17 @@ def render_final_solution_md(data: dict) -> str:
         for p in phases:
             if isinstance(p, dict):
                 # Support both 'title' and 'name' (summary_json_extractor uses 'name')
-                phase_title = p.get('title') or p.get('name', '')
-                phase_timeline = p.get('timeline') or p.get('duration', '')
-                phase_effort = p.get('estimated_effort', '')
-                lines.append(f"| {p.get('phase', '?')} | {phase_title} | {phase_timeline} | {phase_effort} |")
+                phase_title = p.get("title") or p.get("name", "")
+                phase_timeline = p.get("timeline") or p.get("duration", "")
+                phase_effort = p.get("estimated_effort", "")
+                lines.append(
+                    f"| {p.get('phase', '?')} | {phase_title} | {phase_timeline} | {phase_effort} |"
+                )
         lines.append("")
         # Detailed phases
         for p in phases:
             if isinstance(p, dict):
-                phase_title = p.get('title') or p.get('name', '')
+                phase_title = p.get("title") or p.get("name", "")
                 lines.append(f"### Phase {p.get('phase', '?')}: {phase_title}")
                 lines.append("")
                 tasks = p.get("tasks", [])
@@ -215,7 +220,9 @@ def render_final_solution_md(data: dict) -> str:
         lines.append("|---|------|----------|-------------|------------|")
         for i, r in enumerate(risks, 1):
             if isinstance(r, dict):
-                lines.append(f"| {i} | {r.get('risk', '')} | {r.get('severity', '')} | {r.get('probability', '')} | {r.get('mitigation', '')} |")
+                lines.append(
+                    f"| {i} | {r.get('risk', '')} | {r.get('severity', '')} | {r.get('probability', '')} | {r.get('mitigation', '')} |"
+                )
             else:
                 lines.append(f"| {i} | {str(r)[:40]} | | | |")
         lines.append("")
@@ -243,7 +250,9 @@ def render_final_solution_md(data: dict) -> str:
     lines.append("| L1 (Schema) | PASS | Solution Pro output |")
     if vs:
         verdict = "PASS" if vs.get("failed", 1) == 0 else "CONDITIONAL"
-        lines.append(f"| L2 (Verification) | {verdict} | {vs.get('passed', 0)}/{vs.get('total_checks', 0)} checks passed |")
+        lines.append(
+            f"| L2 (Verification) | {verdict} | {vs.get('passed', 0)}/{vs.get('total_checks', 0)} checks passed |"
+        )
     lines.append("| L3 (merge) | PASS | solution complete |")
     lines.append("")
 
@@ -370,6 +379,7 @@ def render_final_solution_md(data: dict) -> str:
 
 # ─── parse: MD → dict ────────────────────────────────────────────────────────
 
+
 def parse_final_solution_md(md: str) -> dict:
     """
     从 V2 schema MD 解析为 final_solution dict。
@@ -390,7 +400,7 @@ def parse_final_solution_md(md: str) -> dict:
         end = md.find("---", 3)
         if end != -1:
             fm_text = md[3:end].strip()
-            body = md[end + 3:]
+            body = md[end + 3 :]
             for line in fm_text.split("\n"):
                 if ":" in line:
                     key, _, val = line.partition(":")
@@ -550,7 +560,7 @@ def _parse_md_sections(body: str) -> dict[str, str]:
 def _extract_table_rows(text: str) -> list[list[str]]:
     """Extract data rows from markdown table (skip header + separator)."""
     rows = []
-    lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    lines = [line.strip() for line in text.split("\n") if line.strip().startswith("|")]
     if len(lines) < 3:
         return rows
     for line in lines[2:]:
@@ -563,7 +573,7 @@ def _extract_table_rows(text: str) -> list[list[str]]:
 def _parse_table_to_dicts(text: str) -> list[dict]:
     """Parse a markdown table into list of dicts."""
     rows = _extract_table_rows(text)
-    lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    lines = [line.strip() for line in text.split("\n") if line.strip().startswith("|")]
     if len(lines) < 2:
         return []
     headers = [c.strip().lower().replace(" ", "_") for c in lines[0].split("|")[1:-1]]
@@ -595,7 +605,9 @@ def _parse_decisions(text: str) -> list[dict]:
     table_decisions = _parse_table_to_dicts(text)
     if table_decisions:
         # Also parse detailed ### Decision N subsections
-        sub_sections = re.findall(r"###\s+Decision\s+(\d+):\s*(.+?)(?=\n###|\Z)", text, re.DOTALL)
+        sub_sections = re.findall(
+            r"###\s+Decision\s+(\d+):\s*(.+?)(?=\n###|\Z)", text, re.DOTALL
+        )
         detail_map = {}
         for num, content in sub_sections:
             detail_map[int(num)] = content.strip()
@@ -605,18 +617,24 @@ def _parse_decisions(text: str) -> list[dict]:
             rationale = ""
             alternatives = ""
             if detail:
-                rat_m = re.search(r"\*\*Rationale\*\*:\s*(.+?)(?=\n\*\*|\Z)", detail, re.DOTALL)
-                alt_m = re.search(r"\*\*Alternatives\*\*:\s*(.+?)(?=\Z)", detail, re.DOTALL)
+                rat_m = re.search(
+                    r"\*\*Rationale\*\*:\s*(.+?)(?=\n\*\*|\Z)", detail, re.DOTALL
+                )
+                alt_m = re.search(
+                    r"\*\*Alternatives\*\*:\s*(.+?)(?=\Z)", detail, re.DOTALL
+                )
                 if rat_m:
                     rationale = rat_m.group(1).strip()
                 if alt_m:
                     alternatives = alt_m.group(1).strip()
 
-            decisions.append({
-                "decision": d.get("decision", ""),
-                "rationale": rationale or d.get("rationale", ""),
-                "alternatives": alternatives,
-            })
+            decisions.append(
+                {
+                    "decision": d.get("decision", ""),
+                    "rationale": rationale or d.get("rationale", ""),
+                    "alternatives": alternatives,
+                }
+            )
     return decisions
 
 
@@ -681,37 +699,48 @@ def _parse_phases(text: str) -> list[dict]:
     table_phases = _parse_table_to_dicts(text)
 
     # Also parse detailed ### Phase N subsections
-    sub_sections = re.findall(r"###\s+Phase\s+(\S+):\s*(.+?)(?=\n###\s+Phase|\Z)", text, re.DOTALL)
+    sub_sections = re.findall(
+        r"###\s+Phase\s+(\S+):\s*(.+?)(?=\n###\s+Phase|\Z)", text, re.DOTALL
+    )
 
     if sub_sections:
         for phase_num, content in sub_sections:
             tasks = re.findall(r"^- (.+)$", content, re.MULTILINE)
             ver_m = re.search(r"\*\*Verification\*\*:\s*(.+?)$", content, re.MULTILINE)
             # Find corresponding table row
-            table_row = next((p for p in table_phases if p.get("phase") == phase_num), {})
-            phases.append({
-                "phase": int(phase_num) if phase_num.isdigit() else phase_num,
-                "title": table_row.get("title", ""),
-                "timeline": table_row.get("timeline", ""),
-                "estimated_effort": table_row.get("effort", ""),
-                "tasks": tasks,
-                "verification": ver_m.group(1).strip() if ver_m else "",
-            })
+            table_row = next(
+                (p for p in table_phases if p.get("phase") == phase_num), {}
+            )
+            phases.append(
+                {
+                    "phase": int(phase_num) if phase_num.isdigit() else phase_num,
+                    "title": table_row.get("title", ""),
+                    "timeline": table_row.get("timeline", ""),
+                    "estimated_effort": table_row.get("effort", ""),
+                    "tasks": tasks,
+                    "verification": ver_m.group(1).strip() if ver_m else "",
+                }
+            )
     elif table_phases:
         for p in table_phases:
-            phases.append({
-                "phase": int(p.get("phase", 0)) if str(p.get("phase", "")).isdigit() else p.get("phase"),
-                "title": p.get("title", ""),
-                "timeline": p.get("timeline", ""),
-                "estimated_effort": p.get("effort", ""),
-                "tasks": [],
-                "verification": "",
-            })
+            phases.append(
+                {
+                    "phase": int(p.get("phase", 0))
+                    if str(p.get("phase", "")).isdigit()
+                    else p.get("phase"),
+                    "title": p.get("title", ""),
+                    "timeline": p.get("timeline", ""),
+                    "estimated_effort": p.get("effort", ""),
+                    "tasks": [],
+                    "verification": "",
+                }
+            )
 
     return phases
 
 
 # ─── validate: MD 结构校验 ───────────────────────────────────────────────────
+
 
 def validate_final_solution_md(md: str) -> tuple[bool, list[str]]:
     """

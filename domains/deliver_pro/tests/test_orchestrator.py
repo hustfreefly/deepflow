@@ -6,14 +6,14 @@ from __future__ import annotations
 
 import json
 import pytest
-from pathlib import Path
 from contextlib import contextmanager
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def ship_package_data():
@@ -31,7 +31,11 @@ def ship_package_data():
             {"wp_id": "RPT-002", "dependencies": ["RPT-001"], "title": "Report 2"},
             {"wp_id": "FIX-001", "dependencies": [], "title": "Fix 1"},
             {"wp_id": "FIX-002", "dependencies": [], "title": "Fix 2"},
-            {"wp_id": "FIX-003", "dependencies": ["FIX-001", "FIX-002"], "title": "Fix 3"},
+            {
+                "wp_id": "FIX-003",
+                "dependencies": ["FIX-001", "FIX-002"],
+                "title": "Fix 3",
+            },
         ],
         "dependency_graph": {
             "execution_layers": [
@@ -69,6 +73,7 @@ def _make_orchestrator(tmp_path, mock_blackboard):
     bb_root, project_name = mock_blackboard
     with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
         from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
         driver = DeliverOrchestrator(project_name)
         yield driver
 
@@ -76,6 +81,7 @@ def _make_orchestrator(tmp_path, mock_blackboard):
 # ---------------------------------------------------------------------------
 # Task 1: _topo_layers 测试
 # ---------------------------------------------------------------------------
+
 
 class TestTopoLayers:
     """_topo_layers 静态方法测试。"""
@@ -130,6 +136,7 @@ class TestTopoLayers:
 # Task 2: _compute_layers 测试
 # ---------------------------------------------------------------------------
 
+
 class TestComputeLayers:
     """_compute_layers 从 execution_layers 获取。"""
 
@@ -137,7 +144,9 @@ class TestComputeLayers:
         """优先用 execution_layers。"""
         with _make_orchestrator(tmp_path, mock_blackboard) as driver:
             assert len(driver.layers) == 3
-            assert sorted(driver.layers[0]) == sorted(["CORE-001", "FMV-001", "RPT-001", "FIX-001", "FIX-002"])
+            assert sorted(driver.layers[0]) == sorted(
+                ["CORE-001", "FMV-001", "RPT-001", "FIX-001", "FIX-002"]
+            )
             assert driver.layers[2] == ["CORE-005"]
 
     def test_fallback_topo_sort(self, tmp_path):
@@ -160,6 +169,7 @@ class TestComputeLayers:
 
         with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
             from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
             driver = DeliverOrchestrator(project_name)
 
         assert len(driver.layers) == 2
@@ -170,6 +180,7 @@ class TestComputeLayers:
 # ---------------------------------------------------------------------------
 # Task 3: _get_wp_project_name 映射
 # ---------------------------------------------------------------------------
+
 
 class TestWpProjectName:
     """WP → project_name 映射（V3: 统一到项目自己的 blackboard）。"""
@@ -187,6 +198,7 @@ class TestWpProjectName:
 # ---------------------------------------------------------------------------
 # Task 4: _check_wp_phase 测试
 # ---------------------------------------------------------------------------
+
 
 class TestCheckWpPhase:
     """_check_wp_phase 从文件系统检测。"""
@@ -242,7 +254,14 @@ class TestCheckWpPhase:
         """final_deliverable 有文件但无 manifest 且非终态 → 不是 DONE (P1-8 fix)。"""
         bb_root, project_name = mock_blackboard
         wp_project = project_name
-        final_dir = bb_root / wp_project / "deliver_pro" / "core_001" / "stages" / "final_deliverable"
+        final_dir = (
+            bb_root
+            / wp_project
+            / "deliver_pro"
+            / "core_001"
+            / "stages"
+            / "final_deliverable"
+        )
         final_dir.mkdir(parents=True)
         (final_dir / "DELIVERABLE.md").write_text("# Done\n" + "x" * 60)
         # No delivery_manifest.json, no terminal state → falls through
@@ -266,7 +285,14 @@ class TestCheckWpPhase:
         """integrated_draft/DELIVERABLE.md 存在 → VALIDATING。"""
         bb_root, project_name = mock_blackboard
         wp_project = project_name
-        draft_dir = bb_root / wp_project / "deliver_pro" / "core_001" / "stages" / "integrated_draft"
+        draft_dir = (
+            bb_root
+            / wp_project
+            / "deliver_pro"
+            / "core_001"
+            / "stages"
+            / "integrated_draft"
+        )
         draft_dir.mkdir(parents=True)
         (draft_dir / "DELIVERABLE.md").write_text("# Draft")
 
@@ -290,6 +316,7 @@ class TestCheckWpPhase:
 # Task 5: get_status 测试
 # ---------------------------------------------------------------------------
 
+
 class TestGetStatus:
     """get_status 初始状态。"""
 
@@ -309,6 +336,7 @@ class TestGetStatus:
 # ---------------------------------------------------------------------------
 # Task 6: report_done 测试
 # ---------------------------------------------------------------------------
+
 
 class TestReportDone:
     """report_done 更新进度。"""
@@ -337,6 +365,7 @@ class TestReportDone:
 # Task 7: reset_wp 测试
 # ---------------------------------------------------------------------------
 
+
 class TestResetWp:
     """reset_wp 重置状态。"""
 
@@ -364,6 +393,7 @@ class TestResetWp:
 # Task 8: get_next_actions 测试
 # ---------------------------------------------------------------------------
 
+
 class TestGetNextActions:
     """get_next_actions 返回当前层动作。"""
 
@@ -382,11 +412,22 @@ class TestGetNextActions:
         bb_root, project_name = mock_blackboard
 
         # 让所有 WP 都 DONE（V3: 统一到项目自己的 blackboard + delivery_manifest.json）
-        for wp_id in ["CORE-001", "CORE-002", "CORE-003", "CORE-004", "CORE-005",
-                       "FMV-001", "FMV-002", "RPT-001", "RPT-002",
-                       "FIX-001", "FIX-002", "FIX-003"]:
+        for wp_id in [
+            "CORE-001",
+            "CORE-002",
+            "CORE-003",
+            "CORE-004",
+            "CORE-005",
+            "FMV-001",
+            "FMV-002",
+            "RPT-001",
+            "RPT-002",
+            "FIX-001",
+            "FIX-002",
+            "FIX-003",
+        ]:
             wp_project = project_name
-            wp_subdir = wp_id.lower().replace('-', '_')
+            wp_subdir = wp_id.lower().replace("-", "_")
             stages_dir = bb_root / wp_project / "deliver_pro" / wp_subdir / "stages"
             final_dir = stages_dir / "final_deliverable"
             final_dir.mkdir(parents=True)
@@ -463,13 +504,18 @@ class TestOrphanValidateRecovery:
 
     def _setup_validating_wp(self, bb_root, project_name, wp_id="CORE-001"):
         """构造 VALIDATING 状态的 WP：plan + integrated_draft 存在，无 validation_result。"""
-        wp_subdir = wp_id.lower().replace('-', '_')
+        wp_subdir = wp_id.lower().replace("-", "_")
         stages = bb_root / project_name / "deliver_pro" / wp_subdir / "stages"
         (stages / "integrated_draft").mkdir(parents=True)
         (stages / "integrated_draft" / "DELIVERABLE.md").write_text("# Draft")
-        (stages / "execution_plan.json").write_text(json.dumps({
-            "wp_id": wp_id, "task_graph": [],
-        }))
+        (stages / "execution_plan.json").write_text(
+            json.dumps(
+                {
+                    "wp_id": wp_id,
+                    "task_graph": [],
+                }
+            )
+        )
         return stages
 
     def test_orphan_validate_never_dispatched(self, tmp_path, mock_blackboard):
@@ -491,6 +537,7 @@ class TestOrphanValidateRecovery:
     def test_orphan_validate_stale_dispatch(self, tmp_path, mock_blackboard):
         """validate 已分发但 agent 死亡（>30min）→ 重新分发 validate。"""
         import time as _time
+
         bb_root, project_name = mock_blackboard
         self._setup_validating_wp(bb_root, project_name)
 
@@ -507,6 +554,7 @@ class TestOrphanValidateRecovery:
     def test_fresh_validate_not_redispatched(self, tmp_path, mock_blackboard):
         """validate agent 正常运行中（<30min）→ skip，不重复分发。"""
         import time as _time
+
         bb_root, project_name = mock_blackboard
         self._setup_validating_wp(bb_root, project_name)
 
@@ -531,6 +579,7 @@ class TestLegacyFinalDeliverablePath:
     def test_legacy_wp_root_final_deliverable_is_done(self, tmp_path, mock_blackboard):
         """交付物在 WP 根目录 final_deliverable/（legacy）→ DONE + 警告。"""
         import warnings
+
         bb_root, project_name = mock_blackboard
         wp_dir = bb_root / project_name / "deliver_pro" / "core_001"
         stages = wp_dir / "stages"
@@ -542,6 +591,7 @@ class TestLegacyFinalDeliverablePath:
         (legacy / "README.md").write_text("# Deliverable\n" + "x" * 60)
 
         from domains.deliver_pro.phase_deriver import derive_phase
+
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             assert derive_phase(wp_dir) == "DONE"
@@ -550,14 +600,18 @@ class TestLegacyFinalDeliverablePath:
     def test_stages_path_preferred_no_warning(self, tmp_path, mock_blackboard):
         """交付物在契约位置 stages/final_deliverable/ → DONE 且无警告。"""
         import warnings
+
         bb_root, project_name = mock_blackboard
         wp_dir = bb_root / project_name / "deliver_pro" / "core_001"
         final_dir = wp_dir / "stages" / "final_deliverable"
         final_dir.mkdir(parents=True)
-        (final_dir.parent / "delivery_manifest.json").write_text('{"wp_id": "TEST-001"}')
+        (final_dir.parent / "delivery_manifest.json").write_text(
+            '{"wp_id": "TEST-001"}'
+        )
         (final_dir / "README.md").write_text("# Deliverable\n" + "x" * 60)
 
         from domains.deliver_pro.phase_deriver import derive_phase
+
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             assert derive_phase(wp_dir) == "DONE"
@@ -568,6 +622,7 @@ class TestLegacyFinalDeliverablePath:
 # A1: VALIDATING 分支 fix_integrate 不崩溃
 # ---------------------------------------------------------------------------
 
+
 class TestValidatingFixIntegrate:
     """A1: VALIDATING 分支 verdict != PASS 时不应崩溃。
 
@@ -577,17 +632,24 @@ class TestValidatingFixIntegrate:
     3. 异常未捕获导致 terminal_failed 而非 package_failed
     """
 
-    def _setup_validating_wp_with_verdict(self, bb_root, project_name, verdict_data, wp_id="CORE-001"):
+    def _setup_validating_wp_with_verdict(
+        self, bb_root, project_name, verdict_data, wp_id="CORE-001"
+    ):
         """构造 VALIDATING 状态的 WP，含 validation_result.json。"""
-        wp_subdir = wp_id.lower().replace('-', '_')
+        wp_subdir = wp_id.lower().replace("-", "_")
         stages = bb_root / project_name / "deliver_pro" / wp_subdir / "stages"
         stages.mkdir(parents=True)
         # integrated_draft 必须存在才能 derive 到 VALIDATING
         (stages / "integrated_draft").mkdir(parents=True, exist_ok=True)
         (stages / "integrated_draft" / "DELIVERABLE.md").write_text("# Draft")
-        (stages / "execution_plan.json").write_text(json.dumps({
-            "wp_id": wp_id, "task_graph": [],
-        }))
+        (stages / "execution_plan.json").write_text(
+            json.dumps(
+                {
+                    "wp_id": wp_id,
+                    "task_graph": [],
+                }
+            )
+        )
         # 写 verdict 文件（driver.step6_check_validate 读取路径：stages/validation_result.json）
         (stages / "validation_result.json").write_text(
             json.dumps(verdict_data, ensure_ascii=False)
@@ -609,7 +671,7 @@ class TestValidatingFixIntegrate:
             driver.progress["CORE-001"] = {
                 "phase": "VALIDATING",
                 "last_spawned_action": "validate",
-                "last_spawned_at": __import__('time').time() - 60,
+                "last_spawned_at": __import__("time").time() - 60,
                 "validate_round": 1,
             }
             # 不应抛异常
@@ -617,8 +679,9 @@ class TestValidatingFixIntegrate:
 
         # 应返回 fix_integrate 或 package_failed（取决于 driver 初始化）
         # 关键是不崩溃且返回有效 action
-        assert result["action"] in ("fix_integrate", "package_failed", "init_failed"), \
+        assert result["action"] in ("fix_integrate", "package_failed", "init_failed"), (
             f"Expected fix_integrate/package_failed, got {result['action']}"
+        )
         assert result["wp_id"] == "CORE-001"
 
     def test_verdict_read_error_returns_package_failed(self, tmp_path, mock_blackboard):
@@ -629,9 +692,14 @@ class TestValidatingFixIntegrate:
         stages.mkdir(parents=True)
         (stages / "integrated_draft").mkdir(parents=True, exist_ok=True)
         (stages / "integrated_draft" / "DELIVERABLE.md").write_text("# Draft")
-        (stages / "execution_plan.json").write_text(json.dumps({
-            "wp_id": "CORE-001", "task_graph": [],
-        }))
+        (stages / "execution_plan.json").write_text(
+            json.dumps(
+                {
+                    "wp_id": "CORE-001",
+                    "task_graph": [],
+                }
+            )
+        )
         # 写损坏的 verdict 文件（driver 读取路径：stages/validation_result.json）
         (stages / "validation_result.json").write_text("{invalid json!!")
 
@@ -639,7 +707,7 @@ class TestValidatingFixIntegrate:
             driver.progress["CORE-001"] = {
                 "phase": "VALIDATING",
                 "last_spawned_action": "validate",
-                "last_spawned_at": __import__('time').time() - 60,
+                "last_spawned_at": __import__("time").time() - 60,
                 "validate_round": 1,
             }
             # step6_check_validate 会读到损坏的 JSON，verdict 可能为 ERROR
@@ -654,6 +722,7 @@ class TestValidatingFixIntegrate:
 # A2: batch 级 task 字符串长度控制
 # ---------------------------------------------------------------------------
 
+
 class TestBuildActionTaskLength:
     """A2: 三个 builder 的 task 字符串应 < 2000 字符。"""
 
@@ -665,7 +734,9 @@ class TestBuildActionTaskLength:
         # 写 living_spec（模拟大文件）
         large_spec = {
             "title": "Test Project",
-            "sections": [{"name": f"Section {i}", "content": "x" * 500} for i in range(20)],
+            "sections": [
+                {"name": f"Section {i}", "content": "x" * 500} for i in range(20)
+            ],
             "requirements": [f"Requirement {i}" for i in range(50)],
         }
         (data_dir / "living_spec.json").write_text(
@@ -675,7 +746,10 @@ class TestBuildActionTaskLength:
         contract = {
             "deliverable_type": "report",
             "req_elements": [
-                {"element": f"Element {i}", "criticality": "MUST" if i < 5 else "SHOULD"}
+                {
+                    "element": f"Element {i}",
+                    "criticality": "MUST" if i < 5 else "SHOULD",
+                }
                 for i in range(20)
             ],
             "required_structure": [f"Section {i}" for i in range(15)],
@@ -687,9 +761,7 @@ class TestBuildActionTaskLength:
         synth_dir = batch_dir / "final_synthesis"
         synth_dir.mkdir(parents=True, exist_ok=True)
         for i in range(5):
-            (synth_dir / f"output_{i}.md").write_text(
-                f"# Output {i}\n" + "y" * 2000
-            )
+            (synth_dir / f"output_{i}.md").write_text(f"# Output {i}\n" + "y" * 2000)
 
     def test_infer_contract_task_length(self, tmp_path, mock_blackboard):
         """_build_infer_contract_action 的 task < 1500 字符。"""
@@ -699,10 +771,12 @@ class TestBuildActionTaskLength:
         with _make_orchestrator(tmp_path, mock_blackboard) as driver:
             action = driver._build_infer_contract_action()
 
-        assert len(action["task"]) < 1500, \
+        assert len(action["task"]) < 1500, (
             f"infer_contract task too long: {len(action['task'])} chars"
-        assert "_infer_contract_context.md" in action["task"], \
+        )
+        assert "_infer_contract_context.md" in action["task"], (
             "task should reference context file"
+        )
 
     def test_final_synthesis_task_length(self, tmp_path, mock_blackboard):
         """_build_final_synthesis_action 的 task < 1500 字符。"""
@@ -712,10 +786,12 @@ class TestBuildActionTaskLength:
         with _make_orchestrator(tmp_path, mock_blackboard) as driver:
             action = driver._build_final_synthesis_action()
 
-        assert len(action["task"]) < 1500, \
+        assert len(action["task"]) < 1500, (
             f"final_synthesis task too long: {len(action['task'])} chars"
-        assert "_synthesis_context.md" in action["task"], \
+        )
+        assert "_synthesis_context.md" in action["task"], (
             "task should reference context file"
+        )
 
     def test_final_gate_task_length(self, tmp_path, mock_blackboard):
         """_build_run_final_gate_action 的 task < 2000 字符。"""
@@ -725,7 +801,9 @@ class TestBuildActionTaskLength:
         with _make_orchestrator(tmp_path, mock_blackboard) as driver:
             action = driver._build_run_final_gate_action()
 
-        assert len(action["task"]) < 2000, \
+        assert len(action["task"]) < 2000, (
             f"final_gate task too long: {len(action['task'])} chars"
-        assert "_gate_context.md" in action["task"], \
+        )
+        assert "_gate_context.md" in action["task"], (
             "task should reference context file"
+        )

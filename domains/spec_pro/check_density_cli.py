@@ -12,6 +12,7 @@
 退出码:
     0 = PASSED/WARN, 1 = FAILED, 2 = 错误
 """
+
 import sys
 import json
 from pathlib import Path
@@ -36,7 +37,9 @@ def _read_living_spec(session_dir: Path) -> dict:
             md_content = md_path.read_text(encoding="utf-8")
             return parse_living_spec_md(md_content)
         except Exception as e:
-            print(f"WARNING: MD parse failed, falling back to JSON: {e}", file=sys.stderr)
+            print(
+                f"WARNING: MD parse failed, falling back to JSON: {e}", file=sys.stderr
+            )
 
     # 2. Fallback to JSON
     json_path = session_dir / "spec" / "living_spec.json"
@@ -49,7 +52,10 @@ def _read_living_spec(session_dir: Path) -> dict:
 
 def main():
     if len(sys.argv) < 2:
-        print("用法: python3 check_density_cli.py <blackboard_session_dir>", file=sys.stderr)
+        print(
+            "用法: python3 check_density_cli.py <blackboard_session_dir>",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     session_dir = Path(sys.argv[1])

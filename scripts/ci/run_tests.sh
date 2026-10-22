@@ -1,5 +1,7 @@
 #!/bin/bash
 # DeepFlow 回归测试运行脚本
+# ⚠️ 2026-10-22: test_regression.py 已归档（Coordinator/PipelineEngine 已移除）。
+#    本脚本保留仅作历史参考；现行入口见 scripts/ci/ci.sh 与 .github/workflows/ci.yml。
 
 set -e
 

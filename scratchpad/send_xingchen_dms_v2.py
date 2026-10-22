@@ -1,4 +1,6 @@
-import os, smtplib, ssl
+import os
+import smtplib
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
@@ -12,7 +14,9 @@ with open("/Users/allen/.openclaw/workspace/.env") as f:
             k, _, v = line.partition("=")
             env[k.strip()] = v.strip().strip('"').strip("'")
 
-password = env["SMTP_QQ_PASSWORD"] if "SMTP_QQ_PASSWORD" in env else env["SMTP_PASSWORD"]
+password = (
+    env["SMTP_QQ_PASSWORD"] if "SMTP_QQ_PASSWORD" in env else env["SMTP_PASSWORD"]
+)
 
 sender = "81240779@qq.com"
 receivers = ["zhongli_ji@hsingchen.com", "81240779@qq.com"]
@@ -24,8 +28,12 @@ files = [
 msg = MIMEMultipart()
 msg["From"] = sender
 msg["To"] = ", ".join(receivers)
-msg["Subject"] = Header("【文件管理系统·v2补充版】四件套更新（§11.10灾备加固 + §11.11流程细节）", "utf-8")
-msg.attach(MIMEText("""忠礼：
+msg["Subject"] = Header(
+    "【文件管理系统·v2补充版】四件套更新（§11.10灾备加固 + §11.11流程细节）", "utf-8"
+)
+msg.attach(
+    MIMEText(
+        """忠礼：
 
 封装设计团队文件管理系统四件套，ZIP 打包见附件（解压密码无，直接打开）：
 
@@ -37,13 +45,19 @@ msg.attach(MIMEText("""忠礼：
 推荐使用顺序：先 PPT 第 1 页开场讲业务 → 第 2 页技术架构 → 第 3 页提出申请三事项 → 现场若被追问细节，手册 §4 审计/§7 脱敏/§8 外发 都是现成答案。
 
 —— 小满
-""", "plain", "utf-8"))
+""",
+        "plain",
+        "utf-8",
+    )
+)
 
 for path in files:
     with open(path, "rb") as f:
         part = MIMEApplication(f.read())
     fname = os.path.basename(path)
-    part.add_header("Content-Disposition", "attachment", filename=Header(fname, "utf-8").encode())
+    part.add_header(
+        "Content-Disposition", "attachment", filename=Header(fname, "utf-8").encode()
+    )
     msg.attach(part)
 
 ctx = ssl.create_default_context()

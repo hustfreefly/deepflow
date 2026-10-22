@@ -20,16 +20,20 @@ from pydantic import BaseModel, Field
 
 class PipelineStage(BaseModel):
     """管线阶段契约"""
+
     name: str = Field(..., description="阶段名称")
     domain: str = Field(..., description="所属域")
     entry_function: str = Field(..., description="入口函数名")
     required_produce: List[str] = Field(..., description="必须产出的文件列表")
-    required_consume: List[str] = Field(default_factory=list, description="必须消费的前序文件")
+    required_consume: List[str] = Field(
+        default_factory=list, description="必须消费的前序文件"
+    )
     timeout_minutes: int = Field(default=15, description="超时分钟数")
 
 
 class E2EPipelineContract(BaseModel):
     """E2E 完整管线契约"""
+
     version: str = "1.0.0"
     stages: List[PipelineStage] = Field(..., description="管线阶段列表（有序）")
 
@@ -115,17 +119,18 @@ def _path_exists_with_content(base: Path, pattern: str) -> bool:
 # 契约验证器
 # ═══════════════════════════════════════════
 
+
 class E2EValidator:
     """E2E 管线契约验证器
-    
+
     用法:
         validator = E2EValidator(project_blackboard)
-        
+
         # Sol Pro 完成后调用
         result = validator.validate_stage_complete("solution_pro")
         if not result["ok"]:
             raise ValueError(f"Sol Pro 产出缺失: {result['missing']}")
-        
+
         # 检查是否需要续行
         next_stage = validator.get_next_action("solution_pro")
         if next_stage:
@@ -139,13 +144,17 @@ class E2EValidator:
 
     def validate_stage_complete(self, stage_name: str) -> Dict:
         """验证阶段产出是否完整
-        
+
         Returns:
             {"ok": bool, "produced": [...], "missing": [...]}
         """
         stage = self.contract.get_stage(stage_name)
         if not stage:
-            return {"ok": False, "produced": [], "missing": [f"Unknown stage: {stage_name}"]}
+            return {
+                "ok": False,
+                "produced": [],
+                "missing": [f"Unknown stage: {stage_name}"],
+            }
 
         produced = []
         missing = []
@@ -165,13 +174,17 @@ class E2EValidator:
 
     def validate_prerequisites(self, stage_name: str) -> Dict:
         """验证阶段的前序依赖是否满足
-        
+
         Returns:
             {"ok": bool, "satisfied": [...], "missing": [...]}
         """
         stage = self.contract.get_stage(stage_name)
         if not stage:
-            return {"ok": False, "satisfied": [], "missing": [f"Unknown stage: {stage_name}"]}
+            return {
+                "ok": False,
+                "satisfied": [],
+                "missing": [f"Unknown stage: {stage_name}"],
+            }
 
         satisfied = []
         missing = []
@@ -191,14 +204,14 @@ class E2EValidator:
 
     def get_next_action(self, completed_stage: str) -> Optional[Dict]:
         """获取续行动作（契约笼子核心）
-        
+
         如果当前阶段完成且后续阶段存在 → 返回下一阶段信息
         如果管线已完成 → 返回 None
         如果当前阶段产出不完整 → raise ValueError
-        
+
         Returns:
             {"action": "continue", "stage": PipelineStage} or None
-            
+
         Raises:
             ValueError: 当前阶段产出不完整（契约笼子阻断）
         """
@@ -230,7 +243,7 @@ class E2EValidator:
 
     def check_pipeline_complete(self) -> Tuple[bool, Dict]:
         """检查完整管线是否已完成
-        
+
         Returns:
             (is_complete, details)
         """

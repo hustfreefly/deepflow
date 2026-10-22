@@ -36,6 +36,7 @@ SHANGHAI_TZ = timezone(timedelta(hours=8))
 @dataclass
 class CompactedContext:
     """压缩后的上下文"""
+
     completed_phases: list[dict] = field(default_factory=list)
     open_issues: list[str] = field(default_factory=list)
     next_phase_brief: str = ""
@@ -64,12 +65,12 @@ class CompactedContext:
             lines.append("")
 
         if self.next_phase_brief:
-            lines.append(f"## ➡️ 下一 Phase 简报")
+            lines.append("## ➡️ 下一 Phase 简报")
             lines.append(self.next_phase_brief)
             lines.append("")
 
         if self.goal_alignment:
-            lines.append(f"## 🎯 目标对齐度")
+            lines.append("## 🎯 目标对齐度")
             lines.append(self.goal_alignment)
             lines.append("")
 
@@ -165,7 +166,9 @@ class ContextCompactor:
                 f"artifacts={artifacts_list}, issues={r.issues}"
             )
 
-        raw_estimate = sum(len(r.summary) + len(json.dumps(r.artifacts)) for r in results) // 4  # 粗略估算
+        raw_estimate = (
+            sum(len(r.summary) + len(json.dumps(r.artifacts)) for r in results) // 4
+        )  # 粗略估算
         compression_ratio = int(self.target_tokens / max(raw_estimate, 1) * 100)
 
         return self.COMPACT_PROMPT.format(
@@ -207,13 +210,15 @@ class ContextCompactor:
         summaries = []
 
         for r in results:
-            completed_phases.append({
-                "phase": r.phase,
-                "name": r.phase_name,
-                "status": r.status,
-                "key_decisions": r.summary,
-                "artifacts": list(r.artifacts.values()) if r.artifacts else [],
-            })
+            completed_phases.append(
+                {
+                    "phase": r.phase,
+                    "name": r.phase_name,
+                    "status": r.status,
+                    "key_decisions": r.summary,
+                    "artifacts": list(r.artifacts.values()) if r.artifacts else [],
+                }
+            )
             all_issues.extend(r.issues)
             if r.summary:
                 summaries.append(f"Phase {r.phase}: {r.summary}")
@@ -231,7 +236,7 @@ class ContextCompactor:
         """解析 LLM 压缩结果"""
         import re
 
-        pattern = r'```json\s*\n(.*?)\n\s*```'
+        pattern = r"```json\s*\n(.*?)\n\s*```"
         match = re.search(pattern, response, re.DOTALL)
 
         if match:
@@ -254,6 +259,7 @@ class ContextCompactor:
 
 # ── CLI ───────────────────────────────────────────────────────────
 
+
 def main():
     """
     CLI: 读取 WorkerResult 列表，输出压缩上下文。
@@ -274,8 +280,9 @@ def main():
     parser.add_argument("--next-phase-name", required=True)
     parser.add_argument("--total-phases", type=int, required=True)
     parser.add_argument("--format", choices=["json", "prompt"], default="json")
-    parser.add_argument("--deterministic", action="store_true",
-                        help="使用确定性压缩（不调 LLM）")
+    parser.add_argument(
+        "--deterministic", action="store_true", help="使用确定性压缩（不调 LLM）"
+    )
     args = parser.parse_args()
 
     with open(args.input) as f:

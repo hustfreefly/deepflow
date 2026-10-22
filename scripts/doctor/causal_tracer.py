@@ -12,7 +12,6 @@ DeepFlow Doctor — Causal Tracer
 """
 
 from pathlib import Path
-from typing import Any
 
 from session_store import build_tree as _store_build_tree
 
@@ -84,21 +83,27 @@ def trace_causal_chain(issues_by_session: dict[str, list], tree: dict) -> list[d
             continue
 
         # 计算总浪费
-        total_tokens = sum(i.get("wasted_tokens", 0) for i in root_issues + child_issues)
-        total_seconds = sum(i.get("wasted_seconds", 0) for i in root_issues + child_issues)
+        total_tokens = sum(
+            i.get("wasted_tokens", 0) for i in root_issues + child_issues
+        )
+        total_seconds = sum(
+            i.get("wasted_seconds", 0) for i in root_issues + child_issues
+        )
 
         # 识别根因
         root_causes = [i for i in root_issues if i["severity"] == "red"]
         if root_causes:
-            chains.append({
-                "root_session": root_key,
-                "root_label": tree["sessions"].get(root_key, {}).get("label", ""),
-                "root_causes": root_causes,
-                "downstream_sessions": len(family) - 1,
-                "downstream_issues": len(child_issues),
-                "total_wasted_tokens": total_tokens,
-                "total_wasted_seconds": total_seconds,
-            })
+            chains.append(
+                {
+                    "root_session": root_key,
+                    "root_label": tree["sessions"].get(root_key, {}).get("label", ""),
+                    "root_causes": root_causes,
+                    "downstream_sessions": len(family) - 1,
+                    "downstream_issues": len(child_issues),
+                    "total_wasted_tokens": total_tokens,
+                    "total_wasted_seconds": total_seconds,
+                }
+            )
 
     # 按总浪费排序
     chains.sort(key=lambda c: c["total_wasted_tokens"], reverse=True)
@@ -110,6 +115,7 @@ def find_recent_pipeline_sessions(tree: dict, hours: int = 24) -> list[str]:
     找最近的管线 sessions（有子 Agent 的）。
     """
     import time
+
     cutoff = int((time.time() - hours * 3600) * 1000)
     recent = []
 

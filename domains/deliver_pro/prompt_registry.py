@@ -93,7 +93,7 @@ def _strip_front_matter(content: str) -> str:
         return content  # 没有闭合的 ---，返回原文
 
     # 跳过第二个 --- 后的换行
-    rest = content[end + 3:]
+    rest = content[end + 3 :]
     if rest.startswith("\n"):
         rest = rest[1:]
     elif rest.startswith("\r\n"):

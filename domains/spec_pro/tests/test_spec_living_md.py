@@ -77,7 +77,12 @@ RICH_SPEC = {
         {"id": "Q1", "question": "退出机制？", "blocking": True},
     ],
     "semantic_anchors": [
-        {"name": "IRR计算", "category": "metric", "constraint": "年化", "priority": "P0"},
+        {
+            "name": "IRR计算",
+            "category": "metric",
+            "constraint": "年化",
+            "priority": "P0",
+        },
     ],
     "solution_pro_hints": {
         "focus_areas": ["行业分析", "估值模型"],
@@ -91,6 +96,7 @@ RICH_SPEC = {
 
 
 # ─── Test: render_living_spec_md ─────────────────────────────────────────────
+
 
 class TestRender:
     def test_minimal_spec(self):
@@ -115,7 +121,7 @@ class TestRender:
     def test_frontmatter(self):
         md = render_living_spec_md(MINIMAL_SPEC)
         assert md.startswith("---")
-        assert 'domain: spec_pro' in md
+        assert "domain: spec_pro" in md
         assert 'version: "1.0"' in md
         assert 'session: "test_001"' in md
 
@@ -143,6 +149,7 @@ class TestRender:
 
 
 # ─── Test: parse_living_spec_md ──────────────────────────────────────────────
+
 
 class TestParse:
     def test_parse_minimal(self):
@@ -176,6 +183,7 @@ class TestParse:
 
 # ─── Test: validate_living_spec_md ──────────────────────────────────────────
 
+
 class TestValidate:
     def test_valid_md(self):
         md = render_living_spec_md(MINIMAL_SPEC)
@@ -201,6 +209,7 @@ class TestValidate:
 
 
 # ─── Test: Round-trip ────────────────────────────────────────────────────────
+
 
 class TestRoundTrip:
     def test_minimal_round_trip(self):
@@ -234,7 +243,9 @@ class TestRoundTrip:
 
         # Confirmed.objective
         total += 1
-        if RICH_SPEC["confirmed"]["objective"] in parsed["confirmed"].get("objective", ""):
+        if RICH_SPEC["confirmed"]["objective"] in parsed["confirmed"].get(
+            "objective", ""
+        ):
             preserved += 1
 
         # Confirmed.capabilities
@@ -272,11 +283,19 @@ class TestRoundTrip:
             preserved += 1
 
         rate = preserved / total
-        assert rate >= 0.95, f"Round-trip preservation rate {rate:.0%} < 95% (preserved {preserved}/{total})"
+        assert rate >= 0.95, (
+            f"Round-trip preservation rate {rate:.0%} < 95% (preserved {preserved}/{total})"
+        )
 
     def test_real_data_round_trip(self):
         """用真实 living_spec.json 做 round-trip 验证"""
-        real_path = Path(__file__).resolve().parent.parent.parent.parent / "blackboard" / "spec_spec_7a9ba5854e284543" / "spec" / "living_spec.json"
+        real_path = (
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "blackboard"
+            / "spec_spec_7a9ba5854e284543"
+            / "spec"
+            / "living_spec.json"
+        )
         if not real_path.exists():
             pytest.skip(f"Real data not found: {real_path}")
 

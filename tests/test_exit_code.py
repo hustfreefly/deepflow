@@ -38,6 +38,7 @@ from src.skill_health.exit_code import (
 # Test helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_check_result(
     checker_name: str = "TestChecker",
     status: str = "pass",
@@ -95,18 +96,25 @@ def _make_report(
 # Scenario 1: All pass → exit code 0
 # ===========================================================================
 
+
 class TestAllPass:
     """All checks passed → exit code 0 (success)."""
 
     def test_single_skill_all_pass(self):
         """Single skill with all checks passing returns exit code 0."""
         report = _make_report(
-            total=1, passed=1, warned=0, failed=0,
+            total=1,
+            passed=1,
+            warned=0,
+            failed=0,
             skill_reports=[
-                _make_skill_report("weather", [
-                    _make_check_result("DescChecker", "pass", "Description OK"),
-                    _make_check_result("SigCalc", "pass", "Signature computed"),
-                ]),
+                _make_skill_report(
+                    "weather",
+                    [
+                        _make_check_result("DescChecker", "pass", "Description OK"),
+                        _make_check_result("SigCalc", "pass", "Signature computed"),
+                    ],
+                ),
             ],
         )
         assert determine_exit_code(report) == EXIT_SUCCESS
@@ -115,7 +123,10 @@ class TestAllPass:
     def test_multiple_skills_all_pass(self):
         """Multiple skills all passing returns exit code 0."""
         report = _make_report(
-            total=3, passed=3, warned=0, failed=0,
+            total=3,
+            passed=3,
+            warned=0,
+            failed=0,
             skill_reports=[
                 _make_skill_report("weather", [_make_check_result(status="pass")]),
                 _make_skill_report("github", [_make_check_result(status="pass")]),
@@ -127,7 +138,10 @@ class TestAllPass:
     def test_empty_report_all_pass(self):
         """Empty report (no skills) returns exit code 0."""
         report = _make_report(
-            total=0, passed=0, warned=0, failed=0,
+            total=0,
+            passed=0,
+            warned=0,
+            failed=0,
             skill_reports=[],
         )
         assert determine_exit_code(report) == 0
@@ -137,18 +151,25 @@ class TestAllPass:
 # Scenario 2: Has warn, no fail → exit code 0
 # ===========================================================================
 
+
 class TestWarnNoFail:
     """Warnings present but no failures → exit code 0 (non-blocking)."""
 
     def test_single_skill_warn_only(self):
         """Single skill with warnings but no failures returns exit code 0."""
         report = _make_report(
-            total=1, passed=0, warned=1, failed=0,
+            total=1,
+            passed=0,
+            warned=1,
+            failed=0,
             skill_reports=[
-                _make_skill_report("weather", [
-                    _make_check_result("DescChecker", "warn", "Description short"),
-                    _make_check_result("SigCalc", "pass", "Signature OK"),
-                ]),
+                _make_skill_report(
+                    "weather",
+                    [
+                        _make_check_result("DescChecker", "warn", "Description short"),
+                        _make_check_result("SigCalc", "pass", "Signature OK"),
+                    ],
+                ),
             ],
         )
         assert determine_exit_code(report) == EXIT_SUCCESS
@@ -157,7 +178,10 @@ class TestWarnNoFail:
     def test_mixed_pass_and_warn(self):
         """Mix of passing and warning skills returns exit code 0."""
         report = _make_report(
-            total=3, passed=2, warned=1, failed=0,
+            total=3,
+            passed=2,
+            warned=1,
+            failed=0,
             skill_reports=[
                 _make_skill_report("weather", [_make_check_result(status="pass")]),
                 _make_skill_report("github", [_make_check_result(status="warn")]),
@@ -169,7 +193,10 @@ class TestWarnNoFail:
     def test_all_warn(self):
         """All skills with warnings (no failures) returns exit code 0."""
         report = _make_report(
-            total=2, passed=0, warned=2, failed=0,
+            total=2,
+            passed=0,
+            warned=2,
+            failed=0,
             skill_reports=[
                 _make_skill_report("a", [_make_check_result(status="warn")]),
                 _make_skill_report("b", [_make_check_result(status="warn")]),
@@ -182,17 +209,26 @@ class TestWarnNoFail:
 # Scenario 3: Has fail → exit code 1
 # ===========================================================================
 
+
 class TestHasFail:
     """At least one failure → exit code 1 (failure)."""
 
     def test_single_skill_fail(self):
         """Single skill with a failure returns exit code 1."""
         report = _make_report(
-            total=1, passed=0, warned=0, failed=1,
+            total=1,
+            passed=0,
+            warned=0,
+            failed=1,
             skill_reports=[
-                _make_skill_report("weather", [
-                    _make_check_result("DescChecker", "fail", "Missing description"),
-                ]),
+                _make_skill_report(
+                    "weather",
+                    [
+                        _make_check_result(
+                            "DescChecker", "fail", "Missing description"
+                        ),
+                    ],
+                ),
             ],
         )
         assert determine_exit_code(report) == EXIT_FAILURE
@@ -201,7 +237,10 @@ class TestHasFail:
     def test_mixed_pass_warn_fail(self):
         """Mix of pass, warn, and fail returns exit code 1."""
         report = _make_report(
-            total=3, passed=1, warned=1, failed=1,
+            total=3,
+            passed=1,
+            warned=1,
+            failed=1,
             skill_reports=[
                 _make_skill_report("weather", [_make_check_result(status="pass")]),
                 _make_skill_report("github", [_make_check_result(status="warn")]),
@@ -213,7 +252,10 @@ class TestHasFail:
     def test_all_fail(self):
         """All skills failing returns exit code 1."""
         report = _make_report(
-            total=2, passed=0, warned=0, failed=2,
+            total=2,
+            passed=0,
+            warned=0,
+            failed=2,
             skill_reports=[
                 _make_skill_report("a", [_make_check_result(status="fail")]),
                 _make_skill_report("b", [_make_check_result(status="fail")]),
@@ -224,7 +266,10 @@ class TestHasFail:
     def test_fail_overrides_warn(self):
         """Even with many warnings, a single failure triggers exit code 1."""
         report = _make_report(
-            total=5, passed=0, warned=4, failed=1,
+            total=5,
+            passed=0,
+            warned=4,
+            failed=1,
             skill_reports=[
                 _make_skill_report("w1", [_make_check_result(status="warn")]),
                 _make_skill_report("w2", [_make_check_result(status="warn")]),
@@ -239,6 +284,7 @@ class TestHasFail:
 # ===========================================================================
 # Scenario 4: Parameter/usage error → exit code 2
 # ===========================================================================
+
 
 class TestUsageError:
     """Parameter/usage errors → exit code 2."""
@@ -258,6 +304,7 @@ class TestUsageError:
 # ===========================================================================
 # Alternative interface: determine_exit_code_from_skills()
 # ===========================================================================
+
 
 class TestDetermineExitCodeFromSkills:
     """Tests for the alternative list[SkillReport] interface."""
@@ -293,21 +340,27 @@ class TestDetermineExitCodeFromSkills:
     def test_multiple_checks_per_skill(self):
         """Checks multiple check_results per skill for any failure."""
         skills = [
-            _make_skill_report("a", [
-                _make_check_result(status="pass"),
-                _make_check_result(status="warn"),
-                _make_check_result(status="pass"),
-            ]),
+            _make_skill_report(
+                "a",
+                [
+                    _make_check_result(status="pass"),
+                    _make_check_result(status="warn"),
+                    _make_check_result(status="pass"),
+                ],
+            ),
         ]
         assert determine_exit_code_from_skills(skills) == 0
 
     def test_fail_in_second_check(self):
         """Failure in any check_result (not just first) triggers exit 1."""
         skills = [
-            _make_skill_report("a", [
-                _make_check_result(status="pass"),
-                _make_check_result(status="fail"),
-            ]),
+            _make_skill_report(
+                "a",
+                [
+                    _make_check_result(status="pass"),
+                    _make_check_result(status="fail"),
+                ],
+            ),
         ]
         assert determine_exit_code_from_skills(skills) == 1
 
@@ -315,6 +368,7 @@ class TestDetermineExitCodeFromSkills:
 # ===========================================================================
 # exit_with_code() integration
 # ===========================================================================
+
 
 class TestExitWithCode:
     """Tests for exit_with_code() convenience function."""
@@ -344,6 +398,7 @@ class TestExitWithCode:
 # ===========================================================================
 # Constants and module-level checks
 # ===========================================================================
+
 
 class TestConstants:
     """Verify exit code constants match expected values."""

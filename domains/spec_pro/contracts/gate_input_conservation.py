@@ -92,6 +92,7 @@ conservation_rate = COVERED 要素数 / 总要素数（PARTIAL 算 0.5，MISSING
 # JSON 解析工具（复用 extract_semantic_anchors 的模式）
 # ============================================================================
 
+
 def _parse_llm_json(raw: str) -> Any:
     """从 LLM 输出中提取 JSON（处理 markdown 代码块）"""
     # 尝试直接解析
@@ -101,7 +102,7 @@ def _parse_llm_json(raw: str) -> Any:
         pass
 
     # 尝试提取 ```json ... ``` 块
-    match = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', raw, re.DOTALL)
+    match = re.search(r"```(?:json)?\s*\n?(.*?)\n?\s*```", raw, re.DOTALL)
     if match:
         try:
             return json.loads(match.group(1))
@@ -109,12 +110,12 @@ def _parse_llm_json(raw: str) -> Any:
             pass
 
     # 尝试找第一个 { 和最后一个 }（或 [ 和 ]）
-    for start_char, end_char in [('{', '}'), ('[', ']')]:
+    for start_char, end_char in [("{", "}"), ("[", "]")]:
         start = raw.find(start_char)
         end = raw.rfind(end_char)
         if start != -1 and end != -1 and end > start:
             try:
-                return json.loads(raw[start:end + 1])
+                return json.loads(raw[start : end + 1])
             except json.JSONDecodeError:
                 pass
 
@@ -124,6 +125,7 @@ def _parse_llm_json(raw: str) -> Any:
 # ============================================================================
 # Layer 1: 要素提取
 # ============================================================================
+
 
 def extract_input_elements(
     user_input: str,
@@ -193,15 +195,15 @@ def extract_input_elements(
                 f"gate_input_conservation: 要素 [{i}] 不是 dict: {type(elem).__name__}"
             )
         if not elem.get("element"):
-            raise ValueError(
-                f"gate_input_conservation: 要素 [{i}] 缺少 'element' 字段"
-            )
-        validated.append({
-            "id": elem.get("id", f"E{i+1}"),
-            "element": str(elem["element"]),
-            "category": str(elem.get("category", "其他")),
-            "criticality": str(elem.get("criticality", "MUST")).upper(),
-        })
+            raise ValueError(f"gate_input_conservation: 要素 [{i}] 缺少 'element' 字段")
+        validated.append(
+            {
+                "id": elem.get("id", f"E{i + 1}"),
+                "element": str(elem["element"]),
+                "category": str(elem.get("category", "其他")),
+                "criticality": str(elem.get("criticality", "MUST")).upper(),
+            }
+        )
 
     logger.info(f"gate_input_conservation: Layer 1 提取了 {len(validated)} 个语义要素")
     return validated
@@ -210,6 +212,7 @@ def extract_input_elements(
 # ============================================================================
 # Layer 2: LLM-as-Judge 守恒判定
 # ============================================================================
+
 
 def judge_element_conservation(
     elements: List[Dict[str, str]],
@@ -238,7 +241,9 @@ def judge_element_conservation(
     topic = str(confirmed.get("topic", living_spec.get("topic", "")))
     objective = str(confirmed.get("objective", ""))
     core_summary = str(living_spec.get("core_summary", ""))[:2000]
-    narrative = str(living_spec.get("narrative", living_spec.get("core_summary", "")))[:1000]
+    narrative = str(living_spec.get("narrative", living_spec.get("core_summary", "")))[
+        :1000
+    ]
     anchors_str = json.dumps(
         [a.get("name", str(a)) if isinstance(a, dict) else str(a) for a in anchors],
         ensure_ascii=False,
@@ -294,6 +299,7 @@ def judge_element_conservation(
 # ============================================================================
 # 主入口：gate_input_conservation
 # ============================================================================
+
 
 def gate_input_conservation(
     user_input: str,
@@ -356,24 +362,30 @@ def gate_input_conservation(
 
         if status == "MISSING":
             if criticality == "MUST":
-                must_missing.append({
-                    "id": elem_id,
-                    "element": element_desc,
-                    "evidence": r.get("evidence", ""),
-                })
+                must_missing.append(
+                    {
+                        "id": elem_id,
+                        "element": element_desc,
+                        "evidence": r.get("evidence", ""),
+                    }
+                )
             else:
                 # SHOULD or NICE
-                should_missing.append({
-                    "id": elem_id,
-                    "element": element_desc,
-                    "criticality": criticality,
-                    "evidence": r.get("evidence", ""),
-                })
-                declared_gaps.append({
-                    "id": elem_id,
-                    "element": element_desc,
-                    "criticality": criticality,
-                })
+                should_missing.append(
+                    {
+                        "id": elem_id,
+                        "element": element_desc,
+                        "criticality": criticality,
+                        "evidence": r.get("evidence", ""),
+                    }
+                )
+                declared_gaps.append(
+                    {
+                        "id": elem_id,
+                        "element": element_desc,
+                        "criticality": criticality,
+                    }
+                )
         elif status == "PARTIAL":
             # PARTIAL 不算 MISSING，但记录
             pass

@@ -21,6 +21,7 @@ from src.skill_health.check_result import CheckResult
 # Construction & field defaults
 # ---------------------------------------------------------------------------
 
+
 class TestCheckResultConstruction:
     """Test that CheckResult can be constructed with valid data."""
 
@@ -68,6 +69,7 @@ class TestCheckResultConstruction:
 # ---------------------------------------------------------------------------
 # status Literal validation
 # ---------------------------------------------------------------------------
+
 
 class TestStatusLiteral:
     """Test that status field enforces Literal with strict mode."""
@@ -121,6 +123,7 @@ class TestStatusLiteral:
 # quality_score bounds
 # ---------------------------------------------------------------------------
 
+
 class TestQualityScoreBounds:
     """Test quality_score ge=0, le=100 constraints."""
 
@@ -162,6 +165,7 @@ class TestQualityScoreBounds:
 # length validation
 # ---------------------------------------------------------------------------
 
+
 class TestLengthField:
     """Test length field ge=0 constraint."""
 
@@ -200,6 +204,7 @@ class TestLengthField:
 # is_valid field
 # ---------------------------------------------------------------------------
 
+
 class TestIsValidField:
     """Test is_valid bool field."""
 
@@ -235,6 +240,7 @@ class TestIsValidField:
 # ---------------------------------------------------------------------------
 # warnings field
 # ---------------------------------------------------------------------------
+
 
 class TestWarningsField:
     """Test warnings List[str] field."""
@@ -275,6 +281,7 @@ class TestWarningsField:
 # ---------------------------------------------------------------------------
 # Serialization
 # ---------------------------------------------------------------------------
+
 
 class TestSerialization:
     """Test model_dump and model_dump_json."""

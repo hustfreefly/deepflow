@@ -14,8 +14,8 @@ from typing import Any, Dict, List, Optional
 import yaml
 from pathlib import Path
 import logging
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 
 def _read_spec_pro_version() -> str:
@@ -23,24 +23,26 @@ def _read_spec_pro_version() -> str:
     try:
         config_path = Path(__file__).parent / "config" / "spec_pro.yaml"
         if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
-                return config.get('component_version', '2.1.0')
+                return config.get("component_version", "2.1.0")
     except Exception as e:
         logger.debug(f"version read: {e}")
-    return '2.1.0'  # fallback
+    return "2.1.0"  # fallback
 
 
 class QualityLevel(Enum):
     """需求质量等级"""
-    S = "S"    # 90-100: 卓越
-    A = "A"    # 75-89: 良好
-    B = "B"    # 60-74: 可用
-    C = "C"    # <60: 不足
+
+    S = "S"  # 90-100: 卓越
+    A = "A"  # 75-89: 良好
+    B = "B"  # 60-74: 可用
+    C = "C"  # <60: 不足
 
 
 class Scenario(Enum):
     """Spec Pro 场景"""
+
     GENESIS = "genesis"
     SUPPLEMENT = "supplement"
     REFINE = "refine"
@@ -49,6 +51,7 @@ class Scenario(Enum):
 
 class DialogState(Enum):
     """对话状态机"""
+
     START = "start"
     PARSING = "parsing"
     COLLECTING = "collecting"
@@ -62,6 +65,7 @@ class DialogState(Enum):
 
 class QuestionType(Enum):
     """苏格拉底六类问题"""
+
     CLARIFICATION = "clarification"
     PROBE_ASSUMPTION = "probe_assumption"
     PROBE_EVIDENCE = "probe_evidence"
@@ -72,6 +76,7 @@ class QuestionType(Enum):
 
 class RoundAction(Enum):
     """Orchestrator 每轮输出动作"""
+
     QUESTIONS = "questions"
     SUMMARY = "summary"
     PROPOSAL = "proposal"  # D5 停滞检测: 向用户提议 Living Spec 草案
@@ -90,49 +95,56 @@ class LivingSpec:
     - inferred: AI 推断的需求（标注置信度，待确认）
     - guardrails: 三层边界（always_do / ask_first / never_do）
     """
-    meta: Dict[str, Any] = field(default_factory=lambda: {
-        "engine": "spec_pro",
-        "version": _read_spec_pro_version(),
-        "spec_version": 1,
-        "scenario": "genesis",
-        "created_at": "",
-        "updated_at": "",
-        "conversation_rounds": 0,
-        "quality_score": 0,
-        "quality_level": "C",
-    })
 
-    confirmed: Dict[str, Any] = field(default_factory=lambda: {
-        "objective": "",
-        "pain_points": [],
-        "success_metrics": [],
-        "users": [],
-        "key_scenarios": [],
-        "capabilities": {
-            "always_do": [],
-            "should_do": [],
-            "never_do": [],
-        },
-        "quality_attributes": [],
-        "constraints": {},
-        "integration": {
-            "existing_systems": [],
-            "requirements": [],
-        },
-        "risks_and_assumptions": {
-            "risks": [],
-            "assumptions": [],
-            "dependencies": [],
-        },
-    })
+    meta: Dict[str, Any] = field(
+        default_factory=lambda: {
+            "engine": "spec_pro",
+            "version": _read_spec_pro_version(),
+            "spec_version": 1,
+            "scenario": "genesis",
+            "created_at": "",
+            "updated_at": "",
+            "conversation_rounds": 0,
+            "quality_score": 0,
+            "quality_level": "C",
+        }
+    )
+
+    confirmed: Dict[str, Any] = field(
+        default_factory=lambda: {
+            "objective": "",
+            "pain_points": [],
+            "success_metrics": [],
+            "users": [],
+            "key_scenarios": [],
+            "capabilities": {
+                "always_do": [],
+                "should_do": [],
+                "never_do": [],
+            },
+            "quality_attributes": [],
+            "constraints": {},
+            "integration": {
+                "existing_systems": [],
+                "requirements": [],
+            },
+            "risks_and_assumptions": {
+                "risks": [],
+                "assumptions": [],
+                "dependencies": [],
+            },
+        }
+    )
 
     inferred: List[Dict[str, Any]] = field(default_factory=list)
 
-    guardrails: Dict[str, List[str]] = field(default_factory=lambda: {
-        "always_do": [],
-        "ask_first": [],
-        "never_do": [],
-    })
+    guardrails: Dict[str, List[str]] = field(
+        default_factory=lambda: {
+            "always_do": [],
+            "ask_first": [],
+            "never_do": [],
+        }
+    )
 
     route_recommendation: Optional[Dict[str, Any]] = None
     solution_pro_hints: Optional[Dict[str, Any]] = None
@@ -141,20 +153,24 @@ class LivingSpec:
     # 契约笼子（2026-07-05）：与 Pydantic 版本对齐，确保信息守恒
     # 权威定义：contracts/living_spec.py (Pydantic + 字段校验)
     # 本文件是运行时轻量级镜像，必须与 Pydantic 版本保持字段同步
-    core_summary: str = ""                    # 核心需求摘要（≤5KB）
-    narrative: str = ""                       # 完整用户需求叙述
-    requirement_index: List[Dict[str, Any]] = field(default_factory=list)  # REQ-ID 追溯索引
-    semantic_anchors: List[Dict[str, Any]] = field(default_factory=list)   # 不可变语义锚点
-
+    core_summary: str = ""  # 核心需求摘要（≤5KB）
+    narrative: str = ""  # 完整用户需求叙述
+    requirement_index: List[Dict[str, Any]] = field(
+        default_factory=list
+    )  # REQ-ID 追溯索引
+    semantic_anchors: List[Dict[str, Any]] = field(
+        default_factory=list
+    )  # 不可变语义锚点
 
 
 @dataclass
 class DimensionScore:
     """单维度评分"""
+
     dimension: str
     name: str
     weight: float
-    score: float          # 0-100
+    score: float  # 0-100
     reasoning: str
     missing_items: List[str] = field(default_factory=list)
 
@@ -162,7 +178,8 @@ class DimensionScore:
 @dataclass
 class QualityReport:
     """质量评估报告"""
-    overall_score: float   # 0-100
+
+    overall_score: float  # 0-100
     level: QualityLevel
     dimensions: List[DimensionScore]
     top_missing: List[str]
@@ -172,11 +189,12 @@ class QualityReport:
 @dataclass
 class TrajectoryPoint:
     """质量轨迹中的一个点（每轮一条）"""
+
     round: int
     overall_score: float
     level: str
     dimension_scores: Dict[str, float]
-    delta: float           # 与上一轮的分数差
+    delta: float  # 与上一轮的分数差
     questions_asked: int
     inferences_validated: int
 
@@ -184,11 +202,12 @@ class TrajectoryPoint:
 @dataclass
 class ConversationEntry:
     """对话日志中的一条记录（每轮一条）"""
+
     round: int
     timestamp: str
-    phase: str             # init | collecting | confirmation
+    phase: str  # init | collecting | confirmation
     questions: List[Dict[str, str]]
-    user_response: str     # 截断500字
+    user_response: str  # 截断500字
     parsed_updates_summary: str
     quality_before: float
     quality_after: float
@@ -201,10 +220,11 @@ class ConversationEntry:
 @dataclass
 class RouteRecommendation:
     """路由建议"""
-    suggested_engine: str    # solution_pro | lightweight | direct_answer
-    suggested_mode: str      # quick | standard | rigorous
+
+    suggested_engine: str  # solution_pro | lightweight | direct_answer
+    suggested_mode: str  # quick | standard | rigorous
     reasoning: str
-    confidence: float        # 0.0-1.0
+    confidence: float  # 0.0-1.0
     complexity_score: float  # 0-100
     complexity_factors: List[str] = field(default_factory=list)
 
@@ -212,11 +232,12 @@ class RouteRecommendation:
 @dataclass
 class HarnessReport:
     """Harness Output Guard 报告"""
+
     harness_version: str
     dimensions: Dict[str, Any]
     overall_score: float
-    gates: Dict[str, str]    # spec_quality / inference_audit / trajectory_audit
-    final_decision: str      # PASS | WARN | SOFT_BLOCK | HARD_BLOCK
+    gates: Dict[str, str]  # spec_quality / inference_audit / trajectory_audit
+    final_decision: str  # PASS | WARN | SOFT_BLOCK | HARD_BLOCK
     final_reasoning: str
     improvements: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)

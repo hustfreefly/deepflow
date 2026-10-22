@@ -2,7 +2,7 @@
 ResearchPro 单元测试 — KeywordGenerator
 契约: cage/active/research_pro_v1.0.yaml (L1: keyword_generator)
 """
-import os
+
 import unittest
 from datetime import datetime
 
@@ -41,20 +41,20 @@ class TestKeywordGenerator(unittest.TestCase):
         """每组包含 base + variants + priority。"""
         result = self.kg.generate(max_groups=3)
         for group in result:
-            self.assertIn('base', group)
-            self.assertIn('variants', group)
-            self.assertIn('priority', group)
-            self.assertIsInstance(group['base'], str)
-            self.assertIsInstance(group['variants'], list)
-            self.assertIsInstance(group['priority'], int)
-            self.assertGreaterEqual(group['priority'], 1)
-            self.assertLessEqual(group['priority'], 5)
+            self.assertIn("base", group)
+            self.assertIn("variants", group)
+            self.assertIn("priority", group)
+            self.assertIsInstance(group["base"], str)
+            self.assertIsInstance(group["variants"], list)
+            self.assertIsInstance(group["priority"], int)
+            self.assertGreaterEqual(group["priority"], 1)
+            self.assertLessEqual(group["priority"], 5)
 
     def test_generate_variants_max_5(self):
         """每组变体最多 5 个。"""
         result = self.kg.generate(max_groups=10)
         for group in result:
-            self.assertLessEqual(len(group['variants']), 5)
+            self.assertLessEqual(len(group["variants"]), 5)
 
     def test_generate_empty_plan(self):
         """空 plan 返回空列表。"""
@@ -111,5 +111,5 @@ class TestKeywordGenerator(unittest.TestCase):
         self.assertGreaterEqual(len(result), 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

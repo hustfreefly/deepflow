@@ -22,7 +22,9 @@ class WorkerTask(BaseModel):
     task_id: str = Field(description="Task ID")
     wp_id: str = Field(description="WP ID")
     title: str = Field(description="任务标题")
-    scenario: Literal["code", "report", "mixed"] = Field(description="场景: code | report | mixed")
+    scenario: Literal["code", "report", "mixed"] = Field(
+        description="场景: code | report | mixed"
+    )
     prompt: str = Field(description="完整 prompt（静态约束 + 动态任务）")
     model: str = Field(default="qwen3.7-plus", description="推荐模型")
     timeout_seconds: int = Field(default=300, description="超时秒数")
@@ -50,7 +52,9 @@ class WorkerOutputMeta(BaseModel):
     task_id: str
     wp_id: str
     scenario: str
-    status: Literal["COMPLETE", "PARTIAL", "FAILED"] = Field(description="COMPLETE | PARTIAL | FAILED")
+    status: Literal["COMPLETE", "PARTIAL", "FAILED"] = Field(
+        description="COMPLETE | PARTIAL | FAILED"
+    )
     # DryRun D-P2-1: Worker prompt (P1-4 约束) 要求写入这两个字段，contract 需对齐
     covered_ac_ids: list[str] = Field(
         default_factory=list,
@@ -101,7 +105,9 @@ class WorkerResult(BaseModel):
     """
 
     task_id: str
-    status: Literal["COMPLETE", "PARTIAL", "FAILED"] = Field(description="COMPLETE | PARTIAL | FAILED")
+    status: Literal["COMPLETE", "PARTIAL", "FAILED"] = Field(
+        description="COMPLETE | PARTIAL | FAILED"
+    )
     output_meta: Optional[WorkerOutputMeta] = None
     output_dir: str = Field(
         default="",

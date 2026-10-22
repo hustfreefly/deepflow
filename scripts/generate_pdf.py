@@ -6,13 +6,14 @@ FixFlow #6: 标准化 PDF 生成工具
 Usage:
   python3 scripts/generate_pdf.py <input.md> <output.pdf> [--title "Title"]
 """
+
 import sys
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
 
 def md_to_html(md_path: str, title: str = "") -> str:
     """Convert markdown to styled HTML with Chinese font support."""
@@ -21,10 +22,12 @@ def md_to_html(md_path: str, title: str = "") -> str:
     except ImportError:
         print("ERROR: markdown package not installed. Run: pip install markdown")
         sys.exit(1)
-    
-    md_content = Path(md_path).read_text(encoding='utf-8')
-    html_body = markdown.markdown(md_content, extensions=['tables', 'fenced_code', 'toc', 'nl2br'])
-    
+
+    md_content = Path(md_path).read_text(encoding="utf-8")
+    html_body = markdown.markdown(
+        md_content, extensions=["tables", "fenced_code", "toc", "nl2br"]
+    )
+
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -59,53 +62,60 @@ hr {{ border: none; border-top: 1px solid #e5e7eb; margin: 18px 0; }}
 </body>
 </html>"""
 
+
 def html_to_pdf(html_path: str, pdf_path: str) -> bool:
     """Convert HTML to PDF using Chrome headless."""
     if not os.path.exists(CHROME_PATH):
         print(f"ERROR: Chrome not found at {CHROME_PATH}")
         return False
-    
+
     cmd = [
         CHROME_PATH,
-        "--headless", "--disable-gpu", "--no-sandbox",
+        "--headless",
+        "--disable-gpu",
+        "--no-sandbox",
         f"--print-to-pdf={pdf_path}",
         "--print-to-pdf-no-header",
-        str(html_path)
+        str(html_path),
     ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+
+    subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     return os.path.exists(pdf_path)
+
 
 def generate_pdf(input_md: str, output_pdf: str, title: str = "") -> dict:
     """Main entry: MD → HTML → PDF"""
     # Step 1: MD → HTML
     html_content = md_to_html(input_md, title)
-    
+
     # Step 2: Write temp HTML
-    html_path = str(Path(output_pdf).with_suffix('.html'))
-    Path(html_path).write_text(html_content, encoding='utf-8')
-    
+    html_path = str(Path(output_pdf).with_suffix(".html"))
+    Path(html_path).write_text(html_content, encoding="utf-8")
+
     # Step 3: HTML → PDF
     success = html_to_pdf(html_path, output_pdf)
-    
+
     if success:
         size_kb = os.path.getsize(output_pdf) / 1024
         return {"success": True, "size_kb": round(size_kb, 1), "pdf_path": output_pdf}
     else:
         return {"success": False, "error": "Chrome headless PDF generation failed"}
 
+
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: python3 generate_pdf.py <input.md> <output.pdf> [--title 'Title']")
+        print(
+            "Usage: python3 generate_pdf.py <input.md> <output.pdf> [--title 'Title']"
+        )
         sys.exit(1)
-    
+
     input_md = sys.argv[1]
     output_pdf = sys.argv[2]
     title = ""
     if "--title" in sys.argv:
         idx = sys.argv.index("--title")
         title = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else ""
-    
+
     result = generate_pdf(input_md, output_pdf, title)
     if result["success"]:
         print(f"✅ PDF generated: {result['pdf_path']} ({result['size_kb']} KB)")

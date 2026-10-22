@@ -18,7 +18,6 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Optional
 
 # Bootstrap
 DEEPFLOW_HOME = Path(__file__).resolve().parent.parent
@@ -32,6 +31,7 @@ SHANGHAI_TZ = timezone(timedelta(hours=8))
 @dataclass
 class ProgressReport:
     """Worker 完成后的进度报告"""
+
     event: str = "worker.complete"
     phase: int = 0
     phase_name: str = ""
@@ -75,8 +75,12 @@ class ProgressReport:
 
     def to_markdown(self) -> str:
         """生成飞书可读的 Markdown 进度报告"""
-        health_emoji = {"healthy": "🟢", "warning": "🟡", "critical": "🔴"}.get(self.health, "⚪")
-        status_emoji = {"success": "✅", "partial": "⚠️", "failed": "❌"}.get(self.status, "❓")
+        health_emoji = {"healthy": "🟢", "warning": "🟡", "critical": "🔴"}.get(
+            self.health, "⚪"
+        )
+        status_emoji = {"success": "✅", "partial": "⚠️", "failed": "❌"}.get(
+            self.status, "❓"
+        )
 
         lines = [
             f"📊 **Pipeline 进度**: {self.progress_bar}",
@@ -98,7 +102,9 @@ class ProgressReport:
             for warning in self.worker_warnings:
                 lines.append(f"💡 注意: {warning}")
 
-        lines.append(f"➡️ 建议: {self.recommendation_action} — {self.recommendation_reason}")
+        lines.append(
+            f"➡️ 建议: {self.recommendation_action} — {self.recommendation_reason}"
+        )
 
         return "\n".join(lines)
 
@@ -157,13 +163,22 @@ class FeedbackStream:
     def _recommend_next(self, result: WorkerResult) -> tuple[str, str]:
         """给主 Agent 的决策建议"""
         if result.status == "failed":
-            return ("recover", f"Phase {result.phase} 失败: {'; '.join(result.issues[:2])}")
+            return (
+                "recover",
+                f"Phase {result.phase} 失败: {'; '.join(result.issues[:2])}",
+            )
         elif result.status == "partial":
             return ("continue_with_note", f"Phase {result.phase} 部分完成，继续推进")
         elif result.confidence < 0.5:
-            return ("review", f"Phase {result.phase} 置信度过低 ({result.confidence:.0%})，建议检查")
+            return (
+                "review",
+                f"Phase {result.phase} 置信度过低 ({result.confidence:.0%})，建议检查",
+            )
         elif result.warnings:
-            return ("continue", f"Phase {result.phase} 完成（有 {len(result.warnings)} 个注意事项）")
+            return (
+                "continue",
+                f"Phase {result.phase} 完成（有 {len(result.warnings)} 个注意事项）",
+            )
         else:
             return ("continue", f"Phase {result.phase} 正常完成，继续下一阶段")
 
@@ -189,11 +204,14 @@ class FeedbackStream:
                 "total_issues": len(all_issues),
             },
             "issues": all_issues[:10],  # Top 10
-            "verdict": "success" if failed == 0 and partial == 0 else ("partial" if failed == 0 else "failed"),
+            "verdict": "success"
+            if failed == 0 and partial == 0
+            else ("partial" if failed == 0 else "failed"),
         }
 
 
 # ── CLI ───────────────────────────────────────────────────────────
+
 
 def main():
     """CLI: 从 stdin 读取 WorkerResult JSON，输出 ProgressReport"""
@@ -201,7 +219,9 @@ def main():
 
     parser = argparse.ArgumentParser(description="Feedback Stream")
     parser.add_argument("--total-phases", type=int, required=True)
-    parser.add_argument("--input", help="WorkerResult JSON 文件路径（不指定则从 stdin 读取）")
+    parser.add_argument(
+        "--input", help="WorkerResult JSON 文件路径（不指定则从 stdin 读取）"
+    )
     parser.add_argument("--format", choices=["json", "markdown"], default="json")
     args = parser.parse_args()
 

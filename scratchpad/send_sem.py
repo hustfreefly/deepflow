@@ -1,4 +1,6 @@
-import os, smtplib, ssl
+import os
+import smtplib
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
@@ -12,7 +14,9 @@ with open("/Users/allen/.openclaw/workspace/.env") as f:
             k, _, v = line.partition("=")
             env[k.strip()] = v.strip().strip('"').strip("'")
 
-password = env["SMTP_QQ_PASSWORD"] if "SMTP_QQ_PASSWORD" in env else env["SMTP_PASSWORD"]
+password = (
+    env["SMTP_QQ_PASSWORD"] if "SMTP_QQ_PASSWORD" in env else env["SMTP_PASSWORD"]
+)
 
 sender = "81240779@qq.com"
 receivers = ["81240779@qq.com"]
@@ -23,8 +27,12 @@ files = [
 msg = MIMEMultipart()
 msg["From"] = sender
 msg["To"] = ", ".join(receivers)
-msg["Subject"] = Header("【SEM 主图】2.5D 封装截面（gpt-image-2 全景版，先看这版）", "utf-8")
-msg.attach(MIMEText("""忠礼：
+msg["Subject"] = Header(
+    "【SEM 主图】2.5D 封装截面（gpt-image-2 全景版，先看这版）", "utf-8"
+)
+msg.attach(
+    MIMEText(
+        """忠礼：
 
 附件是昨晚出的 2.5D 封装 SEM 截面主图（gpt-image-2 文生图全景版，灰度，2.6MB PNG）。
 
@@ -43,13 +51,19 @@ msg.attach(MIMEText("""忠礼：
 下一步：等你给真实 µbump pitch（先进节点 25-35µm / 混合键合 1-10µm 无焊帽直连），我按 skill 里固化的四层结构画法出几何精确版。
 
 —— 小满
-""", "plain", "utf-8"))
+""",
+        "plain",
+        "utf-8",
+    )
+)
 
 for path in files:
     with open(path, "rb") as f:
         part = MIMEApplication(f.read())
     fname = os.path.basename(path)
-    part.add_header("Content-Disposition", "attachment", filename=Header(fname, "utf-8").encode())
+    part.add_header(
+        "Content-Disposition", "attachment", filename=Header(fname, "utf-8").encode()
+    )
     msg.attach(part)
 
 ctx = ssl.create_default_context()

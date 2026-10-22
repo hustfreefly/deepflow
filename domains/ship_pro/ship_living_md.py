@@ -38,6 +38,7 @@ OPTIONAL_SECTIONS = [
 
 # ─── render: dict → MD ──────────────────────────────────────────────────────
 
+
 def render_ship_package_md(data: dict) -> str:
     """
     将 ship_package dict 渲染为 V2 schema Markdown。
@@ -97,8 +98,14 @@ def render_ship_package_md(data: dict) -> str:
             title = wp.get("title", "")[:50]
             effort = wp.get("effort_hours", wp.get("estimated_effort", "?"))
             # R1-FIX: prefer covered_req_ids (WorkerDeliverable schema), fallback for backward compat
-            req_ids = wp.get("covered_req_ids", wp.get("requirement_ids", wp.get("req_ids", [])))
-            req_str = ", ".join(str(r) for r in req_ids[:5]) if isinstance(req_ids, list) else str(req_ids)[:30]
+            req_ids = wp.get(
+                "covered_req_ids", wp.get("requirement_ids", wp.get("req_ids", []))
+            )
+            req_str = (
+                ", ".join(str(r) for r in req_ids[:5])
+                if isinstance(req_ids, list)
+                else str(req_ids)[:30]
+            )
             lines.append(f"| {wp_id} | {title} | {effort} | {req_str} |")
         lines.append("")
 
@@ -120,7 +127,9 @@ def render_ship_package_md(data: dict) -> str:
                 lines.append("**Acceptance Criteria**:")
                 for item in ac[:5]:
                     if isinstance(item, dict):
-                        lines.append(f"- {item.get('criterion', item.get('description', str(item)))[:100]}")
+                        lines.append(
+                            f"- {item.get('criterion', item.get('description', str(item)))[:100]}"
+                        )
                     else:
                         lines.append(f"- {str(item)[:100]}")
                 lines.append("")
@@ -128,7 +137,9 @@ def render_ship_package_md(data: dict) -> str:
                 lines.append("**Deliverables**:")
                 for item in deliverables[:5]:
                     if isinstance(item, dict):
-                        lines.append(f"- {item.get('name', item.get('type', str(item)))}")
+                        lines.append(
+                            f"- {item.get('name', item.get('type', str(item)))}"
+                        )
                     else:
                         lines.append(f"- {str(item)}")
                 lines.append("")
@@ -212,7 +223,9 @@ def render_ship_package_md(data: dict) -> str:
         lines.append("|------|----------|------------|")
         for a in anchors:
             if isinstance(a, dict):
-                lines.append(f"| {a.get('name', '?')} | {a.get('category', '?')} | {a.get('constraint', '')[:60]} |")
+                lines.append(
+                    f"| {a.get('name', '?')} | {a.get('category', '?')} | {a.get('constraint', '')[:60]} |"
+                )
     else:
         lines.append("<!-- empty -->")
     lines.append("")
@@ -275,7 +288,9 @@ def render_ship_package_md(data: dict) -> str:
     lines.append("|-------------|--------|--------|")
     lines.append("| L1 (Schema) | PASS | Ship Pro output |")
     wp_count = len(wps)
-    lines.append(f"| L2 (WP Count) | {'PASS' if wp_count > 0 else 'FAIL'} | {wp_count} work packages |")
+    lines.append(
+        f"| L2 (WP Count) | {'PASS' if wp_count > 0 else 'FAIL'} | {wp_count} work packages |"
+    )
     lines.append("| L3 (merge) | PASS | ship package complete |")
     lines.append("")
 
@@ -283,6 +298,7 @@ def render_ship_package_md(data: dict) -> str:
 
 
 # ─── parse: MD → dict ────────────────────────────────────────────────────────
+
 
 def parse_ship_package_md(md: str) -> dict:
     """
@@ -300,7 +316,7 @@ def parse_ship_package_md(md: str) -> dict:
         end = md.find("---", 3)
         if end != -1:
             fm_text = md[3:end].strip()
-            body = md[end + 3:]
+            body = md[end + 3 :]
             for line in fm_text.split("\n"):
                 if ":" in line:
                     key, _, val = line.partition(":")
@@ -330,8 +346,13 @@ def parse_ship_package_md(md: str) -> dict:
         if "project_name" in meta_fields:
             result["project_name"] = meta_fields["project_name"]
         # Parse statistics fields from meta_info table (total_wps, total_effort_hours, etc.)
-        for stat_key in ("total_wps", "total_effort_hours", "req_coverage_rate",
-                         "dependency_edges", "req_coverage"):
+        for stat_key in (
+            "total_wps",
+            "total_effort_hours",
+            "req_coverage_rate",
+            "dependency_edges",
+            "req_coverage",
+        ):
             if stat_key in meta_fields:
                 result.setdefault("statistics", {})[stat_key] = meta_fields[stat_key]
 
@@ -352,8 +373,14 @@ def parse_ship_package_md(md: str) -> dict:
     if req_text:
         coverage_match = re.search(r"\*\*Coverage Rate\*\*:\s*(.+)", req_text)
         if coverage_match:
-            result.setdefault("statistics", {})["req_coverage_rate"] = coverage_match.group(1).strip()
-        pending = [l.strip().lstrip("- ") for l in req_text.split("\n") if l.strip().startswith("- ")]
+            result.setdefault("statistics", {})["req_coverage_rate"] = (
+                coverage_match.group(1).strip()
+            )
+        pending = [
+            line.strip().lstrip("- ")
+            for line in req_text.split("\n")
+            if line.strip().startswith("- ")
+        ]
         if pending:
             result["pending_req_ids"] = pending
 
@@ -420,18 +447,22 @@ def parse_ship_package_md(md: str) -> dict:
     # S7c: modules — N3-FIX
     mod_text = sections.get("modules", "")
     if mod_text:
-        modules = [l.strip().lstrip("- ") for l in mod_text.split("\n") if l.strip().startswith("- ")]
+        modules = [
+            line.strip().lstrip("- ")
+            for line in mod_text.split("\n")
+            if line.strip().startswith("- ")
+        ]
         if modules:
             result["modules"] = modules
 
     # S7d: integration_notes — N3-FIX
     in_text = sections.get("integration_notes", "")
     if in_text:
-        in_lines = [l.strip() for l in in_text.split("\n") if l.strip()]
+        in_lines = [line.strip() for line in in_text.split("\n") if line.strip()]
         if in_lines:
             # If all lines start with "- ", treat as list; otherwise as text
-            if all(l.startswith("- ") for l in in_lines):
-                result["integration_notes"] = [l[2:].strip() for l in in_lines]
+            if all(line.startswith("- ") for line in in_lines):
+                result["integration_notes"] = [line[2:].strip() for line in in_lines]
             else:
                 result["integration_notes"] = "\n".join(in_lines)
 
@@ -471,23 +502,35 @@ def _parse_work_packages(text: str) -> list[dict]:
     wps = []
 
     # ── Phase 1: Parse summary table ──
-    table_lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    table_lines = [
+        line.strip() for line in text.split("\n") if line.strip().startswith("|")
+    ]
     if len(table_lines) >= 3:
         for line in table_lines[2:]:
             cells = [c.strip() for c in line.split("|")[1:-1]]
             if cells and cells[0]:
                 # R1-FIX: parse into covered_req_ids (canonical field name)
-                wps.append({
-                    "id": cells[0],
-                    "title": cells[1] if len(cells) > 1 else "",
-                    "effort_hours": int(cells[2]) if len(cells) > 2 and cells[2].strip().isdigit() else 0,
-                    "covered_req_ids": [r.strip() for r in cells[3].split(",") if r.strip()] if len(cells) > 3 else [],
-                })
+                wps.append(
+                    {
+                        "id": cells[0],
+                        "title": cells[1] if len(cells) > 1 else "",
+                        "effort_hours": int(cells[2])
+                        if len(cells) > 2 and cells[2].strip().isdigit()
+                        else 0,
+                        "covered_req_ids": [
+                            r.strip() for r in cells[3].split(",") if r.strip()
+                        ]
+                        if len(cells) > 3
+                        else [],
+                    }
+                )
 
     # ── Phase 2: Parse detailed WP subsections (### WP-ID: Title) ──
-    wp_detail_pattern = re.compile(r'^###\s+(\S+):\s*(.*)$')
+    wp_detail_pattern = re.compile(r"^###\s+(\S+):\s*(.*)$")
     current_wp_id = None
-    current_section = None  # 'description', 'acceptance_criteria', 'deliverables', 'dependencies'
+    current_section = (
+        None  # 'description', 'acceptance_criteria', 'deliverables', 'dependencies'
+    )
     description_lines: list[str] = []
     ac_items: list[str] = []
     deliverable_items: list[str] = []
@@ -558,12 +601,14 @@ def _parse_work_packages(text: str) -> list[dict]:
             # Extract data from same line: "**Anchored To**: REQ-OBJ-001, REQ-QA-003"
             if ":" in line:
                 anchor_text = line.split(":", 1)[1].strip()
-                anchored_items = [a.strip() for a in anchor_text.split(",") if a.strip()]
+                anchored_items = [
+                    a.strip() for a in anchor_text.split(",") if a.strip()
+                ]
             i += 1
             continue
 
         # Detect another H3 or H2 → end of current WP detail
-        if re.match(r'^#{2,3}\s', line):
+        if re.match(r"^#{2,3}\s", line):
             _flush_wp()
             current_wp_id = None
             current_section = None
@@ -602,7 +647,9 @@ def _parse_work_packages(text: str) -> list[dict]:
 
 def _parse_execution_order(text: str) -> dict:
     layers = []
-    table_lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    table_lines = [
+        line.strip() for line in text.split("\n") if line.strip().startswith("|")
+    ]
     if len(table_lines) >= 3:
         for line in table_lines[2:]:
             cells = [c.strip() for c in line.split("|")[1:-1]]
@@ -618,7 +665,9 @@ def _parse_kv_table(text: str) -> dict[str, str]:
     Handles both meta_info (| field | value |) and statistics (| metric | value |) tables.
     """
     result: dict[str, str] = {}
-    table_lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    table_lines = [
+        line.strip() for line in text.split("\n") if line.strip().startswith("|")
+    ]
     # Skip header + separator (first 2 lines)
     for line in table_lines[2:]:
         cells = [c.strip() for c in line.split("|")[1:-1]]
@@ -629,20 +678,25 @@ def _parse_kv_table(text: str) -> dict[str, str]:
 
 def _parse_anchor_table(text: str) -> list[dict]:
     anchors = []
-    table_lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    table_lines = [
+        line.strip() for line in text.split("\n") if line.strip().startswith("|")
+    ]
     if len(table_lines) >= 3:
         for line in table_lines[2:]:
             cells = [c.strip() for c in line.split("|")[1:-1]]
             if cells:
-                anchors.append({
-                    "name": cells[0],
-                    "category": cells[1] if len(cells) > 1 else "",
-                    "constraint": cells[2] if len(cells) > 2 else "",
-                })
+                anchors.append(
+                    {
+                        "name": cells[0],
+                        "category": cells[1] if len(cells) > 1 else "",
+                        "constraint": cells[2] if len(cells) > 2 else "",
+                    }
+                )
     return anchors
 
 
 # ─── validate ────────────────────────────────────────────────────────────────
+
 
 def validate_ship_package_md(md: str) -> tuple[bool, list[str]]:
     if not isinstance(md, str):

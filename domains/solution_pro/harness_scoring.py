@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict
 
 """Unified Solution Pro harness scoring contract."""
 
@@ -46,6 +46,7 @@ VALID_DECISIONS = ["PASS", "WARNING", "CRITICAL_WARNING", "BLOCK_RECOMMENDATION"
 
 
 # [TD3 2026-07-13] Deleted dead function: dimension_names (zero callers)
+
 
 def weights() -> Dict[str, float]:
     return {name: cfg["weight"] for name, cfg in SCORING_DIMENSIONS.items()}

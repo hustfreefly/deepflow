@@ -2,6 +2,7 @@
 # This check is no longer functional. The prompt template variable validation
 # should be reimplemented against the current solution_pro entry point if needed.
 """Gate: 检查 prompt 中的模板变量是否都被 runner 替换"""
+
 import sys
 from pathlib import Path
 

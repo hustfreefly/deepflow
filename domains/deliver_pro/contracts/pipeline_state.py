@@ -55,7 +55,11 @@ VALID_TRANSITIONS: dict[PipelinePhase, list[PipelinePhase]] = {
         PipelinePhase.FAILED,
     ],
     PipelinePhase.FIX_LOOP: [PipelinePhase.VALIDATING, PipelinePhase.FAILED],
-    PipelinePhase.PACKAGING: [PipelinePhase.COMPLETED, PipelinePhase.DELIVERED, PipelinePhase.FAILED],
+    PipelinePhase.PACKAGING: [
+        PipelinePhase.COMPLETED,
+        PipelinePhase.DELIVERED,
+        PipelinePhase.FAILED,
+    ],
     PipelinePhase.COMPLETED: [],  # terminal
     PipelinePhase.DELIVERED: [],  # terminal (successful delivery)
     PipelinePhase.FAILED: [PipelinePhase.INIT],  # can retry from start
@@ -117,7 +121,11 @@ class PipelineState(BaseModel):
     @property
     def is_terminal(self) -> bool:
         """是否处于终态。"""
-        return self.phase in (PipelinePhase.COMPLETED, PipelinePhase.DELIVERED, PipelinePhase.FAILED)
+        return self.phase in (
+            PipelinePhase.COMPLETED,
+            PipelinePhase.DELIVERED,
+            PipelinePhase.FAILED,
+        )
 
     @property
     def can_continue_validate(self) -> bool:

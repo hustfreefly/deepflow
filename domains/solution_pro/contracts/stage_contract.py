@@ -1,4 +1,5 @@
 """StageContract: checkpoint 的 schema + semantic minimums + artifact path 验证。"""
+
 import json
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
@@ -6,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class StageContract(BaseModel):
     """定义一个 stage checkpoint 的完整契约。"""
+
     stage_name: str
     required_keys: List[str] = Field(default_factory=list)
     schema_type: Optional[str] = None  # "dict" | "list" | "string_content"
@@ -108,9 +110,18 @@ def validate_checkpoint(contract: StageContract, data: dict) -> tuple:
     if "content" in data:
         content = data["content"]
         if isinstance(content, str) and len(content) < contract.min_content_length:
-            return False, f"内容长度 {len(content)} < 最小 {contract.min_content_length}"
-        elif isinstance(content, dict) and len(str(content)) < contract.min_content_length:
-            return False, f"内容长度 {len(str(content))} < 最小 {contract.min_content_length}"
+            return (
+                False,
+                f"内容长度 {len(content)} < 最小 {contract.min_content_length}",
+            )
+        elif (
+            isinstance(content, dict)
+            and len(str(content)) < contract.min_content_length
+        ):
+            return (
+                False,
+                f"内容长度 {len(str(content))} < 最小 {contract.min_content_length}",
+            )
 
     # 3. 排除损坏的 dict
     if "error" in data and len(data) <= 2:
@@ -119,22 +130,32 @@ def validate_checkpoint(contract: StageContract, data: dict) -> tuple:
     # 4. P1-11: Stage-specific semantic minimums
     stage = contract.stage_name
     if stage == "planning_convergence":
-        if not (data.get("unified_constraints") or data.get("gate_verdict")
-                or data.get("gate_a_scores")):
+        if not (
+            data.get("unified_constraints")
+            or data.get("gate_verdict")
+            or data.get("gate_a_scores")
+        ):
             return False, (
                 "P1-11: planning_convergence 缺少实质性内容 "
                 "(需要 unified_constraints / gate_verdict / gate_a_scores 之一)"
             )
     elif stage == "research_convergence":
-        if not (data.get("research_summary") or data.get("key_findings")
-                or data.get("consolidated_findings") or data.get("findings")):
+        if not (
+            data.get("research_summary")
+            or data.get("key_findings")
+            or data.get("consolidated_findings")
+            or data.get("findings")
+        ):
             return False, (
                 "P1-11: research_convergence 缺少实质性内容 "
                 "(需要 research_summary / key_findings / consolidated_findings 之一)"
             )
     elif stage == "final_solution":
-        if not (data.get("full_solution") or data.get("status")
-                or data.get("schema_version")):
+        if not (
+            data.get("full_solution")
+            or data.get("status")
+            or data.get("schema_version")
+        ):
             return False, (
                 "P1-11: final_solution 缺少实质性内容 "
                 "(需要 full_solution / status / schema_version 之一)"
@@ -142,7 +163,9 @@ def validate_checkpoint(contract: StageContract, data: dict) -> tuple:
 
     # 5. P1-11: Non-content stages must have meaningful size
     if "content" not in data and contract.required_keys == []:
-        serialized = json.dumps(data, sort_keys=True) if isinstance(data, dict) else str(data)
+        serialized = (
+            json.dumps(data, sort_keys=True) if isinstance(data, dict) else str(data)
+        )
         if len(serialized) < contract.min_content_length:
             return False, (
                 f"P1-11: {stage} 序列化长度 {len(serialized)} < "

@@ -25,7 +25,6 @@ E2E FullChain Test — DeepFlow 全链路测试
 import sys
 import os
 import json
-import time
 import argparse
 from pathlib import Path
 from datetime import datetime, timezone
@@ -183,15 +182,16 @@ def run_setup_mode() -> dict:
         "overall": "PENDING",
     }
 
-    print(f"\n{'='*60}")
-    print(f"  E2E FullChain Setup Test")
+    print(f"\n{'=' * 60}")
+    print("  E2E FullChain Setup Test")
     print(f"  Project: {project_name}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # ─── Stage 1: Spec Pro ───────────────────────────────
     print("Stage 1: Spec Pro init_session()")
     try:
         from domains.spec_pro.coordinator import SpecProCoordinator
+
         coord = SpecProCoordinator(scenario="genesis", mode="standard")
         spec_result = coord.init_session(USER_INPUT)
 
@@ -209,7 +209,7 @@ def run_setup_mode() -> dict:
 
         # Spec Pro 的 coordinator_task 可能是 inline 或 bootstrap
         # 只要有内容就算 PASS
-        task_size = len(coordinator_task.encode('utf-8')) if coordinator_task else 0
+        task_size = len(coordinator_task.encode("utf-8")) if coordinator_task else 0
         if task_size == 0:
             print("  ⚠️ coordinator_task=0B (检查是否写入 blackboard)")
             results["stages"]["spec_pro"] = {
@@ -233,19 +233,24 @@ def run_setup_mode() -> dict:
     spec_dir = DEEPFLOW / "blackboard" / project_name / "spec"
     spec_dir.mkdir(parents=True, exist_ok=True)
     from domains.spec_pro.spec_living_md import render_living_spec_md
+
     (spec_dir / "living_spec.md").write_text(
         render_living_spec_md(LIVING_SPEC_FIXTURE),
         encoding="utf-8",
     )
     (spec_dir / "spec_handoff_package.json").write_text(
-        json.dumps({
-            "schema_version": "2.0.0",
-            "handoff_allowed": True,
-            "living_spec": LIVING_SPEC_FIXTURE,
-            "quality_report": {},
-            "density_gate_result": {"passed": True, "issues": []},
-            "semantic_anchors": LIVING_SPEC_FIXTURE["semantic_anchors"],
-        }, ensure_ascii=False, indent=2),
+        json.dumps(
+            {
+                "schema_version": "2.0.0",
+                "handoff_allowed": True,
+                "living_spec": LIVING_SPEC_FIXTURE,
+                "quality_report": {},
+                "density_gate_result": {"passed": True, "issues": []},
+                "semantic_anchors": LIVING_SPEC_FIXTURE["semantic_anchors"],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -253,6 +258,7 @@ def run_setup_mode() -> dict:
     print("\nStage 2: run_solution_pro()")
     try:
         from domains.solution_pro import run_solution_pro
+
         # topic 必须是 project_name（控制统一 blackboard 目录名）
         sol_result = run_solution_pro(
             USER_INPUT,
@@ -276,7 +282,7 @@ def run_setup_mode() -> dict:
         print(f"  task: {len(sol_spawn.get('task', '').encode('utf-8'))}B")
         print(f"  requirements: {req_count}")
         print(f"  living_spec.md: {living_spec_size}B")
-        print(f"  → ✅ PASS (contract validated)")
+        print("  → ✅ PASS (contract validated)")
 
         results["stages"]["solution_pro"] = {
             "status": "PASS",
@@ -318,7 +324,7 @@ def run_setup_mode() -> dict:
         print(f"  project: {project_name}")
         print(f"  task: {len(ship_spawn.get('task', '').encode('utf-8'))}B")
         print(f"  input_summary: {json.dumps(input_summary)}")
-        print(f"  → ✅ PASS (contract validated)")
+        print("  → ✅ PASS (contract validated)")
 
         results["stages"]["ship_pro"] = {
             "status": "PASS",
@@ -349,12 +355,14 @@ def run_setup_mode() -> dict:
 
         assert del_result.get("mode") == "pulse", "Deliver Pro 必须返回 pulse 模式"
         assert del_result.get("launch_command"), "Deliver Pro 必须返回 launch_command"
-        assert Path(del_result.get("ship_package_path", "")).exists(), "ship_package_path 必须存在"
+        assert Path(del_result.get("ship_package_path", "")).exists(), (
+            "ship_package_path 必须存在"
+        )
 
         print(f"  project: {project_name}")
         print(f"  ship_package: {del_result['ship_package_path']}")
         print(f"  launch_command: {del_result['launch_command']}")
-        print(f"  → ✅ PASS (Pulse handoff validated)")
+        print("  → ✅ PASS (Pulse handoff validated)")
 
         results["stages"]["deliver_pro"] = {
             "status": "PASS",
@@ -376,7 +384,7 @@ def run_setup_mode() -> dict:
             file_count = len([f for f in files if f.is_file()])
             print(f"  blackboard: {bb_dir}")
             print(f"  files: {file_count}")
-            print(f"  → ✅ PASS")
+            print("  → ✅ PASS")
             results["stages"]["doctor"] = {
                 "status": "PASS",
                 "file_count": file_count,
@@ -390,7 +398,8 @@ def run_setup_mode() -> dict:
 
     # ─── 汇总 ────────────────────────────────────────────
     pass_count = sum(
-        1 for s in results["stages"].values()
+        1
+        for s in results["stages"].values()
         if s.get("status") in ("PASS", "PASS_WITH_WARNING")
     )
     total_count = len(results["stages"])
@@ -398,9 +407,9 @@ def run_setup_mode() -> dict:
 
     results["overall"] = "PASS" if all_pass else "FAIL"
 
-    print(f"\n{'='*60}")
-    print(f"  📊 E2E FullChain Setup Results")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("  📊 E2E FullChain Setup Results")
+    print(f"{'=' * 60}")
     for stage_name, stage_data in results["stages"].items():
         status = stage_data.get("status", "UNKNOWN")
         icon = "✅" if status == "PASS" else ("⚠️" if "WARNING" in status else "❌")
@@ -414,7 +423,7 @@ def run_setup_mode() -> dict:
         spawn_file.parent.mkdir(parents=True, exist_ok=True)
         spawn_file.write_text(json.dumps(results["spawn_params"], indent=2))
         print(f"\n  📁 spawn_params 已写入: {spawn_file}")
-        print(f"  → Agent 层可读取此文件执行 Phase 2 (orchestrator spawn)")
+        print("  → Agent 层可读取此文件执行 Phase 2 (orchestrator spawn)")
 
     return results
 
@@ -448,10 +457,10 @@ def run_verify_mode(project_name: str) -> dict:
         "overall": "PENDING",
     }
 
-    print(f"\n{'='*60}")
-    print(f"  E2E FullChain Verification")
+    print(f"\n{'=' * 60}")
+    print("  E2E FullChain Verification")
     print(f"  Project: {project_name}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Check 1: master_state
     print("Check 1: master_state.json")
@@ -485,8 +494,8 @@ def run_verify_mode(project_name: str) -> dict:
     living_spec = bb_dir / "data" / "living_spec.md"
     sol_exists = final_solution.exists() and living_spec.exists()
     if sol_exists:
-        print(f"  final_solution.md: ✅")
-        print(f"  living_spec.md: ✅")
+        print("  final_solution.md: ✅")
+        print("  living_spec.md: ✅")
         print("  → ✅ PASS")
         results["checks"]["solution_pro"] = {"status": "PASS"}
     else:
@@ -497,7 +506,9 @@ def run_verify_mode(project_name: str) -> dict:
 
     # Check 3: Ship Pro outputs
     print("\nCheck 3: Ship Pro outputs")
-    ship_candidates = list(bb_dir.glob("ship_pro*/stages/ship_package.md")) + list(bb_dir.glob("ship_pro*/stages/ship_package.json"))
+    ship_candidates = list(bb_dir.glob("ship_pro*/stages/ship_package.md")) + list(
+        bb_dir.glob("ship_pro*/stages/ship_package.json")
+    )
     ship_exists = len(ship_candidates) > 0
     if ship_exists:
         for path in ship_candidates[:3]:
@@ -511,7 +522,9 @@ def run_verify_mode(project_name: str) -> dict:
     # Check 4: Deliver Pro outputs
     print("\nCheck 4: Deliver Pro outputs")
     deliver_dir = bb_dir / "deliver_pro"
-    deliver_files = list(deliver_dir.rglob("DELIVERABLE.md")) if deliver_dir.exists() else []
+    deliver_files = (
+        list(deliver_dir.rglob("DELIVERABLE.md")) if deliver_dir.exists() else []
+    )
     deliver_done = (bb_dir / ".deliver_completed.json").exists()
     if deliver_files or deliver_done:
         for f in deliver_files[:5]:
@@ -529,9 +542,9 @@ def run_verify_mode(project_name: str) -> dict:
     total_count = len(results["checks"])
     results["overall"] = "PASS" if pass_count == total_count else "FAIL"
 
-    print(f"\n{'='*60}")
-    print(f"  📊 E2E FullChain Verification Results")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("  📊 E2E FullChain Verification Results")
+    print(f"{'=' * 60}")
     for check_name, check_data in results["checks"].items():
         icon = "✅" if check_data.get("status") == "PASS" else "❌"
         print(f"  {icon} {check_name}: {check_data.get('status')}")
@@ -576,7 +589,7 @@ def main():
     else:
         # Summary already printed in run_*_mode
         # Print JSON at the end for Agent consumption
-        print(f"\n--- JSON ---")
+        print("\n--- JSON ---")
         print(json.dumps(results, indent=2, ensure_ascii=False))
 
 

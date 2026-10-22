@@ -174,7 +174,9 @@ class TestInformationConservation:
 
         unified = load_stage("unified_constraints.json")
 
-        unified_ids = {c["id"] for c in unified.get("unified_constraints", []) if "id" in c}
+        unified_ids = {
+            c["id"] for c in unified.get("unified_constraints", []) if "id" in c
+        }
         if not unified_ids:
             pytest.skip("No unified constraint IDs found")
 

@@ -6,24 +6,27 @@ Author: DeepFlow Solution Pro
 Date: 2026-06-01
 """
 
-"""
-Harness Scorer 2.0.0
-===================
-
-4维度评分器（权重：完整性30% / 必要性20% / 目标一致性30% / 全局影响20%）
-
-决策层级：
-- PASS (≥0.85): 质量达标
-- WARNING (0.70-0.84): 咨询意见
-- CRITICAL_WARNING (0.60-0.69): 强烈建议修改
-- BLOCK_RECOMMENDATION (<0.60): 建议重新规划（仍不阻断）
-
-特殊规则：目标一致性<0.6 → 至少CRITICAL_WARNING
-"""
+# """
+# Harness Scorer 2.0.0
+# ===================
+#
+# 4维度评分器（权重：完整性30% / 必要性20% / 目标一致性30% / 全局影响20%）
+#
+# 决策层级：
+# - PASS (≥0.85): 质量达标
+# - WARNING (0.70-0.84): 咨询意见
+# - CRITICAL_WARNING (0.60-0.69): 强烈建议修改
+# - BLOCK_RECOMMENDATION (<0.60): 建议重新规划（仍不阻断）
+#
+# 特殊规则：目标一致性<0.6 → 至少CRITICAL_WARNING
+# """
 
 from typing import Dict, Literal, Optional
 from dataclasses import dataclass
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 # P0-2: Import GateAConfig for dynamic scoring (lazy import for standalone compatibility)
 try:
@@ -52,10 +55,11 @@ LevelType = Literal["high", "medium", "low"]
 @dataclass
 class DimensionScore:
     """单维度评分"""
+
     score: float  # 0.0-1.0
     reasoning: str
     level: Optional[LevelType] = None  # 不传入时自动推导
-    
+
     def __post_init__(self):
         # 仅在未显式传入 level 时自动推导
         if self.level is None:
@@ -70,6 +74,7 @@ class DimensionScore:
 @dataclass
 class HarnessScore:
     """Harness完整评分结果"""
+
     completeness: DimensionScore
     necessity: DimensionScore
     alignment: DimensionScore
@@ -91,9 +96,9 @@ def calculate_harness_score(
 ) -> HarnessScore:
     """
     计算Harness总分和决策
-    
+
     公式：总分 = 完整性×0.30 + 必要性×0.20 + 目标一致性×0.30 + 全局影响×0.20
-    
+
     Args:
         completeness: 完整性评分 (0.0-1.0)
         necessity: 必要性评分 (0.0-1.0)
@@ -101,18 +106,18 @@ def calculate_harness_score(
         completeness_reasoning: 完整性理由
         necessity_reasoning: 必要性理由
         alignment_reasoning: 目标一致性理由
-    
+
     Returns:
         HarnessScore对象
     """
     # 计算总分
     overall = (
-        completeness * WEIGHT_COMPLETENESS +
-        necessity * WEIGHT_NECESSITY +
-        alignment * WEIGHT_ALIGNMENT +
-        global_impact * WEIGHT_GLOBAL_IMPACT
+        completeness * WEIGHT_COMPLETENESS
+        + necessity * WEIGHT_NECESSITY
+        + alignment * WEIGHT_ALIGNMENT
+        + global_impact * WEIGHT_GLOBAL_IMPACT
     )
-    
+
     # 基础决策
     if overall >= THRESHOLD_PASS:
         decision: DecisionType = "PASS"
@@ -122,15 +127,17 @@ def calculate_harness_score(
         decision = "CRITICAL_WARNING"
     else:
         decision = "BLOCK_RECOMMENDATION"
-    
+
     # 特殊规则：目标一致性<0.6 → 至少CRITICAL_WARNING
     if alignment < THRESHOLD_ALIGNMENT_CRITICAL:
         if decision == "PASS" or decision == "WARNING":
             decision = "CRITICAL_WARNING"
-    
+
     # 生成改进建议
-    improvements = _generate_improvements(completeness, necessity, alignment, global_impact)
-    
+    improvements = _generate_improvements(
+        completeness, necessity, alignment, global_impact
+    )
+
     return HarnessScore(
         completeness=DimensionScore(completeness, completeness_reasoning),
         necessity=DimensionScore(necessity, necessity_reasoning),
@@ -138,7 +145,7 @@ def calculate_harness_score(
         global_impact=DimensionScore(global_impact, global_impact_reasoning),
         overall_score=round(overall, 2),
         decision=decision,
-        improvements=improvements
+        improvements=improvements,
     )
 
 
@@ -160,11 +167,14 @@ def _generate_improvements(c: float, n: float, a: float, g: float) -> list:
     if not weak_dimensions:
         return []
 
-    return [{
-        "type": "llm_improvement_needed",
-        "weak_dimensions": weak_dimensions,
-        "instruction": "Generate specific improvement suggestions based on the weak dimensions above",
-    }]
+    return [
+        {
+            "type": "llm_improvement_needed",
+            "weak_dimensions": weak_dimensions,
+            "instruction": "Generate specific improvement suggestions based on the weak dimensions above",
+        }
+    ]
+
 
 def calculate_harness_score_dynamic(
     weights: Dict[str, float],
@@ -205,8 +215,10 @@ def calculate_harness_score_dynamic(
     # 从 thresholds 读取阈值（提供默认值兜底）
     t_pass = thresholds.get("PASS", THRESHOLD_PASS)
     t_warn = thresholds.get("WARNING", THRESHOLD_WARNING)
-    t_crit = thresholds.get("CRITICAL", thresholds.get("CRITICAL_WARNING", THRESHOLD_CRITICAL))
-    t_block = thresholds.get("BLOCK_RECOMMENDATION", 0.0)
+    t_crit = thresholds.get(
+        "CRITICAL", thresholds.get("CRITICAL_WARNING", THRESHOLD_CRITICAL)
+    )
+    thresholds.get("BLOCK_RECOMMENDATION", 0.0)
 
     # 基础决策
     if overall >= t_pass:
@@ -219,7 +231,9 @@ def calculate_harness_score_dynamic(
         decision = "BLOCK_RECOMMENDATION"
 
     # 特殊规则：alignment < 阈值 → 至少 CRITICAL_WARNING
-    alignment_critical_threshold = thresholds.get("ALIGNMENT_CRITICAL", THRESHOLD_ALIGNMENT_CRITICAL)
+    alignment_critical_threshold = thresholds.get(
+        "ALIGNMENT_CRITICAL", THRESHOLD_ALIGNMENT_CRITICAL
+    )
     if scores.get("alignment", 1.0) < alignment_critical_threshold:
         if decision in ("PASS", "WARNING"):
             decision = "CRITICAL_WARNING"
@@ -234,10 +248,14 @@ def calculate_harness_score_dynamic(
     )
 
     return HarnessScore(
-        completeness=DimensionScore(scores.get("completeness", 0), r.get("completeness", "")),
+        completeness=DimensionScore(
+            scores.get("completeness", 0), r.get("completeness", "")
+        ),
         necessity=DimensionScore(scores.get("necessity", 0), r.get("necessity", "")),
         alignment=DimensionScore(scores.get("alignment", 0), r.get("alignment", "")),
-        global_impact=DimensionScore(scores.get("global_impact", 0), r.get("global_impact", "")),
+        global_impact=DimensionScore(
+            scores.get("global_impact", 0), r.get("global_impact", "")
+        ),
         overall_score=round(overall, 2),
         decision=decision,
         improvements=improvements,
@@ -263,18 +281,28 @@ class GateALayer2Calibration:
 
     FEW_SHOT_EXAMPLES = [
         {
-            "input": {"completeness": 0.9, "necessity": 0.85, "alignment": 0.95, "global_impact": 0.90},
+            "input": {
+                "completeness": 0.9,
+                "necessity": 0.85,
+                "alignment": 0.95,
+                "global_impact": 0.90,
+            },
             "output": {
                 "semantic_verdict": "PASS",
-                "reasoning": "completeness 0.9 是因为跳过了一个 P2 低优先级需求，核心功能 100% 覆盖。alignment 0.95 表明方案与需求高度对齐。"
-            }
+                "reasoning": "completeness 0.9 是因为跳过了一个 P2 低优先级需求，核心功能 100% 覆盖。alignment 0.95 表明方案与需求高度对齐。",
+            },
         },
         {
-            "input": {"completeness": 0.9, "necessity": 0.60, "alignment": 0.55, "global_impact": 0.70},
+            "input": {
+                "completeness": 0.9,
+                "necessity": 0.60,
+                "alignment": 0.55,
+                "global_impact": 0.70,
+            },
             "output": {
                 "semantic_verdict": "FAIL",
-                "reasoning": "alignment 0.55 表明方案偏离了原始意图。necessity 0.60 表明约束质量不足。"
-            }
+                "reasoning": "alignment 0.55 表明方案偏离了原始意图。necessity 0.60 表明约束质量不足。",
+            },
         },
     ]
 
@@ -317,7 +345,13 @@ class GateALayer2Calibration:
 
         votes = []
         for i in range(n_runs):
-            prompt = self._build_calibration_prompt(stage_output, frozen_spec, harness_reasoning, scores, living_spec=living_spec)
+            prompt = self._build_calibration_prompt(
+                stage_output,
+                frozen_spec,
+                harness_reasoning,
+                scores,
+                living_spec=living_spec,
+            )
             result = self.llm_judge_fn(
                 stage_output=stage_output,
                 frozen_spec=frozen_spec,
@@ -328,7 +362,9 @@ class GateALayer2Calibration:
             )
             # fix: handle None return from adapter (triggers rule fallback)
             if result is None:
-                logger.warning("LLM judge returned None, falling back to rule-based verdict")
+                logger.warning(
+                    "LLM judge returned None, falling back to rule-based verdict"
+                )
                 return self._rule_based_verdict(scores)
             votes.append(result.get("semantic_verdict", "FAIL"))
 
@@ -347,28 +383,36 @@ class GateALayer2Calibration:
             "consistency": max(pass_count, fail_count) / n_runs,
         }
 
-    def _build_calibration_prompt(self, stage_output, frozen_spec, harness_reasoning, scores, living_spec=None):
+    def _build_calibration_prompt(
+        self, stage_output, frozen_spec, harness_reasoning, scores, living_spec=None
+    ):
         """构建 Layer 2 校准 prompt"""
-        examples_text = "\n".join([
-            f"示例 {i+1}:\n输入: {ex['input']}\n输出: {ex['output']}"
-            for i, ex in enumerate(self.FEW_SHOT_EXAMPLES)
-        ])
+        examples_text = "\n".join(
+            [
+                f"示例 {i + 1}:\n输入: {ex['input']}\n输出: {ex['output']}"
+                for i, ex in enumerate(self.FEW_SHOT_EXAMPLES)
+            ]
+        )
 
         # Living Spec 优先
         if living_spec:
             spec_for_prompt = living_spec.get("narrative", "")[:3000]
         else:
-            spec_for_prompt = str(json.dumps(frozen_spec, ensure_ascii=False))[:3000] if frozen_spec else ""
+            spec_for_prompt = (
+                str(json.dumps(frozen_spec, ensure_ascii=False))[:3000]
+                if frozen_spec
+                else ""
+            )
 
         return f"""## Gate A Layer 2 语义校准
 
 你是一个独立的质量评审员。基于以下信息判断 Harness Agent 的打分是否合理。
 
 ### Harness Agent 打分
-- completeness: {scores.get('completeness', 0)}
-- necessity: {scores.get('necessity', 0)}
-- alignment: {scores.get('alignment', 0)}
-- global_impact: {scores.get('global_impact', 0)}
+- completeness: {scores.get("completeness", 0)}
+- necessity: {scores.get("necessity", 0)}
+- alignment: {scores.get("alignment", 0)}
+- global_impact: {scores.get("global_impact", 0)}
 
 ### Harness Agent 推理
 {harness_reasoning}
@@ -400,10 +444,7 @@ class GateALayer2Calibration:
 
         # 加权平均
         weighted_avg = (
-            completeness * 0.3 +
-            necessity * 0.2 +
-            alignment * 0.3 +
-            global_impact * 0.2
+            completeness * 0.3 + necessity * 0.2 + alignment * 0.3 + global_impact * 0.2
         )
 
         verdict = "PASS" if weighted_avg >= 0.7 else "FAIL"
@@ -453,8 +494,8 @@ def evaluate_gate_b_critical(
     # P1-7-FIX: 兼容 severity 和 criticality 两套字段名
     def _is_critical(check: dict) -> bool:
         return (
-            check.get("severity") == "CRITICAL" or
-            check.get("criticality") == "CRITICAL"
+            check.get("severity") == "CRITICAL"
+            or check.get("criticality") == "CRITICAL"
         )
 
     failed_critical = []
@@ -467,7 +508,8 @@ def evaluate_gate_b_critical(
     # 计算通过率（兼容 verdict 和 result）
     total_checks = len(gate_b_results)
     passed_checks = sum(
-        1 for r in gate_b_results
+        1
+        for r in gate_b_results
         if (r.get("verdict") or r.get("result") or "") == "PASS"
     )
     overall_pass_rate = passed_checks / total_checks if total_checks > 0 else 0.0
@@ -477,7 +519,9 @@ def evaluate_gate_b_critical(
     critical_pass_rate = critical_passed / critical_total if critical_total > 0 else 1.0
 
     # 判定：CRITICAL 全部通过 + 整体通过率 >= 80%
-    verdict = "PASS" if (len(failed_critical) == 0 and overall_pass_rate >= 0.8) else "FAIL"
+    verdict = (
+        "PASS" if (len(failed_critical) == 0 and overall_pass_rate >= 0.8) else "FAIL"
+    )
 
     return {
         "verdict": verdict,
@@ -498,18 +542,29 @@ if __name__ == "__main__":
         # 目标偏离（触发特殊规则）
         (0.88, 0.85, 0.55, 0.78, "完整", "适度", "明显偏离目标", "影响一般"),
         # 全面不足
-        (0.55, 0.60, 0.58, 0.52, "严重遗漏", "过度设计", "偏离目标", "缺少全局影响分析"),
+        (
+            0.55,
+            0.60,
+            0.58,
+            0.52,
+            "严重遗漏",
+            "过度设计",
+            "偏离目标",
+            "缺少全局影响分析",
+        ),
     ]
-    
+
     print
     print("=" * 60)
     print(
         f"权重: 完整性{WEIGHT_COMPLETENESS} / 必要性{WEIGHT_NECESSITY} / "
         f"目标一致性{WEIGHT_ALIGNMENT} / 全局影响{WEIGHT_GLOBAL_IMPACT}"
     )
-    print(f"阈值: PASS≥{THRESHOLD_PASS} / WARNING≥{THRESHOLD_WARNING} / CRITICAL≥{THRESHOLD_CRITICAL}")
+    print(
+        f"阈值: PASS≥{THRESHOLD_PASS} / WARNING≥{THRESHOLD_WARNING} / CRITICAL≥{THRESHOLD_CRITICAL}"
+    )
     print("=" * 60)
-    
+
     for c, n, a, g, cr, nr, ar, gr in test_cases:
         score = calculate_harness_score(c, n, a, g, cr, nr, ar, gr)
         print(f"\n完整性:{c:.2f} 必要性:{n:.2f} 目标一致:{a:.2f} 全局影响:{g:.2f}")

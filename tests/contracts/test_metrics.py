@@ -1,4 +1,5 @@
 """Contract tests for scripts/metrics.py (P0-4)."""
+
 import json
 import subprocess
 import sys
@@ -11,15 +12,29 @@ SCRIPT = ROOT / "scripts" / "metrics.py"
 def run(*args):
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
-        capture_output=True, text=True, cwd=ROOT,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
     )
 
 
 def _record(path, task="T1", passed_n="7", failed_n="0"):
     return run(
-        "record", "--file", str(path), "--task", task, "--model", "m",
-        "--duration", "1.5", "--passed", passed_n, "--failed", failed_n,
-        "--commit", "abc123",
+        "record",
+        "--file",
+        str(path),
+        "--task",
+        task,
+        "--model",
+        "m",
+        "--duration",
+        "1.5",
+        "--passed",
+        passed_n,
+        "--failed",
+        failed_n,
+        "--commit",
+        "abc123",
     )
 
 
@@ -38,8 +53,20 @@ def test_record_and_summary(tmp_path):
 
 def test_missing_field_rejected(tmp_path):
     path = tmp_path / "metrics.jsonl"
-    p = run("record", "--file", str(path), "--model", "m",
-            "--duration", "1", "--passed", "1", "--failed", "0",
-            "--commit", "abc")
+    p = run(
+        "record",
+        "--file",
+        str(path),
+        "--model",
+        "m",
+        "--duration",
+        "1",
+        "--passed",
+        "1",
+        "--failed",
+        "0",
+        "--commit",
+        "abc",
+    )
     assert p.returncode != 0
     assert not path.exists()

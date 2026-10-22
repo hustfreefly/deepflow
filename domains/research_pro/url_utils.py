@@ -64,7 +64,9 @@ def validate_safe_url(url: str) -> tuple[ParseResult, str]:
         netloc = parsed.hostname
     else:
         default_port = 80 if parsed.scheme == "http" else 443
-        netloc = parsed.hostname if port == default_port else f"{parsed.hostname}:{port}"
+        netloc = (
+            parsed.hostname if port == default_port else f"{parsed.hostname}:{port}"
+        )
 
     canonical_path = parsed.path or "/"
     canonical = urlunparse(

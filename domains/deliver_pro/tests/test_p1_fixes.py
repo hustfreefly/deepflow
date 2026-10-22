@@ -13,7 +13,6 @@ import json
 import os
 import time
 from contextlib import contextmanager
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -23,6 +22,7 @@ import pytest
 # ---------------------------------------------------------------------------
 # Fixtures (复用 test_pulse.py 模式)
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def ship_package_data():
@@ -51,6 +51,7 @@ def _make_orchestrator(mock_blackboard):
     bb_root, project_name = mock_blackboard
     with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
         from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
         orch = DeliverOrchestrator(project_name)
         yield orch, bb_root, project_name
 
@@ -63,11 +64,7 @@ def _setup_generating_wp(bb_root, project_name, wp_id, task_ids, timeout_task=No
     """构造 GENERATING 状态的 WP：plan + 可选的超时 task 目录。"""
     stages = _wp_dir(bb_root, project_name, wp_id) / "stages"
     stages.mkdir(parents=True)
-    plan = {
-        "task_graph": [
-            {"task_id": t, "depends_on": []} for t in task_ids
-        ]
-    }
+    plan = {"task_graph": [{"task_id": t, "depends_on": []} for t in task_ids]}
     (stages / "execution_plan.json").write_text(json.dumps(plan))
     if timeout_task:
         task_dir = stages / "worker_outputs" / timeout_task
@@ -112,6 +109,7 @@ def _mock_driver_for_retry(bb_root, project_name, wp_id, task_ids, timed_out=())
 # F1: pulse 后 batch_progress phase 与 derive_phase 一致
 # ---------------------------------------------------------------------------
 
+
 class TestF1PhaseRefresh:
     def test_pulse_refreshes_phase_in_batch_progress(self, mock_blackboard):
         """pulse 结束后 batch_progress 中的 phase 应与 derive_phase 一致。
@@ -124,20 +122,27 @@ class TestF1PhaseRefresh:
             # 写入 MANIFEST → derive_phase 会判 DONE
             task_dir = stages / "worker_outputs" / "T-001"
             task_dir.mkdir(parents=True, exist_ok=True)
-            (task_dir / "MANIFEST.json").write_text(json.dumps({
-                "task_id": "T-001", "status": "COMPLETE", "completed_at": time.time(),
-            }))
+            (task_dir / "MANIFEST.json").write_text(
+                json.dumps(
+                    {
+                        "task_id": "T-001",
+                        "status": "COMPLETE",
+                        "completed_at": time.time(),
+                    }
+                )
+            )
             # 模拟旧 phase 滞留在 PACKAGING
             orch.progress["AAA-001"] = {"phase": "PACKAGING"}
 
             with patch.object(orch, "_count_in_flight", return_value=0):
-                report = orch.pulse()
+                orch.pulse()
 
             # batch_progress 中的 phase 应已刷新
             entry = orch.progress.get("AAA-001", {})
             # derive_phase 应该判为 DONE（有 MANIFEST）或至少不是 PACKAGING
-            assert entry.get("phase") != "PACKAGING", \
+            assert entry.get("phase") != "PACKAGING", (
                 f"phase should have been refreshed, got {entry.get('phase')}"
+            )
 
     def test_pulse_phase_refresh_no_false_regression(self, mock_blackboard):
         """pulse 不应把正确的 phase 改错。
@@ -160,37 +165,48 @@ class TestF1PhaseRefresh:
             # Mock driver 以支持 GENERATING 路径
             driver = MagicMock()
             driver.step2_check_analyze.return_value = (True, {})
-            driver.step4_check_workers.return_value = (False, {"completed": 0, "total": 1, "failed": 0, "running": ["T-001"]})
+            driver.step4_check_workers.return_value = (
+                False,
+                {"completed": 0, "total": 1, "failed": 0, "running": ["T-001"]},
+            )
             driver.orch.load_execution_plan.return_value = SimpleNamespace(
                 task_graph=[SimpleNamespace(task_id="T-001", depends_on=[])]
             )
             driver.orch._derive_worker_progress.return_value = {
-                "completed": set(), "failed": set(), "blocked": set(),
-                "running": {"T-001"}, "pending": set(), "timed_out": set(),
+                "completed": set(),
+                "failed": set(),
+                "blocked": set(),
+                "running": {"T-001"},
+                "pending": set(),
+                "timed_out": set(),
             }
             driver.orch._save_state = MagicMock()
             driver.worker_outputs_dir = stages / "worker_outputs"
 
-            with patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_count_in_flight", return_value=0), \
-                 patch.object(orch, "tick", return_value=[]):
-                report = orch.pulse()
+            with (
+                patch.object(orch, "_get_driver", return_value=driver),
+                patch.object(orch, "_count_in_flight", return_value=0),
+                patch.object(orch, "tick", return_value=[]),
+            ):
+                orch.pulse()
 
             entry = orch.progress.get("AAA-001", {})
             # phase 应保持 GENERATING（derive 判 running）
-            assert entry.get("phase") == "GENERATING", \
+            assert entry.get("phase") == "GENERATING", (
                 f"phase should stay GENERATING, got {entry.get('phase')}"
+            )
 
 
 # ---------------------------------------------------------------------------
 # F2: label 冲突 fallback
 # ---------------------------------------------------------------------------
 
+
 class TestF2LabelConflict:
     def test_label_suffix_added_on_spawn_failure(self, mock_blackboard):
         """spawn_failures > 0 时，pulse 应在 worker label 追加时间戳后缀。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(
+            _setup_generating_wp(
                 bb_root, project, "AAA-001", ["T-001", "T-002"], timeout_task="T-001"
             )
             driver = _mock_driver_for_retry(
@@ -201,23 +217,27 @@ class TestF2LabelConflict:
                 "task_attempts": {"T-001": 1},
                 "spawn_failures": 3,  # 之前有 label 冲突
             }
-            with patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_count_in_flight", return_value=0):
+            with (
+                patch.object(orch, "_get_driver", return_value=driver),
+                patch.object(orch, "_count_in_flight", return_value=0),
+            ):
                 report = orch.pulse()
 
             labels = [a["label"] for a in report["actions"]]
             # T-001 的 label 应带时间戳后缀
-            t001_labels = [l for l in labels if "t-001" in l]
+            t001_labels = [label for label in labels if "t-001" in label]
             assert len(t001_labels) >= 1, f"Expected T-001 label, got {labels}"
             # 后缀应是 _{digits}
             import re
-            assert any(re.search(r"_\d{10,}$", l) for l in t001_labels), \
+
+            assert any(re.search(r"_\d{10,}$", label) for label in t001_labels), (
                 f"Expected timestamp suffix, got {t001_labels}"
+            )
 
     def test_first_spawn_no_suffix(self, mock_blackboard):
         """首次 spawn（spawn_failures=0）不应加后缀，保持确定性格式。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(
+            _setup_generating_wp(
                 bb_root, project, "AAA-001", ["T-001", "T-002"], timeout_task="T-001"
             )
             driver = _mock_driver_for_retry(
@@ -225,22 +245,28 @@ class TestF2LabelConflict:
             )
             orch.progress["AAA-001"] = {"task_attempts": {"T-001": 1}}
             # 无 spawn_failures → 首次 spawn
-            with patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_count_in_flight", return_value=0):
+            with (
+                patch.object(orch, "_get_driver", return_value=driver),
+                patch.object(orch, "_count_in_flight", return_value=0),
+            ):
                 report = orch.pulse()
 
             labels = [a["label"] for a in report["actions"]]
-            t001_labels = [l for l in labels if "t-001" in l]
+            t001_labels = [label for label in labels if "t-001" in label]
             assert len(t001_labels) >= 1
             # 不应有时间戳后缀
             import re
-            assert not any(re.search(r"_\d{10,}$", l) for l in t001_labels), \
+
+            assert not any(re.search(r"_\d{10,}$", label) for label in t001_labels), (
                 f"First spawn should not have suffix, got {t001_labels}"
+            )
 
     def test_confirm_dispatches_strips_timestamp_suffix(self, mock_blackboard):
         """confirm_dispatches 应正确 strip 时间戳后缀匹配 dedup_key。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(bb_root, project, "AAA-001", ["T-001", "T-002"])
+            stages = _setup_generating_wp(
+                bb_root, project, "AAA-001", ["T-001", "T-002"]
+            )
             for t in ("T-001", "T-002"):
                 (stages / "worker_outputs" / t).mkdir(parents=True)
             orch.progress["AAA-001"] = {
@@ -250,10 +276,22 @@ class TestF2LabelConflict:
             }
             # 模拟 label 带时间戳后缀（F2 fallback 生成）
             ts = str(int(time.time()))
-            out = orch.confirm_dispatches([
-                {"wp_id": "AAA-001", "label": f"deliver-worker-aaa-001-t-001_{ts}", "ok": False, "error": "label already in use"},
-                {"wp_id": "AAA-001", "label": f"deliver-worker-aaa-001-t-002_{ts}", "ok": True, "error": None},
-            ])
+            out = orch.confirm_dispatches(
+                [
+                    {
+                        "wp_id": "AAA-001",
+                        "label": f"deliver-worker-aaa-001-t-001_{ts}",
+                        "ok": False,
+                        "error": "label already in use",
+                    },
+                    {
+                        "wp_id": "AAA-001",
+                        "label": f"deliver-worker-aaa-001-t-002_{ts}",
+                        "ok": True,
+                        "error": None,
+                    },
+                ]
+            )
             assert out["rolled_back"] == 1
             assert out["confirmed"] == 1
             entry = orch.progress["AAA-001"]
@@ -277,14 +315,22 @@ class TestF2LabelConflict:
             }
             ts = str(int(time.time()))
             # contract 重试 label 也带后缀
-            out = orch.confirm_dispatches([
-                {"wp_id": "AAA-001", "label": f"deliver-worker-aaa-001-t-003_{ts}", "ok": False, "error": "label already in use"},
-            ])
+            out = orch.confirm_dispatches(
+                [
+                    {
+                        "wp_id": "AAA-001",
+                        "label": f"deliver-worker-aaa-001-t-003_{ts}",
+                        "ok": False,
+                        "error": "label already in use",
+                    },
+                ]
+            )
             assert out["rolled_back"] == 1
             entry = orch.progress["AAA-001"]
             # T-003 应从 dedup_key 移除
-            assert "last_spawned_action" not in entry or \
-                "T-003" not in entry.get("last_spawned_action", "")
+            assert "last_spawned_action" not in entry or "T-003" not in entry.get(
+                "last_spawned_action", ""
+            )
 
     def test_validate_label_suffix_on_spawn_failure(self, mock_blackboard):
         """P1-polish: validate action 也应在 spawn_failures > 0 时加时间戳后缀。"""
@@ -303,21 +349,31 @@ class TestF2LabelConflict:
                 "task": "validate task",
                 "mode": "run",
             }
-            with patch.object(orch, "_count_in_flight", return_value=0), \
-                 patch.object(orch, "tick", return_value=[{
-                     "wp_id": "AAA-001",
-                     "action": "validate",
-                     "spawn_params": validate_params,
-                     "error": None,
-                 }]):
+            with (
+                patch.object(orch, "_count_in_flight", return_value=0),
+                patch.object(
+                    orch,
+                    "tick",
+                    return_value=[
+                        {
+                            "wp_id": "AAA-001",
+                            "action": "validate",
+                            "spawn_params": validate_params,
+                            "error": None,
+                        }
+                    ],
+                ),
+            ):
                 report = orch.pulse()
 
             labels = [a["label"] for a in report["actions"]]
-            validate_labels = [l for l in labels if "validate" in l]
+            validate_labels = [label for label in labels if "validate" in label]
             assert len(validate_labels) >= 1, f"Expected validate label, got {labels}"
             import re
-            assert any(re.search(r"_\d{10,}$", l) for l in validate_labels), \
+
+            assert any(re.search(r"_\d{10,}$", label) for label in validate_labels), (
                 f"Expected timestamp suffix on validate label, got {validate_labels}"
+            )
 
     def test_package_label_suffix_on_spawn_failure(self, mock_blackboard):
         """P1-polish: package action 也应在 spawn_failures > 0 时加时间戳后缀。"""
@@ -336,28 +392,41 @@ class TestF2LabelConflict:
                 "task": "package task",
                 "mode": "run",
             }
-            with patch.object(orch, "_count_in_flight", return_value=0), \
-                 patch.object(orch, "tick", return_value=[{
-                     "wp_id": "AAA-001",
-                     "action": "package",
-                     "spawn_params": package_params,
-                     "error": None,
-                 }]):
+            with (
+                patch.object(orch, "_count_in_flight", return_value=0),
+                patch.object(
+                    orch,
+                    "tick",
+                    return_value=[
+                        {
+                            "wp_id": "AAA-001",
+                            "action": "package",
+                            "spawn_params": package_params,
+                            "error": None,
+                        }
+                    ],
+                ),
+            ):
                 report = orch.pulse()
 
             labels = [a["label"] for a in report["actions"]]
-            package_labels = [l for l in labels if "package" in l]
+            package_labels = [label for label in labels if "package" in label]
             assert len(package_labels) >= 1, f"Expected package label, got {labels}"
             import re
-            assert any(re.search(r"_\d{10,}$", l) for l in package_labels), \
+
+            assert any(re.search(r"_\d{10,}$", label) for label in package_labels), (
                 f"Expected timestamp suffix on package label, got {package_labels}"
+            )
 
     def test_multi_param_wave_all_get_suffix(self, mock_blackboard):
         """P1-polish: 多 param wave 中所有 param 都应获后缀（reset 移出循环）。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
             stages = _setup_generating_wp(
-                bb_root, project, "AAA-001", ["T-001", "T-002", "T-003"],
-                timeout_task="T-001"
+                bb_root,
+                project,
+                "AAA-001",
+                ["T-001", "T-002", "T-003"],
+                timeout_task="T-001",
             )
             # 构造多个 task 超时
             for t in ("T-002", "T-003"):
@@ -367,51 +436,64 @@ class TestF2LabelConflict:
                 os.utime(t_dir, (old, old))
 
             driver = _mock_driver_for_retry(
-                bb_root, project, "AAA-001", ["T-001", "T-002", "T-003"],
-                timed_out=("T-001", "T-002", "T-003")
+                bb_root,
+                project,
+                "AAA-001",
+                ["T-001", "T-002", "T-003"],
+                timed_out=("T-001", "T-002", "T-003"),
             )
             # 模拟之前有 spawn 失败
             orch.progress["AAA-001"] = {
                 "task_attempts": {"T-001": 1, "T-002": 1, "T-003": 1},
                 "spawn_failures": 5,
             }
-            with patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_count_in_flight", return_value=0):
+            with (
+                patch.object(orch, "_get_driver", return_value=driver),
+                patch.object(orch, "_count_in_flight", return_value=0),
+            ):
                 report = orch.pulse()
 
             labels = [a["label"] for a in report["actions"]]
             # 所有 3 个 task 的 label 都应带时间戳后缀
             import re
+
             for tid in ["t-001", "t-002", "t-003"]:
-                tid_labels = [l for l in labels if tid in l]
+                tid_labels = [label for label in labels if tid in label]
                 assert len(tid_labels) >= 1, f"Expected {tid} label, got {labels}"
-                assert any(re.search(r"_\d{10,}$", l) for l in tid_labels), \
+                assert any(re.search(r"_\d{10,}$", label) for label in tid_labels), (
                     f"Expected timestamp suffix for {tid}, got {tid_labels}"
+                )
 
 
 # ---------------------------------------------------------------------------
 # F3: 僵尸 running_tasks 对账清理
 # ---------------------------------------------------------------------------
 
+
 class TestF3ReconcileRunningTasks:
     def test_zombie_cleared_when_manifest_exists(self, mock_blackboard):
         """running_tasks 中的 task 已有 MANIFEST → 僵尸 → 清除。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(bb_root, project, "AAA-001", ["T-001", "T-002"])
+            stages = _setup_generating_wp(
+                bb_root, project, "AAA-001", ["T-001", "T-002"]
+            )
             # T-001 有 MANIFEST（已完成）
             t1_dir = stages / "worker_outputs" / "T-001"
             t1_dir.mkdir(parents=True)
-            (t1_dir / "MANIFEST.json").write_text(json.dumps({
-                "task_id": "T-001", "status": "COMPLETE",
-            }))
+            (t1_dir / "MANIFEST.json").write_text(
+                json.dumps(
+                    {
+                        "task_id": "T-001",
+                        "status": "COMPLETE",
+                    }
+                )
+            )
             # T-002 无 MANIFEST（仍在运行）
             t2_dir = stages / "worker_outputs" / "T-002"
             t2_dir.mkdir(parents=True)
 
             driver = MagicMock()
-            driver.orch.state = SimpleNamespace(
-                running_tasks=["T-001", "T-002"]
-            )
+            driver.orch.state = SimpleNamespace(running_tasks=["T-001", "T-002"])
             driver.orch._save_state = MagicMock()
 
             cleared = orch._reconcile_running_tasks("AAA-001", driver)
@@ -480,26 +562,48 @@ class TestF3ReconcileRunningTasks:
     def test_reconcile_called_in_tick(self, mock_blackboard):
         """tick() 应在处理每个 WP 时调用 _reconcile_running_tasks。"""
         with _make_orchestrator(mock_blackboard) as (orch, bb_root, project):
-            stages = _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
+            _setup_generating_wp(bb_root, project, "AAA-001", ["T-001"])
             orch.progress["AAA-001"] = {}
 
             driver = MagicMock()
             driver.orch.state = SimpleNamespace(running_tasks=[])
             driver.orch._save_state = MagicMock()
             driver.step1_analyze.side_effect = lambda: {
-                "task": "analyze", "label": "analyze-aaa-001", "mode": "run",
+                "task": "analyze",
+                "label": "analyze-aaa-001",
+                "mode": "run",
             }
 
-            with patch.object(orch, "_get_driver", return_value=driver), \
-                 patch.object(orch, "_reconcile_running_tasks", wraps=orch._reconcile_running_tasks) as mock_reconcile:
+            with (
+                patch.object(orch, "_get_driver", return_value=driver),
+                patch.object(
+                    orch,
+                    "_reconcile_running_tasks",
+                    wraps=orch._reconcile_running_tasks,
+                ) as mock_reconcile,
+            ):
                 # tick 需要 get_next_actions 返回动作
-                with patch.object(orch, "get_next_actions", return_value={
-                    "layer": 0,
-                    "actions": [{"wp_id": "AAA-001", "action": "spawn_workers",
-                                 "spawn_params": [{"task_id": "T-001", "task": "do T-001",
-                                                    "label": "deliver-worker-aaa-001-t-001",
-                                                    "mode": "run"}]}],
-                }):
+                with patch.object(
+                    orch,
+                    "get_next_actions",
+                    return_value={
+                        "layer": 0,
+                        "actions": [
+                            {
+                                "wp_id": "AAA-001",
+                                "action": "spawn_workers",
+                                "spawn_params": [
+                                    {
+                                        "task_id": "T-001",
+                                        "task": "do T-001",
+                                        "label": "deliver-worker-aaa-001-t-001",
+                                        "mode": "run",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ):
                     orch.tick()
 
             mock_reconcile.assert_called_once_with("AAA-001", driver)

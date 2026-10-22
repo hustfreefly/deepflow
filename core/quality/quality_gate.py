@@ -8,8 +8,6 @@
 - HITL自动触发
 """
 
-
-
 import re
 from dataclasses import dataclass, field
 from enum import Enum
@@ -23,6 +21,7 @@ logger = Observability.get_logger("quality_gate")
 
 class GateDecision(str, Enum):
     """门控决策结果."""
+
     PASS = "PASS"
     HITL = "HITL"
     REJECT = "REJECT"
@@ -31,6 +30,7 @@ class GateDecision(str, Enum):
 @dataclass
 class ConvergenceResult:
     """收敛检测结果."""
+
     converged: bool
     variance: Optional[float]
     reason: str
@@ -39,11 +39,12 @@ class ConvergenceResult:
 @dataclass
 class QualityReport:
     """质量评估报告."""
+
     overall_score: float
     dimensions: Dict[str, float]
     decision: GateDecision
     reasoning: str
-    timestamp: float = field(default_factory=lambda: __import__('time').time())
+    timestamp: float = field(default_factory=lambda: __import__("time").time())
 
     @property
     def all_passed(self) -> bool:
@@ -74,7 +75,9 @@ class QualityGate:
 
     # 预编译正则
     _RE_PERCENT = re.compile(r"\d+(?:\.\d+)?%?")
-    _RE_HEADINGS = re.compile(r"^(?:#{1,6}\s|第[一二三四五六七八九十]+[章节部分])", re.MULTILINE)
+    _RE_HEADINGS = re.compile(
+        r"^(?:#{1,6}\s|第[一二三四五六七八九十]+[章节部分])", re.MULTILINE
+    )
     _RE_BULLETS = re.compile(r"^[•\-\*\d+\.]\s", re.MULTILINE)
     _RE_BLANK_LINES = re.compile(r"\n\s*\n")
     _RE_CODE_BLOCK = re.compile(r"```(?:\w*)\n(.*?)```", re.DOTALL)
@@ -91,7 +94,9 @@ class QualityGate:
         """
         self._config = config or {}
         self._weights = self._config.get("weights", self.DEFAULT_WEIGHTS.copy())
-        self._thresholds = self._config.get("thresholds", self.DEFAULT_THRESHOLDS.copy())
+        self._thresholds = self._config.get(
+            "thresholds", self.DEFAULT_THRESHOLDS.copy()
+        )
         self._score_history: List[float] = []
         self._validate_config()
 
@@ -103,7 +108,9 @@ class QualityGate:
             if dim not in ["accuracy", "completeness", "depth", "elegance"]:
                 raise ValueError(f"无效维度:{dim}")
 
-    def evaluate(self, content: str, dimensions: Optional[List[str]] = None) -> QualityReport:
+    def evaluate(
+        self, content: str, dimensions: Optional[List[str]] = None
+    ) -> QualityReport:
         """执行4维质量评估.
 
         Args:
@@ -134,7 +141,10 @@ class QualityGate:
         if evaluated_weight_sum == 0:
             overall = 0.0
         else:
-            overall = sum(dim_scores[d] * (self._weights[d] / evaluated_weight_sum) for d in dims_to_eval)
+            overall = sum(
+                dim_scores[d] * (self._weights[d] / evaluated_weight_sum)
+                for d in dims_to_eval
+            )
 
         decision = self._compute_decision(overall, dim_scores)
         reasoning = self._build_reasoning(overall, dim_scores, decision)
@@ -169,7 +179,9 @@ class QualityGate:
             return self._score_elegance(stripped, length, lines, words)
         return 0.5
 
-    def _score_accuracy(self, output: str, length: int, lines: int, words: int) -> float:
+    def _score_accuracy(
+        self, output: str, length: int, lines: int, words: int
+    ) -> float:
         """准确度评分."""
         score = 0.5
         lower = output.lower()
@@ -188,7 +200,9 @@ class QualityGate:
 
         return max(0.0, min(1.0, round(score, 4)))
 
-    def _score_completeness(self, output: str, length: int, lines: int, words: int) -> float:
+    def _score_completeness(
+        self, output: str, length: int, lines: int, words: int
+    ) -> float:
         """完整度评分."""
         score = 0.4
 
@@ -218,7 +232,9 @@ class QualityGate:
 
         return max(0.0, min(1.0, round(score, 4)))
 
-    def _score_elegance(self, output: str, length: int, lines: int, words: int) -> float:
+    def _score_elegance(
+        self, output: str, length: int, lines: int, words: int
+    ) -> float:
         """优雅度评分."""
         score = 0.55
 
@@ -245,7 +261,9 @@ class QualityGate:
 
         return max(0.0, min(1.0, round(score, 4)))
 
-    def evaluate_4d(self, accuracy: float, completeness: float, depth: float, elegance: float) -> float:
+    def evaluate_4d(
+        self, accuracy: float, completeness: float, depth: float, elegance: float
+    ) -> float:
         """计算4维加权总分.
 
         Args:
@@ -268,10 +286,19 @@ class QualityGate:
         }
 
         # 检查是否有裁剪
-        for name, value in [("accuracy", accuracy), ("completeness", completeness),
-                           ("depth", depth), ("elegance", elegance)]:
+        for name, value in [
+            ("accuracy", accuracy),
+            ("completeness", completeness),
+            ("depth", depth),
+            ("elegance", elegance),
+        ]:
             if value < 0.0 or value > 1.0:
-                logger.warning("score_clamped", dimension=name, original=value, clamped=scores[name])
+                logger.warning(
+                    "score_clamped",
+                    dimension=name,
+                    original=value,
+                    clamped=scores[name],
+                )
 
         total = sum(scores[d] * self._weights[d] for d in scores)
         return round(total, 4)
@@ -298,7 +325,9 @@ class QualityGate:
             return GateDecision.HITL
         return GateDecision.REJECT
 
-    def check_convergence(self, scores: List[float], window: int = 3, threshold: float = 0.02) -> ConvergenceResult:
+    def check_convergence(
+        self, scores: List[float], window: int = 3, threshold: float = 0.02
+    ) -> ConvergenceResult:
         """收敛检测.
 
         Args:
@@ -316,7 +345,9 @@ class QualityGate:
             raise ValueError("window必须大于0")
 
         if len(scores) < window:
-            return ConvergenceResult(converged=False, variance=None, reason="历史数据不足")
+            return ConvergenceResult(
+                converged=False, variance=None, reason="历史数据不足"
+            )
 
         recent = scores[-window:]
         mean = sum(recent) / len(recent)
@@ -325,7 +356,9 @@ class QualityGate:
         converged = variance < threshold
         reason = f"方差{variance:.4f}{'<' if converged else '>='}阈值{threshold}"
 
-        return ConvergenceResult(converged=converged, variance=round(variance, 4), reason=reason)
+        return ConvergenceResult(
+            converged=converged, variance=round(variance, 4), reason=reason
+        )
 
     def hitl_trigger(self, score: float, human_threshold: float = 0.70) -> bool:
         """判断是否触发人工介入.
@@ -352,7 +385,9 @@ class QualityGate:
         """清空历史得分记录."""
         self._score_history.clear()
 
-    def _compute_decision(self, overall_score: float, dimensions: Dict[str, float]) -> GateDecision:
+    def _compute_decision(
+        self, overall_score: float, dimensions: Dict[str, float]
+    ) -> GateDecision:
         """内部:计算门控决策."""
         auto_pass = self._thresholds.get("auto_pass", 0.85)
         hitl_threshold = self._thresholds.get("hitl", 0.70)
@@ -366,7 +401,9 @@ class QualityGate:
             return GateDecision.HITL
         return GateDecision.REJECT
 
-    def _build_reasoning(self, overall: float, dimensions: Dict[str, float], decision: GateDecision) -> str:
+    def _build_reasoning(
+        self, overall: float, dimensions: Dict[str, float], decision: GateDecision
+    ) -> str:
         """内部:构建决策理由."""
         parts = [f"总分:{overall:.2f}"]
         for name, score in dimensions.items():

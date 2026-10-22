@@ -15,7 +15,7 @@ Date: 2026-06-22
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 class DomainRegistry:
@@ -51,10 +51,7 @@ class DomainRegistry:
         """
         if stage_name not in cls.STAGE_PATH_REGISTRY:
             available = list(cls.STAGE_PATH_REGISTRY.keys())
-            raise ValueError(
-                f"Unknown stage: '{stage_name}'. "
-                f"Available: {available}"
-            )
+            raise ValueError(f"Unknown stage: '{stage_name}'. Available: {available}")
         return cls.STAGE_PATH_REGISTRY[stage_name]
 
     @classmethod
@@ -93,27 +90,19 @@ class DomainRegistry:
         for name, path in cls.STAGE_PATH_REGISTRY.items():
             # 纯 ASCII
             if not path.isascii():
-                errors.append(
-                    f"Non-ASCII path in '{name}': {path}"
-                )
+                errors.append(f"Non-ASCII path in '{name}': {path}")
 
             # 无嵌套 blackboard
             if "blackboard/" in path or path.startswith("blackboard"):
-                errors.append(
-                    f"Nested blackboard in '{name}': {path}"
-                )
+                errors.append(f"Nested blackboard in '{name}': {path}")
 
             # 相对路径（不以 / 开头）
             if path.startswith("/"):
-                errors.append(
-                    f"Absolute path in '{name}': {path}"
-                )
+                errors.append(f"Absolute path in '{name}': {path}")
 
             # 无重复路径
             if path in seen_paths:
-                errors.append(
-                    f"Duplicate path in '{name}': {path}"
-                )
+                errors.append(f"Duplicate path in '{name}': {path}")
             seen_paths.add(path)
 
         return errors

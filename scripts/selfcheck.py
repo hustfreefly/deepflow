@@ -4,6 +4,7 @@
 Contract: cage/active/dev_ops_v1.0.yaml
 Read-only. PASS/WARN exit 0, FAIL exit 1.
 """
+
 import argparse
 import json
 import os
@@ -12,10 +13,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-AGENT_HOME = Path(os.environ.get(
-    "DEEPFLOW_AGENT_HOME",
-    "/Users/allen/.openclaw/workspace/agent-workspaces/deepflow-dev",
-))
+AGENT_HOME = Path(
+    os.environ.get(
+        "DEEPFLOW_AGENT_HOME",
+        "/Users/allen/.openclaw/workspace/agent-workspaces/deepflow-dev",
+    )
+)
 
 
 def check(name, fn):
@@ -28,28 +31,45 @@ def check(name, fn):
 
 def python_check():
     version = sys.version_info
-    return ("PASS" if version >= (3, 11) else "FAIL",
-            f"{version.major}.{version.minor}.{version.micro}")
+    return (
+        "PASS" if version >= (3, 11) else "FAIL",
+        f"{version.major}.{version.minor}.{version.micro}",
+    )
 
 
 def pytest_check():
     import pytest
+
     return "PASS", pytest.__version__
 
 
 def contract_check():
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "tests/contracts", "-q",
-         "--ignore=tests/contracts/test_dev_ops.py"],
-        cwd=ROOT, capture_output=True, text=True, timeout=60,
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/contracts",
+            "-q",
+            "--ignore=tests/contracts/test_dev_ops.py",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
-    line = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else result.stderr[-200:]
+    line = (
+        result.stdout.strip().splitlines()[-1]
+        if result.stdout.strip()
+        else result.stderr[-200:]
+    )
     return ("PASS" if result.returncode == 0 else "FAIL", line)
 
 
 def git_check():
-    result = subprocess.run(["git", "status", "--porcelain"],
-                            cwd=ROOT, capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True
+    )
     dirty = bool(result.stdout.strip())
     return ("WARN" if dirty else "PASS", "dirty" if dirty else "clean")
 
@@ -64,8 +84,14 @@ def skills_check():
 
 
 def scripts_check():
-    required = ["impact.py", "metrics.py", "worktree.sh", "spawn_guard.py",
-                "selfcheck.py", "validate.py"]
+    required = [
+        "impact.py",
+        "metrics.py",
+        "worktree.sh",
+        "spawn_guard.py",
+        "selfcheck.py",
+        "validate.py",
+    ]
     missing = [name for name in required if not (ROOT / "scripts" / name).exists()]
     return ("FAIL" if missing else "PASS", f"missing={missing}")
 

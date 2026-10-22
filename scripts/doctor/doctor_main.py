@@ -33,7 +33,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 # 确保可以 import deepflow 根目录模块
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from transcript_parser import parse_transcript, parse_session_events
+from transcript_parser import parse_session_events
+from pattern_detector import detect_issues, detect_pipeline_issues
+from causal_tracer import (
+    build_session_tree,
+)
+from pipeline_scope import discover_pipeline_runs, filter_events_by_run, get_run_summary
+from prompt_auditor import audit_prompts, audit_bootstrap_coverage
 
 
 def _events_for_session(info: dict) -> list[dict]:
@@ -42,32 +48,50 @@ def _events_for_session(info: dict) -> list[dict]:
     if not session_id:
         return []
     return parse_session_events(session_id, agent_id=info.get("agent_id"))
-from pattern_detector import detect_issues, detect_pipeline_issues
-from causal_tracer import build_session_tree, get_session_family, trace_causal_chain, find_recent_pipeline_sessions
-from pipeline_scope import discover_pipeline_runs, filter_events_by_run, get_run_summary
-from prompt_auditor import audit_prompts, audit_bootstrap_coverage
 
 
 def main():
-    parser = argparse.ArgumentParser(description="DeepFlow Doctor V2 — AI Native 多 Agent 运行诊断")
-    parser.add_argument("--hours", type=int, default=24, help="扫描最近 N 小时的 sessions")
+    parser = argparse.ArgumentParser(
+        description="DeepFlow Doctor V2 — AI Native 多 Agent 运行诊断"
+    )
+    parser.add_argument(
+        "--hours", type=int, default=24, help="扫描最近 N 小时的 sessions"
+    )
     parser.add_argument("--session", type=str, help="扫描指定 session (key 或 id)")
     parser.add_argument("--all-today", action="store_true", help="扫描今天所有管线")
-    parser.add_argument("--no-llm", action="store_true", help="跳过 L2 LLM 分析，只输出 L1 候选")
+    parser.add_argument(
+        "--no-llm", action="store_true", help="跳过 L2 LLM 分析，只输出 L1 候选"
+    )
     parser.add_argument("--json", action="store_true", help="输出 JSON 格式")
-    parser.add_argument("--quiet", action="store_true", help="只输出问题，不输出正常 session 信息")
-    parser.add_argument("--t5", action="store_true", help="同时运行 T5 Prompt 审计（文档教坏 LLM 检测）")
+    parser.add_argument(
+        "--quiet", action="store_true", help="只输出问题，不输出正常 session 信息"
+    )
+    parser.add_argument(
+        "--t5", action="store_true", help="同时运行 T5 Prompt 审计（文档教坏 LLM 检测）"
+    )
     # ── Scope 参数 ──
-    parser.add_argument("--scope", choices=["pipeline", "agent", "time-range"], default="agent",
-                        help="检查范围: pipeline=管线执行 | agent=整个会话(默认) | time-range=自定义时间窗口")
-    parser.add_argument("--from", dest="time_from", type=str,
-                        help="时间窗口起始 (HH:MM 或 ISO), 配合 --scope time-range")
-    parser.add_argument("--to", dest="time_to", type=str,
-                        help="时间窗口结束 (HH:MM 或 ISO), 配合 --scope time-range")
-    parser.add_argument("--pipeline-dir", type=str,
-                        help="指定管线 blackboard 目录 (跳过自动发现)")
-    parser.add_argument("--run-id", type=str,
-                        help="指定 run_id 精确匹配管线运行")
+    parser.add_argument(
+        "--scope",
+        choices=["pipeline", "agent", "time-range"],
+        default="agent",
+        help="检查范围: pipeline=管线执行 | agent=整个会话(默认) | time-range=自定义时间窗口",
+    )
+    parser.add_argument(
+        "--from",
+        dest="time_from",
+        type=str,
+        help="时间窗口起始 (HH:MM 或 ISO), 配合 --scope time-range",
+    )
+    parser.add_argument(
+        "--to",
+        dest="time_to",
+        type=str,
+        help="时间窗口结束 (HH:MM 或 ISO), 配合 --scope time-range",
+    )
+    parser.add_argument(
+        "--pipeline-dir", type=str, help="指定管线 blackboard 目录 (跳过自动发现)"
+    )
+    parser.add_argument("--run-id", type=str, help="指定 run_id 精确匹配管线运行")
     args = parser.parse_args()
 
     # ── Pipeline scope: 直接从 blackboard 发现管线运行 ──
@@ -97,15 +121,22 @@ def main():
         clusters = [[(k, tree["sessions"][k]) for k in target_keys]]
     else:
         import datetime
+
         if args.all_today:
-            cutoff = int(datetime.datetime.now().replace(hour=0, minute=0, second=0).timestamp() * 1000)
+            cutoff = int(
+                datetime.datetime.now().replace(hour=0, minute=0, second=0).timestamp()
+                * 1000
+            )
         else:
             cutoff = int((time.time() - args.hours * 3600) * 1000)
 
         sub_sessions = sorted(
-            [(k, v) for k, v in tree["sessions"].items()
-             if v["started_at"] >= cutoff and "subagent" in k],
-            key=lambda x: x[1]["started_at"]
+            [
+                (k, v)
+                for k, v in tree["sessions"].items()
+                if v["started_at"] >= cutoff and "subagent" in k
+            ],
+            key=lambda x: x[1]["started_at"],
         )
 
         if not sub_sessions:
@@ -140,6 +171,7 @@ def main():
         first_label = first_info.get("label", "")
         if not first_label:
             import datetime
+
             ts = first_info["started_at"] / 1000
             dt = datetime.datetime.fromtimestamp(ts)
             first_label = f"管线 {dt.strftime('%H:%M')}"
@@ -185,7 +217,11 @@ def main():
         if not args.no_llm and all_candidates:
             try:
                 from llm_analyzer import analyze_candidates
-                print(f"  🔍 L2: 分析 {len(all_candidates)} 个候选问题...", file=sys.stderr)
+
+                print(
+                    f"  🔍 L2: 分析 {len(all_candidates)} 个候选问题...",
+                    file=sys.stderr,
+                )
                 pipeline_meta = {
                     "agent_count": len(cluster_keys),
                     "runtime_seconds": runtime_ms // 1000,
@@ -212,6 +248,7 @@ def main():
 # ---------------------------------------------------------------------------
 # T5 Prompt Audit
 # ---------------------------------------------------------------------------
+
 
 def _run_pipeline_scope(args) -> list[dict]:
     """
@@ -256,6 +293,7 @@ def _analyze_single_pipeline_run(run: dict, tree: dict, args) -> dict | None:
     # 找匹配的 session transcript（只匹配 subagent sessions，排除 main session）
     matching_transcripts = []
     from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+
     _shanghai_tz = _tz(_td(hours=8))
 
     for session_key, info in tree["sessions"].items():
@@ -311,7 +349,8 @@ def _analyze_single_pipeline_run(run: dict, tree: dict, args) -> dict | None:
         "candidates": all_candidates,
         "events_count": len(all_events),
         "total_events_before_filter": sum(
-            len(parse_session_events(t, agent_id=info.get("agent_id"))) for _, t, info in matching_transcripts
+            len(parse_session_events(t, agent_id=info.get("agent_id")))
+            for _, t, info in matching_transcripts
         ),
         "scope": "pipeline",
         "run_info": {
@@ -328,6 +367,7 @@ def _analyze_single_pipeline_run(run: dict, tree: dict, args) -> dict | None:
     if not args.no_llm and all_candidates:
         try:
             from llm_analyzer import analyze_candidates
+
             print(f"  🔍 L2: 分析 {len(all_candidates)} 个候选问题...", file=sys.stderr)
             diagnosis = analyze_candidates(
                 candidates=all_candidates,
@@ -373,7 +413,9 @@ def _report_from_run_info(run: dict, label: str) -> dict:
     }
 
 
-def _filter_events_time_range(events: list[dict], time_from: str | None, time_to: str | None) -> list[dict]:
+def _filter_events_time_range(
+    events: list[dict], time_from: str | None, time_to: str | None
+) -> list[dict]:
     """按时间窗口过滤事件。"""
     from datetime import datetime, timezone, timedelta
     from pipeline_scope import _parse_event_ts
@@ -425,7 +467,7 @@ def _append_t5_audit(session_reports: list[dict], args):
     all_t5 = prompt_issues + bootstrap_issues
 
     if not all_t5:
-        print(f"  ✅ T5: 文档审计通过，未发现教坏 LLM 的地方", file=sys.stderr)
+        print("  ✅ T5: 文档审计通过，未发现教坏 LLM 的地方", file=sys.stderr)
         return
 
     print(f"  ⚠️ T5: 发现 {len(all_t5)} 个文档问题", file=sys.stderr)
@@ -448,6 +490,7 @@ def _append_t5_audit(session_reports: list[dict], args):
     if not args.no_llm and all_t5:
         try:
             from llm_analyzer import analyze_candidates
+
             print(f"  🔍 T5 L2: 分析 {len(all_t5)} 个候选问题...", file=sys.stderr)
             diagnosis = analyze_candidates(
                 candidates=all_t5,
@@ -477,17 +520,17 @@ def _output_reports(session_reports: list[dict], args):
 
 def print_report_v2(reports: list[dict], quiet: bool = False):
     """V2 报告：包含 LLM 诊断 + 修复建议 + 反思。"""
-    print(f"\n{'='*65}")
-    print(f"  🩺 DeepFlow Doctor V2 诊断报告")
+    print(f"\n{'=' * 65}")
+    print("  🩺 DeepFlow Doctor V2 诊断报告")
     print(f"  扫描 {len(reports)} 条管线")
 
     # 显示 scope 信息
     scopes = set(r.get("scope", "agent") for r in reports)
     if "pipeline" in scopes:
-        print(f"  🔬 Scope: pipeline (仅管线执行窗口)")
+        print("  🔬 Scope: pipeline (仅管线执行窗口)")
     elif "time-range" in scopes:
-        print(f"  🔬 Scope: time-range (自定义时间窗口)")
-    print(f"{'='*65}")
+        print("  🔬 Scope: time-range (自定义时间窗口)")
+    print(f"{'=' * 65}")
 
     for report in reports:
         label = report["root_label"][:45]
@@ -503,7 +546,9 @@ def print_report_v2(reports: list[dict], quiet: bool = False):
                 scope_badge += f" ({filtered_count}/{total_before} events)"
 
         print(f"\n  📦 {label}{scope_badge}")
-        print(f"     Agents: {report['agents']} | Tokens: {report['tokens']:,} | Runtime: {report['runtime_ms']//1000}s")
+        print(
+            f"     Agents: {report['agents']} | Tokens: {report['tokens']:,} | Runtime: {report['runtime_ms'] // 1000}s"
+        )
         print(f"     L1 候选: {len(report['candidates'])} 个")
 
         # Show run_info if pipeline scope
@@ -515,12 +560,14 @@ def print_report_v2(reports: list[dict], quiet: bool = False):
             print(f"     Gate: {passed}/{len(agents)} pass | Total retries: {retries}")
 
         if diagnosis is None:
-            print(f"     L2: 未启用（--no-llm）")
+            print("     L2: 未启用（--no-llm）")
             for c in report["candidates"][:5]:
                 et = c.get("error_type", c.get("category", "?"))
-                print(f"       • [{c.get('session_label','')[:20]}] {et}: {c.get('evidence','')[:100]}")
+                print(
+                    f"       • [{c.get('session_label', '')[:20]}] {et}: {c.get('evidence', '')[:100]}"
+                )
             if len(report["candidates"]) > 5:
-                print(f"       ... 还有 {len(report['candidates'])-5} 个")
+                print(f"       ... 还有 {len(report['candidates']) - 5} 个")
             continue
 
         if "error" in diagnosis:
@@ -533,7 +580,11 @@ def print_report_v2(reports: list[dict], quiet: bool = False):
         print(f"     L2: ✅ {tp} 真问题 / {fp} 误报 / {len(report['candidates'])} 候选")
 
         # ── True Positives ──
-        true_diagnoses = [d for d in diagnosis.get("diagnoses", []) if d.get("verdict") == "true_positive"]
+        true_diagnoses = [
+            d
+            for d in diagnosis.get("diagnoses", [])
+            if d.get("verdict") == "true_positive"
+        ]
         systemic = diagnosis.get("systemic_issues", [])
 
         if true_diagnoses:
@@ -544,12 +595,18 @@ def print_report_v2(reports: list[dict], quiet: bool = False):
                     by_root[rc] = []
                 by_root[rc].append(d)
 
-            print(f"\n     🔴 真实问题 ({len(true_diagnoses)} 个, {len(by_root)} 个独立根因):")
+            print(
+                f"\n     🔴 真实问题 ({len(true_diagnoses)} 个, {len(by_root)} 个独立根因):"
+            )
             for root_cause, items in by_root.items():
                 d = items[0]
-                impact_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(d.get("impact", ""), "⚪")
+                impact_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(
+                    d.get("impact", ""), "⚪"
+                )
                 suffix = f" (×{len(items)})" if len(items) > 1 else ""
-                print(f"       {impact_icon} [{d.get('impact','?').upper()}] {root_cause}{suffix}")
+                print(
+                    f"       {impact_icon} [{d.get('impact', '?').upper()}] {root_cause}{suffix}"
+                )
                 print(f"          理由: {d.get('reason', '')}")
                 print()
 
@@ -576,7 +633,11 @@ def print_report_v2(reports: list[dict], quiet: bool = False):
         print(f"       置信度: {confidence}%")
         if reflection.get("missed_anything") and reflection["missed_anything"] != "无":
             print(f"       遗漏: {reflection['missed_anything']}")
-        if reflection.get("contradictions") and reflection["contradictions"] not in ("无", "none", "无矛盾"):
+        if reflection.get("contradictions") and reflection["contradictions"] not in (
+            "无",
+            "none",
+            "无矛盾",
+        ):
             print(f"       矛盾: {reflection['contradictions']}")
         print(f"       覆盖: {reflection.get('coverage_check', '?')}")
 
@@ -585,9 +646,9 @@ def print_report_v2(reports: list[dict], quiet: bool = False):
             print(f"\n     🎯 最优先修复: {top_fix}")
 
     # ── Global Summary ──
-    print(f"\n{'='*65}")
-    print(f"  📊 全局汇总")
-    print(f"{'='*65}")
+    print(f"\n{'=' * 65}")
+    print("  📊 全局汇总")
+    print(f"{'=' * 65}")
 
     total_tp = 0
     total_fp = 0
@@ -609,14 +670,14 @@ def print_report_v2(reports: list[dict], quiet: bool = False):
     print(f"  L2 判定: {total_tp} 真问题 + {total_fp} 误报")
     print(f"  系统性问题: {total_systemic}")
     if total_candidates > 0:
-        print(f"  误报率: {total_fp/total_candidates*100:.0f}%")
+        print(f"  误报率: {total_fp / total_candidates * 100:.0f}%")
 
     if all_top_fixes:
-        print(f"\n  🎯 优先修复清单:")
+        print("\n  🎯 优先修复清单:")
         for i, fix in enumerate(all_top_fixes[:5], 1):
             print(f"     {i}. {fix}")
 
-    print(f"\n{'='*65}\n")
+    print(f"\n{'=' * 65}\n")
 
 
 if __name__ == "__main__":

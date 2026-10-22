@@ -86,7 +86,9 @@ def validate_execution_plan(base: Path, validation: Validation) -> None:
         if phase.get("parallel"):
             workers = phase.get("workers")
             if not isinstance(workers, list) or not workers:
-                validation.error(f"{stage}: parallel phase requires non-empty workers list")
+                validation.error(
+                    f"{stage}: parallel phase requires non-empty workers list"
+                )
                 continue
             for worker in workers:
                 if not isinstance(worker, dict):
@@ -94,10 +96,14 @@ def validate_execution_plan(base: Path, validation: Validation) -> None:
                     continue
                 for field in ("id", "task_key", "expected_output_path"):
                     if not worker.get(field):
-                        validation.error(f"{stage}.{worker.get('id', '?')}: missing {field}")
+                        validation.error(
+                            f"{stage}.{worker.get('id', '?')}: missing {field}"
+                        )
                 task_key = worker.get("task_key", "")
                 if get_task(tasks, task_key) is None:
-                    validation.error(f"{stage}.{worker.get('id', '?')}: missing task_key {task_key}")
+                    validation.error(
+                        f"{stage}.{worker.get('id', '?')}: missing task_key {task_key}"
+                    )
         else:
             for field in ("worker", "task_key", "expected_output_path"):
                 if not phase.get(field):
@@ -107,9 +113,13 @@ def validate_execution_plan(base: Path, validation: Validation) -> None:
                 validation.error(f"{stage}: missing task_key {task_key}")
 
     research_phase = next((p for p in phases if p.get("stage") == "research"), {})
-    research_workers = [w.get("id") for w in research_phase.get("workers", []) if isinstance(w, dict)]
+    research_workers = [
+        w.get("id") for w in research_phase.get("workers", []) if isinstance(w, dict)
+    ]
     if research_workers != FIXED_RESEARCH_WORKERS:
-        validation.error(f"research workers must be fixed {FIXED_RESEARCH_WORKERS}, got {research_workers}")
+        validation.error(
+            f"research workers must be fixed {FIXED_RESEARCH_WORKERS}, got {research_workers}"
+        )
 
 
 def validate_control_contract(base: Path, validation: Validation) -> None:
@@ -119,22 +129,37 @@ def validate_control_contract(base: Path, validation: Validation) -> None:
         return
     contract = load_json(path, validation)
     if contract.get("frozen_spec_path") != "data/frozen_spec.json":
-        validation.error("control_contract must reference frozen_spec_path=data/frozen_spec.json")
-    if contract.get("traceability_matrix_path") != "requirements_traceability_matrix.json":
-        validation.error("control_contract must reference traceability_matrix_path=requirements_traceability_matrix.json")
+        validation.error(
+            "control_contract must reference frozen_spec_path=data/frozen_spec.json"
+        )
+    if (
+        contract.get("traceability_matrix_path")
+        != "requirements_traceability_matrix.json"
+    ):
+        validation.error(
+            "control_contract must reference traceability_matrix_path=requirements_traceability_matrix.json"
+        )
     criteria = contract.get("acceptance_criteria", [])
     if not isinstance(criteria, list) or not criteria:
-        validation.error("control_contract acceptance_criteria must be a non-empty list")
+        validation.error(
+            "control_contract acceptance_criteria must be a non-empty list"
+        )
     workers = contract.get("research_workers", [])
     ids = [w.get("id") for w in workers if isinstance(w, dict)]
     if ids != FIXED_RESEARCH_WORKERS:
-        validation.error(f"control_contract research_workers must map to fixed slots {FIXED_RESEARCH_WORKERS}, got {ids}")
+        validation.error(
+            f"control_contract research_workers must map to fixed slots {FIXED_RESEARCH_WORKERS}, got {ids}"
+        )
     for worker in workers:
         if not isinstance(worker, dict):
-            validation.error("control_contract research_workers entries must be objects")
+            validation.error(
+                "control_contract research_workers entries must be objects"
+            )
             continue
         if not worker.get("angle") or not worker.get("reason"):
-            validation.error(f"control_contract {worker.get('id', '?')}: missing angle/reason")
+            validation.error(
+                f"control_contract {worker.get('id', '?')}: missing angle/reason"
+            )
 
 
 def validate_frozen_spec(base: Path, validation: Validation) -> None:
@@ -183,16 +208,24 @@ def validate_traceability_matrix(base: Path, validation: Validation) -> None:
     }
     entries = matrix.get("requirements", {})
     if not isinstance(entries, dict):
-        validation.error("requirements_traceability_matrix requirements must be an object")
+        validation.error(
+            "requirements_traceability_matrix requirements must be an object"
+        )
         return
     for req_id in entries:
         if req_id not in reqs:
             validation.error(f"traceability matrix references unknown REQ-ID: {req_id}")
     for req_id, item in reqs.items():
         if item.get("priority") == "P0":
-            status = entries.get(req_id, {}).get("status") if isinstance(entries.get(req_id), dict) else None
+            status = (
+                entries.get(req_id, {}).get("status")
+                if isinstance(entries.get(req_id), dict)
+                else None
+            )
             if status not in ("covered", "partial"):
-                validation.error(f"P0 requirement is not covered in traceability matrix: {req_id}")
+                validation.error(
+                    f"P0 requirement is not covered in traceability matrix: {req_id}"
+                )
 
 
 def validate_prompt_vars(base: Path, validation: Validation) -> None:
@@ -218,7 +251,9 @@ def validate_prompt_vars(base: Path, validation: Validation) -> None:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("Usage: python3 scripts/validate_solution_pro_contract.py <blackboard_session_path>")
+        print(
+            "Usage: python3 scripts/validate_solution_pro_contract.py <blackboard_session_path>"
+        )
         return 2
 
     base = Path(sys.argv[1]).resolve()

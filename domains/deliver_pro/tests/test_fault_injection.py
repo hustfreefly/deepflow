@@ -11,20 +11,17 @@
 from __future__ import annotations
 
 import json
-import os
-import time
-from contextlib import contextmanager
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader, LoadResult
+from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def ship_package_data():
@@ -55,6 +52,7 @@ def _wp_dir(bb_root, project_name, wp_id):
 # ---------------------------------------------------------------------------
 # SafeJsonLoader 单元测试
 # ---------------------------------------------------------------------------
+
 
 class TestSafeJsonLoader:
     """SafeJsonLoader 核心行为测试"""
@@ -125,6 +123,7 @@ class TestSafeJsonLoader:
 # 故障注入：MANIFEST 损坏
 # ---------------------------------------------------------------------------
 
+
 class TestManifestCorruption:
     """MANIFEST.json 损坏场景"""
 
@@ -141,7 +140,10 @@ class TestManifestCorruption:
         (task_dir / "ISSUES.md").write_text("issues")
 
         # SmartAssembler 应识别损坏并标记为 missing
-        plan = {"tasks": [{"task_id": "T-001", "title": "Test"}], "task_graph": [{"task_id": "T-001"}]}
+        plan = {
+            "tasks": [{"task_id": "T-001", "title": "Test"}],
+            "task_graph": [{"task_id": "T-001"}],
+        }
         assembler = SmartAssembler(
             worker_outputs_dir=tmp_path / "worker_outputs",
             plan_data=plan,
@@ -159,7 +161,10 @@ class TestManifestCorruption:
         task_dir.mkdir(parents=True)
         (task_dir / "DELIVERABLE.md").write_text("# Content")
 
-        plan = {"tasks": [{"task_id": "T-001", "title": "Test"}], "task_graph": [{"task_id": "T-001"}]}
+        plan = {
+            "tasks": [{"task_id": "T-001", "title": "Test"}],
+            "task_graph": [{"task_id": "T-001"}],
+        }
         assembler = SmartAssembler(
             worker_outputs_dir=tmp_path / "worker_outputs",
             plan_data=plan,
@@ -174,6 +179,7 @@ class TestManifestCorruption:
 # 故障注入：batch_progress 损坏
 # ---------------------------------------------------------------------------
 
+
 class TestBatchProgressCorruption:
     """batch_progress.json 损坏场景"""
 
@@ -187,6 +193,7 @@ class TestBatchProgressCorruption:
 
         with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
             from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
             orch = DeliverOrchestrator(project_name)
             # 应该不崩溃，progress 为空 dict（或从文件系统重建）
             assert isinstance(orch.progress, dict)
@@ -201,14 +208,24 @@ class TestBatchProgressCorruption:
         bb_root, project_name = mock_blackboard
 
         progress_path = bb_root / project_name / "batch_progress.json"
-        progress_path.write_text(json.dumps({
-            "AAA-001": {"phase": "DONE", "task_attempts": {}, "task_spawned_at": {},
-                        "terminal_failed": False, "dispatch_confirmed": {}},
-            "_meta": {"version": 1},
-        }))
+        progress_path.write_text(
+            json.dumps(
+                {
+                    "AAA-001": {
+                        "phase": "DONE",
+                        "task_attempts": {},
+                        "task_spawned_at": {},
+                        "terminal_failed": False,
+                        "dispatch_confirmed": {},
+                    },
+                    "_meta": {"version": 1},
+                }
+            )
+        )
 
         with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
             from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
             orch = DeliverOrchestrator(project_name)
             assert "AAA-001" in orch.progress
             assert orch.progress["AAA-001"]["phase"] == "DONE"
@@ -217,6 +234,7 @@ class TestBatchProgressCorruption:
 # ---------------------------------------------------------------------------
 # 故障注入：_pulse_state 损坏
 # ---------------------------------------------------------------------------
+
 
 class TestPulseStateCorruption:
     """_pulse_state.json 损坏场景"""
@@ -229,11 +247,20 @@ class TestPulseStateCorruption:
         state_path.write_text("{corrupted")
 
         with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
-            from domains.deliver_pro.orchestrator import DeliverOrchestrator, STALLED_ALERT_THRESHOLD
+            from domains.deliver_pro.orchestrator import (
+                DeliverOrchestrator,
+                STALLED_ALERT_THRESHOLD,
+            )
+
             orch = DeliverOrchestrator(project_name)
-            state, alert = orch._update_pulse_state(0, {
-                "completed": 0, "terminal_failed": 0, "total_wps": 1,
-            })
+            state, alert = orch._update_pulse_state(
+                0,
+                {
+                    "completed": 0,
+                    "terminal_failed": 0,
+                    "total_wps": 1,
+                },
+            )
             # 保守策略：zero_progress_count 在阈值附近（重建后会被递增）
             assert state["zero_progress_count"] >= STALLED_ALERT_THRESHOLD - 2
             assert state.get("_recovered") is True
@@ -243,6 +270,7 @@ class TestPulseStateCorruption:
 # 不变量测试
 # ---------------------------------------------------------------------------
 
+
 class TestInvariants:
     """不变量测试：验证系统状态一致性"""
 
@@ -251,15 +279,25 @@ class TestInvariants:
         bb_root, project_name = mock_blackboard
         # 写入 .deliver_completed.json 使 pulse 走快速通道
         completed_path = bb_root / project_name / ".deliver_completed.json"
-        completed_path.write_text(json.dumps({
-            "total_wps": 1, "completed": 1, "terminal_failed": 0,
-        }))
+        completed_path.write_text(
+            json.dumps(
+                {
+                    "total_wps": 1,
+                    "completed": 1,
+                    "terminal_failed": 0,
+                }
+            )
+        )
         # 写入 living_spec（Final Synthesis 前置检查需要）
         spec_dir = bb_root / project_name / "data"
         spec_dir.mkdir(parents=True, exist_ok=True)
-        (spec_dir / "living_spec.json").write_text(json.dumps({
-            "requirements": [{"id": "R1", "text": "test"}],
-        }))
+        (spec_dir / "living_spec.json").write_text(
+            json.dumps(
+                {
+                    "requirements": [{"id": "R1", "text": "test"}],
+                }
+            )
+        )
         return bb_root, project_name
 
     def test_pulse_tick_preserves_parseable_state(self, mock_blackboard):
@@ -268,14 +306,17 @@ class TestInvariants:
 
         with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
             from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
             orch = DeliverOrchestrator(project_name)
-            report = orch.pulse()
+            orch.pulse()
 
             # _pulse_actions 可解析
             actions_path = bb_root / project_name / "_pulse_actions.json"
             if actions_path.exists():
                 result = SafeJsonLoader.load_raw(actions_path, mtime_window=0)
-                assert result.state == "ok", f"_pulse_actions corrupted after pulse: {result.error}"
+                assert result.state == "ok", (
+                    f"_pulse_actions corrupted after pulse: {result.error}"
+                )
 
     def test_state_files_not_empty_after_pulse(self, mock_blackboard):
         """pulse 后状态文件不为空"""
@@ -283,6 +324,7 @@ class TestInvariants:
 
         with patch("domains.deliver_pro.BLACKBOARD_ROOT", bb_root):
             from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
             orch = DeliverOrchestrator(project_name)
             orch.pulse()
 

@@ -10,15 +10,12 @@ Run tests with:
 """
 
 import json
-import os
-import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import pytest
 
 # Add src to path for imports
-from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DIAG_PKG = REPO_ROOT / "src" / "deepflow" / "diagnostics"
@@ -27,6 +24,7 @@ if not DIAG_PKG.exists():
         "src/deepflow/diagnostics 不在当前 checkout（历史 cleanup 已移除），diagnostics 测试停用",
         allow_module_level=True,
     )
+
 
 class MockDiagnosticsData:
     """Helper to create mock diagnostics data for testing."""
@@ -67,9 +65,11 @@ class MockDiagnosticsData:
 
         return session_dir
 
+
 # ============================================================================
 # Validation Tests
 # ============================================================================
+
 
 class TestDiagnosticsValidation:
     """Test diagnostics validation module."""
@@ -158,9 +158,7 @@ class TestDiagnosticsValidation:
         session_dir = mock_data.create_session(
             "test_session_002",
             stage_files={
-                "planning.json": {
-                    "tokens": {"input_tokens": 100, "output_tokens": 50}
-                }
+                "planning.json": {"tokens": {"input_tokens": 100, "output_tokens": 50}}
             },
         )
 
@@ -187,7 +185,10 @@ class TestDiagnosticsValidation:
             "test_session_005",
             stage_files={
                 "planning.json": {"content": "test", "tokens": {"input_tokens": 100}},
-                "review_technical.json": {"content": "test", "tokens": {"input_tokens": 100}},
+                "review_technical.json": {
+                    "content": "test",
+                    "tokens": {"input_tokens": 100},
+                },
             },
         )
 
@@ -232,6 +233,7 @@ class TestDiagnosticsValidation:
         finally:
             validation.find_diagnostics_data = original_path
 
+
 class TestFallbackExtractor:
     """Test fallback duration extractor."""
 
@@ -242,7 +244,6 @@ class TestFallbackExtractor:
 
     def test_extract_duration_from_stages(self, mock_data: MockDiagnosticsData):
         """Test duration extraction from stage files."""
-        import time
 
         session_dir = mock_data.create_session(
             "test_duration_session",
@@ -261,8 +262,8 @@ class TestFallbackExtractor:
 
         assert len(records) == 3
         assert records[0]["stage_file"] == "planning.json"
-        #_worker name check is based on STAGE_FILE_MAPPINGS in fallback_extractor
-        #For planning.json → inferred_worker="planner" (STAGE_FILE_MAPPINGS value)
+        # _worker name check is based on STAGE_FILE_MAPPINGS in fallback_extractor
+        # For planning.json → inferred_worker="planner" (STAGE_FILE_MAPPINGS value)
         assert records[0]["inferred_worker"] in ["planner", "unknown_worker"]
         assert records[0]["inferred_phase"] in ["planning", "planning"]
 
@@ -278,9 +279,19 @@ class TestFallbackExtractor:
         from deepflow.diagnostics.fallback_extractor import infer_stage_name
 
         # infer_stage_name returns file_path.stem when not in STAGE_FILE_MAPPINGS
-        assert infer_stage_name(mock_data.temp_dir / "stages" / "planning.json") == "planning"
-        assert infer_stage_name(mock_data.temp_dir / "stages" / "review_technical.json") == "review_technical"
-        assert infer_stage_name(mock_data.temp_dir / "stages" / "unknown_file.json") == "unknown_file"
+        assert (
+            infer_stage_name(mock_data.temp_dir / "stages" / "planning.json")
+            == "planning"
+        )
+        assert (
+            infer_stage_name(mock_data.temp_dir / "stages" / "review_technical.json")
+            == "review_technical"
+        )
+        assert (
+            infer_stage_name(mock_data.temp_dir / "stages" / "unknown_file.json")
+            == "unknown_file"
+        )
+
 
 class TestValidationIntegration:
     """Integration tests for full validation workflow."""
@@ -350,6 +361,7 @@ class TestValidationIntegration:
         finally:
             validation.find_diagnostics_data = original_path
 
+
 class TestFieldMapping:
     """Test field mapping functionality."""
 
@@ -358,7 +370,13 @@ class TestFieldMapping:
         from pathlib import Path
 
         # Path relative to workspace root
-        mapping_path = Path(__file__).parent.parent.parent / "src" / "deepflow" / "diagnostics" / "diagnostics_mapping.json"
+        mapping_path = (
+            Path(__file__).parent.parent.parent
+            / "src"
+            / "deepflow"
+            / "diagnostics"
+            / "diagnostics_mapping.json"
+        )
 
         assert mapping_path.exists(), "diagnostics_mapping.json should exist"
 
@@ -369,7 +387,9 @@ class TestFieldMapping:
         assert len(mapping["mappings"]) >= 5, "Should have at least 5 field mappings"
 
         # Check required fields in mapping
-        tokens_mapping = next(m for m in mapping["mappings"] if m["field_name"] == "tokens")
+        tokens_mapping = next(
+            m for m in mapping["mappings"] if m["field_name"] == "tokens"
+        )
         assert tokens_mapping["required"] is True
         assert len(tokens_mapping["source_paths"]) >= 1
 
@@ -377,7 +397,13 @@ class TestFieldMapping:
         """Test that fallback strategies are defined."""
         from pathlib import Path
 
-        mapping_path = Path(__file__).parent.parent.parent / "src" / "deepflow" / "diagnostics" / "diagnostics_mapping.json"
+        mapping_path = (
+            Path(__file__).parent.parent.parent
+            / "src"
+            / "deepflow"
+            / "diagnostics"
+            / "diagnostics_mapping.json"
+        )
 
         with open(mapping_path, "r", encoding="utf-8") as f:
             mapping = json.load(f)
@@ -391,9 +417,11 @@ class TestFieldMapping:
             assert "name" in strategy
             assert "description" in strategy
 
+
 # ============================================================================
 # Test Utilities
 # ============================================================================
+
 
 def find_deepflow_workspace() -> Path:
     """Find DeepFlow workspace directory for integration tests."""
@@ -406,6 +434,7 @@ def find_deepflow_workspace() -> Path:
         if path.exists():
             return path
     raise FileNotFoundError("DeepFlow workspace not found")
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

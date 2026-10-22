@@ -13,9 +13,9 @@ from urllib.parse import urlparse
 
 # RED-DC-006: Tier 1 weight 1.0, Tier 3 weight 0.4
 TIER_WEIGHTS = {
-    "tier_1": 1.0,   # 官方/学术
-    "tier_2": 0.7,   # 权威媒体
-    "tier_3": 0.4,   # 社区/论坛
+    "tier_1": 1.0,  # 官方/学术
+    "tier_2": 0.7,  # 权威媒体
+    "tier_3": 0.4,  # 社区/论坛
     "unverified": 0.5,
 }
 
@@ -59,11 +59,13 @@ class TierClassifier:
 
     def _load_config(self, config_path: str) -> None:
         """加载域名分类配置。"""
-        resolved_config_path = config_path or str(Path(__file__).resolve().parent / "config" / "tier_domains.json")
+        resolved_config_path = config_path or str(
+            Path(__file__).resolve().parent / "config" / "tier_domains.json"
+        )
         cfg = None
         if os.path.exists(resolved_config_path):
             try:
-                with open(resolved_config_path, 'r', encoding='utf-8') as f:
+                with open(resolved_config_path, "r", encoding="utf-8") as f:
                     cfg = json.load(f)
             except (json.JSONDecodeError, OSError):
                 cfg = self._bundled_config()
@@ -72,7 +74,9 @@ class TierClassifier:
 
         self._default_tier = cfg.get("default_tier", self._default_tier)
         blacklist = cfg.get("blacklist", {})
-        for domain in blacklist.get("domains", []) if isinstance(blacklist, dict) else []:
+        for domain in (
+            blacklist.get("domains", []) if isinstance(blacklist, dict) else []
+        ):
             normalized = self._normalize_domain(domain)
             if normalized:
                 self._blacklist.add(normalized)
@@ -91,31 +95,49 @@ class TierClassifier:
         """内置默认分类，用于配置文件缺失或损坏时回退。"""
         bundled_path = Path(__file__).resolve().parent / "config" / "tier_domains.json"
         try:
-            with open(bundled_path, 'r', encoding='utf-8') as f:
+            with open(bundled_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError):
             return {
                 "tier_1": {
                     "weight": 1.0,
                     "domains": [
-                        "sec.gov", "cninfo.com.cn", "sse.com.cn", "szse.cn",
-                        "gov.cn", "arxiv.org", "nature.com", "pbc.gov.cn",
-                        "stats.gov.cn", "who.int",
+                        "sec.gov",
+                        "cninfo.com.cn",
+                        "sse.com.cn",
+                        "szse.cn",
+                        "gov.cn",
+                        "arxiv.org",
+                        "nature.com",
+                        "pbc.gov.cn",
+                        "stats.gov.cn",
+                        "who.int",
                     ],
                 },
                 "tier_2": {
                     "weight": 0.7,
                     "domains": [
-                        "reuters.com", "bloomberg.com", "ft.com",
-                        "finance.sina.com.cn", "caixin.com", "36kr.com",
-                        "bbc.com", "cnbc.com", "wallstreetcn.com", "cls.cn",
+                        "reuters.com",
+                        "bloomberg.com",
+                        "ft.com",
+                        "finance.sina.com.cn",
+                        "caixin.com",
+                        "36kr.com",
+                        "bbc.com",
+                        "cnbc.com",
+                        "wallstreetcn.com",
+                        "cls.cn",
                     ],
                 },
                 "tier_3": {
                     "weight": 0.4,
                     "domains": [
-                        "xueqiu.com", "reddit.com", "weibo.com", "zhihu.com",
-                        "eastmoney.com", "seekingalpha.com",
+                        "xueqiu.com",
+                        "reddit.com",
+                        "weibo.com",
+                        "zhihu.com",
+                        "eastmoney.com",
+                        "seekingalpha.com",
                     ],
                 },
                 "blacklist": {"domains": []},

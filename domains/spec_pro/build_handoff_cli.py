@@ -18,6 +18,7 @@
     BLOCKED — density gate 未通过
     ANCHOR_VALIDATION_FAILED — semantic anchors 格式不合法
 """
+
 import sys
 import json
 from pathlib import Path
@@ -43,7 +44,9 @@ def _read_living_spec(session_dir: Path) -> dict:
             md_content = md_path.read_text(encoding="utf-8")
             return parse_living_spec_md(md_content)
         except Exception as e:
-            print(f"WARNING: MD parse failed, falling back to JSON: {e}", file=sys.stderr)
+            print(
+                f"WARNING: MD parse failed, falling back to JSON: {e}", file=sys.stderr
+            )
 
     # 2. Fallback to JSON
     json_path = session_dir / "spec" / "living_spec.json"
@@ -174,7 +177,8 @@ def main():
     # 二次校验：即使 verdict=PASS，也检查 elements 中是否存在 MUST+MISSING
     elements = conservation_data.get("elements", [])
     must_missing_elements = [
-        e for e in elements
+        e
+        for e in elements
         if isinstance(e, dict)
         and str(e.get("criticality", "")).upper() == "MUST"
         and str(e.get("status", "")).upper() == "MISSING"
@@ -199,7 +203,9 @@ def main():
     if extract_anchors:
         try:
             validated_anchors = validate_semantic_anchors(raw_anchors)
-            print(f"ANCHORS_VALIDATED: {len(validated_anchors)} 个 semantic anchors 通过 Pydantic 验证")
+            print(
+                f"ANCHORS_VALIDATED: {len(validated_anchors)} 个 semantic anchors 通过 Pydantic 验证"
+            )
         except ValueError as e:
             print(f"ANCHOR_VALIDATION_FAILED: {e}", file=sys.stderr)
             sys.exit(1)
@@ -208,7 +214,10 @@ def main():
         validated_anchors = raw_anchors
         for i, anchor in enumerate(raw_anchors):
             if not isinstance(anchor, dict):
-                print(f"WARNING: semantic_anchors[{i}] 不是 dict，跳过验证", file=sys.stderr)
+                print(
+                    f"WARNING: semantic_anchors[{i}] 不是 dict，跳过验证",
+                    file=sys.stderr,
+                )
 
     # 构建 handoff package
     package = build_handoff_package(

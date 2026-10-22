@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -94,7 +95,7 @@ STAGE_TIMEOUT_SECONDS = 1800  # 30 分钟无新阶段 = 可能卡住
 def _scan_stage_files(session_path: Path) -> dict[str, Any]:
     """扫描会话目录中的阶段文件。"""
     stages: dict[str, Any] = {}
-    
+
     # Solution Pro 阶段
     stages_dir = session_path / "stages"
     if stages_dir.is_dir():
@@ -102,14 +103,14 @@ def _scan_stage_files(session_path: Path) -> dict[str, Any]:
             stage_info = _check_stage(stages_dir, stage_name)
             if stage_info:
                 stages[stage_name] = stage_info
-    
+
     # Spec Pro 文件
     for rel_path in SPEC_PRO_FILES:
         full = session_path / rel_path
         if full.exists():
             key = rel_path.replace("/", "_")
             stages[key] = _file_info(full)
-    
+
     # Ship Pro 文件
     ship_dir = session_path / "ship"
     if ship_dir.is_dir():
@@ -118,7 +119,7 @@ def _scan_stage_files(session_path: Path) -> dict[str, Any]:
             if full.exists():
                 key = rel_path.replace("/", "_")
                 stages[key] = _file_info(full)
-    
+
     return stages
 
 
@@ -136,12 +137,16 @@ def _compute_summary(stages: dict, terminal: dict, session_path: Path) -> dict:
     """计算会话进度汇总，包括错误和警告。"""
     summary = {
         "total_stages": len(stages),
-        "completed_stages": sum(1 for s in stages.values() if s.get("valid_json", True)),
-        "failed_stages": sum(1 for s in stages.values() if not s.get("valid_json", True)),
+        "completed_stages": sum(
+            1 for s in stages.values() if s.get("valid_json", True)
+        ),
+        "failed_stages": sum(
+            1 for s in stages.values() if not s.get("valid_json", True)
+        ),
         "is_finished": len(terminal) > 0,
         "domain": _detect_domain(session_path),
     }
-    
+
     # 收集错误和警告
     errors = []
     warnings = []
@@ -150,32 +155,32 @@ def _compute_summary(stages: dict, terminal: dict, session_path: Path) -> dict:
             errors.append(f"{name}: {info['error']}")
         if info.get("warning"):
             warnings.append(f"{name}: {info['warning']}")
-    
+
     # 检查是否卡住（最后阶段距今超过阈值）
     mtimes = [s["mtime_ts"] for s in stages.values() if "mtime_ts" in s]
     if mtimes and not summary["is_finished"]:
         newest = max(mtimes)
         idle_seconds = time.time() - newest
         if idle_seconds > STAGE_TIMEOUT_SECONDS:
-            warnings.append(f"可能卡住: 已 {int(idle_seconds/60)} 分钟无新阶段")
-    
+            warnings.append(f"可能卡住: 已 {int(idle_seconds / 60)} 分钟无新阶段")
+
     if errors:
         summary["errors"] = errors
     if warnings:
         summary["warnings"] = warnings
-    
+
     # 计算总耗时
     if len(mtimes) >= 2:
         summary["duration_seconds"] = round(max(mtimes) - min(mtimes))
         summary["duration_human"] = _format_duration(summary["duration_seconds"])
-    
+
     return summary
 
 
 def _check_subagent_health(session_path: Path) -> list[str]:
     """检查子Agent执行健康度（从 session 日志推断）。"""
     issues = []
-    
+
     # 检查 .completed 文件
     completed_file = session_path / ".completed"
     if completed_file.exists():
@@ -185,20 +190,20 @@ def _check_subagent_health(session_path: Path) -> list[str]:
                 issues.append(".completed 文件内容为空或过短")
         except Exception as e:
             issues.append(f".completed 文件读取失败: {e}")
-    
+
     # 检查 .stage_progress.json（如果存在）
     progress_file = session_path / ".stage_progress.json"
     if progress_file.exists():
         try:
             data = json.loads(progress_file.read_text(encoding="utf-8"))
             if isinstance(data, dict):
-                current = data.get("current_stage", "")
+                data.get("current_stage", "")
                 status = data.get("status", "")
                 if status in ("error", "failed", "timeout"):
                     issues.append(f"进度文件显示状态: {status}")
         except Exception:
             issues.append(".stage_progress.json 解析失败")
-    
+
     # 检查 stages/ 目录下是否有错误日志
     stages_dir = session_path / "stages"
     if stages_dir.is_dir():
@@ -207,9 +212,9 @@ def _check_subagent_health(session_path: Path) -> list[str]:
                 content = log_file.read_text(encoding="utf-8")
                 if "error" in content.lower() or "exception" in content.lower():
                     issues.append(f"日志文件 {log_file.name} 包含错误")
-            except Exception:
+            except Exception as e:
                 logger.debug(f"monitoring check: {e}")
-    
+
     return issues
 
 
@@ -218,19 +223,19 @@ def scan_session(session_path: Path) -> dict[str, Any]:
     stages = _scan_stage_files(session_path)
     terminal = _scan_terminal_files(session_path)
     summary = _compute_summary(stages, terminal, session_path)
-    
+
     # 子Agent 健康检查
     subagent_issues = _check_subagent_health(session_path)
     if subagent_issues:
         summary.setdefault("warnings", []).extend(subagent_issues)
-    
+
     # 计算相对路径（兼容测试环境）
     try:
         rel_path = str(session_path.relative_to(DEEPFLOW_ROOT))
     except ValueError:
         # 路径不在 DEEPFLOW_ROOT 下（测试环境）
         rel_path = str(session_path)
-    
+
     return {
         "session": session_path.name,
         "path": rel_path,
@@ -262,13 +267,13 @@ def _check_stage(stages_dir: Path, stage_name: str) -> dict[str, Any] | None:
         if data and isinstance(data, dict):
             info["has_status"] = "status" in data
             info["has_stage"] = "stage" in data
-            
+
             # 检查常见错误标志
             if data.get("status") in ("error", "failed", "timeout"):
                 info["error"] = f"stage_status={data['status']}"
             if "error" in data:
                 info["error"] = str(data["error"])[:100]
-            
+
             # 提取 harness 分数（如果有）
             if stage_name == "harness_final":
                 info["harness_score"] = _extract_harness_score(data)
@@ -284,16 +289,18 @@ def _file_info(path: Path) -> dict[str, Any]:
     info: dict[str, Any] = {
         "valid_json": False,
     }
-    
+
     # 检查文件是否存在
     if not path.exists():
         info["json_error"] = "file_not_found"
         return info
-    
+
     try:
         stat = path.stat()
         info["size"] = stat.st_size
-        info["mtime"] = datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
+        info["mtime"] = datetime.fromtimestamp(stat.st_mtime).isoformat(
+            timespec="seconds"
+        )
         info["mtime_ts"] = stat.st_mtime
     except OSError as e:
         info["json_error"] = f"stat_error: {e}"
@@ -398,7 +405,9 @@ def find_active_sessions() -> list[Path]:
 def _newest_mtime(path: Path) -> float:
     """目录中最新文件的 mtime。"""
     try:
-        return max((f.stat().st_mtime for f in path.rglob("*") if f.is_file()), default=0)
+        return max(
+            (f.stat().st_mtime for f in path.rglob("*") if f.is_file()), default=0
+        )
     except (OSError, ValueError):
         return 0
 
@@ -428,7 +437,7 @@ def detect_changes(session_result: dict) -> list[str]:
             with open(progress_file, encoding="utf-8") as f:
                 old = json.load(f)
             old_stages = set(old.get("stages", {}).keys())
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as e:
             logger.debug(f"data read: {e}")
 
     new_stages = set(session_result["stages"].keys())
@@ -440,7 +449,9 @@ def detect_changes(session_result: dict) -> list[str]:
         status = "✅" if info.get("valid_json") else "❌"
         changes.append(f"{status} {stage} ({info.get('size', 0):,} bytes)")
 
-    if session_result["summary"]["is_finished"] and not old.get("summary", {}).get("is_finished"):
+    if session_result["summary"]["is_finished"] and not old.get("summary", {}).get(
+        "is_finished"
+    ):
         changes.append("🏁 会话已完成！")
 
     return changes
@@ -464,7 +475,8 @@ def format_notification(session_result: dict, changes: list[str]) -> str:
 
     if session_result["summary"]["failed_stages"] > 0:
         failed = [
-            name for name, info in session_result["stages"].items()
+            name
+            for name, info in session_result["stages"].items()
             if not info.get("valid_json")
         ]
         lines.append(f"\n⚠️ JSON 解析失败: {', '.join(failed)}")
@@ -475,7 +487,7 @@ def format_notification(session_result: dict, changes: list[str]) -> str:
         lines.append(f"\n❌ 错误 ({len(errors)}):")
         for err in errors[:5]:  # 最多显示 5 个
             lines.append(f"  - {err}")
-    
+
     warnings = session_result["summary"].get("warnings", [])
     if warnings:
         lines.append(f"\n⚠️ 警告 ({len(warnings)}):")
@@ -499,7 +511,9 @@ def _format_session_report(result: dict) -> list[str]:
     warnings = result["summary"].get("warnings", [])
 
     lines.append(f"\n📁 {name}")
-    lines.append(f"   域: {domain} | 阶段: {completed}/{total} | 耗时: {duration} | {finished}")
+    lines.append(
+        f"   域: {domain} | 阶段: {completed}/{total} | 耗时: {duration} | {finished}"
+    )
 
     if failed > 0:
         bad = [n for n, i in result["stages"].items() if not i.get("valid_json")]
@@ -510,14 +524,14 @@ def _format_session_report(result: dict) -> list[str]:
         for err in errors[:3]:
             lines.append(f"      - {err}")
         if len(errors) > 3:
-            lines.append(f"      ... 还有 {len(errors)-3} 个")
+            lines.append(f"      ... 还有 {len(errors) - 3} 个")
 
     if warnings:
         lines.append(f"   ⚠️ 警告 ({len(warnings)}):")
         for warn in warnings[:3]:
             lines.append(f"      - {warn}")
         if len(warnings) > 3:
-            lines.append(f"      ... 还有 {len(warnings)-3} 个")
+            lines.append(f"      ... 还有 {len(warnings) - 3} 个")
 
     # 阶段明细
     for stage, info in result["stages"].items():
@@ -531,7 +545,7 @@ def _format_session_report(result: dict) -> list[str]:
         if info.get("harness_score"):
             extra += f" 📊{info['harness_score']}"
         lines.append(f"   {status} {stage} ({size_kb:.1f} KB){extra}")
-    
+
     return lines
 
 
@@ -541,7 +555,7 @@ def format_report(all_results: list[dict]) -> str:
     lines.append("DeepFlow E2E 监控报告")
     lines.append(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append(f"活跃会话: {len(all_results)}")
-    
+
     # 全局统计
     total_errors = sum(len(r["summary"].get("errors", [])) for r in all_results)
     total_warnings = sum(len(r["summary"].get("warnings", [])) for r in all_results)
@@ -575,7 +589,8 @@ def _find_sessions(args: argparse.Namespace) -> list[Path]:
     """根据参数找到目标会话。"""
     if args.session:
         return [
-            d for d in BLACKBOARD_DIR.iterdir()
+            d
+            for d in BLACKBOARD_DIR.iterdir()
             if d.is_dir() and args.session.lower() in d.name.lower()
         ]
     return find_active_sessions()

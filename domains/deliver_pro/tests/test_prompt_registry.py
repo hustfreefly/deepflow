@@ -1,14 +1,13 @@
 """Tests for Deliver Pro Prompt Registry."""
 
-import tempfile
-from pathlib import Path
-from unittest.mock import patch
-
 import pytest
 from domains.deliver_pro.prompt_registry import (
-    load_prompt, list_prompts, clear_cache,
-    _load_template, _strip_front_matter, _render_template,
-    _PROMPTS_DIR, _template_cache,
+    load_prompt,
+    list_prompts,
+    clear_cache,
+    _strip_front_matter,
+    _render_template,
+    _template_cache,
 )
 
 
@@ -36,7 +35,9 @@ class TestLoadPrompt:
         """{variable} should be replaced when provided, kept when not."""
         # Use a real prompt and pass extra variables
         result = load_prompt("deliver_analyze", wp_id="WP-TEST", scenario="code")
-        assert "WP-TEST" in result or "wp_id" not in result  # variable substituted or not present
+        assert (
+            "WP-TEST" in result or "wp_id" not in result
+        )  # variable substituted or not present
 
     def test_deepflow_root_auto_inject(self):
         """{deepflow_root} should be auto-injected."""

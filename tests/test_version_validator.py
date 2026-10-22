@@ -20,7 +20,6 @@ Scenarios:
 from __future__ import annotations
 
 import os
-import stat
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -51,7 +50,9 @@ def tmp_skill_dir(tmp_path: Path) -> Path:
 def _make_skill_info(skill_dir: Path, name: str = "test-skill") -> SkillInfo:
     """Helper to create a SkillInfo with a SKILL.md in the directory."""
     skill_md = skill_dir / "SKILL.md"
-    skill_md.write_text("---\nskill_name: test\nversion: 1.0.0\n---\n", encoding="utf-8")
+    skill_md.write_text(
+        "---\nskill_name: test\nversion: 1.0.0\n---\n", encoding="utf-8"
+    )
     return SkillInfo(
         skill_dir=skill_dir,
         skill_md_path=skill_md,
@@ -71,7 +72,9 @@ class TestScenario1ValidSemVer:
         "version",
         ["1.0.0", "2.3.4", "0.1.0", "0.0.0", "999.999.999"],
     )
-    def test_valid_semver_basic(self, validator: VersionValidator, version: str) -> None:
+    def test_valid_semver_basic(
+        self, validator: VersionValidator, version: str
+    ) -> None:
         """Basic SemVer formats are accepted."""
         result = validator.validate(version)
         assert result.is_valid is True
@@ -83,19 +86,25 @@ class TestScenario1ValidSemVer:
         assert result.is_valid is True
         assert result.declared_version == "1.0.0-alpha"
 
-    def test_valid_semver_with_build_metadata(self, validator: VersionValidator) -> None:
+    def test_valid_semver_with_build_metadata(
+        self, validator: VersionValidator
+    ) -> None:
         """SemVer with build metadata is accepted."""
         result = validator.validate("1.0.0+build.123")
         assert result.is_valid is True
         assert result.declared_version == "1.0.0+build.123"
 
-    def test_valid_semver_with_both_prerelease_and_build(self, validator: VersionValidator) -> None:
+    def test_valid_semver_with_both_prerelease_and_build(
+        self, validator: VersionValidator
+    ) -> None:
         """SemVer with both prerelease and build metadata."""
         result = validator.validate("1.0.0-rc.1+build.456")
         assert result.is_valid is True
         assert result.declared_version == "1.0.0-rc.1+build.456"
 
-    def test_valid_semver_returns_version_check_result(self, validator: VersionValidator) -> None:
+    def test_valid_semver_returns_version_check_result(
+        self, validator: VersionValidator
+    ) -> None:
         """Valid SemVer returns a VersionCheckResult instance."""
         result = validator.validate("1.0.0")
         assert isinstance(result, VersionCheckResult)
@@ -143,7 +152,9 @@ class TestScenario2ValidSimplifiedVersion:
         assert result.is_valid is True
         assert result.declared_version == version
 
-    def test_valid_simplified_returns_correct_structure(self, validator: VersionValidator) -> None:
+    def test_valid_simplified_returns_correct_structure(
+        self, validator: VersionValidator
+    ) -> None:
         """Simplified version returns proper VersionCheckResult."""
         result = validator.validate("1.0")
         assert isinstance(result, VersionCheckResult)
@@ -152,7 +163,9 @@ class TestScenario2ValidSimplifiedVersion:
         assert result.detected_version is None
         assert result.mismatch_details is None
 
-    def test_simplified_version_is_not_semver(self, validator: VersionValidator) -> None:
+    def test_simplified_version_is_not_semver(
+        self, validator: VersionValidator
+    ) -> None:
         """'1.0' is valid as simplified but not as full SemVer (no patch)."""
         result = validator.validate("1.0")
         assert result.is_valid is True
@@ -203,7 +216,9 @@ class TestScenario3InvalidFormat:
         assert result.is_valid is False
         assert result.declared_version == version
 
-    def test_invalid_format_has_mismatch_details(self, validator: VersionValidator) -> None:
+    def test_invalid_format_has_mismatch_details(
+        self, validator: VersionValidator
+    ) -> None:
         """Invalid format populates mismatch_details with format error."""
         result = validator.validate("abc")
         assert result.mismatch_details is not None
@@ -234,7 +249,9 @@ class TestScenario3InvalidFormat:
         result = validator.validate("1.0.0.0")
         assert result.is_valid is False
 
-    def test_v_prefix_invalid_for_strict_semver(self, validator: VersionValidator) -> None:
+    def test_v_prefix_invalid_for_strict_semver(
+        self, validator: VersionValidator
+    ) -> None:
         """'v1.0.0' is not valid SemVer (v prefix not in spec)."""
         result = validator.validate("v1.0.0")
         assert result.is_valid is False
@@ -271,7 +288,9 @@ class TestScenario4VersionMismatch:
         assert result.declared_version == "1.0.0"
         assert result.detected_version == "2.0.0"
 
-    def test_mismatch_person_details_populated(self, validator: VersionValidator, tmp_skill_dir: Path) -> None:
+    def test_mismatch_person_details_populated(
+        self, validator: VersionValidator, tmp_skill_dir: Path
+    ) -> None:
         """Mismatch details describe the specific version diff."""
         changelog = tmp_skill_dir / "CHANGELOG.md"
         changelog.write_text("## [3.0.0]\n", encoding="utf-8")
@@ -282,7 +301,9 @@ class TestScenario4VersionMismatch:
         assert "1.0.0" in result.mismatch_details
         assert "3.0.0" in result.mismatch_details
 
-    def test_mismatch_suggestion_populated(self, validator: VersionValidator, tmp_skill_dir: Path) -> None:
+    def test_mismatch_suggestion_populated(
+        self, validator: VersionValidator, tmp_skill_dir: Path
+    ) -> None:
         """Mismatch includes suggestion with fix direction."""
         changelog = tmp_skill_dir / "CHANGELOG.md"
         changelog.write_text("## [5.0.0]\n", encoding="utf-8")
@@ -300,9 +321,7 @@ class TestScenario4VersionMismatch:
         mock_skill_info.skill_dir = "/fake/path"
 
         # Mock the internal scan to return a detected version
-        with patch.object(
-            validator, "_scan_for_version_markers", return_value="2.0.0"
-        ):
+        with patch.object(validator, "_scan_for_version_markers", return_value="2.0.0"):
             result = validator.validate("1.0.0", skill_info=mock_skill_info)
             assert result.is_valid is False
             assert result.declared_version == "1.0.0"
@@ -315,9 +334,7 @@ class TestScenario4VersionMismatch:
     ) -> None:
         """Using MagicMock for SkillInfo in mismatch test."""
         skill_info = MagicMock(spec=SkillInfo, skill_dir=Path("/fake/skill"))
-        with patch.object(
-            validator, "_scan_for_version_markers", return_value="3.1.0"
-        ):
+        with patch.object(validator, "_scan_for_version_markers", return_value="3.1.0"):
             result = validator.validate("2.0.0", skill_info=skill_info)
             assert result.is_valid is False
             assert result.detected_version == "3.1.0"
@@ -349,7 +366,9 @@ class TestScenario5NoVersionMarker:
     """Scenario 5: No version marker → detected_version=None, is_valid=True,
     mismatch_details contains '无法验证一致性'."""
 
-    def test_empty_dir_no_markers(self, validator: VersionValidator, tmp_skill_dir: Path) -> None:
+    def test_empty_dir_no_markers(
+        self, validator: VersionValidator, tmp_skill_dir: Path
+    ) -> None:
         """Empty directory has no version markers."""
         skill_info = _make_skill_info(tmp_skill_dir)
         result = validator.validate("1.0.0", skill_info=skill_info)
@@ -358,7 +377,9 @@ class TestScenario5NoVersionMarker:
         assert result.mismatch_details is not None
         assert "无法验证一致性" in result.mismatch_details
 
-    def test_dir_with_non_version_files(self, validator: VersionValidator, tmp_skill_dir: Path) -> None:
+    def test_dir_with_non_version_files(
+        self, validator: VersionValidator, tmp_skill_dir: Path
+    ) -> None:
         """Directory with only code files has no version markers."""
         (tmp_skill_dir / "utils.py").write_text("def foo(): pass\n", encoding="utf-8")
         (tmp_skill_dir / "config.json").write_text("{}", encoding="utf-8")
@@ -368,7 +389,9 @@ class TestScenario5NoVersionMarker:
         assert result.detected_version is None
         assert "无法验证一致性" in result.mismatch_details
 
-    def test_dir_with_docs_subdir(self, validator: VersionValidator, tmp_skill_dir: Path) -> None:
+    def test_dir_with_docs_subdir(
+        self, validator: VersionValidator, tmp_skill_dir: Path
+    ) -> None:
         """Subdirectories with non-version names don't count as markers."""
         (tmp_skill_dir / "docs").mkdir()
         (tmp_skill_dir / "src").mkdir()
@@ -384,9 +407,7 @@ class TestScenario5NoVersionMarker:
         mock_skill_info = Mock(spec=SkillInfo)
         mock_skill_info.skill_dir = "/fake/empty/path"
 
-        with patch.object(
-            validator, "_scan_for_version_markers", return_value=None
-        ):
+        with patch.object(validator, "_scan_for_version_markers", return_value=None):
             result = validator.validate("1.0.0", skill_info=mock_skill_info)
             assert result.is_valid is True
             assert result.declared_version == "1.0.0"
@@ -397,9 +418,7 @@ class TestScenario5NoVersionMarker:
     def test_no_markers_with_magicmock(self, validator: VersionValidator) -> None:
         """Using MagicMock for no-marker scenario."""
         skill_info = MagicMock(spec=SkillInfo, skill_dir=Path("/fake/skill"))
-        with patch.object(
-            validator, "_scan_for_version_markers", return_value=None
-        ):
+        with patch.object(validator, "_scan_for_version_markers", return_value=None):
             result = validator.validate("2.0.0", skill_info=skill_info)
             assert result.is_valid is True
             assert result.detected_version is None
@@ -526,9 +545,7 @@ class TestEdgeCasesWithMock:
         skill_info = Mock()
         skill_info.skill_dir = "/fake/dir"
 
-        with patch.object(
-            validator, "_scan_for_version_markers", return_value="1.0.0"
-        ):
+        with patch.object(validator, "_scan_for_version_markers", return_value="1.0.0"):
             result = validator.validate("1.0.0", skill_info=skill_info)
             assert result.is_valid is True
             assert result.detected_version == "1.0.0"
@@ -564,9 +581,7 @@ class TestEdgeCasesWithMock:
         skill_info = Mock(spec=SkillInfo)
         skill_info.skill_dir = Path("/fake/skill")
 
-        with patch.object(
-            validator, "_scan_for_version_markers", return_value="1.0.0"
-        ):
+        with patch.object(validator, "_scan_for_version_markers", return_value="1.0.0"):
             result = validator.validate("1.0.0+build.999", skill_info=skill_info)
             assert result.is_valid is True
             assert result.detected_version == "1.0.0"
@@ -578,9 +593,7 @@ class TestEdgeCasesWithMock:
         skill_info = Mock(spec=SkillInfo)
         skill_info.skill_dir = Path("/fake/skill")
 
-        with patch.object(
-            validator, "_scan_for_version_markers", return_value="1.0"
-        ):
+        with patch.object(validator, "_scan_for_version_markers", return_value="1.0"):
             result = validator.validate("1.0", skill_info=skill_info)
             assert result.is_valid is True
             assert result.detected_version == "1.0"
@@ -628,9 +641,7 @@ class TestFrontmatterDataIntegration:
         assert result.is_valid is True
         assert result.declared_version == "5"
 
-    def test_frontmatterdata_version_invalid(
-        self, validator: VersionValidator
-    ) -> None:
+    def test_frontmatterdata_version_invalid(self, validator: VersionValidator) -> None:
         """FrontmatterData.version = 'latest' → validator rejects."""
         frontmatter = Mock()
         frontmatter.version = "latest"
@@ -724,6 +735,7 @@ class TestImportability:
     def test_import(self) -> None:
         """VersionValidator can be imported."""
         from src.skill_health.version_validator import VersionValidator
+
         assert VersionValidator is not None
 
     def test_instantiate(self) -> None:

@@ -32,7 +32,6 @@ from core.utils.atomic_io import atomic_write_json
 
 from .contracts.pulse_report import (
     MODULE_REQUIRED_STAGES,
-    PHASES,
     REVIEW_AGENTS,
     ModuleDispatch,
     SolutionPulseAction,
@@ -45,14 +44,18 @@ from .contracts.pulse_report import (
 logger = logging.getLogger(__name__)
 
 # ── 常量（2026-07-25 V3.3：one-step 模块执行器模式）──
-MODULE_RESPAWN_COOLDOWN_SECONDS = 240  # 例行重召唤冷却：模块是一步执行器，冷却到点就再召唤
-MODULE_NO_PROGRESS_SECONDS = 1800      # 30min 无任何文件进展 → 计一次失败重试
-MODULE_MAX_RETRIES = 3                 # 失败重试预算（仅无进展时消耗，例行重召唤免费）
-REVIEW_TIMEOUT_SECONDS = 3600      # 审查 Agent 60min 无产出 → 跳过（非门控）
-ORPHAN_DISPATCH_WINDOW_SECONDS = 600  # dispatch 未确认超 10min → 回滚重派（pulse agent 猝死恢复）
+MODULE_RESPAWN_COOLDOWN_SECONDS = (
+    240  # 例行重召唤冷却：模块是一步执行器，冷却到点就再召唤
+)
+MODULE_NO_PROGRESS_SECONDS = 1800  # 30min 无任何文件进展 → 计一次失败重试
+MODULE_MAX_RETRIES = 3  # 失败重试预算（仅无进展时消耗，例行重召唤免费）
+REVIEW_TIMEOUT_SECONDS = 3600  # 审查 Agent 60min 无产出 → 跳过（非门控）
+ORPHAN_DISPATCH_WINDOW_SECONDS = (
+    600  # dispatch 未确认超 10min → 回滚重派（pulse agent 猝死恢复）
+)
 ZERO_PROGRESS_ALERT_THRESHOLD = 6  # 连续 6 次 pulse 零进展（30min）→ WARN 告警
-PULSE_LOCK_STALE_SECONDS = 600     # 锁持有超 10min → 告警（holder 疑似挂起）
-MAX_SPAWN_PER_PULSE = 2            # 单 pulse 最多 spawn 数（review 相位=2）
+PULSE_LOCK_STALE_SECONDS = 600  # 锁持有超 10min → 告警（holder 疑似挂起）
+MAX_SPAWN_PER_PULSE = 2  # 单 pulse 最多 spawn 数（review 相位=2）
 
 PULSE_STATE_FILENAME = "_solution_pulse_state.json"
 PULSE_ACTIONS_FILENAME = "_solution_pulse_actions.json"
@@ -99,7 +102,9 @@ class SolutionPulse:
         self.session_id = session_id
         if blackboard_root is None:
             # 默认 .deepflow/blackboard/
-            blackboard_root = Path(__file__).resolve().parent.parent.parent / "blackboard"
+            blackboard_root = (
+                Path(__file__).resolve().parent.parent.parent / "blackboard"
+            )
         self.blackboard_root = Path(blackboard_root)
         self.session_dir = self.blackboard_root / session_id
         self.stages_dir = self.session_dir / "stages"
@@ -148,7 +153,9 @@ class SolutionPulse:
             return SolutionPulseState(
                 session_id=self.session_id,
                 phase="planning",
-                modules={m: ModuleDispatch() for m in ("planning", "research", "summary")},
+                modules={
+                    m: ModuleDispatch() for m in ("planning", "research", "summary")
+                },
                 review={r: ModuleDispatch() for r in REVIEW_AGENTS},
                 created_at=now,
                 updated_at=now,
@@ -203,7 +210,9 @@ class SolutionPulse:
         )
 
     def _write_review_prompt(self, reviewer: str) -> None:
-        src = Path(__file__).resolve().parent / "prompts" / REVIEW_PROMPT_FILES[reviewer]
+        src = (
+            Path(__file__).resolve().parent / "prompts" / REVIEW_PROMPT_FILES[reviewer]
+        )
         content = src.read_text(encoding="utf-8")
         content = content.replace("{session_id}", self.session_id)
         content = content.replace("{deepflow_root}", str(self.deepflow_root))
@@ -277,6 +286,7 @@ class SolutionPulse:
         Returns:
             SolutionPulseReport dict（同时写入 _solution_pulse_actions.json）
         """
+
         def _report(status, actions, alerts, summary) -> dict:
             report = SolutionPulseReport(
                 pulse_id=f"spulse-{int(time.time())}",
@@ -293,7 +303,8 @@ class SolutionPulse:
 
         def _summary_of(state: SolutionPulseState) -> dict:
             in_flight = sum(
-                1 for d in list(state.modules.values()) + list(state.review.values())
+                1
+                for d in list(state.modules.values()) + list(state.review.values())
                 if d.status == "dispatched" and d.dispatch_confirmed
             )
             completed = [m for m, d in state.modules.items() if d.status == "completed"]
@@ -347,11 +358,13 @@ class SolutionPulse:
                         d.retry_count += 1
                         d.dispatch_confirmed = False
                         progress_made = True
-                        alerts.append({
-                            "severity": "WARN",
-                            "code": "SPAWN_ROLLBACK",
-                            "message": f"{name} dispatch 超 {ORPHAN_DISPATCH_WINDOW_SECONDS}s 未确认（pulse agent 疑似猝死），回滚重派（第 {d.retry_count} 次）",
-                        })
+                        alerts.append(
+                            {
+                                "severity": "WARN",
+                                "code": "SPAWN_ROLLBACK",
+                                "message": f"{name} dispatch 超 {ORPHAN_DISPATCH_WINDOW_SECONDS}s 未确认（pulse agent 疑似猝死），回滚重派（第 {d.retry_count} 次）",
+                            }
+                        )
 
             # ── 相位推进循环（每轮 pulse 尽量推进，可连续推进多相位）──
             while True:
@@ -381,36 +394,48 @@ class SolutionPulse:
                         progress_made = True
 
                     # 3) 无进展超 30min → 消耗失败重试预算；耗尽 → 终败
-                    if (now - (state.last_progress_at or state.created_at)) > MODULE_NO_PROGRESS_SECONDS:
+                    if (
+                        now - (state.last_progress_at or state.created_at)
+                    ) > MODULE_NO_PROGRESS_SECONDS:
                         if dispatch.retry_count < MODULE_MAX_RETRIES:
                             dispatch.retry_count += 1
                             state.last_progress_at = now  # 给下一个 30min 窗口
                             progress_made = True
-                            alerts.append({
-                                "severity": "WARN",
-                                "code": "MODULE_RETRY",
-                                "message": f"模块 {module} 30min 无文件进展，失败重试 {dispatch.retry_count}/{MODULE_MAX_RETRIES}",
-                            })
+                            alerts.append(
+                                {
+                                    "severity": "WARN",
+                                    "code": "MODULE_RETRY",
+                                    "message": f"模块 {module} 30min 无文件进展，失败重试 {dispatch.retry_count}/{MODULE_MAX_RETRIES}",
+                                }
+                            )
                         else:
                             dispatch.status = "terminal_failed"
                             state.phase = "failed"
                             state.fail_reason = f"模块 {module} 连续无进展，重试 {MODULE_MAX_RETRIES} 次耗尽"
-                            alerts.append({
-                                "severity": "CRITICAL",
-                                "code": "TERMINAL_FAILED",
-                                "message": f"模块 {module} 连续 30min×{MODULE_MAX_RETRIES} 无进展，pipeline 终败",
-                            })
-                            atomic_write_json(self.failed_path, {
-                                "session_id": self.session_id,
-                                "failed_module": module,
-                                "failed_at": now,
-                                "reason": "MODULE_RETRY_EXHAUSTED",
-                            })
+                            alerts.append(
+                                {
+                                    "severity": "CRITICAL",
+                                    "code": "TERMINAL_FAILED",
+                                    "message": f"模块 {module} 连续 30min×{MODULE_MAX_RETRIES} 无进展，pipeline 终败",
+                                }
+                            )
+                            atomic_write_json(
+                                self.failed_path,
+                                {
+                                    "session_id": self.session_id,
+                                    "failed_module": module,
+                                    "failed_at": now,
+                                    "reason": "MODULE_RETRY_EXHAUSTED",
+                                },
+                            )
                             progress_made = True
                             continue
 
                     # 4) dispatch 未确认 → 等待 confirm（孤儿清扫兜底）
-                    if dispatch.status == "dispatched" and not dispatch.dispatch_confirmed:
+                    if (
+                        dispatch.status == "dispatched"
+                        and not dispatch.dispatch_confirmed
+                    ):
                         break
 
                     # 5) 例行重召唤（one-step 模块核心）：pending，或已确认且冷却已过
@@ -419,7 +444,8 @@ class SolutionPulse:
                     if dispatch.status == "pending" or (
                         dispatch.status == "dispatched"
                         and dispatch.dispatch_confirmed
-                        and now - (dispatch.last_spawned_at or 0) > MODULE_RESPAWN_COOLDOWN_SECONDS
+                        and now - (dispatch.last_spawned_at or 0)
+                        > MODULE_RESPAWN_COOLDOWN_SECONDS
                     ):
                         self._write_module_prompt(module)
                         dispatch.status = "dispatched"
@@ -428,17 +454,21 @@ class SolutionPulse:
                         label = f"solution_{module}_module"
                         dispatch.label = label
                         if dispatch.retry_count > 0:
-                            alerts.append({
-                                "severity": "INFO",
-                                "code": "MODULE_RETRY",
-                                "message": f"模块 {module} 第 {dispatch.retry_count} 次失败重试 spawn",
-                            })
-                        actions.append({
-                            "module": module,
-                            "action": "spawn_module",
-                            "task": self._build_module_task(module),
-                            "label": label,
-                        })
+                            alerts.append(
+                                {
+                                    "severity": "INFO",
+                                    "code": "MODULE_RETRY",
+                                    "message": f"模块 {module} 第 {dispatch.retry_count} 次失败重试 spawn",
+                                }
+                            )
+                        actions.append(
+                            {
+                                "module": module,
+                                "action": "spawn_module",
+                                "task": self._build_module_task(module),
+                                "label": label,
+                            }
+                        )
                         progress_made = True
                     break
 
@@ -451,18 +481,23 @@ class SolutionPulse:
                         continue
                     state.phase = "failed"
                     state.fail_reason = "POST_VALIDATION_FAILED"
-                    alerts.append({
-                        "severity": "CRITICAL",
-                        "code": "POST_VALIDATION_FAILED",
-                        "message": f"L0 后置验证失败: {json.dumps(detail.get('summary', detail), ensure_ascii=False)[:300]}",
-                    })
-                    atomic_write_json(self.failed_path, {
-                        "session_id": self.session_id,
-                        "failed_module": "validate",
-                        "failed_at": now,
-                        "reason": "POST_VALIDATION_FAILED",
-                        "details": detail,
-                    })
+                    alerts.append(
+                        {
+                            "severity": "CRITICAL",
+                            "code": "POST_VALIDATION_FAILED",
+                            "message": f"L0 后置验证失败: {json.dumps(detail.get('summary', detail), ensure_ascii=False)[:300]}",
+                        }
+                    )
+                    atomic_write_json(
+                        self.failed_path,
+                        {
+                            "session_id": self.session_id,
+                            "failed_module": "validate",
+                            "failed_at": now,
+                            "reason": "POST_VALIDATION_FAILED",
+                            "details": detail,
+                        },
+                    )
                     progress_made = True
                     break
 
@@ -483,11 +518,13 @@ class SolutionPulse:
                                 # 超时 → 跳过（非门控）
                                 rd.status = "completed"
                                 rd.completed_at = now
-                                alerts.append({
-                                    "severity": "WARN",
-                                    "code": "REVIEW_TIMEOUT",
-                                    "message": f"审查 {reviewer} 超时（{int(elapsed)}s），按 SKIPPED 处理（非门控）",
-                                })
+                                alerts.append(
+                                    {
+                                        "severity": "WARN",
+                                        "code": "REVIEW_TIMEOUT",
+                                        "message": f"审查 {reviewer} 超时（{int(elapsed)}s），按 SKIPPED 处理（非门控）",
+                                    }
+                                )
                                 progress_made = True
                             else:
                                 all_done = False
@@ -500,12 +537,14 @@ class SolutionPulse:
                             rd.dispatch_confirmed = False
                             label = f"solution_{reviewer}"
                             rd.label = label
-                            actions.append({
-                                "module": reviewer,
-                                "action": "spawn_reviewer",
-                                "task": self._build_review_task(reviewer),
-                                "label": label,
-                            })
+                            actions.append(
+                                {
+                                    "module": reviewer,
+                                    "action": "spawn_reviewer",
+                                    "task": self._build_review_task(reviewer),
+                                    "label": label,
+                                }
+                            )
                             progress_made = True
                             all_done = False
                     if all_done and not actions:
@@ -525,7 +564,9 @@ class SolutionPulse:
                             if p.exists():
                                 try:
                                     data = json.loads(p.read_text(encoding="utf-8"))
-                                    quality_notes[reviewer] = data.get("overall_verdict", "UNKNOWN")
+                                    quality_notes[reviewer] = data.get(
+                                        "overall_verdict", "UNKNOWN"
+                                    )
                                 except Exception:
                                     quality_notes[reviewer] = "UNREADABLE"
                                 break
@@ -536,7 +577,9 @@ class SolutionPulse:
                         "status": "completed",
                         "completed_at": now,
                         "modules_completed": [
-                            m for m, d in state.modules.items() if d.status == "completed"
+                            m
+                            for m, d in state.modules.items()
+                            if d.status == "completed"
                         ],
                         "quality_notes": quality_notes,
                         "architecture_version": "v3.2-pulse",
@@ -547,14 +590,19 @@ class SolutionPulse:
                     try:
                         from .solution_living_md import render_final_solution_md
                         from .blackboard import BlackboardManager
-                        _bb = BlackboardManager(self.session_id, base_dir=self.blackboard_root)
+
+                        _bb = BlackboardManager(
+                            self.session_id, base_dir=self.blackboard_root
+                        )
                         # 1. final_solution.md
                         final_solution = _bb.read_stage("final_solution")
                         if final_solution:
                             md_content = render_final_solution_md(final_solution)
                             md_path = self.stages_dir / "final_solution.md"
                             md_path.parent.mkdir(parents=True, exist_ok=True)
-                            import tempfile, os
+                            import tempfile
+                            import os
+
                             fd, tmp = tempfile.mkstemp(dir=md_path.parent, suffix=".md")
                             try:
                                 os.write(fd, md_content.encode("utf-8"))
@@ -563,13 +611,17 @@ class SolutionPulse:
                             except Exception:
                                 os.close(fd)
                                 raise
-                            logger.info("ADR-009: final_solution.md written to %s", md_path)
+                            logger.info(
+                                "ADR-009: final_solution.md written to %s", md_path
+                            )
                         # 2. solution_document.md
                         solution_document = _bb.read_stage("solution_document")
                         if solution_document and isinstance(solution_document, str):
                             doc_path = self.stages_dir / "solution_document.md"
                             doc_path.parent.mkdir(parents=True, exist_ok=True)
-                            import tempfile as _tf, os as _os
+                            import tempfile as _tf
+                            import os as _os
+
                             fd2, tmp2 = _tf.mkstemp(dir=doc_path.parent, suffix=".md")
                             try:
                                 _os.write(fd2, solution_document.encode("utf-8"))
@@ -578,11 +630,16 @@ class SolutionPulse:
                             except Exception:
                                 _os.close(fd2)
                                 raise
-                            logger.info("ADR-009: solution_document.md written to %s", doc_path)
+                            logger.info(
+                                "ADR-009: solution_document.md written to %s", doc_path
+                            )
                     except Exception as e:
-                        logger.error("ADR-009: MD rendering failed (non-blocking): %s", e)
+                        logger.error(
+                            "ADR-009: MD rendering failed (non-blocking): %s", e
+                        )
                     # FixFlow Phase 3: Track 自动生成（失败 → raise ValueError，架构违反）
                     from . import generate_solution_track
+
                     track_result = generate_solution_track(str(self.session_dir))
                     if track_result is None:
                         raise ValueError(
@@ -607,16 +664,25 @@ class SolutionPulse:
             else:
                 state.zero_progress_count += 1
                 if state.zero_progress_count >= ZERO_PROGRESS_ALERT_THRESHOLD:
-                    alerts.append({
-                        "severity": "WARN",
-                        "code": "ZERO_PROGRESS",
-                        "message": f"连续 {state.zero_progress_count} 次 pulse 零进展（当前相位 {state.phase}）",
-                    })
+                    alerts.append(
+                        {
+                            "severity": "WARN",
+                            "code": "ZERO_PROGRESS",
+                            "message": f"连续 {state.zero_progress_count} 次 pulse 零进展（当前相位 {state.phase}）",
+                        }
+                    )
 
             self._save_state(state)
-            status = "active" if actions else (
-                "completed" if state.phase == "completed" else
-                "failed" if state.phase == "failed" else "idle"
+            status = (
+                "active"
+                if actions
+                else (
+                    "completed"
+                    if state.phase == "completed"
+                    else "failed"
+                    if state.phase == "failed"
+                    else "idle"
+                )
             )
             return _report(status, actions, alerts, _summary_of(state))
         finally:

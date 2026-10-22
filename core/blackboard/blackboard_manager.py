@@ -1,5 +1,5 @@
 """
-BlackboardManager — 统一黑板管理器 
+BlackboardManager — 统一黑板管理器
 
 职责：Agent 间通过文件传递数据，session 状态持久化。
 设计：内部字典 + 文件持久化，每个 session 独立目录。
@@ -53,7 +53,7 @@ class BlackboardManager:
         # 契约笼子：sanitize session_id，将 / 替换为 _，避免路径问题
         # 源头修复：所有下游代码不需要特殊处理斜杠
         session_id = session_id.replace("/", "_")
-        
+
         if not session_id:
             raise ValueError("session_id must not be empty")
 
@@ -64,6 +64,7 @@ class BlackboardManager:
         if base_dir is None:
             try:
                 from core.config.path_config import PathConfig
+
                 config = PathConfig.resolve()
                 base_dir = config.blackboard_dir
             except (ImportError, RuntimeError):
@@ -71,7 +72,9 @@ class BlackboardManager:
                 logger.warning(
                     "PathConfig not available, using hardcoded fallback for base_dir"
                 )
-                base_dir = Path.home() / ".openclaw" / "workspace" / ".deepflow" / "blackboard"
+                base_dir = (
+                    Path.home() / ".openclaw" / "workspace" / ".deepflow" / "blackboard"
+                )
 
         self._base = Path(base_dir)
         self._session_dir = self._base / session_id
@@ -95,19 +98,22 @@ class BlackboardManager:
         self._stages_dir.mkdir(exist_ok=True)
         sp = self._state_path()
         if not sp.exists():
-            self._write_json(sp, {
-                "session_id": self._session_id,
-                "stage_history": [],
-                "quality_scores": [],
-                "convergence": {"converged": False, "round": 0}
-            })
+            self._write_json(
+                sp,
+                {
+                    "session_id": self._session_id,
+                    "stage_history": [],
+                    "quality_scores": [],
+                    "convergence": {"converged": False, "round": 0},
+                },
+            )
         return self._session_dir
 
     # ── Stage API（直接操作 stages/ 目录，不依赖 Registry）──
 
     def _stage_path(self, stage_name: str, suffix: str = ".json") -> Path:
         """获取 stage 文件路径（内部方法）
-        
+
         Args:
             stage_name: stage 名称
             suffix: 文件后缀（默认 ".json"，MD-first 用 ".md"）
@@ -136,18 +142,21 @@ class BlackboardManager:
         """
         try:
             self._stages_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # ADR-009: 根据数据类型自动选择后缀
             if isinstance(data, str):
                 suffix = ".md"
             else:
                 suffix = ".json"
-            
+
             file_path = self._stage_path(stage_name, suffix)
 
             with tempfile.NamedTemporaryFile(
-                mode='w', encoding='utf-8',
-                dir=self._stages_dir, delete=False, suffix='.tmp'
+                mode="w",
+                encoding="utf-8",
+                dir=self._stages_dir,
+                delete=False,
+                suffix=".tmp",
             ) as tmp:
                 if isinstance(data, str):
                     tmp.write(data)
@@ -168,7 +177,9 @@ class BlackboardManager:
                 logger.debug(f"write_stage cleanup failed: {e}")
             return False
 
-    def read_stage(self, stage_name: str, default: Optional[Any] = None, as_text: bool = False) -> Optional[Any]:
+    def read_stage(
+        self, stage_name: str, default: Optional[Any] = None, as_text: bool = False
+    ) -> Optional[Any]:
         """
         读取 stage 文件
 
@@ -201,7 +212,9 @@ class BlackboardManager:
             logger.warning(f"read_stage failed for '{stage_name}': {e}")
             return default
 
-    def write_dynamic_stage(self, template: str, data: Dict[str, Any], **kwargs) -> bool:
+    def write_dynamic_stage(
+        self, template: str, data: Dict[str, Any], **kwargs
+    ) -> bool:
         """
         写入动态命名的 stage
 
@@ -248,10 +261,13 @@ class BlackboardManager:
         """
         if not self._stages_dir.exists():
             return []
-        return sorted(set(
-            f.stem for f in self._stages_dir.iterdir()
-            if f.is_file() and f.suffix in (".json", ".md")
-        ))
+        return sorted(
+            set(
+                f.stem
+                for f in self._stages_dir.iterdir()
+                if f.is_file() and f.suffix in (".json", ".md")
+            )
+        )
 
     def delete_stage(self, stage_name: str) -> bool:
         """
@@ -312,10 +328,10 @@ class BlackboardManager:
             str | None: 文件内容，或 None
         """
         try:
-            for suffix in ['.md', '.txt', '.json', '']:
+            for suffix in [".md", ".txt", ".json", ""]:
                 file_path = self._stages_dir / f"{stage_name}{suffix}"
                 if file_path.exists():
-                    return file_path.read_text(encoding='utf-8')
+                    return file_path.read_text(encoding="utf-8")
             return None
         except (OSError, UnicodeDecodeError) as e:
             logger.warning(f"read_stage_raw failed for '{stage_name}': {e}")
@@ -377,7 +393,7 @@ class BlackboardManager:
                 if candidate.exists():
                     src_path = candidate
                     break
-            
+
             if src_path is None:
                 return False
 
@@ -386,9 +402,9 @@ class BlackboardManager:
             self._stages_dir.mkdir(parents=True, exist_ok=True)
 
             with tempfile.NamedTemporaryFile(
-                mode='wb', dir=self._stages_dir, delete=False, suffix='.tmp'
+                mode="wb", dir=self._stages_dir, delete=False, suffix=".tmp"
             ) as tmp:
-                shutil.copyfileobj(src_path.open('rb'), tmp)
+                shutil.copyfileobj(src_path.open("rb"), tmp)
                 tmp.flush()
                 os.fsync(tmp.fileno())
                 tmp_path = tmp.name
@@ -405,7 +421,9 @@ class BlackboardManager:
 
     # ── Registry 集成方法（向后兼容，逐步废弃）──
 
-    def write_registry_stage(self, stage_name: str, data: Dict[str, Any]) -> Optional[Path]:
+    def write_registry_stage(
+        self, stage_name: str, data: Dict[str, Any]
+    ) -> Optional[Path]:
         """
         通过 Registry 写入 stage（向后兼容）
 
@@ -416,7 +434,9 @@ class BlackboardManager:
         relative_path = self._registry.get_path(stage_name)
         return self.write(relative_path, data)
 
-    def read_registry_stage(self, stage_name: str, default: Optional[Dict] = None) -> Optional[Dict]:
+    def read_registry_stage(
+        self, stage_name: str, default: Optional[Dict] = None
+    ) -> Optional[Dict]:
         """
         通过 Registry 读取 stage（向后兼容）
 
@@ -440,7 +460,7 @@ class BlackboardManager:
             "get_stage_path is deprecated. Use write_stage/read_stage instead. "
             "Will be removed in v7.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         if self._registry is not None:
             relative_path = self._registry.get_path(stage_name)
@@ -473,7 +493,12 @@ class BlackboardManager:
 
     # ── 基础文件读写（向后兼容）──
 
-    def write(self, filename: str, content: Union[str, Dict[str, Any]], subdir: Optional[str] = None) -> Path:
+    def write(
+        self,
+        filename: str,
+        content: Union[str, Dict[str, Any]],
+        subdir: Optional[str] = None,
+    ) -> Path:
         """原子写入（临时文件 → fsync → 重命名）。"""
         target = self._resolve(filename, subdir)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -496,7 +521,9 @@ class BlackboardManager:
             raise
         return target
 
-    def read(self, filename: str, subdir: Optional[str] = None, default: Optional[str] = None) -> Optional[str]:
+    def read(
+        self, filename: str, subdir: Optional[str] = None, default: Optional[str] = None
+    ) -> Optional[str]:
         """读取文件内容（文本）"""
         target = self._resolve(filename, subdir)
         if not target.exists():
@@ -506,9 +533,14 @@ class BlackboardManager:
         except OSError:
             return default
 
-    def read_json(self, filename: str, subdir: Optional[str] = None, default: Optional[Dict] = None) -> Optional[Dict]:
+    def read_json(
+        self,
+        filename: str,
+        subdir: Optional[str] = None,
+        default: Optional[Dict] = None,
+    ) -> Optional[Dict]:
         """读取文件内容（JSON）
-        
+
         自动解包双重编码: 如果 json.loads() 结果是 str，再尝试一次 json.loads()。
         这样无论文件是正常 dict、纯 markdown string、还是双重编码，
         都能返回正确的结构化数据。
@@ -533,6 +565,7 @@ class BlackboardManager:
     def append_state(self, updates: Dict[str, Any]) -> Dict[str, Any]:
         """合并更新 shared_state。"""
         from datetime import datetime
+
         state = self._read_shared()
         state.update(updates)
         state["updated_at"] = datetime.now().isoformat()
@@ -548,6 +581,7 @@ class BlackboardManager:
     def cleanup(self) -> bool:
         """删除 session 目录"""
         import shutil
+
         if self._session_dir.exists():
             try:
                 shutil.rmtree(self._session_dir)

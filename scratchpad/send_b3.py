@@ -1,4 +1,6 @@
-import os, smtplib, ssl
+import os
+import smtplib
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
@@ -12,7 +14,9 @@ with open("/Users/allen/.openclaw/workspace/.env") as f:
             k, _, v = line.partition("=")
             env[k.strip()] = v.strip().strip('"').strip("'")
 
-password = env["SMTP_QQ_PASSWORD"] if "SMTP_QQ_PASSWORD" in env else env["SMTP_PASSWORD"]
+password = (
+    env["SMTP_QQ_PASSWORD"] if "SMTP_QQ_PASSWORD" in env else env["SMTP_PASSWORD"]
+)
 
 sender = "81240779@qq.com"
 receivers = ["zhongli_ji@hsingchen.com", "81240779@qq.com"]
@@ -27,7 +31,9 @@ msg = MIMEMultipart()
 msg["From"] = sender
 msg["To"] = ", ".join(receivers)
 msg["Subject"] = Header("【B3】星辰封装供电专利布局与创新方向（PDF+PPT+HTML）", "utf-8")
-msg.attach(MIMEText("""忠礼：
+msg.attach(
+    MIMEText(
+        """忠礼：
 
 B3 专利布局报告三件套：
 
@@ -46,13 +52,19 @@ B3 专利布局报告三件套：
 至此今晚全部交付完成：主汇报 v2 PDF（修复版）+ B1 洞察 + B2 路线 + B3 专利布局。
 
 —— 小满
-""", "plain", "utf-8"))
+""",
+        "plain",
+        "utf-8",
+    )
+)
 
 for path in files:
     with open(path, "rb") as f:
         part = MIMEApplication(f.read())
     fname = os.path.basename(path)
-    part.add_header("Content-Disposition", "attachment", filename=Header(fname, "utf-8").encode())
+    part.add_header(
+        "Content-Disposition", "attachment", filename=Header(fname, "utf-8").encode()
+    )
     msg.attach(part)
 
 ctx = ssl.create_default_context()

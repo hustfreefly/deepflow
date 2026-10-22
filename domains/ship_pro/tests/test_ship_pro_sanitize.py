@@ -2,6 +2,7 @@
 
 验证含 / 的 role 被正确处理（替换为 _），防止路径穿越。
 """
+
 import pytest
 from pathlib import Path
 
@@ -35,7 +36,12 @@ def test_ship_pro_output_path_construction():
     safe_role = role.replace(" ", "_").replace("/", "_")
     output_path = str(worker_outputs_dir / f"worker_{safe_role}.json")
     assert output_path == "/tmp/test/stages/worker_outputs/worker_backend_api.json"
-    assert "/" not in output_path.split("worker_outputs/")[-1].replace(".json", "").split("worker_")[-1]
+    assert (
+        "/"
+        not in output_path.split("worker_outputs/")[-1]
+        .replace(".json", "")
+        .split("worker_")[-1]
+    )
 
 
 if __name__ == "__main__":

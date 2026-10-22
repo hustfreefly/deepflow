@@ -15,7 +15,7 @@ FixFlow 测试 A：修复必须可自动化验证。
 import json
 import re
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -32,6 +32,7 @@ from domains.deliver_pro.wp_runner import DeliverWPRunner
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def wp():
@@ -71,6 +72,7 @@ def sample_plan():
 # ============================================================================
 # _detect_substance
 # ============================================================================
+
 
 class TestDetectSubstance:
     def test_empty_dir(self, orchestrator, tmp_path):
@@ -120,6 +122,7 @@ class TestDetectSubstance:
 # mark_worker_failed with failure_class
 # ============================================================================
 
+
 class TestMarkWorkerFailedFailureClass:
     def test_no_failure_class(self, orchestrator, tmp_path):
         """未提供 failure_class → MANIFEST 不含该字段（向后兼容）"""
@@ -132,14 +135,18 @@ class TestMarkWorkerFailedFailureClass:
     def test_with_failure_class(self, orchestrator, tmp_path):
         """提供 failure_class → MANIFEST 含该字段"""
         orchestrator.worker_outputs_dir = tmp_path
-        orchestrator.mark_worker_failed("T-001", "missing files", failure_class="contract_violation")
+        orchestrator.mark_worker_failed(
+            "T-001", "missing files", failure_class="contract_violation"
+        )
         manifest = json.loads((tmp_path / "T-001" / "MANIFEST.json").read_text())
         assert manifest["failure_class"] == "contract_violation"
         assert manifest["status"] == "FAILED"
 
     def test_substance_failure_class(self, orchestrator, tmp_path):
         orchestrator.worker_outputs_dir = tmp_path
-        orchestrator.mark_worker_failed("T-001", "no output", failure_class="substance_failure")
+        orchestrator.mark_worker_failed(
+            "T-001", "no output", failure_class="substance_failure"
+        )
         manifest = json.loads((tmp_path / "T-001" / "MANIFEST.json").read_text())
         assert manifest["failure_class"] == "substance_failure"
 
@@ -147,6 +154,7 @@ class TestMarkWorkerFailedFailureClass:
 # ============================================================================
 # verify_worker_output failure classification
 # ============================================================================
+
 
 class TestVerifyWorkerOutputFailureClass:
     def test_missing_deliverable_with_substance(self, orchestrator, tmp_path):
@@ -214,6 +222,7 @@ class TestVerifyWorkerOutputFailureClass:
 # Retry pickup: contract_violation enters retry, substance_failure does not
 # ============================================================================
 
+
 class TestContractViolationRetryPickup:
     """测试 orchestrator._prepare_worker_retries 的 contract_violation 分支。"""
 
@@ -232,7 +241,9 @@ class TestContractViolationRetryPickup:
             stages_dir = tmp_path / "stages"
             stages_dir.mkdir(parents=True, exist_ok=True)
             prompt_file = stages_dir / f"_bootstrap_worker_{task_id}.md"
-            prompt_file.write_text(f"# Worker Prompt for {task_id}\nDo the task.\n", encoding="utf-8")
+            prompt_file.write_text(
+                f"# Worker Prompt for {task_id}\nDo the task.\n", encoding="utf-8"
+            )
             return {
                 "runtime": "subagent",
                 "mode": "run",
@@ -273,6 +284,7 @@ class TestContractViolationRetryPickup:
     def orch_instance(self, tmp_path):
         """Create a minimal orchestrator-like object for _prepare_worker_retries."""
         from domains.deliver_pro.orchestrator import DeliverOrchestrator
+
         # 使用 MagicMock 绕过 __init__
         instance = MagicMock(spec=DeliverOrchestrator)
         instance.progress = {
@@ -285,8 +297,10 @@ class TestContractViolationRetryPickup:
             }
         }
         # Bind the real method
-        instance._prepare_worker_retries = DeliverOrchestrator._prepare_worker_retries.__get__(
-            instance, DeliverOrchestrator
+        instance._prepare_worker_retries = (
+            DeliverOrchestrator._prepare_worker_retries.__get__(
+                instance, DeliverOrchestrator
+            )
         )
         return instance
 
@@ -302,7 +316,9 @@ class TestContractViolationRetryPickup:
             data["failure_class"] = failure_class
         manifest_path.write_text(json.dumps(data), encoding="utf-8")
 
-    def test_contract_violation_enters_retry(self, orch_instance, mock_driver, tmp_path):
+    def test_contract_violation_enters_retry(
+        self, orch_instance, mock_driver, tmp_path
+    ):
         """contract_violation + 预算未耗尽 → 进入 retry params"""
         self._write_manifest(mock_driver, "T-001", "contract_violation")
         self._write_manifest(mock_driver, "T-002", "substance_failure")
@@ -312,12 +328,16 @@ class TestContractViolationRetryPickup:
 
         # T-001 should be in retry params
         task_ids_in_retry = [p.get("task_id") for p in params]
-        assert "T-001" in task_ids_in_retry, f"T-001 should be in retry, got {task_ids_in_retry}"
+        assert "T-001" in task_ids_in_retry, (
+            f"T-001 should be in retry, got {task_ids_in_retry}"
+        )
 
         # T-001 prompt should contain feedback section
         t001_params = next(p for p in params if p.get("task_id") == "T-001")
         prompt_file_match = re.search(r"读取:\s*`([^`]+)`", t001_params["task"])
-        assert prompt_file_match, "Could not find prompt file path in task bootstrap string"
+        assert prompt_file_match, (
+            "Could not find prompt file path in task bootstrap string"
+        )
         prompt_content = Path(prompt_file_match.group(1)).read_text(encoding="utf-8")
         assert "上次失败反馈（契约违规重试）" in prompt_content
         assert "DELIVERABLE.md" in prompt_content
@@ -335,7 +355,9 @@ class TestContractViolationRetryPickup:
         params, alerts = orch_instance._prepare_worker_retries("WP-001", mock_driver)
 
         task_ids_in_retry = [p.get("task_id") for p in params]
-        assert "T-002" not in task_ids_in_retry, "T-002 (substance_failure) should NOT be retried"
+        assert "T-002" not in task_ids_in_retry, (
+            "T-002 (substance_failure) should NOT be retried"
+        )
 
     def test_budget_exhausted_not_retried(self, orch_instance, mock_driver, tmp_path):
         """contract_violation + 预算耗尽 → 不进入 retry，但有 EXHAUSTED 告警"""
@@ -346,7 +368,9 @@ class TestContractViolationRetryPickup:
         params, alerts = orch_instance._prepare_worker_retries("WP-001", mock_driver)
 
         task_ids_in_retry = [p.get("task_id") for p in params]
-        assert "T-003" not in task_ids_in_retry, "T-003 (budget exhausted) should NOT be retried"
+        assert "T-003" not in task_ids_in_retry, (
+            "T-003 (budget exhausted) should NOT be retried"
+        )
 
         # Should have TASK_RETRY_CONTRACT_EXHAUSTED alert for T-003
         t003_alerts = [a for a in alerts if "T-003" in a.get("message", "")]

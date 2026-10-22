@@ -19,8 +19,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SKIP = set()
 SKIP_DIRS = {
-    ".git", ".pytest_cache", "__pycache__", ".venv", "venv", "blackboard",
-    "docs", "projects", "output", "test_results", "verification", "ARCHIVED", "_archived",
+    ".git",
+    ".pytest_cache",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "blackboard",
+    "docs",
+    "projects",
+    "output",
+    "test_results",
+    "verification",
+    "ARCHIVED",
+    "_archived",
 }
 
 
@@ -139,10 +150,19 @@ def run_one(path: Path, timeout: int, outdir: Path) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--paths", nargs="*", default=[], help="只跑这些文件/目录；默认 tests domains core")
+    ap.add_argument(
+        "--paths",
+        nargs="*",
+        default=[],
+        help="只跑这些文件/目录；默认 tests domains core",
+    )
     ap.add_argument("--timeout", type=int, default=120, help="单文件超时秒数，默认 120")
-    ap.add_argument("--skip", action="append", default=[], help="额外跳过的测试文件，可重复")
-    ap.add_argument("--include-known-hang", action="store_true", help="连默认隔离的挂起测试也跑")
+    ap.add_argument(
+        "--skip", action="append", default=[], help="额外跳过的测试文件，可重复"
+    )
+    ap.add_argument(
+        "--include-known-hang", action="store_true", help="连默认隔离的挂起测试也跑"
+    )
     ap.add_argument("--out", default="test_results/baseline", help="输出目录")
     args = ap.parse_args()
 
@@ -161,7 +181,10 @@ def main() -> int:
         print(f"[{i}/{len(files)}] {name}", flush=True)
         r = run_one(p, args.timeout, outdir)
         results.append(r)
-        print(f"  -> {r['status']} rc={r['rc']} tests={r['tests']} fail={r['failures']} err={r['errors']} skip={r['skipped']} time={r['wall_time']}s", flush=True)
+        print(
+            f"  -> {r['status']} rc={r['rc']} tests={r['tests']} fail={r['failures']} err={r['errors']} skip={r['skipped']} time={r['wall_time']}s",
+            flush=True,
+        )
 
     summary = {
         "root": str(ROOT),
@@ -180,7 +203,9 @@ def main() -> int:
         "skipped": sum(r["skipped"] for r in results),
         "results": results,
     }
-    (outdir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    (outdir / "summary.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     lines = [
         "# DeepFlow 分片测试基线",
@@ -199,7 +224,9 @@ def main() -> int:
         )
     (outdir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    print(f"\nSUMMARY: {summary['pass_files']}/{summary['files']} files pass; no_tests={summary['no_tests_files']}; tests={summary['tests']} failures={summary['failures']} errors={summary['errors']} skipped={summary['skipped']}")
+    print(
+        f"\nSUMMARY: {summary['pass_files']}/{summary['files']} files pass; no_tests={summary['no_tests_files']}; tests={summary['tests']} failures={summary['failures']} errors={summary['errors']} skipped={summary['skipped']}"
+    )
     print(f"OUT: {outdir / 'summary.md'}")
     return 0 if summary["fail_files"] == 0 and summary["timeout_files"] == 0 else 1
 

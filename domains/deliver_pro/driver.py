@@ -20,12 +20,10 @@ Main Agent 逐步调 exec 驱动流水线，每步都是简单的 Python 调用�
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
 
-from domains.deliver_pro.contracts import WorkPackage
 from domains.deliver_pro.wp_runner import DeliverWPRunner
 
 logger = logging.getLogger(__name__)
@@ -74,7 +72,7 @@ class DeliverRunner:
 
         self.project_name = project_name
         self.blackboard_path = BLACKBOARD_ROOT / project_name
-        wp_subdir = wp_id.lower().replace('-', '_')
+        wp_subdir = wp_id.lower().replace("-", "_")
         self.deliver_pro_dir = self.blackboard_path / "deliver_pro" / wp_subdir
         self.stages_dir = self.deliver_pro_dir / "stages"
         self.worker_outputs_dir = self.stages_dir / "worker_outputs"
@@ -86,13 +84,12 @@ class DeliverRunner:
 
         from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
         from domains.deliver_pro.contracts.work_package import WorkPackage
+
         result = SafeJsonLoader.load(wp_path, WorkPackage, mtime_window=0)
         if result.state != "ok":
             raise ValueError(f"wp.json corrupted: {result.state}")
         self.wp = result.parsed
-        self.orch = DeliverWPRunner(
-            self.wp, self.blackboard_path, project_name
-        )
+        self.orch = DeliverWPRunner(self.wp, self.blackboard_path, project_name)
         self.wp_id = wp_id
         self._validate_round = 0
 
@@ -105,7 +102,7 @@ class DeliverRunner:
     def step1_analyze(self) -> dict[str, Any]:
         """Phase 1: 准备 Analyze Agent spawn 参数。"""
         params = self.orch.prepare_analyze_spawn()
-        logger.info(f"Step 1: Analyze spawn ready")
+        logger.info("Step 1: Analyze spawn ready")
         return params
 
     def step2_check_analyze(self) -> tuple[bool, dict]:
@@ -116,9 +113,12 @@ class DeliverRunner:
 
         try:
             from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
             result = SafeJsonLoader.load_raw(plan_path, mtime_window=0)
             if result.state != "ok":
-                return False, {"error": f"execution_plan.json corrupted: {result.state}"}
+                return False, {
+                    "error": f"execution_plan.json corrupted: {result.state}"
+                }
             plan_data = result.data
             # Verify analyze output quality
             valid, msg = self.orch.verify_analyze_output(plan_data)
@@ -160,7 +160,7 @@ class DeliverRunner:
         from domains.deliver_pro.phase_deriver import migrate_legacy_worker_outputs
 
         # 幂等搬迁 legacy 路径
-        wp_subdir = self.wp_id.lower().replace('-', '_')
+        self.wp_id.lower().replace("-", "_")
         migrate_legacy_worker_outputs(self.deliver_pro_dir)
 
         plan = self.orch.load_execution_plan()
@@ -173,9 +173,14 @@ class DeliverRunner:
             try:
                 from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
                 from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
-                result = SafeJsonLoader.load(Path(manifest_path), WorkerOutputMeta, mtime_window=0)
+
+                result = SafeJsonLoader.load(
+                    Path(manifest_path), WorkerOutputMeta, mtime_window=0
+                )
                 if result.state != "ok":
-                    logger.warning(f"Worker {task_id} MANIFEST load failed: {result.state}")
+                    logger.warning(
+                        f"Worker {task_id} MANIFEST load failed: {result.state}"
+                    )
                     continue
                 manifest = result.data
                 # 已判定 FAILED 的跳过（不重复验证）
@@ -238,8 +243,7 @@ class DeliverRunner:
             self._stuck_checks = 0
 
         logger.info(
-            f"Step 4: {completed}/{total} done, "
-            f"{failed} failed, next_wave={next_wave}"
+            f"Step 4: {completed}/{total} done, {failed} failed, next_wave={next_wave}"
         )
         return False, info
 
@@ -276,7 +280,9 @@ class DeliverRunner:
 
         # Verify integrate output (non-blocking)
         if result.status != "ASSEMBLY_ERROR":
-            valid, msg = self.orch.verify_integrate_output(self.orch.integrated_draft_dir)
+            valid, msg = self.orch.verify_integrate_output(
+                self.orch.integrated_draft_dir
+            )
             if not valid:
                 info["verify_warning"] = msg
 
@@ -308,10 +314,17 @@ class DeliverRunner:
 
         try:
             from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
-            from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
-            result = SafeJsonLoader.load(verdict_path, ValidationVerdict, mtime_window=0)
+            from domains.deliver_pro.contracts.validation_verdict import (
+                ValidationVerdict,
+            )
+
+            result = SafeJsonLoader.load(
+                verdict_path, ValidationVerdict, mtime_window=0
+            )
             if result.state != "ok":
-                return "ERROR", {"error": f"validation_result corrupted: {result.state}"}
+                return "ERROR", {
+                    "error": f"validation_result corrupted: {result.state}"
+                }
             data = result.data
             verdict_obj = result.parsed
             # Verify validate output (blocking — schema + cross-check)
@@ -319,7 +332,9 @@ class DeliverRunner:
             if not valid:
                 return "FAIL", {"error": f"verify_validate_output failed: {msg}"}
             # Use Schema-validated verdict (enum: PASS/CONDITIONAL/FAIL)
-            verdict_str = verdict_obj.verdict if verdict_obj else data.get("verdict", "FAIL")
+            verdict_str = (
+                verdict_obj.verdict if verdict_obj else data.get("verdict", "FAIL")
+            )
             # BLK-03 fix: field is weighted_score, not overall_score
             score = data.get("weighted_score", 0)
             return verdict_str, {"score": score, "data": data}
@@ -328,12 +343,14 @@ class DeliverRunner:
 
     def step7_package(self, verdict_str: str | None = None) -> dict[str, Any]:
         """Phase 5: 准备 Package Agent spawn 参数。
-        
+
         P1-3 fix: Auto-read verdict from validation_result.json.
         verdict_str parameter is only used as fallback when file doesn't exist
         (e.g., assembly error path).
         """
-        from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict, ScoreDimension
+        from domains.deliver_pro.contracts.validation_verdict import (
+            ValidationVerdict,
+        )
 
         plan = self.orch.load_execution_plan()
 
@@ -343,8 +360,13 @@ class DeliverRunner:
         if validation_path.exists():
             try:
                 from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
-                from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
-                result = SafeJsonLoader.load(validation_path, ValidationVerdict, mtime_window=0)
+                from domains.deliver_pro.contracts.validation_verdict import (
+                    ValidationVerdict,
+                )
+
+                result = SafeJsonLoader.load(
+                    validation_path, ValidationVerdict, mtime_window=0
+                )
                 if result.state == "ok":
                     verdict_obj = result.parsed
                 else:
@@ -357,22 +379,28 @@ class DeliverRunner:
         # Otherwise, default to CONDITIONAL (safe middle ground: package runs but flags it).
         if verdict_obj is None:
             fallback_verdict = verdict_str or "CONDITIONAL"
-            fallback_score = 3.0 if fallback_verdict == "CONDITIONAL" else (
-                1.5 if fallback_verdict == "FAIL" else 4.4
+            fallback_score = (
+                3.0
+                if fallback_verdict == "CONDITIONAL"
+                else (1.5 if fallback_verdict == "FAIL" else 4.4)
             )
-            verdict_obj = ValidationVerdict.model_validate({
-                "weighted_score": fallback_score,
-                "scores": {},
-                "verdict": fallback_verdict,
-                "round": 1,
-            })
+            verdict_obj = ValidationVerdict.model_validate(
+                {
+                    "weighted_score": fallback_score,
+                    "scores": {},
+                    "verdict": fallback_verdict,
+                    "round": 1,
+                }
+            )
             logger.warning(
                 f"B2: validation_result.json unavailable, using fallback "
                 f"verdict={fallback_verdict} (explicit={verdict_str is not None})"
             )
 
         params = self.orch.prepare_package_spawn(plan, verdict=verdict_obj)
-        actual_verdict = verdict_obj.verdict if hasattr(verdict_obj, 'verdict') else 'UNKNOWN'
+        actual_verdict = (
+            verdict_obj.verdict if hasattr(verdict_obj, "verdict") else "UNKNOWN"
+        )
         logger.info(f"Step 7: Package spawn ready (verdict={actual_verdict})")
         return params
 
@@ -387,6 +415,7 @@ class DeliverRunner:
         """
         plan = self.orch.load_execution_plan()
         from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
+
         verdict_obj = ValidationVerdict.model_validate(verdict_data)
         return self.orch.prepare_fix_integrate_spawn(plan, verdict_obj)
 
@@ -399,7 +428,11 @@ class DeliverRunner:
 
         manifests = glob.glob(str(self.worker_outputs_dir / "*/MANIFEST.json"))
         integrated = (self.stages_dir / "integrated_draft" / "DELIVERABLE.md").exists()
-        final_files = list((self.stages_dir / "final_deliverable").rglob("*")) if (self.stages_dir / "final_deliverable").exists() else []
+        final_files = (
+            list((self.stages_dir / "final_deliverable").rglob("*"))
+            if (self.stages_dir / "final_deliverable").exists()
+            else []
+        )
 
         return {
             "wp_id": self.wp_id,

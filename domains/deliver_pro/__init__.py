@@ -24,13 +24,9 @@ Deliver Pro — 入口模块 (V3: Pulse 脉冲调度，唯一生产路径)
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
-from typing import Any
 
-from domains.deliver_pro.contracts import WorkPackage
-from domains.deliver_pro.wp_runner import DeliverWPRunner
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +73,9 @@ def find_ship_package_path(project_name: str) -> Path:
         if path.exists():
             return path
 
-    searched = [str(p) for p in candidates] + [str(project_dir / "ship_pro_*/stages/ship_package.{md,json}")]
+    searched = [str(p) for p in candidates] + [
+        str(project_dir / "ship_pro_*/stages/ship_package.{md,json}")
+    ]
     raise FileNotFoundError(
         "Ship Pro package 不存在（需要包含 work_packages 的 ship_package.md/json）。\n"
         f"  搜索路径: {searched}"
@@ -88,6 +86,7 @@ def find_ship_package_path(project_name: str) -> Path:
 # Ship Pro → Deliver Pro WorkPackage 适配层
 # ============================================================================
 
+
 def _infer_scenario(wp: dict) -> str:
     """从 WP 内容推断 scenario 类型
 
@@ -97,27 +96,77 @@ def _infer_scenario(wp: dict) -> str:
     - 如果混合 → "mixed"
     - 默认 → "code"
     """
-    description = (wp.get('description', '') or '').lower()
-    deliverables = wp.get('deliverables', [])
-    title = (wp.get('title', '') or '').lower()
+    description = (wp.get("description", "") or "").lower()
+    deliverables = wp.get("deliverables", [])
+    title = (wp.get("title", "") or "").lower()
 
     # 编程类信号
     code_signals = [
-        '.py', '.js', '.ts', '.go', '.rs', '.java', '.c', '.cpp', '.h',
-        '.rb', '.php', '.swift', '.kt', '.dart', '.sh', '.bash',
-        'code', 'implementation', 'coding', 'programming', 'function',
-        'class', 'module', 'api', 'endpoint', 'schema', 'database',
-        'migration', 'deploy', 'docker', 'dockerfile', 'ci/cd',
-        'unit test', 'unit_test', 'lint', 'refactor', 'bug fix',
+        ".py",
+        ".js",
+        ".ts",
+        ".go",
+        ".rs",
+        ".java",
+        ".c",
+        ".cpp",
+        ".h",
+        ".rb",
+        ".php",
+        ".swift",
+        ".kt",
+        ".dart",
+        ".sh",
+        ".bash",
+        "code",
+        "implementation",
+        "coding",
+        "programming",
+        "function",
+        "class",
+        "module",
+        "api",
+        "endpoint",
+        "schema",
+        "database",
+        "migration",
+        "deploy",
+        "docker",
+        "dockerfile",
+        "ci/cd",
+        "unit test",
+        "unit_test",
+        "lint",
+        "refactor",
+        "bug fix",
     ]
 
     # 报告/分析类信号
     report_signals = [
-        '.md', '.pdf', '.docx', '.txt', '.rst',
-        'report', 'analysis', 'analyst', 'research', 'document',
-        'write', 'writing', 'article', 'blog', 'summary',
-        'review', 'audit', 'survey', 'evaluation', 'assessment',
-        'recommendation', 'strategy', 'roadmap', 'planning',
+        ".md",
+        ".pdf",
+        ".docx",
+        ".txt",
+        ".rst",
+        "report",
+        "analysis",
+        "analyst",
+        "research",
+        "document",
+        "write",
+        "writing",
+        "article",
+        "blog",
+        "summary",
+        "review",
+        "audit",
+        "survey",
+        "evaluation",
+        "assessment",
+        "recommendation",
+        "strategy",
+        "roadmap",
+        "planning",
     ]
 
     code_score = 0
@@ -141,7 +190,7 @@ def _infer_scenario(wp: dict) -> str:
 
     # 检查 deliverables
     for d in deliverables:
-        d_lower = (d or '').lower()
+        d_lower = (d or "").lower()
         for sig in code_signals:
             if sig in d_lower:
                 code_score += 1
@@ -160,10 +209,13 @@ def _infer_scenario(wp: dict) -> str:
         return "code"
 
 
-def _adapt_ship_pro_wp(wp: dict, package_semantic_anchors: list | None = None,
-                       package_serving_principles: list | None = None) -> dict:
+def _adapt_ship_pro_wp(
+    wp: dict,
+    package_semantic_anchors: list | None = None,
+    package_serving_principles: list | None = None,
+) -> dict:
     """Ship Pro WorkPackage dict → Deliver Pro WorkPackage 适配层
-    
+
     Ship Pro 的 WorkPackage 使用 description/acceptance_criteria List[str] 等字段，
     Deliver Pro 的 WorkPackage 使用 objective/acceptance_criteria List[AcceptanceCriterion]。
     此适配器负责字段映射，确保跨域契约兼容。
@@ -199,25 +251,25 @@ def _adapt_ship_pro_wp(wp: dict, package_semantic_anchors: list | None = None,
         serving_principles = package_serving_principles
 
     adapted = {
-        'wp_id': wp.get('wp_id') or wp.get('id', ''),
-        'title': wp.get('title', ''),
-        'objective': wp.get('description', ''),  # Ship description → Deliver objective
-        'scenario': scenario,
-        'acceptance_criteria': [
-            {'id': f'AC-{i+1}', 'description': ac, 'priority': 'must'}
-            for i, ac in enumerate(wp.get('acceptance_criteria', []))
+        "wp_id": wp.get("wp_id") or wp.get("id", ""),
+        "title": wp.get("title", ""),
+        "objective": wp.get("description", ""),  # Ship description → Deliver objective
+        "scenario": scenario,
+        "acceptance_criteria": [
+            {"id": f"AC-{i + 1}", "description": ac, "priority": "must"}
+            for i, ac in enumerate(wp.get("acceptance_criteria", []))
         ],  # List[str] → List[AcceptanceCriterion]
-        'constraints': {},
-        'dependencies': wp.get('dependencies', []),
-        'context': {
-            'effort_hours': wp.get('effort_hours'),
-            'covered_req_ids': wp.get('covered_req_ids', []),
-            'anchored_to': wp.get('anchored_to', []),
-            'deliverables': wp.get('deliverables', []),
-            'source_worker': wp.get('source_worker'),
+        "constraints": {},
+        "dependencies": wp.get("dependencies", []),
+        "context": {
+            "effort_hours": wp.get("effort_hours"),
+            "covered_req_ids": wp.get("covered_req_ids", []),
+            "anchored_to": wp.get("anchored_to", []),
+            "deliverables": wp.get("deliverables", []),
+            "source_worker": wp.get("source_worker"),
         },
-        'semantic_anchors': semantic_anchors,
-        'serving_principles': serving_principles,
+        "semantic_anchors": semantic_anchors,
+        "serving_principles": serving_principles,
     }
     return adapted
 
@@ -225,6 +277,7 @@ def _adapt_ship_pro_wp(wp: dict, package_semantic_anchors: list | None = None,
 # ============================================================================
 # 唯一入口（V3: Pulse 脉冲调度，契约笼子强制）
 # ============================================================================
+
 
 def run_deliver_pro(
     project_name: str,
@@ -270,7 +323,7 @@ def run_deliver_pro(
     if mode != "pulse":
         raise ValueError(
             f"mode='{mode}' 已禁用（契约违例）。唯一允许模式: 'pulse'\n"
-            f"  Pulse 调用: python3 -m domains.deliver_pro.pulse_cli pulse --project \"{project_name}\"\n"
+            f'  Pulse 调用: python3 -m domains.deliver_pro.pulse_cli pulse --project "{project_name}"\n'
             f"  背景: V2 LLM Orchestrator（drive_all）于 2026-07-28 禁用\n"
             f"        （17 并发失控 + 已完成 worker 重复 spawn）\n"
             f"  紧急回退（仅测试）: DEEPFLOW_ALLOW_DRIVE_ALL=1"
@@ -292,7 +345,7 @@ def run_deliver_pro(
         "mode": "pulse",
         "launch_command": (
             f"cd {deepflow_root} && PYTHONPATH=. "
-            f"python3 -m domains.deliver_pro.pulse_cli pulse --project \"{project_name}\""
+            f'python3 -m domains.deliver_pro.pulse_cli pulse --project "{project_name}"'
         ),
         "cron_hint": (
             f"注册 cron 每 5min 点火（A+B 加固版，completed 自动禁用）: \n"
@@ -302,8 +355,7 @@ def run_deliver_pro(
     }
 
     logger.info(
-        f"run_deliver_pro: project={project_name}, mode=pulse, "
-        f"launch_command ready"
+        f"run_deliver_pro: project={project_name}, mode=pulse, launch_command ready"
     )
     return result
 

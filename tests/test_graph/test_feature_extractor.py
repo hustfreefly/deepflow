@@ -102,8 +102,7 @@ class TestFeatureExtractorNodeFeatures:
         """Multiple nodes produce correct output shape."""
         extractor = FeatureExtractor()
         nodes = [
-            Node(service_name=f"svc-{i}", service_type="backend")
-            for i in range(10)
+            Node(service_name=f"svc-{i}", service_type="backend") for i in range(10)
         ]
         result = extractor.extract_node_features(nodes)
         assert result.shape == (10, NODE_FEATURE_DIM)

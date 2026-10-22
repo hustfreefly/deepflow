@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """E2E tick driver — 调用 BatchDriver.tick() 输出下一步动作。"""
+
 import json
 import sys
 from domains.deliver_pro.batch_driver import BatchDriver

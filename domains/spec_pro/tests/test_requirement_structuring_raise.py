@@ -3,6 +3,7 @@
 契约：LLM 语义标注失败必须 fail-closed（raise RuntimeError），
 不允许静默降级到纯脚本方案。
 """
+
 import json
 
 import pytest
@@ -23,10 +24,26 @@ def _confirmed():
 
 def _valid_annotations():
     return [
-        {"original_text": "目标: 构建智能简历定制系统", "category": "core_objective", "priority": "P0"},
-        {"original_text": "必须做: 保持简历真实性", "category": "capability", "priority": "P0"},
-        {"original_text": "应该做: 支持多模板", "category": "capability", "priority": "P1"},
-        {"original_text": "禁止做: 虚构经历", "category": "prohibition", "priority": "P0"},
+        {
+            "original_text": "目标: 构建智能简历定制系统",
+            "category": "core_objective",
+            "priority": "P0",
+        },
+        {
+            "original_text": "必须做: 保持简历真实性",
+            "category": "capability",
+            "priority": "P0",
+        },
+        {
+            "original_text": "应该做: 支持多模板",
+            "category": "capability",
+            "priority": "P1",
+        },
+        {
+            "original_text": "禁止做: 虚构经历",
+            "category": "prohibition",
+            "priority": "P0",
+        },
     ]
 
 
@@ -42,17 +59,29 @@ class TestAnnotationRaise:
 
     def test_json_parse_failure_raises(self):
         with pytest.raises(RuntimeError, match="JSON 解析失败"):
-            annotate_requirements({"confirmed": _confirmed()}, lambda p: "not json at all")
+            annotate_requirements(
+                {"confirmed": _confirmed()}, lambda p: "not json at all"
+            )
 
     def test_schema_validation_failure_raises(self):
-        bad = [{"original_text": "目标: 构建智能简历定制系统", "category": "INVALID_CAT", "priority": "P0"}]
+        bad = [
+            {
+                "original_text": "目标: 构建智能简历定制系统",
+                "category": "INVALID_CAT",
+                "priority": "P0",
+            }
+        ]
         with pytest.raises(RuntimeError, match="Schema 验证失败"):
-            annotate_requirements({"confirmed": _confirmed()}, lambda p: json.dumps(bad))
+            annotate_requirements(
+                {"confirmed": _confirmed()}, lambda p: json.dumps(bad)
+            )
 
     def test_low_coverage_raises(self):
         partial = [_valid_annotations()[0]]  # 只覆盖 1/4 → coverage 25% < 80%
         with pytest.raises(RuntimeError, match="覆盖率过低"):
-            annotate_requirements({"confirmed": _confirmed()}, lambda p: json.dumps(partial))
+            annotate_requirements(
+                {"confirmed": _confirmed()}, lambda p: json.dumps(partial)
+            )
 
     def test_success_returns_annotations(self):
         result = annotate_requirements(

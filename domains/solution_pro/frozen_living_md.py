@@ -188,8 +188,12 @@ def render_frozen_spec_md(data: dict) -> str:
             if isinstance(phase, dict):
                 p = _escape_pipe(phase.get("phase", ""))
                 title = _escape_pipe(phase.get("title", phase.get("name", "")))
-                timeline = _escape_pipe(phase.get("timeline", phase.get("duration", "")))
-                effort = _escape_pipe(phase.get("estimated_effort", phase.get("effort", "")))
+                timeline = _escape_pipe(
+                    phase.get("timeline", phase.get("duration", ""))
+                )
+                effort = _escape_pipe(
+                    phase.get("estimated_effort", phase.get("effort", ""))
+                )
                 lines.append(f"| {p} | {title} | {timeline} | {effort} |")
             else:
                 lines.append(f"| | {_escape_pipe(str(phase))} | | |")
@@ -204,7 +208,9 @@ def render_frozen_spec_md(data: dict) -> str:
         lines.append("|------|----------|------------|")
         for a in anchors:
             if isinstance(a, dict):
-                lines.append(f"| {a.get('name', '?')} | {a.get('category', '?')} | {_escape_pipe(str(a.get('constraint', '')))} |")
+                lines.append(
+                    f"| {a.get('name', '?')} | {a.get('category', '?')} | {_escape_pipe(str(a.get('constraint', '')))} |"
+                )
     else:
         lines.append("<!-- empty -->")
     lines.append("")
@@ -267,7 +273,9 @@ def render_frozen_spec_md(data: dict) -> str:
     lines.append("| check_layer | result | reason |")
     lines.append("|-------------|--------|--------|")
     lines.append("| L1 (Schema) | PASS | Solution Pro frozen_spec |")
-    lines.append(f"| L2 (REQ count) | {'PASS' if constraints else 'FAIL'} | {len(constraints)} requirements |")
+    lines.append(
+        f"| L2 (REQ count) | {'PASS' if constraints else 'FAIL'} | {len(constraints)} requirements |"
+    )
     lines.append("| L3 (merge) | PASS | frozen spec complete |")
     lines.append("")
 
@@ -293,7 +301,7 @@ def parse_frozen_spec_md(md: str) -> dict:
         end = md.find("---", 3)
         if end != -1:
             fm_text = md[3:end].strip()
-            body = md[end + 3:]
+            body = md[end + 3 :]
             for line in fm_text.split("\n"):
                 if ":" in line:
                     key, _, val = line.partition(":")
@@ -333,8 +341,11 @@ def parse_frozen_spec_md(md: str) -> dict:
                 # B1-FIX: Ship Pro pipeline_designer 期望 requirements 字段
                 # 同时输出 requirements（兼容两套字段名）
                 result["requirements"] = [
-                    {"id": c["req_id"], "description": c["description"],
-                     "priority": c.get("priority", "")}
+                    {
+                        "id": c["req_id"],
+                        "description": c["description"],
+                        "priority": c.get("priority", ""),
+                    }
                     for c in constraints
                 ]
                 break
@@ -352,7 +363,11 @@ def parse_frozen_spec_md(md: str) -> dict:
         for sub in sub_sections:
             parts = sub.strip().split("\n")
             name = parts[0].strip()
-            req_ids = [l.strip("- ").strip() for l in parts[1:] if l.strip().startswith("- ")]
+            req_ids = [
+                line.strip("- ").strip()
+                for line in parts[1:]
+                if line.strip().startswith("- ")
+            ]
             groups.append({"name": name, "req_ids": req_ids})
         result["requirement_groups"] = groups
 
@@ -483,7 +498,11 @@ def parse_frozen_spec_md(md: str) -> dict:
         for sub in sub_sections:
             parts = sub.strip().split("\n")
             name = parts[0].strip()
-            items = [l.strip("- ").strip() for l in parts[1:] if l.strip().startswith("- ")]
+            items = [
+                line.strip("- ").strip()
+                for line in parts[1:]
+                if line.strip().startswith("- ")
+            ]
             if items:
                 guardrails[name] = items
         if guardrails:
@@ -497,7 +516,11 @@ def parse_frozen_spec_md(md: str) -> dict:
         for sub in sub_sections:
             parts = sub.strip().split("\n")
             name = parts[0].strip()
-            items = [l.strip("- ").strip() for l in parts[1:] if l.strip().startswith("- ")]
+            items = [
+                line.strip("- ").strip()
+                for line in parts[1:]
+                if line.strip().startswith("- ")
+            ]
             if items:
                 hints[name] = items
             elif len(parts) > 1:
@@ -550,7 +573,7 @@ def _parse_md_sections(body: str) -> dict[str, str]:
 
 def _extract_table_rows(text: str) -> list[list[str]]:
     rows = []
-    lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    lines = [line.strip() for line in text.split("\n") if line.strip().startswith("|")]
     if len(lines) < 3:
         return rows
     for line in lines[2:]:
@@ -563,7 +586,7 @@ def _extract_table_rows(text: str) -> list[list[str]]:
 def _parse_table_to_dicts(text: str) -> list[dict]:
     """Parse markdown table to list of dicts."""
     rows = _extract_table_rows(text)
-    lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    lines = [line.strip() for line in text.split("\n") if line.strip().startswith("|")]
     if len(lines) < 2:
         return []
     headers = [c.strip().lower().replace(" ", "_") for c in lines[0].split("|")[1:-1]]

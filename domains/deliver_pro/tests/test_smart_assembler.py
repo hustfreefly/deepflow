@@ -2,7 +2,6 @@
 
 import json
 import pytest
-from pathlib import Path
 
 from domains.deliver_pro.smart_assembler import SmartAssembler, assemble
 
@@ -12,15 +11,20 @@ def mock_worker_outputs(tmp_path):
     """Create mock worker output directories."""
     worker_dir = tmp_path / "worker_outputs"
 
-    for i, (task_id, title) in enumerate([
-        ("T-001", "数据采集"),
-        ("T-002", "技术路线"),
-        ("T-003", "竞争格局"),
-    ], 1):
+    for i, (task_id, title) in enumerate(
+        [
+            ("T-001", "数据采集"),
+            ("T-002", "技术路线"),
+            ("T-003", "竞争格局"),
+        ],
+        1,
+    ):
         task_dir = worker_dir / task_id
         task_dir.mkdir(parents=True)
 
-        content = f"# {title}\n\n这是第{i}个章节的内容。\n\n## 详细分析\n\n详细数据...\n"
+        content = (
+            f"# {title}\n\n这是第{i}个章节的内容。\n\n## 详细分析\n\n详细数据...\n"
+        )
         (task_dir / "DELIVERABLE.md").write_text(content, encoding="utf-8")
         (task_dir / "EVIDENCE.md").write_text(
             f"# {title} 证据\n\n- 来源1: URL\n- 来源2: URL\n",
@@ -30,11 +34,16 @@ def mock_worker_outputs(tmp_path):
             f"# {title} 问题\n\n无阻塞问题。\n",
             encoding="utf-8",
         )
-        (task_dir / "MANIFEST.json").write_text(json.dumps({
-            "task_id": task_id,
-            "status": "COMPLETE",
-            "quality_self_check": {"acceptance_criteria_met": True},
-        }), encoding="utf-8")
+        (task_dir / "MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "task_id": task_id,
+                    "status": "COMPLETE",
+                    "quality_self_check": {"acceptance_criteria_met": True},
+                }
+            ),
+            encoding="utf-8",
+        )
 
     return worker_dir
 
@@ -53,7 +62,6 @@ def mock_plan():
 
 
 class TestSmartAssembler:
-
     def test_basic_assembly(self, mock_worker_outputs, mock_plan, tmp_path):
         """基本组装：3 个 Worker → 拼接后保留率 ≥95%。"""
         output_dir = tmp_path / "integrated_draft"
@@ -122,6 +130,7 @@ class TestSmartAssembler:
         """缺失 Worker 不崩溃，跳过并继续，但状态反映缺失。"""
         # Remove T-002
         import shutil
+
         shutil.rmtree(mock_worker_outputs / "T-002")
 
         output_dir = tmp_path / "integrated_draft"

@@ -4,9 +4,9 @@
 Contract: cage/active/dev_ops_v1.0.yaml
 Does not call sessions_spawn; validates a JSON request only.
 """
+
 import argparse
 import json
-import sys
 from pathlib import Path
 
 ALLOWED_AGENTS = {"deepflow", "expert", "redteam", "researcher", "worker"}
@@ -39,8 +39,12 @@ def main(argv=None):
     if len(task.encode("utf-8")) > MAX_TASK_BYTES:
         violations.append(f"task exceeds {MAX_TASK_BYTES} bytes")
 
-    payload = {"ok": not violations, "agent": agent, "model": model,
-               "violations": violations}
+    payload = {
+        "ok": not violations,
+        "agent": agent,
+        "model": model,
+        "violations": violations,
+    }
     print(json.dumps(payload, ensure_ascii=False))
 
     if not violations:

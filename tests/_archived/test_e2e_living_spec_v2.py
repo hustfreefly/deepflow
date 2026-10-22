@@ -20,10 +20,11 @@ import shutil
 # Add project root to path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-from domains.spec_pro.merge_spec import merge_conversation_digest, merge_confirmed, merge_spec
-from domains.spec_pro.eval.harness import run_harness_v2, run_harness, StructuralGate
+from domains.spec_pro.merge_spec import (
+    merge_conversation_digest,
+)
+from domains.spec_pro.eval.harness import run_harness_v2
 from domains.solution_pro.spec_context import (
-    build_living_spec_context,
     build_conversation_digest_for_prompt,
     build_worker_context_section,
 )
@@ -31,6 +32,7 @@ from domains.solution_pro.spec_context import (
 # ---------------------------------------------------------------------------
 # Test infrastructure
 # ---------------------------------------------------------------------------
+
 
 class TestResult:
     def __init__(self, name: str):
@@ -47,6 +49,7 @@ class TestResult:
         self.passed = False
         self.detail = detail
         return self
+
 
 class TestRunner:
     def __init__(self):
@@ -71,9 +74,9 @@ class TestRunner:
         total = len(self.results)
         passed = sum(1 for r in self.results if r.passed)
         failed = total - passed
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"TOTAL: {total} | PASS: {passed} | FAIL: {failed}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         if failed:
             print("\nFailed tests:")
             for r in self.results:
@@ -90,9 +93,11 @@ class TestRunner:
             json.dump(spec, f, ensure_ascii=False, indent=2)
         return path
 
+
 # ---------------------------------------------------------------------------
 # Test data: 3 rounds of simulated Spec Pro conversation
 # ---------------------------------------------------------------------------
+
 
 def make_round1_response():
     """Round 1: User describes basic needs."""
@@ -128,6 +133,7 @@ def make_round1_response():
         },
     }
 
+
 def make_round2_response():
     """Round 2: User expresses tech preferences and constraints."""
     return {
@@ -158,6 +164,7 @@ def make_round2_response():
             ],
         },
     }
+
 
 def make_round3_response():
     """Round 3: User supplements scenarios and priorities."""
@@ -191,6 +198,7 @@ def make_round3_response():
         },
     }
 
+
 def make_empty_spec():
     """Create initial empty living_spec (meta only, confirmed empty)."""
     return {
@@ -215,28 +223,45 @@ def make_empty_spec():
             "quality_attributes": [],
             "constraints": {},
             "integration": {"existing_systems": [], "requirements": []},
-            "risks_and_assumptions": {"risks": [], "assumptions": [], "dependencies": []},
+            "risks_and_assumptions": {
+                "risks": [],
+                "assumptions": [],
+                "dependencies": [],
+            },
         },
         "inferred": [],
         "guardrails": {"always_do": [], "ask_first": [], "never_do": []},
     }
 
+
 # Reference dimension tags (soft anchor — not enforced as hard limit)
 REFERENCE_DIMENSIONS = {
-    "objective", "pain_points", "users", "capabilities",
-    "quality_attributes", "constraints", "integration", "risks",
-    "rationale", "tradeoff", "success_metrics", "key_scenarios", "general",
+    "objective",
+    "pain_points",
+    "users",
+    "capabilities",
+    "quality_attributes",
+    "constraints",
+    "integration",
+    "risks",
+    "rationale",
+    "tradeoff",
+    "success_metrics",
+    "key_scenarios",
+    "general",
 }
 
 # ---------------------------------------------------------------------------
 # Phase 1 & 2: merge_conversation_digest accumulation
 # ---------------------------------------------------------------------------
 
+
 def _phase1_round1_merge_stub(r: TestResult):
     """Phase 1+2: Round 1 merge_conversation_digest. (stub — see phase1_round1 for actual test)"""
     runner = r  # We'll use a module-level runner; but since we need access, use a different approach
     # Actually we need the runner. Let's restructure.
     pass
+
 
 # We'll use a different approach — direct test functions that receive runner
 def phase1_round1(runner: TestRunner, r: TestResult):
@@ -256,10 +281,14 @@ def phase1_round1(runner: TestRunner, r: TestResult):
     # Check first excerpt
     e0 = excerpts[0]
     if e0.get("dimension") != "pain_points":
-        r.fail(f"Excerpt 0 dimension expected 'pain_points', got '{e0.get('dimension')}'")
+        r.fail(
+            f"Excerpt 0 dimension expected 'pain_points', got '{e0.get('dimension')}'"
+        )
         return
     if e0.get("importance") != "critical":
-        r.fail(f"Excerpt 0 importance expected 'critical', got '{e0.get('importance')}'")
+        r.fail(
+            f"Excerpt 0 importance expected 'critical', got '{e0.get('importance')}'"
+        )
         return
     if e0.get("source_round") != 1:
         r.fail(f"Excerpt 0 source_round expected 1, got {e0.get('source_round')}")
@@ -267,10 +296,15 @@ def phase1_round1(runner: TestRunner, r: TestResult):
 
     # full_conversation_path should be set
     if digest.get("full_conversation_path") != "spec/conversation_log.json":
-        r.fail(f"full_conversation_path not set correctly: {digest.get('full_conversation_path')}")
+        r.fail(
+            f"full_conversation_path not set correctly: {digest.get('full_conversation_path')}"
+        )
         return
 
-    r.ok("2 excerpts merged, dimensions and importance correct, full_conversation_path set")
+    r.ok(
+        "2 excerpts merged, dimensions and importance correct, full_conversation_path set"
+    )
+
 
 def phase1_round2(runner: TestRunner, r: TestResult):
     """Phase 1 Round 2: accumulate second round excerpts."""
@@ -288,13 +322,16 @@ def phase1_round2(runner: TestRunner, r: TestResult):
     # Round 2 excerpts
     e2 = excerpts[2]
     if e2.get("dimension") != "constraints":
-        r.fail(f"Excerpt 2 dimension expected 'constraints', got '{e2.get('dimension')}'")
+        r.fail(
+            f"Excerpt 2 dimension expected 'constraints', got '{e2.get('dimension')}'"
+        )
         return
     if e2.get("source_round") != 2:
         r.fail(f"Excerpt 2 source_round expected 2, got {e2.get('source_round')}")
         return
 
     r.ok("4 excerpts accumulated after round 2")
+
 
 def phase1_round3(runner: TestRunner, r: TestResult):
     """Phase 1 Round 3: summary + all 6 excerpts."""
@@ -334,7 +371,10 @@ def phase1_round3(runner: TestRunner, r: TestResult):
         r.fail(f"Expected 2 important excerpts, got {important_count}")
         return
 
-    r.ok(f"summary={len(summary)} chars, 6 excerpts, 4 critical + 2 important, all dims valid")
+    r.ok(
+        f"summary={len(summary)} chars, 6 excerpts, 4 critical + 2 important, all dims valid"
+    )
+
 
 def phase2_full_path(runner: TestRunner, r: TestResult):
     """Phase 2: full_conversation_path is set correctly."""
@@ -347,9 +387,11 @@ def phase2_full_path(runner: TestRunner, r: TestResult):
         return
     r.ok("full_conversation_path = spec/conversation_log.json")
 
+
 # ---------------------------------------------------------------------------
 # Phase 3: Harness V2 validation
 # ---------------------------------------------------------------------------
+
 
 def phase3_harness_v2(runner: TestRunner, r: TestResult):
     """Phase 3: Fill confirmed layer + run harness V2, expect all PASS."""
@@ -432,11 +474,15 @@ def phase3_harness_v2(runner: TestRunner, r: TestResult):
         r.fail(f"Expected final decision PASS, got {decision}")
         return
 
-    r.ok(f"Layer 1: {result['passed']}/{result['total']} PASS, Layer 2: 2/2 PASS, decision=PASS")
+    r.ok(
+        f"Layer 1: {result['passed']}/{result['total']} PASS, Layer 2: 2/2 PASS, decision=PASS"
+    )
+
 
 # ---------------------------------------------------------------------------
 # Phase 4: Solution Pro consumption validation
 # ---------------------------------------------------------------------------
+
 
 def phase4_digest_prompt(runner: TestRunner, r: TestResult):
     """Phase 4a: build_conversation_digest_for_prompt output validation."""
@@ -490,7 +536,10 @@ def phase4_digest_prompt(runner: TestRunner, r: TestResult):
             r.fail(f"Important excerpt missing: '{ie['excerpt'][:30]}...'")
             return
 
-    r.ok(f"Prompt text has summary, all {len(excerpts)} excerpts, critical bolded with marker")
+    r.ok(
+        f"Prompt text has summary, all {len(excerpts)} excerpts, critical bolded with marker"
+    )
+
 
 def phase4_worker_context(runner: TestRunner, r: TestResult):
     """Phase 4b: build_worker_context_section for 'planner' role."""
@@ -499,7 +548,11 @@ def phase4_worker_context(runner: TestRunner, r: TestResult):
     # Fill confirmed with user_directives
     spec["confirmed"]["objective"] = "为电商团队构建订单自动通知系统"
     spec["confirmed"]["user_directives"] = [
-        {"directive": "deliberately_omitted", "dimension": "compliance", "content": "不需要考虑数据合规"},
+        {
+            "directive": "deliberately_omitted",
+            "dimension": "compliance",
+            "content": "不需要考虑数据合规",
+        },
     ]
     spec["confirmed"]["capabilities"]["always_do"] = ["自动发送订单确认邮件"]
     spec["confirmed"]["capabilities"]["never_do"] = ["微服务架构"]
@@ -527,10 +580,13 @@ def phase4_worker_context(runner: TestRunner, r: TestResult):
 
     # Verify sections present
     checks = {
-        "user_directives": "用户显式要求" in context_text or "User Directives" in context_text,
-        "solution_pro_hints": "Spec Pro 提示" in context_text or "Solution Pro Hints" in context_text,
+        "user_directives": "用户显式要求" in context_text
+        or "User Directives" in context_text,
+        "solution_pro_hints": "Spec Pro 提示" in context_text
+        or "Solution Pro Hints" in context_text,
         "guardrails": "研究边界" in context_text,
-        "conversation_digest": "需求概述" in context_text or "用户关键表达" in context_text,
+        "conversation_digest": "需求概述" in context_text
+        or "用户关键表达" in context_text,
     }
 
     failed_checks = [k for k, v in checks.items() if not v]
@@ -538,21 +594,31 @@ def phase4_worker_context(runner: TestRunner, r: TestResult):
         r.fail(f"Missing sections in worker context: {failed_checks}")
         return
 
-    r.ok("Worker context contains user_directives, solution_pro_hints, guardrails, conversation_digest")
+    r.ok(
+        "Worker context contains user_directives, solution_pro_hints, guardrails, conversation_digest"
+    )
+
 
 # ---------------------------------------------------------------------------
 # Phase 5: Boundary tests
 # ---------------------------------------------------------------------------
 
+
 def phase5_v1_compat(runner: TestRunner, r: TestResult):
     """Phase 5.1: V1 backward compat — no conversation_digest → full chain OK."""
     spec = make_empty_spec()
-    spec["confirmed"]["objective"] = "为电商团队构建订单自动通知系统，实现订单提交后自动发送邮件通知"
+    spec["confirmed"]["objective"] = (
+        "为电商团队构建订单自动通知系统，实现订单提交后自动发送邮件通知"
+    )
     spec["confirmed"]["pain_points"] = ["手动发邮件经常漏发"]
     spec["confirmed"]["capabilities"]["always_do"] = ["自动发送订单确认邮件"]
     spec["confirmed"]["capabilities"]["never_do"] = ["微服务架构"]
     spec["confirmed"]["constraints"] = {"budget": "20万"}
-    spec["guardrails"] = {"always_do": ["审计日志"], "ask_first": [], "never_do": ["微服务"]}
+    spec["guardrails"] = {
+        "always_do": ["审计日志"],
+        "ask_first": [],
+        "never_do": ["微服务"],
+    }
     # No conversation_digest at all (V1 spec)
 
     spec_path = runner.write_spec(spec)
@@ -577,6 +643,7 @@ def phase5_v1_compat(runner: TestRunner, r: TestResult):
 
     r.ok("V1 spec (no conversation_digest) handled gracefully, Layer 2 skipped")
 
+
 def phase5_empty_digest(runner: TestRunner, r: TestResult):
     """Phase 5.2: Empty digest {} → no crash."""
     spec = make_empty_spec()
@@ -590,6 +657,7 @@ def phase5_empty_digest(runner: TestRunner, r: TestResult):
     # merge_conversation_digest with empty dict should not crash
     merge_conversation_digest(spec, {"conversation_digest": {}})
     r.ok("Empty digest handled without crash")
+
 
 def phase5_custom_dimension(runner: TestRunner, r: TestResult):
     """Phase 5.3: dimension='custom_tag' → still processable (soft anchor)."""
@@ -626,6 +694,7 @@ def phase5_custom_dimension(runner: TestRunner, r: TestResult):
         return
 
     r.ok("Custom dimension 'custom_tag' processed correctly (soft anchor)")
+
 
 def phase5_dedup(runner: TestRunner, r: TestResult):
     """Phase 5.4: Round 2 repeats Round 1 excerpt → no duplicate."""
@@ -669,9 +738,11 @@ def phase5_dedup(runner: TestRunner, r: TestResult):
 
     r.ok("Duplicate excerpt correctly deduplicated (2+2-1=3)")
 
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main():
     print("=" * 60)
@@ -709,6 +780,7 @@ def main():
 
     all_pass = runner.report()
     sys.exit(0 if all_pass else 1)
+
 
 if __name__ == "__main__":
     main()

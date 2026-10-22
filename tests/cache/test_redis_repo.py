@@ -14,9 +14,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock
 
 from src.analysis.cache.redis_client import (
     RedisClient,
@@ -40,7 +39,6 @@ from src.analysis.cache.repositories import (
     SessionContextRepository,
     DistributedLock,
     LockAcquireError,
-    CacheStrategy,
     CacheStats,
     WriteThroughCache,
 )
@@ -49,6 +47,7 @@ from src.analysis.cache.repositories import (
 # ============================================================================
 # AC-2: Key 命名规范测试
 # ============================================================================
+
 
 class TestKeyNaming(unittest.TestCase):
     """AC-2: Key 命名符合规范且无冲突"""
@@ -145,6 +144,7 @@ class TestKeyNaming(unittest.TestCase):
 # AC-1: 缓存命中率测试
 # ============================================================================
 
+
 class TestCacheHitRate(unittest.TestCase):
     """AC-1: 缓存命中率在典型场景 ≥ 80%"""
 
@@ -175,6 +175,7 @@ class TestCacheHitRate(unittest.TestCase):
 
     def test_query_cache_hit_scenario(self):
         """模拟典型查询缓存场景: 10 次查询，8 次命中"""
+
         async def _test():
             mock_client = _create_mock_redis_client()
             repo = QueryCacheRepository(mock_client, ttl_seconds=300)
@@ -188,11 +189,20 @@ class TestCacheHitRate(unittest.TestCase):
             self.assertEqual(repo.stats.writes, 1)
 
             # 模拟 10 次查询: 8 次命中 + 2 次未命中
-            mock_client.get = AsyncMock(side_effect=[
-                serialized, serialized, serialized, serialized,
-                serialized, serialized, serialized, serialized,
-                None, None,
-            ])
+            mock_client.get = AsyncMock(
+                side_effect=[
+                    serialized,
+                    serialized,
+                    serialized,
+                    serialized,
+                    serialized,
+                    serialized,
+                    serialized,
+                    serialized,
+                    None,
+                    None,
+                ]
+            )
 
             hits = 0
             misses = 0
@@ -211,6 +221,7 @@ class TestCacheHitRate(unittest.TestCase):
 
     def test_write_through_cache_hit_ratio(self):
         """Write-Through 缓存命中率测试"""
+
         async def _test():
             mock_client = _create_mock_redis_client()
             cache = WriteThroughCache(mock_client, "test:cache", ttl_seconds=300)
@@ -226,11 +237,20 @@ class TestCacheHitRate(unittest.TestCase):
                 return data
 
             # 前 3 次 miss，后 7 次 hit
-            mock_client.get = AsyncMock(side_effect=[
-                None, None, None,  # 3 misses → db fetch
-                serialized, serialized, serialized, serialized,
-                serialized, serialized, serialized,  # 7 hits
-            ])
+            mock_client.get = AsyncMock(
+                side_effect=[
+                    None,
+                    None,
+                    None,  # 3 misses → db fetch
+                    serialized,
+                    serialized,
+                    serialized,
+                    serialized,
+                    serialized,
+                    serialized,
+                    serialized,  # 7 hits
+                ]
+            )
 
             results = []
             for _ in range(10):
@@ -248,6 +268,7 @@ class TestCacheHitRate(unittest.TestCase):
 # ============================================================================
 # AC-3: 分布式锁互斥测试
 # ============================================================================
+
 
 class TestDistributedLock(unittest.IsolatedAsyncioTestCase):
     """AC-3: 分布式锁在并发下正确互斥"""
@@ -269,8 +290,11 @@ class TestDistributedLock(unittest.IsolatedAsyncioTestCase):
         mock_client.set_nx_px = AsyncMock(return_value=False)
 
         lock = DistributedLock(
-            mock_client, "analysis:task:abc123",
-            auto_extend=False, retry_times=3, retry_delay_ms=10,
+            mock_client,
+            "analysis:task:abc123",
+            auto_extend=False,
+            retry_times=3,
+            retry_delay_ms=10,
         )
         with self.assertRaises(LockAcquireError):
             await lock.acquire()
@@ -282,8 +306,11 @@ class TestDistributedLock(unittest.IsolatedAsyncioTestCase):
         mock_client.set_nx_px = AsyncMock(side_effect=[False, False, True])
 
         lock = DistributedLock(
-            mock_client, "analysis:task:abc123",
-            auto_extend=False, retry_times=3, retry_delay_ms=10,
+            mock_client,
+            "analysis:task:abc123",
+            auto_extend=False,
+            retry_times=3,
+            retry_delay_ms=10,
         )
         await lock.acquire()
         self.assertTrue(lock.is_locked)
@@ -304,12 +331,18 @@ class TestDistributedLock(unittest.IsolatedAsyncioTestCase):
         mock_client.eval_lua = AsyncMock(return_value=1)
 
         lock1 = DistributedLock(
-            mock_client, "analysis:task:concurrent",
-            auto_extend=False, retry_times=1, retry_delay_ms=10,
+            mock_client,
+            "analysis:task:concurrent",
+            auto_extend=False,
+            retry_times=1,
+            retry_delay_ms=10,
         )
         lock2 = DistributedLock(
-            mock_client, "analysis:task:concurrent",
-            auto_extend=False, retry_times=1, retry_delay_ms=10,
+            mock_client,
+            "analysis:task:concurrent",
+            auto_extend=False,
+            retry_times=1,
+            retry_delay_ms=10,
         )
 
         await lock1.acquire()
@@ -381,6 +414,7 @@ class TestDistributedLock(unittest.IsolatedAsyncioTestCase):
 # AC-4: 连接池配置测试
 # ============================================================================
 
+
 class TestConnectionPoolConfig(unittest.TestCase):
     """AC-4: 连接池配置可压测通过"""
 
@@ -426,6 +460,7 @@ class TestConnectionPoolConfig(unittest.TestCase):
 
     def test_circuit_breaker_not_open_after_few_failures(self):
         """少量失败不应触发熔断"""
+
         async def _test():
             cb = CircuitBreaker(failure_threshold=5)
             for _ in range(4):
@@ -438,6 +473,7 @@ class TestConnectionPoolConfig(unittest.TestCase):
 
     def test_circuit_breaker_opens_after_threshold(self):
         """达到阈值时熔断器打开"""
+
         async def _test():
             cb = CircuitBreaker(failure_threshold=5)
             for _ in range(5):
@@ -450,6 +486,7 @@ class TestConnectionPoolConfig(unittest.TestCase):
 
     def test_circuit_breaker_recovery_transition(self):
         """熔断器 OPEN → HALF_OPEN 恢复探测"""
+
         async def _test():
             cb = CircuitBreaker(failure_threshold=3, recovery_timeout=0.01)
             for _ in range(3):
@@ -465,6 +502,7 @@ class TestConnectionPoolConfig(unittest.TestCase):
 
     def test_circuit_breaker_success_recovery(self):
         """HALF_OPEN 成功后恢复为 CLOSED"""
+
         async def _test():
             cb = CircuitBreaker(failure_threshold=3, recovery_timeout=0.01)
             for _ in range(3):
@@ -487,6 +525,7 @@ class TestConnectionPoolConfig(unittest.TestCase):
 # ============================================================================
 # Repository 功能测试
 # ============================================================================
+
 
 class TestQueryCacheRepository(unittest.TestCase):
     def test_query_cache_set_and_get(self):
@@ -537,14 +576,18 @@ class TestMetricCacheRepository(unittest.TestCase):
             mock_client = _create_mock_redis_client()
             mock_client.hset = AsyncMock(return_value=3)
             mock_client.expire = AsyncMock(return_value=True)
-            mock_client.hgetall = AsyncMock(return_value={
-                "value": "75.5",
-                "timestamp": "1690000000000",
-                "attributes": json.dumps({"host": "server-01"}),
-            })
+            mock_client.hgetall = AsyncMock(
+                return_value={
+                    "value": "75.5",
+                    "timestamp": "1690000000000",
+                    "attributes": json.dumps({"host": "server-01"}),
+                }
+            )
 
             repo = MetricCacheRepository(mock_client)
-            await repo.set_metric(1001, "cpu_usage", 75.5, 1690000000000, {"host": "server-01"})
+            await repo.set_metric(
+                1001, "cpu_usage", 75.5, 1690000000000, {"host": "server-01"}
+            )
 
             result = await repo.get_metric(1001, "cpu_usage")
             self.assertIsNotNone(result)
@@ -560,13 +603,15 @@ class TestServiceStatsRepository(unittest.TestCase):
             mock_client = _create_mock_redis_client()
             mock_client.hset = AsyncMock(return_value=5)
             mock_client.expire = AsyncMock(return_value=True)
-            mock_client.hgetall = AsyncMock(return_value={
-                "span_count": "1000",
-                "error_count": "50",
-                "p50_latency_ns": "50000000",
-                "p99_latency_ns": "200000000",
-                "updated_at": "1690000000000",
-            })
+            mock_client.hgetall = AsyncMock(
+                return_value={
+                    "span_count": "1000",
+                    "error_count": "50",
+                    "p50_latency_ns": "50000000",
+                    "p99_latency_ns": "200000000",
+                    "updated_at": "1690000000000",
+                }
+            )
 
             repo = ServiceStatsRepository(mock_client)
             await repo.set_stats(1001, "api-gateway", 1000, 50, 50000000, 200000000)
@@ -614,9 +659,13 @@ class TestRankingRepository(unittest.TestCase):
             mock_client = _create_mock_redis_client()
             mock_client.zadd = AsyncMock(return_value=3)
             mock_client.expire = AsyncMock(return_value=True)
-            mock_client.zrevrange = AsyncMock(return_value=[
-                ("svc-c", 99.0), ("svc-a", 85.0), ("svc-b", 70.0),
-            ])
+            mock_client.zrevrange = AsyncMock(
+                return_value=[
+                    ("svc-c", 99.0),
+                    ("svc-a", 85.0),
+                    ("svc-b", 70.0),
+                ]
+            )
 
             repo = RankingRepository(mock_client)
             result = await repo.get_top_n(1001, "error_rate", n=3)
@@ -647,17 +696,24 @@ class TestSessionContextRepository(unittest.TestCase):
             mock_client = _create_mock_redis_client()
             mock_client.hset = AsyncMock(return_value=5)
             mock_client.expire = AsyncMock(return_value=True)
-            mock_client.hgetall = AsyncMock(return_value={
-                "tenant_id": "1001",
-                "time_range_start": "1690000000000",
-                "time_range_end": "1690086400000",
-                "filters": json.dumps({"service": "api-gateway"}),
-                "created_at": "1690000000000",
-            })
+            mock_client.hgetall = AsyncMock(
+                return_value={
+                    "tenant_id": "1001",
+                    "time_range_start": "1690000000000",
+                    "time_range_end": "1690086400000",
+                    "filters": json.dumps({"service": "api-gateway"}),
+                    "created_at": "1690000000000",
+                }
+            )
 
             repo = SessionContextRepository(mock_client)
-            await repo.save("sess001", 1001, 1690000000000, 1690086400000,
-                            {"service": "api-gateway"})
+            await repo.save(
+                "sess001",
+                1001,
+                1690000000000,
+                1690086400000,
+                {"service": "api-gateway"},
+            )
 
             result = await repo.load("sess001")
             self.assertIsNotNone(result)
@@ -670,6 +726,7 @@ class TestSessionContextRepository(unittest.TestCase):
 # ============================================================================
 # WriteThroughCache 测试
 # ============================================================================
+
 
 class TestWriteThroughCache(unittest.TestCase):
     def test_cache_miss_fetches_from_db(self):
@@ -727,6 +784,7 @@ class TestWriteThroughCache(unittest.TestCase):
 # ============================================================================
 # Helpers
 # ============================================================================
+
 
 def _create_mock_redis_client() -> MagicMock:
     """创建模拟 Redis 客户端"""

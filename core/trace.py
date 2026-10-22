@@ -6,6 +6,7 @@ DeepFlow Cross-Domain Trace — 全链路追踪
 
 零外部依赖，线程安全。
 """
+
 import uuid
 import time
 import json
@@ -16,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 class TraceContext:
     """全局追踪上下文（单例）"""
+
     _instance = None
     _lock = threading.Lock()
 
@@ -39,7 +41,9 @@ class TraceContext:
     def trace_id(self) -> Optional[str]:
         return self._trace_id
 
-    def span(self, name: str, domain: str = "unknown", **metadata: Any) -> Dict[str, Any]:
+    def span(
+        self, name: str, domain: str = "unknown", **metadata: Any
+    ) -> Dict[str, Any]:
         """记录一个 span（事件/阶段）"""
         span_data = {
             "trace_id": self._trace_id,
@@ -61,7 +65,8 @@ class TraceContext:
             "total_spans": len(self._spans),
             "spans": self._spans,
             "duration": (self._spans[-1]["timestamp"] - self._spans[0]["timestamp"])
-                        if len(self._spans) >= 2 else 0,
+            if len(self._spans) >= 2
+            else 0,
         }
 
     def save_to_blackboard(self, blackboard_dir: Path) -> Path:

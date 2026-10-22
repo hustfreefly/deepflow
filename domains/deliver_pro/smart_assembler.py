@@ -11,7 +11,7 @@ Deliver Pro Smart Assembler — Code-First Assembly
 
 用法：
     from domains.deliver_pro.smart_assembler import SmartAssembler
-    
+
     assembler = SmartAssembler(worker_outputs_dir, plan, output_dir)
     result = assembler.run()
     # result.retention_ratio >= 0.95
@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WorkerArtifact:
     """单个 Worker 的产出物。"""
+
     task_id: str
     title: str
     content: str
@@ -50,6 +51,7 @@ class WorkerArtifact:
 @dataclass
 class AssemblyResult:
     """组装结果。"""
+
     deliverable_path: Path
     report_path: Path
     workers_integrated: int
@@ -69,7 +71,7 @@ class AssemblyResult:
 class SmartAssembler:
     """
     确定性组装引擎 — 零 LLM 调用。
-    
+
     Pipeline:
       1. COLLECT: 读取 Worker 文件 + 校验 MANIFEST
       2. STRUCTURE: 拓扑排序 + 章节骨架
@@ -132,7 +134,10 @@ class SmartAssembler:
 
         # Write report
         report = self._generate_report(
-            artifacts, total_input, total_output, retention,
+            artifacts,
+            total_input,
+            total_output,
+            retention,
             workers_failed=workers_failed,
             coverage_gaps=coverage_gaps,
         )
@@ -144,7 +149,7 @@ class SmartAssembler:
 
         logger.info(
             f"Smart Assembly complete: {len(artifacts)} workers, "
-            f"{total_input/1024:.1f}KB → {total_output/1024:.1f}KB, "
+            f"{total_input / 1024:.1f}KB → {total_output / 1024:.1f}KB, "
             f"retention={retention:.1%}, status={status}"
         )
 
@@ -166,7 +171,7 @@ class SmartAssembler:
 
     def _collect(self) -> tuple[list[WorkerArtifact], list[dict]]:
         """读取所有 Worker 产出，校验 MANIFEST。
-        
+
         Returns:
             Tuple of (artifacts list, missing tasks list).
         """
@@ -195,27 +200,47 @@ class SmartAssembler:
             # Read MANIFEST.json (required, N4: missing/corrupted = failed)
             # Phase 2 fix: 使用 SafeJsonLoader 替代裸 json.loads（边界强制层）
             from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
             manifest_path = task_dir / "MANIFEST.json"
             manifest = {}
             if not manifest_path.exists():
-                logger.error(f"N4: MANIFEST.json missing for {task_id}, counting as failed")
-                missing_tasks.append({"task_id": task_id, "reason": "MANIFEST.json missing"})
+                logger.error(
+                    f"N4: MANIFEST.json missing for {task_id}, counting as failed"
+                )
+                missing_tasks.append(
+                    {"task_id": task_id, "reason": "MANIFEST.json missing"}
+                )
                 continue
             load_result = SafeJsonLoader.load_raw(manifest_path, mtime_window=0)
             if load_result.state == "ok":
                 manifest = load_result.data or {}
                 if not manifest:  # Empty dict
-                    logger.error(f"N4: MANIFEST.json empty for {task_id}, counting as failed")
-                    missing_tasks.append({"task_id": task_id, "reason": "MANIFEST.json empty"})
+                    logger.error(
+                        f"N4: MANIFEST.json empty for {task_id}, counting as failed"
+                    )
+                    missing_tasks.append(
+                        {"task_id": task_id, "reason": "MANIFEST.json empty"}
+                    )
                     continue
             elif load_result.state == "invalid_json":
-                logger.error(f"N4: MANIFEST.json corrupted for {task_id}: {load_result.error}")
-                missing_tasks.append({"task_id": task_id, "reason": f"MANIFEST.json corrupted: {load_result.error}"})
+                logger.error(
+                    f"N4: MANIFEST.json corrupted for {task_id}: {load_result.error}"
+                )
+                missing_tasks.append(
+                    {
+                        "task_id": task_id,
+                        "reason": f"MANIFEST.json corrupted: {load_result.error}",
+                    }
+                )
                 continue
             else:
                 # write_in_progress / not_found → 视为缺失
-                logger.error(f"N4: MANIFEST.json not ready for {task_id}: {load_result.state}")
-                missing_tasks.append({"task_id": task_id, "reason": f"MANIFEST.json {load_result.state}"})
+                logger.error(
+                    f"N4: MANIFEST.json not ready for {task_id}: {load_result.state}"
+                )
+                missing_tasks.append(
+                    {"task_id": task_id, "reason": f"MANIFEST.json {load_result.state}"}
+                )
                 continue
 
             # Read optional files
@@ -229,15 +254,17 @@ class SmartAssembler:
             if issues_path.exists():
                 issues = issues_path.read_text(encoding="utf-8")
 
-            artifacts.append(WorkerArtifact(
-                task_id=task_id,
-                title=task.get("title", task_id),
-                content=content,
-                evidence=evidence,
-                issues=issues,
-                manifest=manifest,
-                original_size=len(content.encode("utf-8")),
-            ))
+            artifacts.append(
+                WorkerArtifact(
+                    task_id=task_id,
+                    title=task.get("title", task_id),
+                    content=content,
+                    evidence=evidence,
+                    issues=issues,
+                    manifest=manifest,
+                    original_size=len(content.encode("utf-8")),
+                )
+            )
 
         return artifacts, missing_tasks
 
@@ -324,16 +351,14 @@ class SmartAssembler:
         for i, art in enumerate(artifacts, 1):
             # Shift headings down one level (# → ##)
             content = re.sub(
-                r'^(#{1,6})\s',
-                lambda m: '#' + m.group(1) + ' ',
+                r"^(#{1,6})\s",
+                lambda m: "#" + m.group(1) + " ",
                 art.content,
                 flags=re.MULTILINE,
             )
             # Wrap with chapter header
             chapter = (
-                f"# 第{i}章 {art.title}\n\n"
-                f"<!-- chapter: {art.task_id} -->\n\n"
-                f"{content}"
+                f"# 第{i}章 {art.title}\n\n<!-- chapter: {art.task_id} -->\n\n{content}"
             )
             normalized.append(chapter)
         return normalized
@@ -376,25 +401,24 @@ class SmartAssembler:
     def _generate_toc(self, content: str) -> str:
         """正则扫描标题，生成目录。"""
         toc_lines = ["## 目录\n"]
-        for match in re.finditer(r'^(#{1,4})\s+(.+)$', content, re.MULTILINE):
+        for match in re.finditer(r"^(#{1,4})\s+(.+)$", content, re.MULTILINE):
             level = len(match.group(1))
             title = match.group(2).strip()
             # Skip HTML comments and metadata
-            if title.startswith('<!--') or title.startswith('>'):
+            if title.startswith("<!--") or title.startswith(">"):
                 continue
             indent = "  " * (level - 1)
             anchor = re.sub(
-                r'[^\w\u4e00-\u9fff-]', '',
-                title.lower().replace(' ', '-'),
+                r"[^\w\u4e00-\u9fff-]",
+                "",
+                title.lower().replace(" ", "-"),
             )
             toc_lines.append(f"{indent}- [{title}](#{anchor})")
         return "\n".join(toc_lines)
 
     def _compile_evidence(self, artifacts: list[WorkerArtifact]) -> str:
         """合并所有 EVIDENCE.md 为证据索引附录。"""
-        parts_with_evidence = [
-            a for a in artifacts if a.evidence.strip()
-        ]
+        parts_with_evidence = [a for a in artifacts if a.evidence.strip()]
         if not parts_with_evidence:
             return ""
 
@@ -405,9 +429,7 @@ class SmartAssembler:
 
     def _compile_issues(self, artifacts: list[WorkerArtifact]) -> str:
         """合并所有 ISSUES.md 为问题清单附录。"""
-        parts_with_issues = [
-            a for a in artifacts if a.issues.strip()
-        ]
+        parts_with_issues = [a for a in artifacts if a.issues.strip()]
         if not parts_with_issues:
             return ""
 
@@ -520,7 +542,7 @@ def assemble(
 ) -> AssemblyResult:
     """
     One-call convenience function for Smart Assembly.
-    
+
     Usage:
         from domains.deliver_pro.smart_assembler import assemble
         result = assemble("stages/worker_outputs", "stages/execution_plan.json", "stages/integrated_draft")

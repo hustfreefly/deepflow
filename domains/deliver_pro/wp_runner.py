@@ -29,12 +29,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-import os
-import tempfile
 
 from domains.deliver_pro.contracts import (
     WorkPackage,
@@ -42,26 +39,21 @@ from domains.deliver_pro.contracts import (
     TaskNode,
     WorkerOutputMeta,
     ValidationVerdict,
-    ScoreDimension,
     FixDirective,
     PipelineState,
     PipelinePhase,
     DeliveryManifest,
-    ComponentStatus,
-    DeliveryStatus,
     RecoveryAction,
     WorkerError,
-    RecoveryStrategy,
-    IntegrationReport,
 )
 from core.blackboard.context_injector import auto_bootstrap
 from core.utils.atomic_io import atomic_write_json
 from domains.deliver_pro.prompt_registry import load_prompt
-from domains.deliver_pro.failure_recovery import WorkerFailureRecovery
 
 # ADR-009: MD Track Extractor (optional — graceful fallback if core/ not in path)
 try:
     from core.md_track_extractor import validate_md_structure, extract_track_json
+
     _HAS_TRACK_EXTRACTOR = True
 except ImportError:
     _HAS_TRACK_EXTRACTOR = False
@@ -121,7 +113,7 @@ class DeliverWPRunner:
 
         # Deliver Pro 专属目录（按 wp_id 分子目录）
         # Fix(commit 3489118): wp_subdir 必须保存为实例属性，供 prompt 模板使用
-        self.wp_subdir = wp.wp_id.lower().replace('-', '_') if wp.wp_id else ""
+        self.wp_subdir = wp.wp_id.lower().replace("-", "_") if wp.wp_id else ""
         self.deliver_pro_dir = self.blackboard_path / "deliver_pro" / self.wp_subdir
         self.data_dir = self.deliver_pro_dir / "data"
         self.stages_dir = self.deliver_pro_dir / "stages"
@@ -137,27 +129,41 @@ class DeliverWPRunner:
         if state_path.exists():
             try:
                 from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
+
                 result = SafeJsonLoader.load(state_path, PipelineState, mtime_window=0)
                 if result.state == "ok":
                     state_data = result.data
                 else:
                     # delivery_state.json 损坏，备份后重建
-                    logger.warning(f"delivery_state.json corrupted ({result.state}), backing up and rebuilding")
+                    logger.warning(
+                        f"delivery_state.json corrupted ({result.state}), backing up and rebuilding"
+                    )
                     backup_path = state_path.with_suffix(".corrupted")
                     state_path.rename(backup_path)
                     state_data = {}
                 # B2 fix: Phase field recovery — map unknown phase to valid enum
                 raw_phase = state_data.get("phase", "")
                 if raw_phase and raw_phase not in {p.value for p in PipelinePhase}:
-                    _PHASE_ALIASES = {"ASSEMBLING": "INTEGRATING", "ASSEMBLE": "INTEGRATING"}
+                    _PHASE_ALIASES = {
+                        "ASSEMBLING": "INTEGRATING",
+                        "ASSEMBLE": "INTEGRATING",
+                    }
                     if raw_phase in _PHASE_ALIASES:
-                        logger.warning(f"B2: Phase alias '{raw_phase}' → '{_PHASE_ALIASES[raw_phase]}'")
+                        logger.warning(
+                            f"B2: Phase alias '{raw_phase}' → '{_PHASE_ALIASES[raw_phase]}'"
+                        )
                         state_data["phase"] = _PHASE_ALIASES[raw_phase]
-                    elif state_data.get("completed_tasks") or state_data.get("running_tasks"):
-                        logger.warning(f"B2: Unknown phase '{raw_phase}', salvaging to GENERATING")
+                    elif state_data.get("completed_tasks") or state_data.get(
+                        "running_tasks"
+                    ):
+                        logger.warning(
+                            f"B2: Unknown phase '{raw_phase}', salvaging to GENERATING"
+                        )
                         state_data["phase"] = "GENERATING"
                     else:
-                        logger.warning(f"B2: Unknown phase '{raw_phase}', resetting to INIT")
+                        logger.warning(
+                            f"B2: Unknown phase '{raw_phase}', resetting to INIT"
+                        )
                         state_data["phase"] = "INIT"
                 self.state = PipelineState.model_validate(state_data)
                 logger.info(f"State loaded from disk: phase={self.state.phase}")
@@ -265,7 +271,7 @@ class DeliverWPRunner:
 
     # 第一行动提示（供 Orchestrator 在 spawn 时使用，非必选）
     ANALYZE_FIRST_ACTION_HINT = (
-        f"读取 bootstrap 后，你的下一个 action 必须是 exec: cat <wp_data_path>"
+        "读取 bootstrap 后，你的下一个 action 必须是 exec: cat <wp_data_path>"
     )
 
     def verify_analyze_output(self, plan_data: dict) -> tuple[bool, str]:
@@ -284,7 +290,10 @@ class DeliverWPRunner:
 
             # 额外检查
             if plan.wp_id != self.wp.wp_id:
-                return False, f"wp_id mismatch: expected {self.wp.wp_id}, got {plan.wp_id}"
+                return (
+                    False,
+                    f"wp_id mismatch: expected {self.wp.wp_id}, got {plan.wp_id}",
+                )
 
             # P1-5 fix: Allow zero-worker plans — mark as COMPLETED directly.
             # A valid plan with 0 tasks means "nothing to do" (e.g., no-op WP).
@@ -326,7 +335,9 @@ class DeliverWPRunner:
     def _build_analyze_prompt(self) -> str:
         """内嵌 Analyze Agent prompt（fallback）。"""
         shared_rules = self._load_shared_rules()
-        rules_section = f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
+        rules_section = (
+            f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
+        )
         return f"""你是 Deliver Pro 的 Analyze Agent。
 {rules_section}
 
@@ -382,6 +393,7 @@ class DeliverWPRunner:
     def _derive_worker_progress(self, plan: ExecutionPlan):
         """V3: 从文件系统推导 worker 进度（completed/failed/running/pending）。"""
         from domains.deliver_pro.phase_deriver import derive_worker_progress
+
         plan_task_ids = {t.task_id for t in plan.task_graph}
         task_deps = {t.task_id: t.depends_on for t in plan.task_graph}
         return derive_worker_progress(self.deliver_pro_dir, plan_task_ids, task_deps)
@@ -426,7 +438,9 @@ class DeliverWPRunner:
 
         # V3: 从文件系统推导进度（derive, don't sync）
         progress = self._derive_worker_progress(plan)
-        completed = completed_tasks if completed_tasks is not None else progress["completed"]
+        completed = (
+            completed_tasks if completed_tasks is not None else progress["completed"]
+        )
         ready_tasks = plan.get_ready_tasks(completed)
 
         # V3: 排除 running / failed / blocked（全部从文件推导）
@@ -486,7 +500,9 @@ class DeliverWPRunner:
     def _build_worker_prompt(self, task: TaskNode, plan: ExecutionPlan) -> str:
         """构建 Worker prompt。"""
         shared_rules = self._load_shared_rules()
-        rules_section = f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
+        rules_section = (
+            f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
+        )
         # 依赖路径
         dep_paths = []
         for dep_id in task.depends_on:
@@ -498,11 +514,19 @@ class DeliverWPRunner:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # N1: 格式化任务详细内容
-        ac_text = "\n".join(f"- {ac}" for ac in task.acceptance_criteria) if task.acceptance_criteria else "（无）"
-        outputs_text = "\n".join(
-            f"- {o.get('path', '?')} ({o.get('type', '?')})"
-            for o in task.expected_outputs
-        ) if task.expected_outputs else "（无）"
+        ac_text = (
+            "\n".join(f"- {ac}" for ac in task.acceptance_criteria)
+            if task.acceptance_criteria
+            else "（无）"
+        )
+        outputs_text = (
+            "\n".join(
+                f"- {o.get('path', '?')} ({o.get('type', '?')})"
+                for o in task.expected_outputs
+            )
+            if task.expected_outputs
+            else "（无）"
+        )
 
         # B3 fix (DryRun 2026-07-30): 透传 semantic_anchors 和 serving_principles
         # Ship Pro 的语义锚点和服务原则通过 _adapt_ship_pro_wp() 存入 WP.context，
@@ -516,8 +540,7 @@ class DeliverWPRunner:
             anchors_text = "（无）"
         if self.wp.serving_principles:
             principles_text = "\n".join(
-                f"- {p.get('obligation', str(p))}"
-                for p in self.wp.serving_principles
+                f"- {p.get('obligation', str(p))}" for p in self.wp.serving_principles
             )
         else:
             principles_text = "（无）"
@@ -540,7 +563,9 @@ class DeliverWPRunner:
                 wp_subdir=self.wp_subdir,
                 scenario=task.scenario_type,
                 dependencies=", ".join(dep_paths) if dep_paths else "无",
-                forced_actions=", ".join(task.forced_actions) if task.forced_actions else "无",
+                forced_actions=", ".join(task.forced_actions)
+                if task.forced_actions
+                else "无",
                 title=task.title,
                 description=task.description or task.title,
                 acceptance_criteria=ac_text,
@@ -548,7 +573,7 @@ class DeliverWPRunner:
                 deepflow_root=str(self.blackboard_path.parent.parent),
             )
             # B3 fix: 追加语义上下文到 template prompt
-            return prompt + semantic_context_section
+            return prompt + semantic_context_section + rules_section
         except FileNotFoundError:
             pass
 
@@ -557,6 +582,7 @@ class DeliverWPRunner:
         forced_actions = self._get_forced_actions(scenario)
 
         return f"""你是 Deliver Pro 的 Worker。
+{rules_section}
 
 ## 你的任务
 - Task ID: {task.task_id}
@@ -584,7 +610,7 @@ class DeliverWPRunner:
 {principles_text}
 
 ## 依赖（上游 Worker 输出）
-{chr(10).join(f'- {p}' for p in dep_paths) if dep_paths else '无依赖'}
+{chr(10).join(f"- {p}" for p in dep_paths) if dep_paths else "无依赖"}
 
 ## 输出目录
 {output_dir}
@@ -725,9 +751,14 @@ cd {self.blackboard_path.parent.parent}
             manifest_path = output_dir / "MANIFEST.json"
             from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
             from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
-            result = SafeJsonLoader.load(manifest_path, WorkerOutputMeta, mtime_window=0)
+
+            result = SafeJsonLoader.load(
+                manifest_path, WorkerOutputMeta, mtime_window=0
+            )
             if result.state != "ok":
-                self.mark_worker_failed(task_id, f"MANIFEST.json corrupted: {result.state}")
+                self.mark_worker_failed(
+                    task_id, f"MANIFEST.json corrupted: {result.state}"
+                )
                 return False, f"MANIFEST.json corrupted: {result.state}", None
             meta = result.parsed
         except Exception as e:
@@ -737,7 +768,9 @@ cd {self.blackboard_path.parent.parent}
         # P1-2: Override status to PARTIAL if optional files missing
         if missing_optional:
             meta.status = "PARTIAL"
-            logger.info(f"Worker {task_id} status overridden to PARTIAL (missing: {missing_optional})")
+            logger.info(
+                f"Worker {task_id} status overridden to PARTIAL (missing: {missing_optional})"
+            )
 
         # Smoke-test Gate (L1, 2026-07-31 git_init.sh 事故):
         # code 场景交付可执行脚本时，EVIDENCE.md 必须包含每个脚本名的执行证据，
@@ -856,7 +889,11 @@ cd {self.blackboard_path.parent.parent}
                 wp_subdir=self.wp_subdir,
                 worker_count=str(len(worker_dirs)),
                 failed_workers=", ".join(failed_workers) if failed_workers else "无",
-                fix_directives=json.dumps([d.model_dump() for d in fix_directives], ensure_ascii=False) if fix_directives else "无",
+                fix_directives=json.dumps(
+                    [d.model_dump() for d in fix_directives], ensure_ascii=False
+                )
+                if fix_directives
+                else "无",
                 deepflow_root=str(self.blackboard_path.parent.parent),
             )
         except FileNotFoundError:
@@ -880,7 +917,9 @@ cd {self.blackboard_path.parent.parent}
     ) -> str:
         """构建 Integrate Agent prompt。"""
         shared_rules = self._load_shared_rules()
-        rules_section = f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
+        rules_section = (
+            f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
+        )
         output_dir = self.stages_dir / "integrated_draft"
 
         fix_section = ""
@@ -897,6 +936,7 @@ cd {self.blackboard_path.parent.parent}
 """
 
         return f"""你是 Deliver Pro 的 Integrate Agent。
+{rules_section}
 
 ## 任务
 组装所有 Worker 输出为统一交付物草稿。
@@ -904,7 +944,7 @@ cd {self.blackboard_path.parent.parent}
 ## 输入
 - 执行计划: {self.stages_dir / "execution_plan.json"}
 - Worker 输出目录:
-{chr(10).join(f'  - {d}' for d in worker_dirs)}
+{chr(10).join(f"  - {d}" for d in worker_dirs)}
 
 ## 输出目录
 {output_dir}
@@ -948,10 +988,16 @@ cd {self.blackboard_path.parent.parent}
         if plan is None:
             try:
                 plan = self.load_execution_plan()
-                logger.info("P1-3: Auto-loaded execution plan from blackboard for verification")
+                logger.info(
+                    "P1-3: Auto-loaded execution plan from blackboard for verification"
+                )
             except Exception as e:
-                logger.warning(f"P1-3: Could not load execution plan from blackboard: {e}")
-                logger.warning("P1-3: Skipping completeness verification (plan unavailable)")
+                logger.warning(
+                    f"P1-3: Could not load execution plan from blackboard: {e}"
+                )
+                logger.warning(
+                    "P1-3: Skipping completeness verification (plan unavailable)"
+                )
 
         # 检查必需文件
         deliverable = output_dir / "DELIVERABLE.md"
@@ -966,7 +1012,10 @@ cd {self.blackboard_path.parent.parent}
         # 读取并验证 integration_report.json
         try:
             from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
-            from domains.deliver_pro.contracts.integration_report import IntegrationReport
+            from domains.deliver_pro.contracts.integration_report import (
+                IntegrationReport,
+            )
+
             result = SafeJsonLoader.load(report, IntegrationReport, mtime_window=0)
             if result.state != "ok":
                 return False, f"integration_report.json corrupted: {result.state}"
@@ -993,7 +1042,7 @@ cd {self.blackboard_path.parent.parent}
                 )
 
             # Retention check (Code-First Assembly requires >= 0.95)
-            retention = report_data.get("assembly_stats", {}).get(
+            retention = result.data.get("assembly_stats", {}).get(
                 "body_retention_ratio", 1.0
             )
             if retention < 0.95:
@@ -1006,7 +1055,8 @@ cd {self.blackboard_path.parent.parent}
             failed_ids = set(
                 t.task_id
                 for t in plan.task_graph
-                if t.task_id not in [
+                if t.task_id
+                not in [
                     # integrated workers are those with successful output
                     tid
                     for tid in self.state.completed_tasks
@@ -1080,7 +1130,9 @@ cd {self.blackboard_path.parent.parent}
     def _build_validate_prompt(self, plan: ExecutionPlan, round_num: int) -> str:
         """构建 Validate Judge prompt（fallback）。"""
         shared_rules = self._load_shared_rules()
-        rules_section = f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
+        rules_section = (
+            f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
+        )
         # 收集 AC 列表
         ac_list = []
         for task in plan.task_graph:
@@ -1088,6 +1140,7 @@ cd {self.blackboard_path.parent.parent}
                 ac_list.append(f"- [{task.task_id}] {ac}")
 
         return f"""你是 Deliver Pro 的 Validate Judge（独立质量裁判）。
+{rules_section}
 
 ## 任务
 独立评估交付物质量，输出判定结果。
@@ -1154,7 +1207,9 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
 请直接输出 JSON。
 """
 
-    def verify_validate_output(self, verdict_data: dict) -> tuple[bool, str, ValidationVerdict | None]:
+    def verify_validate_output(
+        self, verdict_data: dict
+    ) -> tuple[bool, str, ValidationVerdict | None]:
         """
         验证 Validate Judge 输出。
 
@@ -1166,7 +1221,9 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
 
             # 独立门禁验证：用代码计算 weighted_score 和 verdict，与 LLM 输出交叉验证
             computed_score = ValidationVerdict.compute_weighted_score(verdict.scores)
-            computed_verdict = ValidationVerdict.compute_verdict(computed_score, verdict.scores)
+            computed_verdict = ValidationVerdict.compute_verdict(
+                computed_score, verdict.scores
+            )
             if computed_verdict != verdict.verdict:
                 logger.warning(
                     f"Gate mismatch: LLM says {verdict.verdict}, "
@@ -1178,16 +1235,27 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
 
             # N6: Information Conservation Gate
             # Check AC coverage from integration report
-            integration_report_path = self.stages_dir / "integrated_draft" / "integration_report.json"
+            integration_report_path = (
+                self.stages_dir / "integrated_draft" / "integration_report.json"
+            )
             if integration_report_path.exists():
                 try:
-                    from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
-                    from domains.deliver_pro.contracts.integration_report import IntegrationReport
-                    result = SafeJsonLoader.load(integration_report_path, IntegrationReport, mtime_window=0)
+                    from domains.deliver_pro.utils.safe_json_loader import (
+                        SafeJsonLoader,
+                    )
+                    from domains.deliver_pro.contracts.integration_report import (
+                        IntegrationReport,
+                    )
+
+                    result = SafeJsonLoader.load(
+                        integration_report_path, IntegrationReport, mtime_window=0
+                    )
                     if result.state == "ok":
                         report_data = result.data
                     else:
-                        logger.warning(f"integration_report.json corrupted: {result.state}, skipping AC coverage check")
+                        logger.warning(
+                            f"integration_report.json corrupted: {result.state}, skipping AC coverage check"
+                        )
                         report_data = {}
                     coverage = report_data.get("coverage", {})
                     # Fix B-1: compute ratio from actual fields (covered/acceptance_criteria_total)
@@ -1202,7 +1270,9 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
                         verdict.verdict = "FAIL"
                         verdict.should_continue = False
                 except Exception as e:
-                    logger.warning(f"N6: Could not read integration report for AC check: {e}")
+                    logger.warning(
+                        f"N6: Could not read integration report for AC check: {e}"
+                    )
 
             # 写入修正后的验证结果（不是原始 verdict_data）
             verdict_path = self.stages_dir / "validation_result.json"
@@ -1256,7 +1326,9 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
 
         # Guard: should_continue may be None
         if verdict.should_continue is False:
-            logger.info(f"Validate Judge decided to stop: {verdict.should_continue_reason}")
+            logger.info(
+                f"Validate Judge decided to stop: {verdict.should_continue_reason}"
+            )
             return "stop"
 
         # Guard: has_fixable may be None
@@ -1303,21 +1375,29 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
 
         # Guard: empty worker_dirs
         if not worker_dirs:
-            raise ValueError(f"No worker output directories found in {self.worker_outputs_dir}")
+            raise ValueError(
+                f"No worker output directories found in {self.worker_outputs_dir}"
+            )
 
         # 构建 prompt（带 fix_directives）
         fix_directives = verdict.fix_directives or []
-        prompt = self._build_integrate_prompt(plan, worker_dirs, fix_directives=fix_directives)
+        prompt = self._build_integrate_prompt(
+            plan, worker_dirs, fix_directives=fix_directives
+        )
 
         # V3: 重入 INTEGRATING 前失效下游 artifact
         # （否则旧 validation_result.json 会让推导跳到 PACKAGING，带着旧 verdict 打包）
         # DryRun D-P2-3: 失效前备份旧 verdict，防止 fix-integrate 失败后丢失修复依据
         from domains.deliver_pro.phase_deriver import invalidate_downstream
+
         _vr_path = self.stages_dir / "validation_result.json"
         if _vr_path.exists():
             try:
                 import shutil
-                shutil.copy2(str(_vr_path), str(self.stages_dir / "validation_result.json.bak"))
+
+                shutil.copy2(
+                    str(_vr_path), str(self.stages_dir / "validation_result.json.bak")
+                )
             except Exception as e:
                 logger.warning(f"Failed to backup validation_result.json: {e}")
         invalidate_downstream(self.deliver_pro_dir, from_phase="INTEGRATING")
@@ -1354,7 +1434,9 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
             self.state.transition_to(PipelinePhase.VALIDATING)
             self._save_state()
 
-        logger.info(f"Fix integrate verified, transitioning to VALIDATING (round {self.state.round_count})")
+        logger.info(
+            f"Fix integrate verified, transitioning to VALIDATING (round {self.state.round_count})"
+        )
         return True, ""
 
     # ========================================================================
@@ -1386,7 +1468,9 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
             prompt = load_prompt(
                 "deliver_package",
                 wp_id=self.wp.wp_id,
-                delivery_status="COMPLETE" if (verdict and verdict.is_pass) else "PARTIAL",
+                delivery_status="COMPLETE"
+                if (verdict and verdict.is_pass)
+                else "PARTIAL",
                 final_score=f"{verdict.weighted_score:.1f}" if verdict else "N/A",
                 pass_count=str(len(progress["completed"])),
                 fail_count=str(derived_fail_count),
@@ -1413,7 +1497,9 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
     ) -> str:
         """构建 Package Agent prompt（fallback）。"""
         shared_rules = self._load_shared_rules()
-        rules_section = f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
+        rules_section = (
+            f"\n\n## 共享规则（必须遵守）\n{shared_rules}" if shared_rules else ""
+        )
         verdict_info = ""
         if verdict:
             verdict_info = f"""
@@ -1436,6 +1522,7 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
             task_status.append(f"- {task.task_id}: {status}")
 
         return f"""你是 Deliver Pro 的 Package Agent。
+{rules_section}
 
 ## 任务
 最终打包 + 组件级诚实交付。
@@ -1469,7 +1556,7 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
   "validation_summary": {{
     "rounds_run": {verdict.round if verdict else 0},
     "final_score": {verdict.weighted_score if verdict else 0},
-    "verdict": "{verdict.verdict if verdict else 'N/A'}"
+    "verdict": "{verdict.verdict if verdict else "N/A"}"
   }}
 }}
 ```
@@ -1493,7 +1580,9 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         提取失败 → log warning，不阻断交付。
         """
         if not _HAS_TRACK_EXTRACTOR:
-            logger.info("ADR-009: md_track_extractor not available, skipping track.json generation")
+            logger.info(
+                "ADR-009: md_track_extractor not available, skipping track.json generation"
+            )
             return
 
         deliverable_path = self.stages_dir / "final_deliverable" / "DELIVERABLE.md"
@@ -1634,7 +1723,9 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         except Exception as e:
             return False, f"RecoveryAction validation failed: {e}", None
 
-    def verify_package_output(self, manifest_path: Path) -> tuple[bool, str, DeliveryManifest | None]:
+    def verify_package_output(
+        self, manifest_path: Path
+    ) -> tuple[bool, str, DeliveryManifest | None]:
         """
         B-4 fix: 验证 Package 阶段的 delivery_manifest.json。
 
@@ -1646,7 +1737,10 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         try:
             from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
             from domains.deliver_pro.contracts.delivery_manifest import DeliveryManifest
-            result = SafeJsonLoader.load(manifest_path, DeliveryManifest, mtime_window=0)
+
+            result = SafeJsonLoader.load(
+                manifest_path, DeliveryManifest, mtime_window=0
+            )
             if result.state != "ok":
                 return False, f"delivery_manifest.json corrupted: {result.state}", None
             manifest = result.parsed
@@ -1685,13 +1779,18 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
             if manifest_path.exists():
                 from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
                 from domains.deliver_pro.contracts.worker_task import WorkerOutputMeta
-                result = SafeJsonLoader.load(manifest_path, WorkerOutputMeta, mtime_window=0)
+
+                result = SafeJsonLoader.load(
+                    manifest_path, WorkerOutputMeta, mtime_window=0
+                )
                 if result.state == "ok":
                     data = result.data
                 else:
                     # MANIFEST 损坏，备份后重新创建
                     # 注意：SafeJsonLoader 可能已经备份了文件，所以先检查是否还存在
-                    logger.warning(f"MANIFEST corrupted for {task_id} ({result.state}), backing up and recreating")
+                    logger.warning(
+                        f"MANIFEST corrupted for {task_id} ({result.state}), backing up and recreating"
+                    )
                     if manifest_path.exists():
                         backup_path = manifest_path.with_suffix(".corrupted")
                         manifest_path.rename(backup_path)
@@ -1741,6 +1840,7 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
         try:
             from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
             from domains.deliver_pro.contracts.execution_plan import ExecutionPlan
+
             result = SafeJsonLoader.load(plan_path, ExecutionPlan, mtime_window=0)
             if result.state == "ok":
                 return result.parsed
@@ -1757,8 +1857,13 @@ Round {round_num}/{MAX_VALIDATE_ROUNDS}
             return None
         try:
             from domains.deliver_pro.utils.safe_json_loader import SafeJsonLoader
-            from domains.deliver_pro.contracts.validation_verdict import ValidationVerdict
-            result = SafeJsonLoader.load(verdict_path, ValidationVerdict, mtime_window=0)
+            from domains.deliver_pro.contracts.validation_verdict import (
+                ValidationVerdict,
+            )
+
+            result = SafeJsonLoader.load(
+                verdict_path, ValidationVerdict, mtime_window=0
+            )
             if result.state == "ok":
                 return result.parsed
             logger.error(f"validation_result.json corrupted: {result.state}")

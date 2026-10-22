@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
+import sys as _sys
+import json
+import argparse
+import logging
+
+_p = __import__("pathlib").Path(__file__).resolve()
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
+_sys.path.insert(0, str(_r)) if _r and str(
+    _r
+) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 """
 update_conversation_log.py — 更新对话日志（幂等、确定性）
 
@@ -19,10 +28,7 @@ Usage:
 注意：核心逻辑已移至 utils.py::append_conversation_log，此处为 CLI 入口（P1-2 去重）。
 """
 
-import json
-import sys
-import argparse
-import logging
+
 logger = logging.getLogger(__name__)
 
 

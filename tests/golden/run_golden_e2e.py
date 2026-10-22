@@ -17,10 +17,12 @@ Solution Pro E2E Golden Case 启动器
 
 import json
 import os
-
-DEEPFLOW_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from domains.solution_pro import run_solution_pro
+
+DEEPFLOW_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+
 
 def main():
     # 加载 golden case
@@ -74,14 +76,14 @@ def main():
 
     # 输出后续步骤
     print(f"""
-{'=' * 60}
+{"=" * 60}
 📌 后续步骤（在主Agent中执行）:
 
 1. 清理旧状态文件:
    python3 -c "
    import os
 import core.bootstrap
-   base = '{plan['base_path']}'
+   base = '{plan["base_path"]}'
    for f in ['.completed', '.cron_job_id', '.cron_run_count', '.notified_stages.json', '.run_start_at']:
        p = os.path.join(base, f)
        os.path.exists(p) and os.remove(p)
@@ -101,8 +103,8 @@ import core.bootstrap
 4. sessions_yield() 等待完成
 
 5. 完成后运行验证:
-   python3 tests/golden/verify_golden_case.py {plan['session_id']}
-{'=' * 60}
+   python3 tests/golden/verify_golden_case.py {plan["session_id"]}
+{"=" * 60}
 """)
 
     # 输出 session_id 供外部脚本使用
@@ -110,6 +112,7 @@ import core.bootstrap
         f.write(plan["session_id"])
 
     return plan
+
 
 if __name__ == "__main__":
     main()

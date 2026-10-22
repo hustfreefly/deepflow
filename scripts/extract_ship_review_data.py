@@ -16,7 +16,6 @@ import argparse
 import json
 import os
 import sys
-from pathlib import Path
 
 
 def extract(base_path: str, session_id: str) -> dict:
@@ -32,22 +31,26 @@ def extract(base_path: str, session_id: str) -> dict:
     # === 1. Blueprint 模块 ===
     bp_modules = []
     for m in blueprint.get("architecture", {}).get("modules", []):
-        bp_modules.append({
-            "id": m.get("id", ""),
-            "name": m.get("name", ""),
-            "summary": m.get("summary", ""),
-            "tier": m.get("tier", ""),
-            "dependencies": m.get("dependencies", []),
-        })
+        bp_modules.append(
+            {
+                "id": m.get("id", ""),
+                "name": m.get("name", ""),
+                "summary": m.get("summary", ""),
+                "tier": m.get("tier", ""),
+                "dependencies": m.get("dependencies", []),
+            }
+        )
 
     # === 2. Blueprint 需求 ===
     bp_requirements = []
     for r in blueprint.get("requirements", {}).get("items", []):
-        bp_requirements.append({
-            "id": r.get("id", ""),
-            "text": r.get("text", ""),
-            "priority": r.get("priority", ""),
-        })
+        bp_requirements.append(
+            {
+                "id": r.get("id", ""),
+                "text": r.get("text", ""),
+                "priority": r.get("priority", ""),
+            }
+        )
 
     # === 3. Blueprint 约束与风险 ===
     bp_constraints = blueprint.get("intent", {}).get("success_criteria", [])
@@ -57,18 +60,20 @@ def extract(base_path: str, session_id: str) -> dict:
     # === 4. Ship Package WP ===
     sp_work_packages = []
     for wp in ship_package.get("work_packages", []):
-        sp_work_packages.append({
-            "id": wp.get("id", ""),
-            "title": wp.get("title", ""),
-            "phase": wp.get("phase", ""),
-            "dependencies": wp.get("dependencies", []),
-            "estimated_complexity": wp.get("estimated_complexity", ""),
-            "related_modules": wp.get("related_modules", []),
-            "requirements": wp.get("requirements", []),
-            "acceptance_criteria": wp.get("acceptance_criteria", []),
-            "deliverables": wp.get("deliverables", []),
-            "constraints": wp.get("constraints", []),
-        })
+        sp_work_packages.append(
+            {
+                "id": wp.get("id", ""),
+                "title": wp.get("title", ""),
+                "phase": wp.get("phase", ""),
+                "dependencies": wp.get("dependencies", []),
+                "estimated_complexity": wp.get("estimated_complexity", ""),
+                "related_modules": wp.get("related_modules", []),
+                "requirements": wp.get("requirements", []),
+                "acceptance_criteria": wp.get("acceptance_criteria", []),
+                "deliverables": wp.get("deliverables", []),
+                "constraints": wp.get("constraints", []),
+            }
+        )
 
     # === 5. Ship Package 验收契约 ===
     sp_acceptance = ship_package.get("acceptance_contract", [])
@@ -84,8 +89,7 @@ def extract(base_path: str, session_id: str) -> dict:
 
     modules_without_wp = list(bp_module_ids - wp_related_ids)
     wp_without_module = [
-        wp["id"] for wp in sp_work_packages
-        if not wp.get("related_modules")
+        wp["id"] for wp in sp_work_packages if not wp.get("related_modules")
     ]
 
     # === 8. 依赖预检 (确定性) ===
@@ -173,10 +177,12 @@ def main():
     print(f"✅ Review data extracted to {output_path}")
     print(f"   Modules: {len(result['blueprint']['modules'])}")
     print(f"   Work Packages: {len(result['ship_package']['work_packages'])}")
-    print(f"   Pre-check issues: "
-          f"{len(result['pre_checks']['modules_without_wp'])} orphan modules, "
-          f"{len(result['pre_checks']['invalid_dependencies'])} invalid deps, "
-          f"{len(result['pre_checks']['dependency_cycles'])} cycles")
+    print(
+        f"   Pre-check issues: "
+        f"{len(result['pre_checks']['modules_without_wp'])} orphan modules, "
+        f"{len(result['pre_checks']['invalid_dependencies'])} invalid deps, "
+        f"{len(result['pre_checks']['dependency_cycles'])} cycles"
+    )
 
 
 if __name__ == "__main__":

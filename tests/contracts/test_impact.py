@@ -1,4 +1,5 @@
 """Contract tests for scripts/impact.py (P0-1)."""
+
 import json
 import subprocess
 import sys
@@ -11,7 +12,9 @@ SCRIPT = ROOT / "scripts" / "impact.py"
 def run(*args):
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
-        capture_output=True, text=True, cwd=ROOT,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
     )
 
 

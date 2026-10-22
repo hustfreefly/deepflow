@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 class Dimension(BaseModel):
     """单维度评分"""
+
     dimension: str
     score: Union[int, float]
     weight: Union[int, float] = 0.15
@@ -19,6 +20,7 @@ class Dimension(BaseModel):
 
 class QualityReport(BaseModel):
     """质量报告"""
+
     overall_score: Union[int, float]
     level: str
     dimensions: list[Dimension] = Field(default_factory=list)

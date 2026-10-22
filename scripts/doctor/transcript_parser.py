@@ -42,6 +42,7 @@ def parse_transcript(path: str | Path) -> list[dict]:
 def parse_session_events(session_id: str, agent_id: str | None = None) -> list[dict]:
     """从 2026.9.1 SQLite transcript 存储解析事件列表（主入口）。"""
     from session_store import iter_transcript_records
+
     return parse_records(iter_transcript_records(session_id, agent_id))
 
 
@@ -65,25 +66,33 @@ def parse_records(records) -> list[dict]:
             if role == "toolResult":
                 result_text = _extract_result_text(content)
                 error_msg = _extract_error(result_text, msg_is_error)
-                events.append({
-                    "type": "tool_result",
-                    "role": "toolResult",
-                    "tool": tool_name,
-                    "tool_id": tool_call_id,
-                    "success": not msg_is_error and error_msg is None,
-                    "error": error_msg,
-                    "content_preview": result_text[:500],
-                    "ts": ts,
-                })
+                events.append(
+                    {
+                        "type": "tool_result",
+                        "role": "toolResult",
+                        "tool": tool_name,
+                        "tool_id": tool_call_id,
+                        "success": not msg_is_error and error_msg is None,
+                        "error": error_msg,
+                        "content_preview": result_text[:500],
+                        "ts": ts,
+                    }
+                )
             else:
-                events.extend(_parse_message(role, content, ts, msg_is_error=msg_is_error))
+                events.extend(
+                    _parse_message(role, content, ts, msg_is_error=msg_is_error)
+                )
         elif rtype == "session":
-            events.append({"type": "session_start", "id": record.get("id", ""), "ts": ts})
+            events.append(
+                {"type": "session_start", "id": record.get("id", ""), "ts": ts}
+            )
 
     return events
 
 
-def _parse_message(role: str, content: Any, ts: int, msg_is_error: bool = False) -> list[dict]:
+def _parse_message(
+    role: str, content: Any, ts: int, msg_is_error: bool = False
+) -> list[dict]:
     """解析 message 内容块。"""
     events = []
 
@@ -101,25 +110,41 @@ def _parse_message(role: str, content: Any, ts: int, msg_is_error: bool = False)
         ptype = part.get("type", "")
 
         if ptype == "thinking":
-            events.append({"type": "thinking", "role": role, "content": part.get("thinking", ""), "ts": ts})
+            events.append(
+                {
+                    "type": "thinking",
+                    "role": role,
+                    "content": part.get("thinking", ""),
+                    "ts": ts,
+                }
+            )
 
         elif ptype == "text":
-            events.append({"type": "text", "role": role, "content": part.get("text", ""), "ts": ts})
+            events.append(
+                {
+                    "type": "text",
+                    "role": role,
+                    "content": part.get("text", ""),
+                    "ts": ts,
+                }
+            )
 
         elif ptype == "toolCall":
             tool_name = part.get("name", "unknown")
             tool_input = part.get("input", {})
             tool_id = part.get("id", "")
             input_preview = _summarize_input(tool_name, tool_input)
-            events.append({
-                "type": "tool_call",
-                "role": role,
-                "tool": tool_name,
-                "tool_id": tool_id,
-                "input_preview": input_preview,
-                "input_raw": tool_input,
-                "ts": ts,
-            })
+            events.append(
+                {
+                    "type": "tool_call",
+                    "role": role,
+                    "tool": tool_name,
+                    "tool_id": tool_id,
+                    "input_preview": input_preview,
+                    "input_raw": tool_input,
+                    "ts": ts,
+                }
+            )
 
         elif ptype == "toolResult":
             tool_id = part.get("toolUseId", "")
@@ -127,15 +152,17 @@ def _parse_message(role: str, content: Any, ts: int, msg_is_error: bool = False)
             is_error = part.get("isError", False) or msg_is_error
             result_text = _extract_result_text(result_content)
             error_msg = _extract_error(result_text, is_error)
-            events.append({
-                "type": "tool_result",
-                "role": "toolResult",
-                "tool_id": tool_id,
-                "success": not is_error and error_msg is None,
-                "error": error_msg,
-                "content_preview": result_text[:500],
-                "ts": ts,
-            })
+            events.append(
+                {
+                    "type": "tool_result",
+                    "role": "toolResult",
+                    "tool_id": tool_id,
+                    "success": not is_error and error_msg is None,
+                    "error": error_msg,
+                    "content_preview": result_text[:500],
+                    "ts": ts,
+                }
+            )
 
     return events
 
@@ -189,7 +216,9 @@ def _extract_error(result_text: str, is_error: bool) -> str | None:
 
     # 仅检测明确的结构化错误信号（不扫描普通文本）
     # 1. exec 返回非零退出码（stderr 有内容）
-    if re.search(r'^---\n\n\(Command exited with code [1-9]\d*\)', result_text, re.MULTILINE):
+    if re.search(
+        r"^---\n\n\(Command exited with code [1-9]\d*\)", result_text, re.MULTILINE
+    ):
         return result_text[:300]
 
     # 2. 工具返回的 JSON 错误包装

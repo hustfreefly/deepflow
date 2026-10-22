@@ -30,75 +30,84 @@ ANNOTATION_SCHEMA = {
         "properties": {
             "original_text": {
                 "type": "string",
-                "description": "原始需求文本（用于匹配REQ）"
+                "description": "原始需求文本（用于匹配REQ）",
             },
             "category": {
                 "enum": [
-                    "core_objective", "capability", "prohibition",
-                    "quality_attribute", "constraint", "integration",
-                    "pain_point", "success_metric", "user", "scenario",
-                    "risk", "assumption"
+                    "core_objective",
+                    "capability",
+                    "prohibition",
+                    "quality_attribute",
+                    "constraint",
+                    "integration",
+                    "pain_point",
+                    "success_metric",
+                    "user",
+                    "scenario",
+                    "risk",
+                    "assumption",
                 ],
-                "description": "需求分类"
+                "description": "需求分类",
             },
             "priority": {
                 "enum": ["P0", "P1", "P2"],
-                "description": "优先级（P0=必须, P1=应该, P2=可以）"
+                "description": "优先级（P0=必须, P1=应该, P2=可以）",
             },
             "dependencies": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "依赖的REQ-ID列表（可选）"
+                "description": "依赖的REQ-ID列表（可选）",
             },
             "potential_conflicts": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "潜在冲突的REQ-ID列表（可选，标记为potential而非confirmed）"
+                "description": "潜在冲突的REQ-ID列表（可选，标记为potential而非confirmed）",
             },
             "context_note": {
                 "type": "string",
-                "description": "一句话结构化上下文（不是用户原话，信息密度更高）"
-            }
-        }
-    }
+                "description": "一句话结构化上下文（不是用户原话，信息密度更高）",
+            },
+        },
+    },
 }
 
 # ============================================================================
 # Prompt 构建
 # ============================================================================
 
+
 def _build_annotation_prompt(confirmed: Dict[str, Any]) -> str:
     """构建 LLM 标注 prompt"""
-    
+
     # 提取所有需求文本
     req_texts = []
-    
+
     # objective
     if confirmed.get("objective"):
         req_texts.append(f"目标: {confirmed['objective']}")
-    
+
     # pain_points
     for p in confirmed.get("pain_points", []):
         req_texts.append(f"痛点: {p}")
-    
+
     # users
     for u in confirmed.get("users", []):
         if isinstance(u, dict):
             req_texts.append(f"用户: {u.get('role', '')} - {u.get('description', '')}")
         else:
             req_texts.append(f"用户: {u}")
-    
+
     # key_scenarios
     for s in confirmed.get("key_scenarios", []):
         req_texts.append(f"场景: {s}")
-    
+
     # success_metrics
     for m in confirmed.get("success_metrics", []):
         if isinstance(m, dict):
             req_texts.append(f"成功指标: {m.get('metric', '')} - {m.get('target', '')}")
         else:
             req_texts.append(f"成功指标: {m}")
-    
+
     # capabilities
     caps = confirmed.get("capabilities", {})
     for cap in caps.get("always_do", []):
@@ -107,14 +116,16 @@ def _build_annotation_prompt(confirmed: Dict[str, Any]) -> str:
         req_texts.append(f"应该做: {cap}")
     for cap in caps.get("never_do", []):
         req_texts.append(f"禁止做: {cap}")
-    
+
     # quality_attributes
     for qa in confirmed.get("quality_attributes", []):
         if isinstance(qa, dict):
-            req_texts.append(f"质量属性: {qa.get('category', '')} - {qa.get('spec', '')}")
+            req_texts.append(
+                f"质量属性: {qa.get('category', '')} - {qa.get('spec', '')}"
+            )
         else:
             req_texts.append(f"质量属性: {qa}")
-    
+
     # constraints - 兼容 dict 和 list 格式
     constraints = confirmed.get("constraints", {})
     if isinstance(constraints, dict):
@@ -123,12 +134,12 @@ def _build_annotation_prompt(confirmed: Dict[str, Any]) -> str:
     elif isinstance(constraints, list):
         for c in constraints:
             req_texts.append(f"约束: {c}")
-    
+
     # integration
     integration = confirmed.get("integration", {})
     for req in integration.get("requirements", []):
         req_texts.append(f"集成需求: {req}")
-    
+
     # risks
     ra = confirmed.get("risks_and_assumptions", {})
     for r in ra.get("risks", []):
@@ -136,14 +147,14 @@ def _build_annotation_prompt(confirmed: Dict[str, Any]) -> str:
             req_texts.append(f"风险: {r.get('description', '')}")
         else:
             req_texts.append(f"风险: {r}")
-    
+
     # assumptions
     for a in ra.get("assumptions", []):
         if isinstance(a, dict):
             req_texts.append(f"假设: {a.get('description', '')}")
         else:
             req_texts.append(f"假设: {a}")
-    
+
     # 构建 prompt
     prompt = f"""你是一个需求标注专家。请对以下需求进行语义标注。
 
@@ -210,12 +221,14 @@ def _build_annotation_prompt(confirmed: Dict[str, Any]) -> str:
 6. **只输出 JSON 数组**，不要包含其他文字或 markdown 标记
 
 请开始标注："""
-    
+
     return prompt
+
 
 # ============================================================================
 # 标注验证
 # ============================================================================
+
 
 def _validate_annotations(annotations: List[Dict[str, Any]]) -> bool:
     """验证标注是否符合 Schema"""
@@ -226,32 +239,35 @@ def _validate_annotations(annotations: List[Dict[str, Any]]) -> bool:
         logger.warning(f"LLM annotation validation failed: {e.message}")
         return False
 
-def _check_coverage(confirmed: Dict[str, Any], annotations: List[Dict[str, Any]]) -> float:
+
+def _check_coverage(
+    confirmed: Dict[str, Any], annotations: List[Dict[str, Any]]
+) -> float:
     """检查标注覆盖率"""
     # 提取所有需求文本
     req_texts = set()
-    
+
     if confirmed.get("objective"):
         req_texts.add(f"目标: {confirmed['objective']}")
-    
+
     for p in confirmed.get("pain_points", []):
         req_texts.add(f"痛点: {p}")
-    
+
     for u in confirmed.get("users", []):
         if isinstance(u, dict):
             req_texts.add(f"用户: {u.get('role', '')} - {u.get('description', '')}")
         else:
             req_texts.add(f"用户: {u}")
-    
+
     for s in confirmed.get("key_scenarios", []):
         req_texts.add(f"场景: {s}")
-    
+
     for m in confirmed.get("success_metrics", []):
         if isinstance(m, dict):
             req_texts.add(f"成功指标: {m.get('metric', '')} - {m.get('target', '')}")
         else:
             req_texts.add(f"成功指标: {m}")
-    
+
     caps = confirmed.get("capabilities", {})
     for cap in caps.get("always_do", []):
         req_texts.add(f"必须做: {cap}")
@@ -259,13 +275,13 @@ def _check_coverage(confirmed: Dict[str, Any], annotations: List[Dict[str, Any]]
         req_texts.add(f"应该做: {cap}")
     for cap in caps.get("never_do", []):
         req_texts.add(f"禁止做: {cap}")
-    
+
     for qa in confirmed.get("quality_attributes", []):
         if isinstance(qa, dict):
             req_texts.add(f"质量属性: {qa.get('category', '')} - {qa.get('spec', '')}")
         else:
             req_texts.add(f"质量属性: {qa}")
-    
+
     # constraints - 兼容 dict 和 list 格式
     constraints = confirmed.get("constraints", {})
     if isinstance(constraints, dict):
@@ -274,44 +290,45 @@ def _check_coverage(confirmed: Dict[str, Any], annotations: List[Dict[str, Any]]
     elif isinstance(constraints, list):
         for c in constraints:
             req_texts.add(f"约束: {c}")
-    
+
     integration = confirmed.get("integration", {})
     for req in integration.get("requirements", []):
         req_texts.add(f"集成需求: {req}")
-    
+
     ra = confirmed.get("risks_and_assumptions", {})
     for r in ra.get("risks", []):
         if isinstance(r, dict):
             req_texts.add(f"风险: {r.get('description', '')}")
         else:
             req_texts.add(f"风险: {r}")
-    
+
     for a in ra.get("assumptions", []):
         if isinstance(a, dict):
             req_texts.add(f"假设: {a.get('description', '')}")
         else:
             req_texts.add(f"假设: {a}")
-    
+
     # 统计已标注的需求
     annotated_texts = {ann.get("original_text", "") for ann in annotations}
-    
+
     # 计算覆盖率
     if not req_texts:
         return 1.0
-    
+
     covered = sum(1 for text in req_texts if text in annotated_texts)
     coverage = covered / len(req_texts)
-    
+
     logger.info(f"Annotation coverage: {coverage:.2%} ({covered}/{len(req_texts)})")
     return coverage
+
 
 # ============================================================================
 # 主函数
 # ============================================================================
 
+
 def annotate_requirements(
-    living_spec: Dict[str, Any],
-    llm_call_fn: Callable[[str], str]
+    living_spec: Dict[str, Any], llm_call_fn: Callable[[str], str]
 ) -> Optional[List[Dict[str, Any]]]:
     """
     LLM 标注需求
@@ -367,5 +384,7 @@ def annotate_requirements(
             f"契约笼子: LLM annotation 覆盖率过低 {coverage:.2%} < 80%（无脚本 fallback）"
         )
 
-    logger.info(f"LLM annotation successful: {len(annotations)} annotations, {coverage:.2%} coverage")
+    logger.info(
+        f"LLM annotation successful: {len(annotations)} annotations, {coverage:.2%} coverage"
+    )
     return annotations

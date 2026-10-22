@@ -35,9 +35,7 @@ SKIP_PATTERNS = [
     "__pycache__",
 ]
 
-HARDCODED_PATH_RE = re.compile(
-    r"/Users/[a-zA-Z0-9_-]+/\.openclaw/workspace/\.deepflow"
-)
+HARDCODED_PATH_RE = re.compile(r"/Users/[a-zA-Z0-9_-]+/\.openclaw/workspace/\.deepflow")
 
 ALLOWED_IN = {
     ".pyc",
@@ -56,7 +54,9 @@ def check_file(path: Path) -> list[str]:
         return []
     violations = []
     try:
-        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        for line_no, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1
+        ):
             if HARDCODED_PATH_RE.search(line):
                 # 跳过包含 {deepflow_root} 的行（模板变量，不是硬编码）
                 if "{deepflow_root}" in line or "{DEEPFLOW_ROOT}" in line:
@@ -82,7 +82,9 @@ def main():
                         continue
                     violations = check_file(path)
                     if violations:
-                        all_violations[str(path.relative_to(DEEPFLOW_ROOT))] = violations
+                        all_violations[str(path.relative_to(DEEPFLOW_ROOT))] = (
+                            violations
+                        )
 
     if all_violations:
         print(f"❌ FAIL: {len(all_violations)} 个文件包含硬编码路径")
@@ -92,7 +94,9 @@ def main():
                 print(line)
             if len(lines) > 3:
                 print(f"  ... and {len(lines) - 3} more")
-        print(f"\n修复: 将 /Users/xxx/.openclaw/workspace/.deepflow 替换为 {{deepflow_root}}")
+        print(
+            "\n修复: 将 /Users/xxx/.openclaw/workspace/.deepflow 替换为 {deepflow_root}"
+        )
         return 1
     else:
         print("✅ PASS: 活跃文件中无硬编码路径")

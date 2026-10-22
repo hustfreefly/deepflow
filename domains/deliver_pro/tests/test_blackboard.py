@@ -1,9 +1,7 @@
 """Tests for DeliverProBlackboard."""
 
-import json
 import threading
 
-import pytest
 
 from domains.deliver_pro.blackboard import DeliverProBlackboard
 

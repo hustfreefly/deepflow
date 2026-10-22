@@ -13,8 +13,6 @@ atomic_io 端到端验证 — 契约笼子 Step 4
 """
 
 import json
-import os
-import tempfile
 import threading
 from pathlib import Path
 

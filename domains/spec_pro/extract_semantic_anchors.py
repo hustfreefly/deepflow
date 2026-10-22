@@ -78,6 +78,7 @@ Semantic Anchor 是在多阶段管线传递中**不应被泛化/抽象化**的�
 # 提取函数（代码格式化 + Pydantic 验证）
 # ============================================================================
 
+
 def extract_semantic_anchors(
     narrative: str,
     llm_call: Callable[[str], str],
@@ -85,29 +86,29 @@ def extract_semantic_anchors(
 ) -> List[Dict[str, Any]]:
     """
     从 narrative 中提取 semantic anchors。
-    
+
     Args:
         narrative: 用户需求叙述文本
         llm_call: LLM 调用函数 (prompt: str) -> str (返回 JSON 文本)
         min_confidence: 最低置信度阈值，低于此值标记 needs_review
-    
+
     Returns:
         List[Dict] — 通过 Pydantic 验证的 semantic anchors
-    
+
     Raises:
         ValueError: LLM 返回格式不合法且无法解析
     """
     # Import here to avoid circular dependency
     from domains.spec_pro.contracts.living_spec import SemanticAnchor
-    
+
     if not narrative or len(narrative.strip()) < 20:
         logger.warning("narrative 太短，跳过 semantic anchor 提取")
         return []
-    
+
     # 1. LLM 语义提取
     prompt = EXTRACTION_PROMPT.format(narrative=narrative[:5000])  # 截断防止超长
     raw_output = llm_call(prompt)
-    
+
     # 2. 解析 JSON
     anchors_data = _parse_llm_json(raw_output)
     if anchors_data is None:
@@ -115,18 +116,18 @@ def extract_semantic_anchors(
             f"契约笼子: LLM 返回的 semantic anchors JSON 无法解析。\n"
             f"原始输出前 500 字: {raw_output[:500]}"
         )
-    
+
     if not isinstance(anchors_data, list):
         raise ValueError(
             f"契约笼子: semantic anchors 必须是 JSON 数组，实际: {type(anchors_data).__name__}"
         )
-    
+
     # 3. Pydantic 验证 + 置信度过滤
     validated_anchors = []
     for i, anchor_dict in enumerate(anchors_data):
         try:
             anchor = SemanticAnchor(**anchor_dict)
-            
+
             # 置信度检查
             if anchor.confidence < min_confidence:
                 logger.info(
@@ -135,10 +136,10 @@ def extract_semantic_anchors(
                 )
                 # 不跳过，但标记
                 anchor_dict["needs_review"] = True
-            
+
             anchor_dict["needs_review"] = anchor_dict.get("needs_review", False)
             validated_anchors.append(anchor.model_dump())
-            
+
         except Exception as e:
             logger.warning(
                 f"semantic_anchors[{i}] Pydantic 验证失败: {e}\n"
@@ -149,7 +150,7 @@ def extract_semantic_anchors(
                 f"契约笼子: semantic_anchors[{i}] 验证失败: {e}\n"
                 f"原始数据: {json.dumps(anchor_dict, ensure_ascii=False)[:300]}"
             )
-    
+
     logger.info(f"提取了 {len(validated_anchors)} 个 semantic anchors")
     return validated_anchors
 
@@ -157,28 +158,28 @@ def extract_semantic_anchors(
 def _parse_llm_json(raw: str) -> Any:
     """从 LLM 输出中提取 JSON（处理 markdown 代码块）"""
     import re
-    
+
     # 尝试直接解析
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
         pass
-    
+
     # 尝试提取 ```json ... ``` 块
-    match = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', raw, re.DOTALL)
+    match = re.search(r"```(?:json)?\s*\n?(.*?)\n?\s*```", raw, re.DOTALL)
     if match:
         try:
             return json.loads(match.group(1))
         except json.JSONDecodeError:
             pass
-    
+
     # 尝试找第一个 [ 和最后一个 ]
-    start = raw.find('[')
-    end = raw.rfind(']')
+    start = raw.find("[")
+    end = raw.rfind("]")
     if start != -1 and end != -1 and end > start:
         try:
-            return json.loads(raw[start:end + 1])
+            return json.loads(raw[start : end + 1])
         except json.JSONDecodeError:
             pass
-    
+
     return None

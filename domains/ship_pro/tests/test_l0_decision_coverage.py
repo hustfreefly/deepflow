@@ -3,6 +3,7 @@ L0 确定性决策覆盖检查 — 单元测试
 
 测试 PipelineDesigner.verify_decision_coverage() 契约笼子。
 """
+
 import pytest
 from ..pipeline_designer import PipelineDesigner
 
@@ -14,7 +15,10 @@ class TestVerifyDecisionCoverage:
         """全部决策被覆盖 → 不 raise"""
         planner_output = {
             "workers": [
-                {"role": "W1", "relevant_decisions": ["D1: 使用 Redis 缓存", "D2: 异步队列"]},
+                {
+                    "role": "W1",
+                    "relevant_decisions": ["D1: 使用 Redis 缓存", "D2: 异步队列"],
+                },
                 {"role": "W2", "relevant_decisions": ["D3: 采用分层架构"]},
             ]
         }
@@ -43,7 +47,9 @@ class TestVerifyDecisionCoverage:
             ]
         }
         with pytest.raises(ValueError, match="契约笼子 L0"):
-            PipelineDesigner.verify_decision_coverage(planner_output, solution_pro_input)
+            PipelineDesigner.verify_decision_coverage(
+                planner_output, solution_pro_input
+            )
 
     def test_partial_decisions_uncovered(self):
         """部分决策未分配 → raise ValueError"""
@@ -62,7 +68,9 @@ class TestVerifyDecisionCoverage:
             ]
         }
         with pytest.raises(ValueError, match="契约笼子 L0"):
-            PipelineDesigner.verify_decision_coverage(planner_output, solution_pro_input)
+            PipelineDesigner.verify_decision_coverage(
+                planner_output, solution_pro_input
+            )
 
     def test_no_key_decisions(self):
         """无 key_decisions → 不 raise"""
@@ -76,7 +84,9 @@ class TestVerifyDecisionCoverage:
 
         # 也测试 key_decisions 字段不存在的情况
         solution_pro_input_no_key = {}
-        PipelineDesigner.verify_decision_coverage(planner_output, solution_pro_input_no_key)
+        PipelineDesigner.verify_decision_coverage(
+            planner_output, solution_pro_input_no_key
+        )
 
     def test_decision_format_dict(self):
         """决策格式为 dict → 正确处理"""
@@ -113,4 +123,6 @@ class TestVerifyDecisionCoverage:
         planner_output = {"workers": []}
         solution_pro_input = {"key_decisions": ["D1: 某个决策"]}
         with pytest.raises(ValueError, match="契约笼子 L0"):
-            PipelineDesigner.verify_decision_coverage(planner_output, solution_pro_input)
+            PipelineDesigner.verify_decision_coverage(
+                planner_output, solution_pro_input
+            )

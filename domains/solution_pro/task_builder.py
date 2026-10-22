@@ -6,33 +6,33 @@ Author: DeepFlow Solution Pro
 Date: 2026-06-01
 """
 
-"""
-Solution Task Builder 2.0.0 - Harness 修复版
-===============================================
+# """
+# Solution Task Builder 2.0.0 - Harness 修复版
+# ===============================================
+#
+# 为 Solution 领域 Workers 构建 Task。
+# 包含 Harness 修复:Layer 2 约束注入、格式标准化
+#
+# 禁止:直接调用 openclaw
+#
+# 变更日志:
+# - Harness P0/P1 修复
+#   - P0-1: Layer 2 约束 Prompt 注入
+#   - P0-2: 文件格式标准化
+#   - P1-1: 约束数量限制(最多2条)
+# - 使用PromptRegistry(Phase 2试点)
+# - 使用统一prompt读取函数
+# - 初始版本
+# """
 
-为 Solution 领域 Workers 构建 Task。
-包含 Harness 修复:Layer 2 约束注入、格式标准化
-
-禁止:直接调用 openclaw
-
-变更日志:
-- Harness P0/P1 修复
-  - P0-1: Layer 2 约束 Prompt 注入
-  - P0-2: 文件格式标准化
-  - P1-1: 约束数量限制(最多2条)
-- 使用PromptRegistry(Phase 2试点)
-- 使用统一prompt读取函数
-- 初始版本
-"""
-
-import os
-import json
-from typing import Dict, List, Tuple
+from typing import Tuple
 import logging
+
 logger = logging.getLogger(__name__)
 
 # Harness 豁免阶段:这些阶段不需要 4 维 harness_check
 HARNESS_EXEMPT_STAGES = frozenset(["data_collection", "planning", "summarizer"])
+
 
 def validate_stage_output(output: dict, stage_name: str) -> Tuple[bool, str]:
     """
@@ -73,6 +73,7 @@ def validate_stage_output(output: dict, stage_name: str) -> Tuple[bool, str]:
             # 格式: 使用 Pydantic HarnessCheck 验证（含契约笼子）
             try:
                 from .schemas.schemas import HarnessCheckV2
+
                 HarnessCheckV2(**hc)
             except ImportError:
                 # schema 未安装，回退到基本检查
@@ -82,13 +83,26 @@ def validate_stage_output(output: dict, stage_name: str) -> Tuple[bool, str]:
                 return False, f"{stage_name} harness_check 验证失败: {e}"
         else:
             # 格式（向后兼容）
-            hc_required = ["completeness", "necessity", "alignment", "global_impact", "overall_score", "decision"]
+            hc_required = [
+                "completeness",
+                "necessity",
+                "alignment",
+                "global_impact",
+                "overall_score",
+                "decision",
+            ]
             for field in hc_required:
                 if field not in hc:
                     return False, f"{stage_name} harness_check 缺少: {field}"
 
             # 检查 decision 值
-            valid_decisions = ["PASS", "PASS_WITH_CONDITIONS", "WARNING", "CRITICAL_WARNING", "BLOCK_RECOMMENDATION"]
+            valid_decisions = [
+                "PASS",
+                "PASS_WITH_CONDITIONS",
+                "WARNING",
+                "CRITICAL_WARNING",
+                "BLOCK_RECOMMENDATION",
+            ]
             if hc["decision"] not in valid_decisions:
                 return False, f"{stage_name} 无效的 decision: {hc['decision']}"
 
@@ -124,9 +138,9 @@ def validate_stage_output(output: dict, stage_name: str) -> Tuple[bool, str]:
             if not isinstance(item, dict):
                 return False, f"{stage_name} requirement_evidence 每项必须是对象"
             if "req_id" not in item or "status" not in item:
-                return False, f"{stage_name} requirement_evidence 每项必须包含 req_id 和 status"
+                return (
+                    False,
+                    f"{stage_name} requirement_evidence 每项必须包含 req_id 和 status",
+                )
 
     return True, ""
-
-
-

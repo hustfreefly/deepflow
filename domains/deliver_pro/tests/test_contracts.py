@@ -32,6 +32,7 @@ from domains.deliver_pro.contracts import (
 # WorkPackage & AcceptanceCriterion
 # ============================================================================
 
+
 class TestAcceptanceCriterion:
     def test_basic_creation(self):
         ac = AcceptanceCriterion(id="AC-001", description="Must work")
@@ -40,7 +41,9 @@ class TestAcceptanceCriterion:
         assert ac.priority == "must"
 
     def test_custom_priority(self):
-        ac = AcceptanceCriterion(id="AC-002", description="Nice to have", priority="should")
+        ac = AcceptanceCriterion(
+            id="AC-002", description="Nice to have", priority="should"
+        )
         assert ac.priority == "should"
 
     def test_missing_required_field(self):
@@ -70,7 +73,9 @@ class TestWorkPackage:
             objective="Test obj",
             acceptance_criteria=[
                 AcceptanceCriterion(id="AC-001", description="Must 1", priority="must"),
-                AcceptanceCriterion(id="AC-002", description="Should 1", priority="should"),
+                AcceptanceCriterion(
+                    id="AC-002", description="Should 1", priority="should"
+                ),
                 AcceptanceCriterion(id="AC-003", description="Must 2", priority="must"),
             ],
         )
@@ -113,6 +118,7 @@ class TestWorkPackage:
 # ============================================================================
 # ExecutionPlan, TaskNode, ConcurrencyPlan, Wave
 # ============================================================================
+
 
 class TestTaskNode:
     def test_basic_creation(self):
@@ -164,7 +170,9 @@ class TestExecutionPlan:
         defaults = dict(
             wp_id="WP-001",
             scenario="code",
-            task_graph=tasks if tasks is not None else [TaskNode(task_id="T-001", title="Task 1")],
+            task_graph=tasks
+            if tasks is not None
+            else [TaskNode(task_id="T-001", title="Task 1")],
         )
         defaults.update(kwargs)
         return ExecutionPlan(**defaults)
@@ -272,6 +280,7 @@ class TestExecutionPlan:
 # PipelineState & PipelinePhase
 # ============================================================================
 
+
 class TestPipelinePhase:
     def test_enum_values(self):
         assert PipelinePhase.INIT.value == "INIT"
@@ -309,7 +318,9 @@ class TestPipelineState:
         """V3: transition_to 降级为日志语义，非法转换不再 raise（只记 warning）。"""
         state = PipelineState(wp_id="WP-001")
         # V3: 不再 raise，phase 决策由 phase_deriver 从文件系统推导
-        state.transition_to(PipelinePhase.GENERATING)  # INIT → GENERATING 非标准但不 raise
+        state.transition_to(
+            PipelinePhase.GENERATING
+        )  # INIT → GENERATING 非标准但不 raise
         assert state.phase == PipelinePhase.GENERATING
 
     def test_transition_to_completed_sets_timestamp(self):
@@ -396,6 +407,7 @@ class TestPipelineState:
 # ============================================================================
 # ValidationVerdict, ScoreDimension, FixDirective
 # ============================================================================
+
 
 class TestScoreDimension:
     def test_basic_creation(self):
@@ -522,6 +534,7 @@ class TestValidationVerdict:
 # DeliveryManifest, ComponentStatus, DeliveryStatus
 # ============================================================================
 
+
 class TestDeliveryStatus:
     def test_enum_values(self):
         assert DeliveryStatus.COMPLETE.value == "COMPLETE"
@@ -568,6 +581,7 @@ class TestDeliveryManifest:
 # IntegrationReport
 # ============================================================================
 
+
 class TestIntegrationReport:
     def test_basic_creation(self):
         ir = IntegrationReport(workers_integrated=3)
@@ -599,6 +613,7 @@ class TestIntegrationReport:
 # ============================================================================
 # RecoveryAction, WorkerError, RecoveryStrategy
 # ============================================================================
+
 
 class TestRecoveryStrategy:
     def test_enum_values(self):
@@ -660,6 +675,7 @@ class TestRecoveryAction:
 # ============================================================================
 # WorkerTask, WorkerOutputMeta, WorkerResult
 # ============================================================================
+
 
 class TestWorkerTask:
     def test_basic_creation(self):

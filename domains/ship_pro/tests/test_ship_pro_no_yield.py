@@ -4,6 +4,7 @@ V8_DECISIONS.md (line 172) originally declared: 禁止 sessions_yield（用 cron
 FixFlow 2026-07-30: 进一步改为 wait_for_module() 阻塞等待（不再依赖 cron wake）。
 This test ensures the Orchestrator prompt complies with the new architecture.
 """
+
 import re
 from pathlib import Path
 
@@ -21,7 +22,7 @@ def test_no_sessions_yield_in_orchestrator_prompt():
     assert len(matches) == 0, (
         f"Found {len(matches)} 'sessions_yield' references in Orchestrator prompt. "
         f"V8_DECISIONS.md mandates cron wake instead. "
-        f"Lines: {[prompt[:m.start()].count(chr(10)) + 1 for m in matches]}"
+        f"Lines: {[prompt[: m.start()].count(chr(10)) + 1 for m in matches]}"
     )
 
 
@@ -39,12 +40,14 @@ def test_no_yield_instruction_in_orchestrator_prompt():
     violations = []
     for pat in patterns:
         for m in re.finditer(pat, prompt):
-            line_no = prompt[:m.start()].count("\n") + 1
+            line_no = prompt[: m.start()].count("\n") + 1
             line_text = prompt.split("\n")[line_no - 1]
             # Exclude negative instructions ("不要 yield", "禁止 yield", "不要yield")
             if re.search(r"不要\s*yield|禁止\s*yield|不要yield", line_text):
                 continue
-            violations.append(f"  line {line_no}: pattern '{pat}' matched '{m.group()}'")
+            violations.append(
+                f"  line {line_no}: pattern '{pat}' matched '{m.group()}'"
+            )
 
     assert not violations, (
         f"Found {len(violations)} yield instruction(s) in Orchestrator prompt:\n"

@@ -23,13 +23,13 @@ from .state import SingleSourceStateManager
 class Watchdog:
     """
     独立 Watchdog 进程
-    
+
     职责：
     - 定期扫描 .runs/*.run.json 心跳过期
     - 检测 stall 并发送告警
     - 支持 webhook 通知
     """
-    
+
     def __init__(
         self,
         session_dir: str | Path,
@@ -42,26 +42,26 @@ class Watchdog:
         self.state_manager = SingleSourceStateManager(session_dir)
         self.alerts_dir = self.session_dir / ".alerts"
         self.alerts_dir.mkdir(exist_ok=True)
-    
+
     def scan_and_alert(self) -> list[dict]:
         """
         扫描所有模块，检测 stall 并发送告警
-        
+
         Returns:
             告警列表
         """
         alerts = []
-        
+
         # 扫描所有模块
         modules = ["planning", "research", "summary"]
         for module in modules:
             status = self.state_manager.get_module_status(module)
-            
+
             # 检查是否 stall
             if status.get("status") == "running":
                 last_heartbeat = status.get("last_heartbeat", 0)
                 age = time.time() - last_heartbeat
-                
+
                 if age > self.heartbeat_threshold:
                     # 创建告警
                     alert = self._create_alert(
@@ -76,12 +76,12 @@ class Watchdog:
                         },
                     )
                     alerts.append(alert)
-                    
+
                     # 发送告警
                     self._send_alert(alert)
-        
+
         return alerts
-    
+
     def _create_alert(
         self,
         alert_type: str,
@@ -93,7 +93,7 @@ class Watchdog:
         """创建告警（通过契约验证）"""
         # 从 session_dir 提取 session_id
         session_id = self.session_dir.name
-        
+
         alert_data = {
             "alert_type": alert_type,
             "session_id": session_id,
@@ -103,25 +103,25 @@ class Watchdog:
             "timestamp": time.time(),
             "details": details,
         }
-        
+
         # 契约验证
         alert_contract = WatchdogAlertContract(**alert_data)
-        
+
         # 写入告警文件
         alert_file = self.alerts_dir / f"alert_{int(time.time())}_{alert_type}.json"
         alert_file.write_text(
             json.dumps(alert_contract.model_dump(), indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-        
+
         return alert_contract.model_dump()
-    
+
     def _send_alert(self, alert: dict) -> None:
         """发送告警（webhook）"""
         if not self.webhook_url:
             print(f"WATCHDOG_ALERT: {alert['message']}", flush=True)
             return
-        
+
         try:
             response = requests.post(
                 self.webhook_url,
@@ -134,12 +134,12 @@ class Watchdog:
                 print(f"WATCHDOG_ALERT_FAILED: HTTP {response.status_code}", flush=True)
         except Exception as e:
             print(f"WATCHDOG_ALERT_ERROR: {e}", flush=True)
-    
+
     def get_recent_alerts(self, minutes: int = 60) -> list[dict]:
         """获取最近的告警"""
         cutoff = time.time() - (minutes * 60)
         alerts = []
-        
+
         for alert_file in self.alerts_dir.glob("alert_*.json"):
             try:
                 alert = json.loads(alert_file.read_text(encoding="utf-8"))
@@ -147,34 +147,36 @@ class Watchdog:
                     alerts.append(alert)
             except Exception:
                 continue
-        
+
         return sorted(alerts, key=lambda x: x.get("timestamp", 0), reverse=True)
 
 
 def run_watchdog_once(session_dir: str, webhook_url: Optional[str] = None) -> None:
     """
     运行一次 watchdog 扫描（供 cron 调用）
-    
+
     Usage:
         python -m core.process_manager.watchdog /path/to/session [webhook_url]
     """
     watchdog = Watchdog(session_dir, webhook_url)
     alerts = watchdog.scan_and_alert()
-    
+
     if alerts:
         print(f"WATCHDOG_SCAN: {len(alerts)} alerts found", flush=True)
     else:
-        print(f"WATCHDOG_SCAN: no alerts", flush=True)
+        print("WATCHDOG_SCAN: no alerts", flush=True)
 
 
 if __name__ == "__main__":
     import sys
-    
+
     if len(sys.argv) < 2:
-        print("Usage: python -m core.process_manager.watchdog <session_dir> [webhook_url]")
+        print(
+            "Usage: python -m core.process_manager.watchdog <session_dir> [webhook_url]"
+        )
         sys.exit(1)
-    
+
     session_dir = sys.argv[1]
     webhook_url = sys.argv[2] if len(sys.argv) > 2 else None
-    
+
     run_watchdog_once(session_dir, webhook_url)

@@ -77,6 +77,7 @@ severity 规则：
 # Judge 执行函数
 # ============================================================================
 
+
 def run_conservation_judge(
     semantic_anchors: List[Dict[str, Any]],
     stage_output: Dict[str, Any],
@@ -85,13 +86,13 @@ def run_conservation_judge(
 ) -> Dict[str, Any]:
     """
     运行 Conservation Judge 检查信息守恒。
-    
+
     Args:
         semantic_anchors: 上游传递的语义锚点列表
         stage_output: 当前阶段的最终产物（如 ship_package.json 的内容）
         llm_call: LLM 调用函数 (prompt: str) -> str
         min_alignment: 最低对齐率阈值
-    
+
     Returns:
         {
             "preserved": [...],
@@ -116,7 +117,7 @@ def run_conservation_judge(
             "below_threshold": True,
             "error": "semantic_anchors 为空 — 信息守恒管线断路",
         }
-    
+
     # 1. 构建 Judge prompt
     anchors_json = json.dumps(semantic_anchors, ensure_ascii=False, indent=2)
     # 产物截断防止超长（保留 WPs + statistics）
@@ -126,17 +127,19 @@ def run_conservation_judge(
         "issues": stage_output.get("issues", []),
     }
     output_json = json.dumps(output_summary, ensure_ascii=False, indent=2)
-    
+
     prompt = JUDGE_PROMPT.format(
         anchors_json=anchors_json,
         output_json=output_json[:8000],  # 截断
     )
-    
+
     # 2. LLM 判断（契约笼子 W4-F3 fail-closed：API 任何失败 → verdict FAIL，不 pass）
     try:
         raw_output = llm_call(prompt)
     except Exception as e:
-        logger.error(f"契约笼子: Conservation Judge LLM 调用失败，fail-closed 判 FAIL: {e}")
+        logger.error(
+            f"契约笼子: Conservation Judge LLM 调用失败，fail-closed 判 FAIL: {e}"
+        )
         return {
             "preserved": [],
             "lost": [],
@@ -145,10 +148,10 @@ def run_conservation_judge(
             "below_threshold": True,
             "error": f"LLM API 调用失败: {e}",
         }
-    
+
     # 3. 解析结果
     result = _parse_judge_output(raw_output)
-    
+
     # 4. 契约笼子：验证输出格式
     required_keys = {"preserved", "lost", "alignment_rate", "verdict"}
     missing = required_keys - set(result.keys())
@@ -157,46 +160,45 @@ def run_conservation_judge(
             f"契约笼子: Conservation Judge 输出缺少字段: {missing}\n"
             f"原始输出前 500 字: {raw_output[:500]}"
         )
-    
+
     # 5. 阈值检查
     result["below_threshold"] = result["alignment_rate"] < min_alignment
-    
+
     if result["below_threshold"]:
         lost_names = [item.get("name", "?") for item in result["lost"]]
         logger.warning(
             f"信息守恒告警: alignment_rate={result['alignment_rate']:.2f} < {min_alignment}\n"
             f"丢失的 anchors: {lost_names}"
         )
-    
+
     return result
 
 
 def _parse_judge_output(raw: str) -> Dict[str, Any]:
     """从 LLM 输出中解析 Judge 结果"""
     import re
-    
+
     # 尝试直接解析
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
         pass
-    
+
     # 尝试提取 ```json ... ``` 块
-    match = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', raw, re.DOTALL)
+    match = re.search(r"```(?:json)?\s*\n?(.*?)\n?\s*```", raw, re.DOTALL)
     if match:
         try:
             return json.loads(match.group(1))
         except json.JSONDecodeError:
             pass
-    
+
     # 尝试找第一个 { 和最后一个 }
-    start = raw.find('{')
-    end = raw.rfind('}')
+    start = raw.find("{")
+    end = raw.rfind("}")
     if start != -1 and end != -1 and end > start:
         try:
-            return json.loads(raw[start:end + 1])
+            return json.loads(raw[start : end + 1])
         except json.JSONDecodeError:
             pass
-    
-    return {"preserved": [], "lost": [], "alignment_rate": 0.0, "verdict": "FAIL"}
 
+    return {"preserved": [], "lost": [], "alignment_rate": 0.0, "verdict": "FAIL"}

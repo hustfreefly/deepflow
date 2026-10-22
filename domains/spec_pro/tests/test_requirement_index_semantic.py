@@ -1,6 +1,10 @@
 """ADR-009 Phase 3: Tests for generate_requirement_index_semantic()."""
+
 import pytest
-from domains.spec_pro.coordinator import generate_requirement_index_semantic, _CATEGORY_PREFIX
+from domains.spec_pro.coordinator import (
+    generate_requirement_index_semantic,
+    _CATEGORY_PREFIX,
+)
 
 
 class TestContractCage:
@@ -36,7 +40,11 @@ class TestSemanticREQIDs:
         assert result[0]["priority"] == "P0"
 
     def test_capabilities_always_do(self):
-        spec = {"confirmed": {"capabilities": {"always_do": ["Fast response", "Secure auth"]}}}
+        spec = {
+            "confirmed": {
+                "capabilities": {"always_do": ["Fast response", "Secure auth"]}
+            }
+        }
         result = generate_requirement_index_semantic(spec)
         assert len(result) == 2
         assert result[0]["id"] == "REQ-CAP-001"
@@ -51,11 +59,13 @@ class TestSemanticREQIDs:
         assert result[0]["category"] == "prohibition"
 
     def test_per_category_numbering(self):
-        spec = {"confirmed": {
-            "objective": "Build platform",
-            "capabilities": {"always_do": ["Feature A", "Feature B"]},
-            "pain_points": ["Slow performance"],
-        }}
+        spec = {
+            "confirmed": {
+                "objective": "Build platform",
+                "capabilities": {"always_do": ["Feature A", "Feature B"]},
+                "pain_points": ["Slow performance"],
+            }
+        }
         result = generate_requirement_index_semantic(spec)
         ids = [r["id"] for r in result]
         assert "REQ-OBJ-001" in ids
@@ -66,7 +76,7 @@ class TestSemanticREQIDs:
     def test_unknown_category_uses_3char_prefix(self):
         """Unknown category → first 3 chars uppercase"""
         # This tests the fallback prefix logic
-        spec = {"confirmed": {"custom_field": "test"}}
+        {"confirmed": {"custom_field": "test"}}
         # custom_field is not in _CATEGORY_PREFIX, but it's not parsed by the function
         # So we test with a known mapping
         assert _CATEGORY_PREFIX.get("objective") == "OBJ"
@@ -98,10 +108,14 @@ class TestQualityAttributes:
     """Quality attributes: dict 和 string 兼容"""
 
     def test_dict_qa(self):
-        spec = {"confirmed": {"quality_attributes": [
-            {"spec": "Response time < 200ms", "priority": "P0"},
-            {"description": "99.9% uptime", "priority": "P1"},
-        ]}}
+        spec = {
+            "confirmed": {
+                "quality_attributes": [
+                    {"spec": "Response time < 200ms", "priority": "P0"},
+                    {"description": "99.9% uptime", "priority": "P1"},
+                ]
+            }
+        }
         result = generate_requirement_index_semantic(spec)
         assert len(result) == 2
         assert result[0]["priority"] == "P0"
@@ -118,9 +132,13 @@ class TestSuccessMetrics:
     """Success metrics: dict 和 string 兼容"""
 
     def test_dict_metric(self):
-        spec = {"confirmed": {"success_metrics": [
-            {"metric": "Revenue", "target": "100万/月", "priority": "P0"},
-        ]}}
+        spec = {
+            "confirmed": {
+                "success_metrics": [
+                    {"metric": "Revenue", "target": "100万/月", "priority": "P0"},
+                ]
+            }
+        }
         result = generate_requirement_index_semantic(spec)
         assert len(result) == 1
         assert "Revenue" in result[0]["description"]
@@ -137,16 +155,24 @@ class TestGuardrails:
     """Guardrails: 从顶层 living_spec 读取（需 confirmed 非空才进入主逻辑）"""
 
     def test_guardrails_always_do(self):
-        spec = {"confirmed": {"objective": "Test"}, "guardrails": {"always_do": ["Log all actions"]}}
+        spec = {
+            "confirmed": {"objective": "Test"},
+            "guardrails": {"always_do": ["Log all actions"]},
+        }
         result = generate_requirement_index_semantic(spec)
         guardrail_reqs = [r for r in result if r["category"] == "guardrail"]
         assert len(guardrail_reqs) == 1
         assert guardrail_reqs[0]["id"] == "REQ-GRD-001"
 
     def test_guardrails_never_do(self):
-        spec = {"confirmed": {"objective": "Test"}, "guardrails": {"never_do": ["No data export"]}}
+        spec = {
+            "confirmed": {"objective": "Test"},
+            "guardrails": {"never_do": ["No data export"]},
+        }
         result = generate_requirement_index_semantic(spec)
-        prohibition_reqs = [r for r in result if r["category"] == "guardrail_prohibition"]
+        prohibition_reqs = [
+            r for r in result if r["category"] == "guardrail_prohibition"
+        ]
         assert len(prohibition_reqs) == 1
         assert prohibition_reqs[0]["id"] == "REQ-GRP-001"
 
@@ -161,10 +187,14 @@ class TestRisksAndAssumptions:
         assert result[0]["id"] == "REQ-RSK-001"
 
     def test_risks_and_assumptions_dict(self):
-        spec = {"confirmed": {"risks_and_assumptions": {
-            "risks": ["Tech risk"],
-            "assumptions": ["User has API access"],
-        }}}
+        spec = {
+            "confirmed": {
+                "risks_and_assumptions": {
+                    "risks": ["Tech risk"],
+                    "assumptions": ["User has API access"],
+                }
+            }
+        }
         result = generate_requirement_index_semantic(spec)
         assert len(result) == 2
         assert result[0]["id"] == "REQ-RSK-001"

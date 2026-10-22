@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pytest
 
 from core.cage.active_contracts import (
     DEFAULT_CAGE_DIR,
@@ -24,9 +23,7 @@ def test_active_contracts_exist():
 def test_every_active_contract_valid():
     results, global_errors = validate_all()
     assert not global_errors, global_errors
-    failures = {
-        r.path.name: r.errors for r in results if not r.valid
-    }
+    failures = {r.path.name: r.errors for r in results if not r.valid}
     assert not failures, failures
 
 

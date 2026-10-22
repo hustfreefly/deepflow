@@ -2,9 +2,9 @@
 
 验证 slash 路径下 legacy 迁移正确（使用显式 blackboard_root 而非 .parent）。
 """
+
 import pytest
 import tempfile
-import shutil
 from pathlib import Path
 
 

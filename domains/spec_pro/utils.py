@@ -13,15 +13,21 @@ Spec Pro 确定性工具函数
   python3 domains/spec_pro/utils.py log <execution_log_path> <event> <data_json>
 """
 
-import sys as _sys; _p=__import__('pathlib').Path(__file__).resolve(); _r=next((d for d in _p.parents if (d/'core'/'blackboard').is_dir()),None); _sys.path.insert(0,str(_r)) if _r and str(_r) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
+import sys as _sys
 import json
 import os
 import sys
 from datetime import datetime
 from typing import Any, Dict, List
 import logging
-logger = logging.getLogger(__name__)
 
+_p = __import__("pathlib").Path(__file__).resolve()
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
+_sys.path.insert(0, str(_r)) if _r and str(
+    _r
+) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -45,6 +51,7 @@ FALLBACKS: Dict[str, Dict[str, Any]] = {
 # Merge: 委托给 merge_spec.py 唯一实现 (F1: 消除分叉)
 # ============================================================================
 
+
 def merge_response_to_living_spec(
     response_path: str,
     living_spec_path: str,
@@ -56,12 +63,14 @@ def merge_response_to_living_spec(
     保留此函数签名以兼容 utils.py CLI 和其他调用方。
     """
     from domains.spec_pro.merge_spec import merge_spec as _canonical_merge
+
     return _canonical_merge(response_path, living_spec_path)
 
 
 # ============================================================================
 # Fallback: 检查 Worker 输出文件，缺失则写入 fallback
 # ============================================================================
+
 
 def check_worker_fallback(worker_name: str, output_path: str) -> Dict[str, Any]:
     """
@@ -101,6 +110,7 @@ def check_worker_fallback(worker_name: str, output_path: str) -> Dict[str, Any]:
 # Log: 追加执行日志
 # ============================================================================
 
+
 def append_execution_log(log_path: str, event: str, data: Dict[str, Any]) -> None:
     """追加事件到 execution_log.json。"""
     log = {"events": []}
@@ -111,11 +121,13 @@ def append_execution_log(log_path: str, event: str, data: Dict[str, Any]) -> Non
         except (json.JSONDecodeError, OSError) as e:
             logger.debug(f"data append: {e}")
 
-    log["events"].append({
-        "timestamp": datetime.now().isoformat(),
-        "event": event,
-        "data": data,
-    })
+    log["events"].append(
+        {
+            "timestamp": datetime.now().isoformat(),
+            "event": event,
+            "data": data,
+        }
+    )
 
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, "w", encoding="utf-8") as f:
@@ -125,6 +137,7 @@ def append_execution_log(log_path: str, event: str, data: Dict[str, Any]) -> Non
 # ============================================================================
 # 质量轨迹追加
 # ============================================================================
+
 
 def append_trajectory(
     trajectory_path: str,
@@ -172,7 +185,9 @@ def append_trajectory(
             dimension_scores[dim_key] = dim.get("score", 0)
     elif isinstance(dims, dict):
         for dim_key, dim_data in dims.items():
-            dimension_scores[dim_key] = dim_data.get("score", 0) if isinstance(dim_data, dict) else 0
+            dimension_scores[dim_key] = (
+                dim_data.get("score", 0) if isinstance(dim_data, dict) else 0
+            )
 
     # 计算 delta
     prev_score = trajectory[-1]["overall_score"] if trajectory else 0
@@ -192,13 +207,14 @@ def append_trajectory(
 
     # 写入新格式: {"scores": [...], "trajectory": [...]}
     output = {"scores": scores, "trajectory": trajectory}
-    
+
     # 契约笼子：Pydantic 门控
     from domains.spec_pro.contracts.gate import gate_quality_trajectory
+
     validated, errors = gate_quality_trajectory(output)
     if errors:
         raise ValueError(f"QualityTrajectory 格式错误: {errors}")
-    
+
     os.makedirs(os.path.dirname(trajectory_path), exist_ok=True)
     with open(trajectory_path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
@@ -209,6 +225,7 @@ def append_trajectory(
 # ============================================================================
 # 对话日志追加
 # ============================================================================
+
 
 def append_conversation_log(
     log_path: str,
@@ -263,13 +280,14 @@ def append_conversation_log(
 
     # 写入新格式: {"rounds": [...]}
     output = {"rounds": rounds}
-    
+
     # 契约笼子：Pydantic 门控
     from domains.spec_pro.contracts.gate import gate_conversation_log
+
     validated, errors = gate_conversation_log(output)
     if errors:
         raise ValueError(f"ConversationLog 格式错误: {errors}")
-    
+
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
@@ -283,10 +301,13 @@ def append_conversation_log(
 # CLI 入口
 # ============================================================================
 
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python3 utils.py <command> [args...]")
-        print("Commands: merge, fallback, log, trajectory, conversation_log, process_guard")
+        print(
+            "Commands: merge, fallback, log, trajectory, conversation_log, process_guard"
+        )
         return 1
 
     command = sys.argv[1]
@@ -294,7 +315,9 @@ def main():
     try:
         if command == "merge":
             if len(sys.argv) < 4:
-                print("Usage: python3 utils.py merge <response_path> <living_spec_path>")
+                print(
+                    "Usage: python3 utils.py merge <response_path> <living_spec_path>"
+                )
                 return 1
             result = merge_response_to_living_spec(sys.argv[2], sys.argv[3])
             print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -316,7 +339,9 @@ def main():
 
         elif command == "trajectory":
             if len(sys.argv) < 5:
-                print("Usage: python3 utils.py trajectory <path> <round> <quality_report_json>")
+                print(
+                    "Usage: python3 utils.py trajectory <path> <round> <quality_report_json>"
+                )
                 return 1
             round_num = int(sys.argv[3])
             quality = json.loads(sys.argv[4])

@@ -11,16 +11,22 @@ DEPRECATED: Pipeline Watcher — use watcher_scan.py  instead.
 
 See: .deepflow/contracts/shared/pipeline_watcher_v2_design.md (archived)
 """
-import argparse, fcntl, json, os, sys
+
+import argparse
+import fcntl
+import json
+import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from watcher_config import WRAPPER_PROMPT_TEMPLATE
 
 # Import WRAPPER_PROMPT_TEMPLATE from shared contracts
 _shared_dir = str(Path(__file__).resolve().parent.parent / "contracts" / "shared")
 if _shared_dir not in sys.path:
     sys.path.insert(0, _shared_dir)
-from watcher_config import WRAPPER_PROMPT_TEMPLATE
+
 
 def atomic_write(path: Path, content: str) -> None:
     """Atomic write via tmp + os.replace."""
@@ -28,83 +34,155 @@ def atomic_write(path: Path, content: str) -> None:
     tmp.write_text(content, encoding="utf-8")
     os.replace(str(tmp), str(path))
 
+
 def parse_timestamp(ts: str) -> Optional[datetime]:
     """Parse ISO timestamp with tolerance. None on failure.
-    
+
     Uses LOCAL timezone when no timezone is specified (not UTC).
     Pipeline runs locally, so run_start_at and file mtimes are both in local time.
     """
-    if not ts: return None
+    if not ts:
+        return None
     # Get local timezone offset
     local_tz = datetime.now().astimezone().tzinfo
     try:
         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         return dt if dt.tzinfo else dt.replace(tzinfo=local_tz)
-    except (ValueError, TypeError): pass
+    except (ValueError, TypeError):
+        pass
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
-        try: return datetime.strptime(ts, fmt).replace(tzinfo=local_tz)
-        except ValueError: continue
+        try:
+            return datetime.strptime(ts, fmt).replace(tzinfo=local_tz)
+        except ValueError:
+            continue
     return None
+
 
 def load_json(path: Path) -> Optional[Dict]:
     """Load JSON, None on failure."""
-    try: return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError): return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
 
-def emit(action: str, message: str, should_remove: bool = False,
-         progress: Optional[Dict] = None, fmt: str = "json") -> None:
+
+def emit(
+    action: str,
+    message: str,
+    should_remove: bool = False,
+    progress: Optional[Dict] = None,
+    fmt: str = "json",
+) -> None:
     """Print result and exit 0."""
-    r: Dict[str, Any] = {"action": action, "message": message, "should_remove_cron": should_remove}
-    if progress: r["progress"] = progress
-    print(f"[{action}] {message}" if fmt == "plain" else json.dumps(r, ensure_ascii=False))
+    r: Dict[str, Any] = {
+        "action": action,
+        "message": message,
+        "should_remove_cron": should_remove,
+    }
+    if progress:
+        r["progress"] = progress
+    print(
+        f"[{action}] {message}" if fmt == "plain" else json.dumps(r, ensure_ascii=False)
+    )
     sys.exit(0)
+
 
 def validate_config(cfg: Dict) -> List[str]:
     """Validate required fields."""
     errs: List[str] = []
-    for k, t in [("pipeline_id", str), ("display_name", str), ("limits", dict), ("detection", dict)]:
-        if k not in cfg: errs.append(f"Missing: {k}")
-        elif not isinstance(cfg[k], t): errs.append(f"{k} must be {t.__name__}")
+    for k, t in [
+        ("pipeline_id", str),
+        ("display_name", str),
+        ("limits", dict),
+        ("detection", dict),
+    ]:
+        if k not in cfg:
+            errs.append(f"Missing: {k}")
+        elif not isinstance(cfg[k], t):
+            errs.append(f"{k} must be {t.__name__}")
     if "limits" in cfg and isinstance(cfg["limits"], dict):
         for k in ("max_runs", "timeout_minutes"):
-            if k not in cfg["limits"]: errs.append(f"Missing limits.{k}")
+            if k not in cfg["limits"]:
+                errs.append(f"Missing limits.{k}")
     if "detection" in cfg and isinstance(cfg["detection"], dict):
         for k in ("scan_dirs", "total_stages"):
-            if k not in cfg["detection"]: errs.append(f"Missing detection.{k}")
+            if k not in cfg["detection"]:
+                errs.append(f"Missing detection.{k}")
     return errs
+
 
 class RunCounter:
     """Tracks run count and timeout."""
+
     def __init__(self, state_dir: Path, limits: Dict, run_start_at: str):
-        self.path, self.max_runs, self.timeout_min, self.run_start_at = state_dir / ".cron_run_count", limits.get("max_runs", 20), limits.get("timeout_minutes", 60), run_start_at
+        self.path, self.max_runs, self.timeout_min, self.run_start_at = (
+            state_dir / ".cron_run_count",
+            limits.get("max_runs", 20),
+            limits.get("timeout_minutes", 60),
+            run_start_at,
+        )
         self.count = 0
+
     def increment(self) -> int:
         data = load_json(self.path)
-        self.count = (data["count"] + 1) if (data and isinstance(data.get("count"), int)) else 1
-        atomic_write(self.path, json.dumps({"count": self.count, "run_start_at": self.run_start_at}))
+        self.count = (
+            (data["count"] + 1) if (data and isinstance(data.get("count"), int)) else 1
+        )
+        atomic_write(
+            self.path,
+            json.dumps({"count": self.count, "run_start_at": self.run_start_at}),
+        )
         return self.count
+
     def is_timeout(self) -> bool:
         start = parse_timestamp(self.run_start_at)
-        if start and (datetime.now(timezone.utc) - start).total_seconds() / 60 > self.timeout_min: return True
+        if (
+            start
+            and (datetime.now(timezone.utc) - start).total_seconds() / 60
+            > self.timeout_min
+        ):
+            return True
         return self.count > self.max_runs
+
 
 class CompletionChecker:
     """Checks .completed with timestamp validation."""
+
     def __init__(self, base_path: Path, detection: Dict, run_start_at: str):
-        self.file, self.ts_field, self.run_start_at = base_path / detection.get("completed_file", ".completed"), detection.get("completed_timestamp_field", "completed_at"), run_start_at
+        self.file, self.ts_field, self.run_start_at = (
+            base_path / detection.get("completed_file", ".completed"),
+            detection.get("completed_timestamp_field", "completed_at"),
+            run_start_at,
+        )
+
     def check(self) -> Optional[Dict]:
         data = load_json(self.file)
-        if not data or data.get("status") not in ("completed", "failed"): return None
-        ts, start = parse_timestamp(data.get(self.ts_field, "")), parse_timestamp(self.run_start_at)
-        if ts and start and ts < start: return None
+        if not data or data.get("status") not in ("completed", "failed"):
+            return None
+        ts, start = (
+            parse_timestamp(data.get(self.ts_field, "")),
+            parse_timestamp(self.run_start_at),
+        )
+        if ts and start and ts < start:
+            return None
         return data
+
 
 class StageDetector:
     """Glob scan + diff + merge_group + mtime validation."""
-    def __init__(self, base_path: Path, detection: Dict, state_dir: Path, run_start_at: str = ""):
-        self.base_path, self.scan_dirs, self.notified_path, self._all = base_path, detection.get("scan_dirs", []), state_dir / ".notified_stages.json", []
+
+    def __init__(
+        self, base_path: Path, detection: Dict, state_dir: Path, run_start_at: str = ""
+    ):
+        self.base_path, self.scan_dirs, self.notified_path, self._all = (
+            base_path,
+            detection.get("scan_dirs", []),
+            state_dir / ".notified_stages.json",
+            [],
+        )
         self.run_start_at = run_start_at
         self._run_start_dt = parse_timestamp(run_start_at) if run_start_at else None
+
     def _is_stale(self, file_path: Path) -> bool:
         """Check if file was created before this run started (stale from previous run)."""
         if not self._run_start_dt:
@@ -114,6 +192,7 @@ class StageDetector:
             return mtime < self._run_start_dt
         except (OSError, ValueError):
             return False
+
     def scan(self) -> List[Dict]:
         notified_data = load_json(self.notified_path)
         notified = set(notified_data) if isinstance(notified_data, list) else set()
@@ -121,8 +200,13 @@ class StageDetector:
         merge_groups: Dict[str, List[Dict]] = {}
         for sd in self.scan_dirs:
             dir_p = self.base_path / sd["path"] if sd["path"] != "." else self.base_path
-            if not dir_p.is_dir(): continue
-            matches = dir_p.rglob(sd.get("pattern", "*.json")) if sd.get("dir_mode") == "nested" else dir_p.glob(sd.get("pattern", "*.json"))
+            if not dir_p.is_dir():
+                continue
+            matches = (
+                dir_p.rglob(sd.get("pattern", "*.json"))
+                if sd.get("dir_mode") == "nested"
+                else dir_p.glob(sd.get("pattern", "*.json"))
+            )
             for p in matches:
                 if p.is_file() and not self._is_stale(p):
                     fname = p.name
@@ -130,7 +214,8 @@ class StageDetector:
                         info = sd["stage_files"][fname]
                         found[fname] = info
                         mg = info.get("merge_group")
-                        if mg: merge_groups.setdefault(mg, []).append(info)
+                        if mg:
+                            merge_groups.setdefault(mg, []).append(info)
         self._all = sorted(found.values(), key=lambda x: x.get("seq", 0))
         new_files = set(found.keys()) - notified
         new_stages: List[Dict] = []
@@ -140,26 +225,43 @@ class StageDetector:
             if mg:
                 if mg not in seen_groups:
                     seen_groups.add(mg)
-                    new_stages.append({"name": info["name"], "seq": info["seq"], "merge_group": mg})
-            else: new_stages.append({"name": info["name"], "seq": info["seq"]})
+                    new_stages.append(
+                        {"name": info["name"], "seq": info["seq"], "merge_group": mg}
+                    )
+            else:
+                new_stages.append({"name": info["name"], "seq": info["seq"]})
         notified.update(found.keys())
         atomic_write(self.notified_path, json.dumps(sorted(notified)))
         return new_stages
-    def all_stages(self) -> List[Dict]: return self._all
+
+    def all_stages(self) -> List[Dict]:
+        return self._all
+
 
 class CircuitBreaker:
     """Counts consecutive no-output runs."""
+
     def __init__(self, state_dir: Path, limits: Dict):
-        self.path, self.threshold = state_dir / ".watcher_no_output_count", limits.get("circuit_breaker_threshold", 3)
+        self.path, self.threshold = (
+            state_dir / ".watcher_no_output_count",
+            limits.get("circuit_breaker_threshold", 3),
+        )
+
     def _read(self) -> int:
         data = load_json(self.path)
         return data.get("count", 0) if isinstance(data, dict) else 0
+
     def record_no_output(self) -> int:
         c = self._read() + 1
         atomic_write(self.path, json.dumps({"count": c}))
         return c
-    def reset(self) -> None: atomic_write(self.path, json.dumps({"count": 0}))
-    def should_break(self) -> bool: return self._read() >= self.threshold
+
+    def reset(self) -> None:
+        atomic_write(self.path, json.dumps({"count": 0}))
+
+    def should_break(self) -> bool:
+        return self._read() >= self.threshold
+
 
 # ── 契约笼子：模板必须来自 watcher_config.json，禁止硬编码 ──
 # _TPL 已删除 (2026-06-24)。所有模板必须在 watcher_config.json 中定义。
@@ -167,11 +269,16 @@ class CircuitBreaker:
 _REQUIRED_TPL_KEYS = {"progress", "completed", "failed", "timeout", "circuit_break"}
 _SYM = {"done": "✅", "running": "⏳", "pending": "⬜"}
 
+
 class _AttrDict(dict):
     """Dict that supports {parent.key} in str.format_map via attribute access."""
+
     def __getattr__(self, k: str) -> Any:
-        try: return self[k]
-        except KeyError: raise AttributeError(k)
+        try:
+            return self[k]
+        except KeyError:
+            raise AttributeError(k)
+
 
 class MessageFormatter:
     """Renders messages with {pipeline.xxx} placeholders.
@@ -182,6 +289,7 @@ class MessageFormatter:
     - estimate_remaining(): Time remaining estimate
     - Default templates use UI v3 format; custom config templates still override.
     """
+
     def __init__(self, config: Dict, all_stages: List[Dict]):
         self.cfg, self.stages = config, all_stages
         # 契约笼子：模板必须来自 config，不使用硬编码 fallback
@@ -206,7 +314,9 @@ class MessageFormatter:
         return "█" * filled + "░" * (width - filled)
 
     @staticmethod
-    def _estimate_remaining(elapsed_minutes: int, completed_count: int, total: int) -> str:
+    def _estimate_remaining(
+        elapsed_minutes: int, completed_count: int, total: int
+    ) -> str:
         """Estimate remaining time. Source: pipeline_progress_notify.py estimate_remaining()."""
         if completed_count <= 0 or elapsed_minutes <= 0:
             return "计算中"
@@ -228,7 +338,10 @@ class MessageFormatter:
                 key = (info["name"], info.get("seq", 0))
                 if key not in seen:
                     seen[key] = info.get("icon", "❓")
-        return [(name, seq, icon) for (name, seq), icon in sorted(seen.items(), key=lambda x: x[0][1])]
+        return [
+            (name, seq, icon)
+            for (name, seq), icon in sorted(seen.items(), key=lambda x: x[0][1])
+        ]
 
     def _build_icon_chain(self, completed_seqs: set, current_seq: int) -> str:
         """Build phase icon chain: 📊✅ 📝⏳ 👁️○ 🔬○. Source: pipeline_progress_notify.py build_phase_icon_chain()."""
@@ -242,7 +355,9 @@ class MessageFormatter:
                 parts.append(f"{icon}○")
         return " ".join(parts)
 
-    def _build_phase_detail_list(self, completed_seqs: set, failed_seqs: set, current_seq: int) -> str:
+    def _build_phase_detail_list(
+        self, completed_seqs: set, failed_seqs: set, current_seq: int
+    ) -> str:
         """Build detailed phase list with status icons .
 
         Example:
@@ -300,30 +415,38 @@ class MessageFormatter:
     # ── Original helpers (unchanged) ──
 
     def _ctx(self, **kw: Any) -> Dict:
-        inner = _AttrDict({
-            "display_name": self.cfg.get("display_name", "Pipeline"),
-            "completed": len(self.stages),
-            "total": self.cfg["detection"]["total_stages"],
-            "final_artifact": self.cfg["detection"].get("final_artifact", ""),
-            "base_path": str(self.cfg.get("base_path", "")),
-            "project_short": self._project_short(),
-            **kw,
-        })
+        inner = _AttrDict(
+            {
+                "display_name": self.cfg.get("display_name", "Pipeline"),
+                "completed": len(self.stages),
+                "total": self.cfg["detection"]["total_stages"],
+                "final_artifact": self.cfg["detection"].get("final_artifact", ""),
+                "base_path": str(self.cfg.get("base_path", "")),
+                "project_short": self._project_short(),
+                **kw,
+            }
+        )
         # Support both {pipeline.xxx} (default _TPL) and {xxx} (config templates)
         ctx = dict(inner)
         ctx["pipeline"] = inner
         return ctx
+
     def _elapsed(self, run_start_at: str) -> str:
         s = parse_timestamp(run_start_at)
-        if not s: return "—"
+        if not s:
+            return "—"
         m = max(0, int((datetime.now(timezone.utc) - s).total_seconds() / 60))
         if m >= 60:
             return f"{m // 60}h{m % 60}m"
         return f"{m}m"
+
     def _stage_lines(self, new_stages: List[Dict]) -> str:
         done = {s["name"] for s in self.stages}
         lines = [f"  {self.sym['done']} {n}" for n in sorted(done)]
-        lines += [f"  {self.sym['running']} {n}" for n in sorted({s["name"] for s in new_stages} - done)]
+        lines += [
+            f"  {self.sym['running']} {n}"
+            for n in sorted({s["name"] for s in new_stages} - done)
+        ]
         return "\n".join(lines) if lines else "  (无阶段信息)"
 
     # ── Message renderers ──
@@ -342,43 +465,73 @@ class MessageFormatter:
                 break
         if current_seq == 0 and phase_defs:
             current_name, current_seq = phase_defs[-1][0], phase_defs[-1][1]
-        elapsed_v3 = self._elapsed_v3(run_start_at)
+        self._elapsed_v3(run_start_at)
         elapsed_min = self._elapsed_minutes(run_start_at)
         bar = self._progress_bar(completed_count, total)
         chain = self._build_icon_chain(completed_seqs, current_seq)
         remaining = self._estimate_remaining(elapsed_min, completed_count, total)
         failed_seqs = set()  # watcher doesn't track failures in stages
-        detail_list = self._build_phase_detail_list(completed_seqs, failed_seqs, current_seq)
-        return self.tpl["progress"].format_map(self._ctx(
-            stage_lines=self._stage_lines(new_stages),
-            elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at),
-            # Override completed with deduplicated count (unique seqs, not raw file count)
-            completed=completed_count,
-            # UI v3 variables
-            progress_bar=bar, icon_chain=chain, remaining=remaining,
-            project_short=self._project_short(), current_phase_name=current_name,
-            artifact_count=len(self.stages),
-            detail_list=detail_list,
-        ))
+        detail_list = self._build_phase_detail_list(
+            completed_seqs, failed_seqs, current_seq
+        )
+        return self.tpl["progress"].format_map(
+            self._ctx(
+                stage_lines=self._stage_lines(new_stages),
+                elapsed=self._elapsed(run_start_at),
+                elapsed_time=self._elapsed(run_start_at),
+                # Override completed with deduplicated count (unique seqs, not raw file count)
+                completed=completed_count,
+                # UI v3 variables
+                progress_bar=bar,
+                icon_chain=chain,
+                remaining=remaining,
+                project_short=self._project_short(),
+                current_phase_name=current_name,
+                artifact_count=len(self.stages),
+                detail_list=detail_list,
+            )
+        )
+
     def completed(self, data: Dict, run_start_at: str) -> str:
         total = self.cfg["detection"]["total_stages"]
         bar = self._progress_bar(total, total)
         all_completed_seqs = {pd[1] for pd in self._phase_defs()}
-        return self.tpl["completed"].format_map(self._ctx(
-            elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at),
-            score=data.get("score", "N/A"),
-            # Override completed count to total (all phases done)
-            completed=total,
-            # UI v3 variables
-            progress_bar=bar, project_short=self._project_short(),
-            artifact_count=len(self.stages) if self.stages else total,
-            icon_chain=self._build_icon_chain(all_completed_seqs, 0),
-            elapsed_v3=self._elapsed_v3(run_start_at),
-        ))
+        return self.tpl["completed"].format_map(
+            self._ctx(
+                elapsed=self._elapsed(run_start_at),
+                elapsed_time=self._elapsed(run_start_at),
+                score=data.get("score", "N/A"),
+                # Override completed count to total (all phases done)
+                completed=total,
+                # UI v3 variables
+                progress_bar=bar,
+                project_short=self._project_short(),
+                artifact_count=len(self.stages) if self.stages else total,
+                icon_chain=self._build_icon_chain(all_completed_seqs, 0),
+                elapsed_v3=self._elapsed_v3(run_start_at),
+            )
+        )
+
     def failed(self, data: Dict, run_start_at: str) -> str:
-        return self.tpl["failed"].format_map(self._ctx(elapsed=self._elapsed(run_start_at), elapsed_time=self._elapsed(run_start_at), error=data.get("error", "未知")))
-    def timeout(self) -> str: return self.tpl["timeout"].format_map(self._ctx(timeout_min=self.cfg["limits"].get("timeout_minutes", 60), timeout_minutes=self.cfg["limits"].get("timeout_minutes", 60)))
-    def circuit_break(self, failures: int) -> str: return self.tpl["circuit_break"].format_map(self._ctx(failures=failures))
+        return self.tpl["failed"].format_map(
+            self._ctx(
+                elapsed=self._elapsed(run_start_at),
+                elapsed_time=self._elapsed(run_start_at),
+                error=data.get("error", "未知"),
+            )
+        )
+
+    def timeout(self) -> str:
+        return self.tpl["timeout"].format_map(
+            self._ctx(
+                timeout_min=self.cfg["limits"].get("timeout_minutes", 60),
+                timeout_minutes=self.cfg["limits"].get("timeout_minutes", 60),
+            )
+        )
+
+    def circuit_break(self, failures: int) -> str:
+        return self.tpl["circuit_break"].format_map(self._ctx(failures=failures))
+
 
 # DEPRECATED: 使用 contracts/shared/watcher_config.py 的标准模板
 WRAPPER_PROMPT_TEMPLATE_OLD = """你是 DeepFlow 管线巡检执行器。严格按以下步骤执行：
@@ -402,73 +555,88 @@ WRAPPER_PROMPT_TEMPLATE_OLD = """你是 DeepFlow 管线巡检执行器。严格�
 禁止：自行判断进度、编造消息、跳过步骤。如果 JSON 解析失败，输出错误信息。"""
 
 
-def render_wrapper_prompt(deepflow_root: str, config_path: str, base_path: str,
-                          run_start_at: str, cron_job_id: str = "") -> str:
+def render_wrapper_prompt(
+    deepflow_root: str,
+    config_path: str,
+    base_path: str,
+    run_start_at: str,
+    cron_job_id: str = "",
+) -> str:
     """Render the wrapper prompt with actual values.
-    
+
     If cron_job_id is empty, the watcher will auto-discover by name.
     This solves the chicken-and-egg problem of needing the ID before creating the cron.
     """
     cron_arg = f"--cron-job-id {cron_job_id}" if cron_job_id else ""
     cron_quoted = f'"{cron_job_id}"' if cron_job_id else '""'
-    return (WRAPPER_PROMPT_TEMPLATE
-            .replace("__DEEPFLOW_ROOT__", deepflow_root)
-            .replace("__CONFIG_PATH__", config_path)
-            .replace("__BASE_PATH__", base_path)
-            .replace("__RUN_START_AT__", run_start_at)
-            .replace("__CRON_JOB_ID_ARG__", cron_arg)
-            .replace("__CRON_JOB_ID_QUOTED__", cron_quoted))
+    return (
+        WRAPPER_PROMPT_TEMPLATE.replace("__DEEPFLOW_ROOT__", deepflow_root)
+        .replace("__CONFIG_PATH__", config_path)
+        .replace("__BASE_PATH__", base_path)
+        .replace("__RUN_START_AT__", run_start_at)
+        .replace("__CRON_JOB_ID_ARG__", cron_arg)
+        .replace("__CRON_JOB_ID_QUOTED__", cron_quoted)
+    )
 
 
 # Backward compat alias
 WRAPPER_PROMPT = WRAPPER_PROMPT_TEMPLATE
 
+
 def write_auto_chain(config: Dict, base_path: Path, completion: Dict) -> Optional[str]:
     """Write .auto_chain_trigger if configured. Returns next pipeline name or None.
-    
+
     增强：添加 transition_prompt 数据，供主 Agent 渲染用户引导词。
     """
-    ac, next_pl = config.get("auto_chain", {}), config.get("auto_chain", {}).get("next_pipeline")
-    if not next_pl: return None
-    
+    ac, next_pl = (
+        config.get("auto_chain", {}),
+        config.get("auto_chain", {}).get("next_pipeline"),
+    )
+    if not next_pl:
+        return None
+
     # 构建基础 trigger 数据
     trigger = {
         "source_pipeline": config["pipeline_id"],
         "completed_at": completion.get("completed_at", ""),
-        "base_path": str(base_path)
+        "base_path": str(base_path),
     }
-    
+
     # 生成 transition_prompt 数据
     if next_pl == "ship_pro":
         # Solution Pro → Ship Pro 过渡
         harness_path = base_path / "stages" / "harness_final.json"
         final_result_path = base_path / "stages" / "final_result.json"
-        
+
         harness_data = load_json(harness_path)
         final_result_data = load_json(final_result_path)
-        
+
         harness_score = 0
         num_reqs = 0
         num_modules = 0
-        
+
         if harness_data and isinstance(harness_data, dict):
             harness_score = harness_data.get("overall_score", 0)
-        
+
         if final_result_data and isinstance(final_result_data, dict):
             num_reqs = len(final_result_data.get("requirements", []))
             num_modules = len(final_result_data.get("modules", []))
-        
+
         trigger["transition_prompt"] = {
             "template": "solution_to_ship",
             "variables": {
                 "harness_score": harness_score,
                 "num_reqs": num_reqs,
-                "num_modules": num_modules
-            }
+                "num_modules": num_modules,
+            },
         }
-    
-    atomic_write(base_path / ac.get("trigger_file", ".auto_chain_trigger"), json.dumps(trigger, ensure_ascii=False))
+
+    atomic_write(
+        base_path / ac.get("trigger_file", ".auto_chain_trigger"),
+        json.dumps(trigger, ensure_ascii=False),
+    )
     return next_pl
+
 
 def _mark_remove(state: Path, reason: str, cron_id: str) -> None:
     """Write .watcher_should_remove marker."""
@@ -477,9 +645,10 @@ def _mark_remove(state: Path, reason: str, cron_id: str) -> None:
         data["auto_discover"] = True
     atomic_write(state / ".watcher_should_remove", json.dumps(data))
 
-def _get_completed_seqs_from_progress(base: Path, fm: 'MessageFormatter') -> tuple:
+
+def _get_completed_seqs_from_progress(base: Path, fm: "MessageFormatter") -> tuple:
     """Read .stage_progress.json to get completed phase seqs + current seq.
-    
+
     Returns: (completed_seqs: set, failed_seqs: set, current_seq: int)
     Falls back to empty sets if file missing.
     """
@@ -502,7 +671,9 @@ def _run_pipeline(cfg: Dict, base: Path, state: Path, args: Any, fmt: str) -> No
     rc.increment()
     if rc.is_timeout():
         _mark_remove(state, "timeout", cron_id)
-        emit("timeout", MessageFormatter(cfg, []).timeout(), should_remove=True, fmt=fmt)
+        emit(
+            "timeout", MessageFormatter(cfg, []).timeout(), should_remove=True, fmt=fmt
+        )
     cc = CompletionChecker(base, cfg["detection"], args.run_start_at)
     comp = cc.check()
     if comp:
@@ -514,33 +685,44 @@ def _run_pipeline(cfg: Dict, base: Path, state: Path, args: Any, fmt: str) -> No
                 msg += f"\n\n🔗 自动触发下游管线: {next_pl}"
                 if next_pl == "ship_pro":
                     msg += f"\n请执行: `cd ~/.openclaw/workspace/.deepflow && python3 domains/ship_pro/scripts/run_pipeline.py prepare {base}/final_result.json {base}/ship_output`"
-                    msg += f"\n然后依次执行 task/gate 命令完成 Ship Pro 管线。"
+                    msg += "\n然后依次执行 task/gate 命令完成 Ship Pro 管线。"
                 elif next_pl == "solution_pro":
                     msg += f"\n请执行: `cd ~/.openclaw/workspace/.deepflow && python3 scripts/start_solution_pro.py '{base}'`"
-                    msg += f"\n然后创建 cron job 巡检并 yield 等待完成。"
+                    msg += "\n然后创建 cron job 巡检并 yield 等待完成。"
             _mark_remove(state, "completed", cron_id)
             emit("completed", msg, should_remove=True, fmt=fmt)
         elif status == "failed":
             _mark_remove(state, "failed", cron_id)
-            emit("failed", fm.failed(comp, args.run_start_at), should_remove=True, fmt=fmt)
+            emit(
+                "failed",
+                fm.failed(comp, args.run_start_at),
+                should_remove=True,
+                fmt=fmt,
+            )
     sd = StageDetector(base, cfg["detection"], state, args.run_start_at)
     new_stages = sd.scan()
     if new_stages:
         CircuitBreaker(state, cfg["limits"]).reset()
         fm = MessageFormatter(cfg, sd.all_stages())
         # 用 .stage_progress.json 获取完整的 completed_seqs（不被 stale 过滤影响）
-        completed_seqs, failed_seqs, current_seq = _get_completed_seqs_from_progress(base, fm)
+        completed_seqs, failed_seqs, current_seq = _get_completed_seqs_from_progress(
+            base, fm
+        )
         # 回退：如果没有 stage_progress，用文件扫描结果
         if not completed_seqs:
             completed_seqs = {s.get("seq", 0) for s in sd.all_stages()}
-        prog = {"completed": len(completed_seqs), "total": cfg["detection"]["total_stages"],
-                "new_stages": [s["name"] for s in new_stages]}
+        prog = {
+            "completed": len(completed_seqs),
+            "total": cfg["detection"]["total_stages"],
+            "new_stages": [s["name"] for s in new_stages],
+        }
         # 渲染 v3 格式
         total = cfg["detection"]["total_stages"]
         bar = MessageFormatter._progress_bar(len(completed_seqs), total)
         elapsed = fm._elapsed(args.run_start_at)
         remaining = fm._estimate_remaining(
-            fm._elapsed_minutes(args.run_start_at), len(completed_seqs), total)
+            fm._elapsed_minutes(args.run_start_at), len(completed_seqs), total
+        )
         # 当前阶段名
         current_name = "运行中"
         for _name, seq, _icon in fm._phase_defs():
@@ -563,18 +745,23 @@ def _run_pipeline(cfg: Dict, base: Path, state: Path, args: Any, fmt: str) -> No
         if sp and sp.get("status") == "running":
             cb.reset()
             fm = MessageFormatter(cfg, sd.all_stages())
-            completed_seqs, failed_seqs, current_seq = _get_completed_seqs_from_progress(base, fm)
+            completed_seqs, failed_seqs, current_seq = (
+                _get_completed_seqs_from_progress(base, fm)
+            )
             total = cfg["detection"]["total_stages"]
             bar = MessageFormatter._progress_bar(len(completed_seqs), total)
             elapsed = fm._elapsed(args.run_start_at)
             remaining = fm._estimate_remaining(
-                fm._elapsed_minutes(args.run_start_at), len(completed_seqs), total)
+                fm._elapsed_minutes(args.run_start_at), len(completed_seqs), total
+            )
             current_name = "运行中"
             for _name, seq, _icon in fm._phase_defs():
                 if seq not in completed_seqs:
                     current_name = _name
                     break
-            detail = fm._build_phase_detail_list(completed_seqs, failed_seqs, current_seq)
+            detail = fm._build_phase_detail_list(
+                completed_seqs, failed_seqs, current_seq
+            )
             msg = (
                 f"🟡 [{fm._project_short()}] {current_name} (运行中)\n"
                 f"{bar} {len(completed_seqs)}/{total} 阶段\n"
@@ -583,32 +770,61 @@ def _run_pipeline(cfg: Dict, base: Path, state: Path, args: Any, fmt: str) -> No
             )
             emit("still_running", msg, should_remove=False, fmt=fmt)
         _mark_remove(state, "circuit_break", cron_id)
-        emit("circuit_break", MessageFormatter(cfg, []).circuit_break(count), should_remove=True, fmt=fmt)
+        emit(
+            "circuit_break",
+            MessageFormatter(cfg, []).circuit_break(count),
+            should_remove=True,
+            fmt=fmt,
+        )
     emit("noop", "", fmt=fmt)
+
 
 def main() -> None:
     ap = argparse.ArgumentParser
     ap.add_argument("--config", required=True)
     ap.add_argument("--base-path", required=True)
     ap.add_argument("--run-start-at", required=True)
-    ap.add_argument("--cron-job-id", default="", help="Cron job ID for self-removal. Empty=auto-discover by name.")
+    ap.add_argument(
+        "--cron-job-id",
+        default="",
+        help="Cron job ID for self-removal. Empty=auto-discover by name.",
+    )
     ap.add_argument("--state-dir", default=None)
     ap.add_argument("--format", choices=["json", "plain"], default="json")
     ap.add_argument("--print-wrapper", action="store_true")
     args = ap.parse_args()
-    if args.print_wrapper: print(WRAPPER_PROMPT); sys.exit(0)
-    base, state = Path(args.base_path), Path(args.state_dir) if args.state_dir else Path(args.base_path)
+    if args.print_wrapper:
+        print(WRAPPER_PROMPT)
+        sys.exit(0)
+    base, state = (
+        Path(args.base_path),
+        Path(args.state_dir) if args.state_dir else Path(args.base_path),
+    )
     cfg = load_json(Path(args.config))
-    if cfg is None: print(f"Error: cannot read config: {args.config}", file=sys.stderr); sys.exit(1)
+    if cfg is None:
+        print(f"Error: cannot read config: {args.config}", file=sys.stderr)
+        sys.exit(1)
     # Inject base_path into config so _project_short() works
     cfg["base_path"] = str(base)
     errs = validate_config(cfg)
-    if errs: print("Config validation errors:\n" + "\n".join(f"  - {e}" for e in errs), file=sys.stderr); sys.exit(1)
+    if errs:
+        print(
+            "Config validation errors:\n" + "\n".join(f"  - {e}" for e in errs),
+            file=sys.stderr,
+        )
+        sys.exit(1)
     state.mkdir(parents=True, exist_ok=True)
     lock_f = open(state / ".pipeline_watcher.lock", "w")
-    try: fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError: emit("noop", "Another watcher instance running", fmt=args.format)
-    try: _run_pipeline(cfg, base, state, args, args.format)
-    finally: fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN); lock_f.close()
+    try:
+        fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        emit("noop", "Another watcher instance running", fmt=args.format)
+    try:
+        _run_pipeline(cfg, base, state, args, args.format)
+    finally:
+        fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN)
+        lock_f.close()
 
-if __name__ == "__main__": main()
+
+if __name__ == "__main__":
+    main()

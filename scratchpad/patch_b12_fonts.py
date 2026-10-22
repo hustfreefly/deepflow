@@ -1,4 +1,6 @@
-import zipfile, shutil, os, re
+import zipfile
+import os
+import re
 
 SRC_DIR = "/Users/allen/.openclaw/workspace/projects/apec2026-vpd-ivr/deliverables"
 JOBS = [
@@ -20,7 +22,9 @@ for src_name, dst_name in JOBS:
             # 替换显式 PingFang SC
             new = text.replace('typeface="PingFang SC"', 'typeface="%s"' % TARGET)
             # 主题东亚字体位（+mn-ea / +mj-ea 的实体定义）
-            new = re.sub(r'(<a:ea typeface=")PingFang SC(")', r"\g<1>%s\g<2>" % TARGET, new)
+            new = re.sub(
+                r'(<a:ea typeface=")PingFang SC(")', r"\g<1>%s\g<2>" % TARGET, new
+            )
             if new != text:
                 count += text.count('typeface="PingFang SC"')
             data = new.encode("utf-8")

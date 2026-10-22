@@ -51,7 +51,9 @@ class WorkerFailureRecovery:
                 round_num = attempt.get("round", i)
                 action = attempt.get("action", "unknown")
                 result = attempt.get("result", "unknown")
-                history_lines.append(f"  轮次 {round_num}: 策略={action}, 结果={result}")
+                history_lines.append(
+                    f"  轮次 {round_num}: 策略={action}, 结果={result}"
+                )
             history_text = "\n".join(history_lines)
         else:
             history_text = "  （首次失败，无历史记录）"

@@ -2,6 +2,7 @@
 ResearchPro 单元测试 — CitationVerifier
 契约: cage/active/research_pro_v1.0.yaml (L1: citation_verifier, RED-DC-001, RED-DC-005)
 """
+
 import os
 import tempfile
 import unittest
@@ -9,7 +10,10 @@ import unittest
 import pytest
 
 from domains.research_pro.source_registry import SourceRegistry
-from domains.research_pro.citation_verifier import CITATION_FETCH_TIMEOUT, CitationVerifier
+from domains.research_pro.citation_verifier import (
+    CITATION_FETCH_TIMEOUT,
+    CitationVerifier,
+)
 
 
 @pytest.mark.network
@@ -18,12 +22,13 @@ class TestCitationVerifier(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        self.path = os.path.join(self.tmpdir, 'registry.json')
+        self.path = os.path.join(self.tmpdir, "registry.json")
         self.sr = SourceRegistry(self.path)
         self.cv = CitationVerifier(self.sr)
 
     def tearDown(self):
         import shutil
+
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     # --- extract_citations() ---
@@ -66,33 +71,54 @@ class TestCitationVerifier(unittest.TestCase):
 
     def test_verify_citation_returns_dict(self):
         """verify_citation() 返回统一 schema。"""
-        self.sr.register('https://httpbin.org/status/200', 'Test', 'content', 'tier_1',
-                         fetch_status='fetched', content_origin='web_fetch')
+        self.sr.register(
+            "https://httpbin.org/status/200",
+            "Test",
+            "content",
+            "tier_1",
+            fetch_status="fetched",
+            content_origin="web_fetch",
+        )
         result = self.cv.verify_citation(1)
         self.assertIsInstance(result, dict)
-        self.assertIn('status', result)
-        self.assertIn('verification_detail', result)
-        self.assertIn('quality_tier', result)
+        self.assertIn("status", result)
+        self.assertIn("verification_detail", result)
+        self.assertIn("quality_tier", result)
 
     def test_verify_citation_not_found(self):
         """引用编号不存在时返回 status=not_found。"""
         result = self.cv.verify_citation(999)
-        self.assertEqual(result['status'], 'not_found')
-        self.assertIn('not found', result['verification_detail'].lower())
+        self.assertEqual(result["status"], "not_found")
+        self.assertIn("not found", result["verification_detail"].lower())
 
     def test_verify_citation_unreachable_url(self):
         """URL 不可达时返回 status=unreachable 或 ineligible_source。"""
-        self.sr.register('https://this-domain-does-not-exist-12345.com/page', 'Test', 'content', 'tier_1',
-                         fetch_status='fetched', content_origin='web_fetch')
+        self.sr.register(
+            "https://this-domain-does-not-exist-12345.com/page",
+            "Test",
+            "content",
+            "tier_1",
+            fetch_status="fetched",
+            content_origin="web_fetch",
+        )
         result = self.cv.verify_citation(1)
-        self.assertIn(result['status'], ['unreachable', 'ineligible_source'])
+        self.assertIn(result["status"], ["unreachable", "ineligible_source"])
 
     def test_verify_citation_reachable_url(self):
         """URL 可达时返回 verified、content_mismatch 或 ineligible_source。"""
-        self.sr.register('https://httpbin.org/status/200', 'Test', 'content', 'tier_1',
-                         fetch_status='fetched', content_origin='web_fetch')
+        self.sr.register(
+            "https://httpbin.org/status/200",
+            "Test",
+            "content",
+            "tier_1",
+            fetch_status="fetched",
+            content_origin="web_fetch",
+        )
         result = self.cv.verify_citation(1)
-        self.assertIn(result['status'], ['verified', 'content_mismatch', 'unreachable', 'ineligible_source'])
+        self.assertIn(
+            result["status"],
+            ["verified", "content_mismatch", "unreachable", "ineligible_source"],
+        )
 
     # --- verify_all() ---
 
@@ -100,49 +126,67 @@ class TestCitationVerifier(unittest.TestCase):
         """verify_all() 返回统一汇总结构。"""
         result = self.cv.verify_all("测试[1]")
         self.assertIsInstance(result, dict)
-        self.assertIn('total_citations', result)
-        self.assertIn('unique_citations', result)
-        self.assertIn('verification_summary', result)
-        self.assertIn('citations', result)
-        self.assertIn('trust_score', result)
-        self.assertIn('recommendation', result)
+        self.assertIn("total_citations", result)
+        self.assertIn("unique_citations", result)
+        self.assertIn("verification_summary", result)
+        self.assertIn("citations", result)
+        self.assertIn("trust_score", result)
+        self.assertIn("recommendation", result)
 
     def test_verify_all_details_structure(self):
         """verify_all() citations 包含正确结构。"""
-        self.sr.register('https://example.com', 'Test', 'content', 'tier_1',
-                         fetch_status='fetched', content_origin='web_fetch')
+        self.sr.register(
+            "https://example.com",
+            "Test",
+            "content",
+            "tier_1",
+            fetch_status="fetched",
+            content_origin="web_fetch",
+        )
         result = self.cv.verify_all("引用[1]")
-        self.assertIsInstance(result['citations'], list)
-        if result['citations']:
-            detail = result['citations'][0]
-            self.assertIn('citation_id', detail)
-            self.assertIn('source_id', detail)
-            self.assertIn('url', detail)
-            self.assertIn('status', detail)
-            self.assertIn('http_status', detail)
-            self.assertIn('content_hash_match', detail)
-            self.assertIn('quality_tier', detail)
-            self.assertIn('verification_detail', detail)
+        self.assertIsInstance(result["citations"], list)
+        if result["citations"]:
+            detail = result["citations"][0]
+            self.assertIn("citation_id", detail)
+            self.assertIn("source_id", detail)
+            self.assertIn("url", detail)
+            self.assertIn("status", detail)
+            self.assertIn("http_status", detail)
+            self.assertIn("content_hash_match", detail)
+            self.assertIn("quality_tier", detail)
+            self.assertIn("verification_detail", detail)
 
     def test_verify_all_counts(self):
         """verify_all() 统计数量正确。"""
-        self.sr.register('https://example.com/1', 'T1', 'c1', 'tier_1',
-                         fetch_status='fetched', content_origin='web_fetch')
-        self.sr.register('https://example.com/2', 'T2', 'c2', 'tier_1',
-                         fetch_status='fetched', content_origin='web_fetch')
+        self.sr.register(
+            "https://example.com/1",
+            "T1",
+            "c1",
+            "tier_1",
+            fetch_status="fetched",
+            content_origin="web_fetch",
+        )
+        self.sr.register(
+            "https://example.com/2",
+            "T2",
+            "c2",
+            "tier_1",
+            fetch_status="fetched",
+            content_origin="web_fetch",
+        )
         result = self.cv.verify_all("[1][2][999]")
-        summary = result['verification_summary']
+        summary = result["verification_summary"]
         # V2: 新增 ineligible_source 状态
         total = (
-            summary.get('verified', 0)
-            + summary.get('unreachable', 0)
-            + summary.get('not_found', 0)
-            + summary.get('content_mismatch', 0)
-            + summary.get('ineligible_source', 0)
+            summary.get("verified", 0)
+            + summary.get("unreachable", 0)
+            + summary.get("not_found", 0)
+            + summary.get("content_mismatch", 0)
+            + summary.get("ineligible_source", 0)
         )
         self.assertEqual(total, 3)  # 2 个真实 + 1 个 not_found
-        self.assertEqual(result['total_citations'], 3)
-        self.assertEqual(result['unique_citations'], 3)
+        self.assertEqual(result["total_citations"], 3)
+        self.assertEqual(result["unique_citations"], 3)
 
     # --- RED-DC-001 合规 ---
 
@@ -150,9 +194,9 @@ class TestCitationVerifier(unittest.TestCase):
         """RED-DC-001: 所有引用必须来自 Source Registry。"""
         # 验证 verify_citation 依赖 source_registry
         result = self.cv.verify_citation(999)
-        self.assertEqual(result['status'], 'not_found')
-        self.assertIn('not found', result['verification_detail'].lower())
+        self.assertEqual(result["status"], "not_found")
+        self.assertIn("not found", result["verification_detail"].lower())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

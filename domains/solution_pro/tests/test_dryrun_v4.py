@@ -18,10 +18,12 @@ from datetime import datetime
 # Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def bb(tmp_path):
     """创建临时 BlackboardManager"""
     from core.blackboard.blackboard_manager import BlackboardManager
+
     manager = BlackboardManager(session_id="dryrun_v4_test", base_dir=tmp_path)
     return manager
 
@@ -38,6 +40,7 @@ def session_dir(bb):
 def state_mgr(session_dir):
     """创建 SingleSourceStateManager"""
     from core.process_manager import SingleSourceStateManager
+
     return SingleSourceStateManager(str(session_dir))
 
 
@@ -45,6 +48,7 @@ def state_mgr(session_dir):
 def lifecycle(session_dir):
     """创建 ModuleLifecycleManager"""
     from core.process_manager import ModuleLifecycleManager
+
     return ModuleLifecycleManager(str(session_dir))
 
 
@@ -60,6 +64,7 @@ def frozen_spec(bb):
     # ADR-009: 写入 MD 格式
     try:
         from domains.solution_pro.frozen_living_md import render_frozen_spec_md
+
         md_content = render_frozen_spec_md(spec)
         bb.write("data/frozen_spec.md", md_content)
     except ImportError:
@@ -79,13 +84,15 @@ def mock_spawn():
 # Helper Functions
 # ============================================================================
 
+
 def write_run_completed(session_dir, module):
     """模拟 SingleSourceStateManager 标记模块完成（写入 .run.json）
-    
+
     必须符合 RunRecordContract:
     - module, run_id, attempt, status, started_at(float), last_heartbeat(float), completed_at(float|None)
     """
     import time
+
     runs_dir = session_dir / ".runs"
     runs_dir.mkdir(parents=True, exist_ok=True)
     run_file = runs_dir / f"{module}.run.json"
@@ -105,18 +112,22 @@ def write_run_completed(session_dir, module):
 
 def simulate_module_failure(bb, module):
     """模拟模块失败 → 写 .failed"""
-    bb.write_stage(".failed", {
-        "session_id": "dryrun_v4_test",
-        "failed_module": module,
-        "failed_at": datetime.utcnow().isoformat() + "Z",
-        "reason": "MISSING",
-        "architecture_version": "v4.0",
-    })
+    bb.write_stage(
+        ".failed",
+        {
+            "session_id": "dryrun_v4_test",
+            "failed_module": module,
+            "failed_at": datetime.utcnow().isoformat() + "Z",
+            "reason": "MISSING",
+            "architecture_version": "v4.0",
+        },
+    )
 
 
 # ============================================================================
 # 3.1 正常流程测试
 # ============================================================================
+
 
 class TestHappyPath:
     """正常全流程测试"""
@@ -133,13 +144,16 @@ class TestHappyPath:
         assert state_mgr.is_module_completed("summary")
 
         # 模拟写入 .completed
-        bb.write_stage(".completed", {
-            "session_id": "dryrun_v4_test",
-            "status": "completed",
-            "completed_at": datetime.utcnow().isoformat() + "Z",
-            "modules_completed": ["planning", "research", "summary"],
-            "architecture_version": "v4.0",
-        })
+        bb.write_stage(
+            ".completed",
+            {
+                "session_id": "dryrun_v4_test",
+                "status": "completed",
+                "completed_at": datetime.utcnow().isoformat() + "Z",
+                "modules_completed": ["planning", "research", "summary"],
+                "architecture_version": "v4.0",
+            },
+        )
 
         # 验证 .completed 文件存在
         completed_path = session_dir / "stages" / ".completed.json"
@@ -152,19 +166,28 @@ class TestHappyPath:
 
     def test_completion_marker_fields(self, bb, session_dir):
         """验证: .completed 只包含最小必要字段"""
-        bb.write_stage(".completed", {
-            "session_id": "dryrun_v4_test",
-            "status": "completed",
-            "completed_at": datetime.utcnow().isoformat() + "Z",
-            "modules_completed": ["planning", "research", "summary"],
-            "architecture_version": "v4.0",
-        })
+        bb.write_stage(
+            ".completed",
+            {
+                "session_id": "dryrun_v4_test",
+                "status": "completed",
+                "completed_at": datetime.utcnow().isoformat() + "Z",
+                "modules_completed": ["planning", "research", "summary"],
+                "architecture_version": "v4.0",
+            },
+        )
 
         completed_path = session_dir / "stages" / ".completed.json"
         content = json.loads(completed_path.read_text())
 
         # V4.0 最小字段集
-        expected_keys = {"session_id", "status", "completed_at", "modules_completed", "architecture_version"}
+        expected_keys = {
+            "session_id",
+            "status",
+            "completed_at",
+            "modules_completed",
+            "architecture_version",
+        }
         assert set(content.keys()) == expected_keys
 
         # V3.4 的字段不应该存在
@@ -196,6 +219,7 @@ class TestHappyPath:
 # ============================================================================
 # 3.2 Fail Fast 测试
 # ============================================================================
+
 
 class TestFailFast:
     """Fail Fast 机制测试"""
@@ -243,6 +267,7 @@ class TestFailFast:
 # ============================================================================
 # 3.3 断点恢复测试
 # ============================================================================
+
 
 class TestResume:
     """断点恢复测试"""
@@ -294,6 +319,7 @@ class TestResume:
 # 3.4 V4.0 简化验证测试
 # ============================================================================
 
+
 class TestV4Simplification:
     """V4.0 简化正确性验证"""
 
@@ -303,7 +329,7 @@ class TestV4Simplification:
         content = prompt_path.read_text()
 
         # 找到执行算法部分（Step 0/1/2），验证不含 Step 4/5 或 POST_VALIDATION
-        algo_section = content[content.find("## 执行算法"):]
+        algo_section = content[content.find("## 执行算法") :]
         assert "POST_VALIDATION" not in algo_section
         assert "Step 4" not in algo_section
         assert "Step 5" not in algo_section
@@ -352,6 +378,7 @@ class TestV4Simplification:
 # 3.5 Mock Spawn 集成测试
 # ============================================================================
 
+
 class TestMockSpawn:
     """Mock sessions_spawn 的集成测试"""
 
@@ -370,7 +397,11 @@ class TestMockSpawn:
 
         assert mock_spawn.call_count == 3
         calls = [c.kwargs["label"] for c in mock_spawn.call_args_list]
-        assert calls == ["planning_module_v4", "research_module_v4", "summary_module_v4"]
+        assert calls == [
+            "planning_module_v4",
+            "research_module_v4",
+            "summary_module_v4",
+        ]
 
     def test_spawn_mock_is_independent(self):
         """验证: MagicMock 可以独立使用，不需要 patch"""
@@ -381,8 +412,9 @@ class TestMockSpawn:
     def test_wait_for_module_mock(self, session_dir):
         """验证: wait_for_module 可以被 Mock"""
         from core.process_manager import ModuleLifecycleManager
+
         lifecycle = ModuleLifecycleManager(str(session_dir))
-        with patch.object(lifecycle, 'wait_for_module') as mock_wait:
+        with patch.object(lifecycle, "wait_for_module") as mock_wait:
             mock_wait.return_value = MagicMock(found=True, reason=None)
 
             result = lifecycle.wait_for_module(

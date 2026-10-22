@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 import requests
 
 from .contracts import TimeoutAlertContract
@@ -22,6 +21,7 @@ from .contracts import TimeoutAlertContract
 @dataclass
 class WaitResult:
     """wait_for 返回的原始状态（LLM 基于此做语义判断）"""
+
     found: bool
     path: str
     elapsed: float
@@ -97,7 +97,10 @@ class ProcessManager:
 
             # 定期输出进度（防 stuck abort，spike 验证每 15s 有效）
             if elapsed - last_progress >= poll_interval:
-                print(f"WAIT_FOR_PROGRESS: {path} elapsed={elapsed:.0f}s / {timeout}s", flush=True)
+                print(
+                    f"WAIT_FOR_PROGRESS: {path} elapsed={elapsed:.0f}s / {timeout}s",
+                    flush=True,
+                )
                 last_progress = elapsed
 
             # 检查文件
@@ -113,8 +116,13 @@ class ProcessManager:
                 # 检查空文件
                 if size == 0:
                     return WaitResult(
-                        found=True, path=path, elapsed=elapsed, timeout=timeout,
-                        file_size=0, file_mtime=mtime, exists_but_empty=True,
+                        found=True,
+                        path=path,
+                        elapsed=elapsed,
+                        timeout=timeout,
+                        file_size=0,
+                        file_mtime=mtime,
+                        exists_but_empty=True,
                     )
 
                 # 验证 JSON
@@ -125,25 +133,37 @@ class ProcessManager:
                         time.sleep(1)  # 可能正在写入，等一下
                         continue
 
-                print(f"WAIT_FOR_FOUND: {path} elapsed={elapsed:.0f}s size={size}", flush=True)
+                print(
+                    f"WAIT_FOR_FOUND: {path} elapsed={elapsed:.0f}s size={size}",
+                    flush=True,
+                )
                 return WaitResult(
-                    found=True, path=path, elapsed=elapsed, timeout=timeout,
-                    file_size=size, file_mtime=mtime,
+                    found=True,
+                    path=path,
+                    elapsed=elapsed,
+                    timeout=timeout,
+                    file_size=size,
+                    file_mtime=mtime,
                 )
 
             time.sleep(1)
 
         elapsed = time.time() - start
         print(f"WAIT_FOR_TIMEOUT: {path} elapsed={elapsed:.0f}s", flush=True)
-        
+
         # 超时告警（写入告警文件 + 调用 webhook）
         self._send_timeout_alert(path, elapsed, timeout)
-        
+
         return WaitResult(
-            found=False, path=path, elapsed=elapsed, timeout=timeout,
+            found=False,
+            path=path,
+            elapsed=elapsed,
+            timeout=timeout,
         )
 
-    def check(self, path: str, min_size: int = 0, validate_json: bool = False) -> WaitResult:
+    def check(
+        self, path: str, min_size: int = 0, validate_json: bool = False
+    ) -> WaitResult:
         """
         立即检查文件（非阻塞）。
 
@@ -160,14 +180,23 @@ class ProcessManager:
 
         if size < min_size:
             return WaitResult(
-                found=False, path=path, elapsed=0, timeout=0,
-                file_size=size, file_mtime=mtime,
+                found=False,
+                path=path,
+                elapsed=0,
+                timeout=0,
+                file_size=size,
+                file_mtime=mtime,
             )
 
         if size == 0:
             return WaitResult(
-                found=True, path=path, elapsed=0, timeout=0,
-                file_size=0, file_mtime=mtime, exists_but_empty=True,
+                found=True,
+                path=path,
+                elapsed=0,
+                timeout=0,
+                file_size=0,
+                file_mtime=mtime,
+                exists_but_empty=True,
             )
 
         if validate_json:
@@ -175,13 +204,22 @@ class ProcessManager:
                 json.loads(target.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, UnicodeDecodeError):
                 return WaitResult(
-                    found=True, path=path, elapsed=0, timeout=0,
-                    file_size=size, file_mtime=mtime, exists_but_invalid_json=True,
+                    found=True,
+                    path=path,
+                    elapsed=0,
+                    timeout=0,
+                    file_size=size,
+                    file_mtime=mtime,
+                    exists_but_invalid_json=True,
                 )
 
         return WaitResult(
-            found=True, path=path, elapsed=0, timeout=0,
-            file_size=size, file_mtime=mtime,
+            found=True,
+            path=path,
+            elapsed=0,
+            timeout=0,
+            file_size=size,
+            file_mtime=mtime,
         )
 
     def wait_for_any(
@@ -194,19 +232,26 @@ class ProcessManager:
         start = time.time()
         last_progress = 0
 
-        print(f"WAIT_FOR_ANY_START: {len(paths)} files (timeout={timeout}s)", flush=True)
+        print(
+            f"WAIT_FOR_ANY_START: {len(paths)} files (timeout={timeout}s)", flush=True
+        )
 
         while time.time() - start < timeout:
             elapsed = time.time() - start
 
             if elapsed - last_progress >= poll_interval:
-                print(f"WAIT_FOR_ANY_PROGRESS: elapsed={elapsed:.0f}s / {timeout}s", flush=True)
+                print(
+                    f"WAIT_FOR_ANY_PROGRESS: elapsed={elapsed:.0f}s / {timeout}s",
+                    flush=True,
+                )
                 last_progress = elapsed
 
             for path in paths:
                 result = self.check(path)
                 if result.found:
-                    print(f"WAIT_FOR_ANY_FOUND: {path} elapsed={elapsed:.0f}s", flush=True)
+                    print(
+                        f"WAIT_FOR_ANY_FOUND: {path} elapsed={elapsed:.0f}s", flush=True
+                    )
                     return result
 
             time.sleep(1)
@@ -227,14 +272,19 @@ class ProcessManager:
         results: dict[str, WaitResult] = {}
         remaining = set(paths)
 
-        print(f"WAIT_FOR_ALL_START: {len(paths)} files (timeout={timeout}s)", flush=True)
+        print(
+            f"WAIT_FOR_ALL_START: {len(paths)} files (timeout={timeout}s)", flush=True
+        )
 
         while time.time() - start < timeout and remaining:
             elapsed = time.time() - start
 
             if elapsed - last_progress >= poll_interval:
                 done = len(paths) - len(remaining)
-                print(f"WAIT_FOR_ALL_PROGRESS: {done}/{len(paths)} done, elapsed={elapsed:.0f}s / {timeout}s", flush=True)
+                print(
+                    f"WAIT_FOR_ALL_PROGRESS: {done}/{len(paths)} done, elapsed={elapsed:.0f}s / {timeout}s",
+                    flush=True,
+                )
                 last_progress = elapsed
 
             for path in list(remaining):
@@ -242,7 +292,9 @@ class ProcessManager:
                 if result.found:
                     results[path] = result
                     remaining.discard(path)
-                    print(f"WAIT_FOR_ALL_FOUND: {path} elapsed={elapsed:.0f}s", flush=True)
+                    print(
+                        f"WAIT_FOR_ALL_FOUND: {path} elapsed={elapsed:.0f}s", flush=True
+                    )
 
             if remaining:
                 time.sleep(1)
@@ -250,20 +302,25 @@ class ProcessManager:
         # 超时的文件标记为 not found
         elapsed = time.time() - start
         for path in remaining:
-            results[path] = WaitResult(found=False, path=path, elapsed=elapsed, timeout=timeout)
+            results[path] = WaitResult(
+                found=False, path=path, elapsed=elapsed, timeout=timeout
+            )
 
-        print(f"WAIT_FOR_ALL_DONE: {len(paths) - len(remaining)}/{len(paths)} found, elapsed={elapsed:.0f}s", flush=True)
+        print(
+            f"WAIT_FOR_ALL_DONE: {len(paths) - len(remaining)}/{len(paths)} found, elapsed={elapsed:.0f}s",
+            flush=True,
+        )
         return results
 
     def _send_timeout_alert(self, path: str, elapsed: float, timeout: int) -> None:
         """
         超时告警（写入告警文件 + 调用 webhook）
-        
+
         解决 V37/V39 "超时事件无法被外部系统捕获" 问题。
         """
         # 从 session_dir 提取 session_id
         session_id = self.session_dir.name
-        
+
         # 创建告警数据
         alert_data = {
             "path": path,
@@ -272,21 +329,24 @@ class ProcessManager:
             "session_id": session_id,
             "webhook_url": self.webhook_url,
         }
-        
+
         # 契约验证
         try:
             alert_contract = TimeoutAlertContract(**alert_data)
         except Exception as e:
             print(f"TIMEOUT_ALERT_CONTRACT_ERROR: {e}", flush=True)
             return
-        
+
         # 写入告警文件
-        alert_file = self.alerts_dir / f"timeout_{int(time.time())}_{path.replace('/', '_')}.json"
+        alert_file = (
+            self.alerts_dir
+            / f"timeout_{int(time.time())}_{path.replace('/', '_')}.json"
+        )
         alert_file.write_text(
             json.dumps(alert_contract.model_dump(), indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-        
+
         # 调用 webhook
         if self.webhook_url:
             try:
@@ -298,6 +358,8 @@ class ProcessManager:
                 if response.status_code == 200:
                     print(f"TIMEOUT_ALERT_SENT: {path}", flush=True)
                 else:
-                    print(f"TIMEOUT_ALERT_FAILED: HTTP {response.status_code}", flush=True)
+                    print(
+                        f"TIMEOUT_ALERT_FAILED: HTTP {response.status_code}", flush=True
+                    )
             except Exception as e:
                 print(f"TIMEOUT_ALERT_ERROR: {e}", flush=True)

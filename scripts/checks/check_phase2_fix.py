@@ -46,7 +46,8 @@ def check_audit_pipeline():
     checks = {
         "_execute_audit_stage": "_execute_audit_stage" in content,
         "_run_single_audit": "_run_single_audit" in content,
-        "correctness/security/performance": "correctness" in content and "security" in content,
+        "correctness/security/performance": "correctness" in content
+        and "security" in content,
         "audit_summary.md": "audit_summary.md" in content,
     }
 
@@ -83,7 +84,7 @@ def check_architecture_domain():
         status = "✅" if exists and has_blackboard else "❌"
         print(f"  {status} {name}")
         if exists and not has_blackboard:
-            print(f"      ⚠️  缺少 Blackboard 指令")
+            print("      ⚠️  缺少 Blackboard 指令")
         all_passed = all_passed and exists and has_blackboard
 
     return all_passed

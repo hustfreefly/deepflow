@@ -1,4 +1,5 @@
 """Contract tests for network isolation (P0-2)."""
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]

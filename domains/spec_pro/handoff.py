@@ -9,21 +9,23 @@ ADR-009 P0（2026-07-12）：MD 直传架构
   save_handoff_package 增加 HandoffPackage Pydantic 验证。
   验证失败 → raise ValueError，绝不静默降级。
 """
+
 import sys as _sys
-_p = __import__('pathlib').Path(__file__).resolve()
+import json
+import logging
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+_p = __import__("pathlib").Path(__file__).resolve()
 # 契约笼子：强制将 .deepflow 根目录插到 sys.path[0]，覆盖脚本目录优先级
 # （避免 domains/spec_pro/contracts/ 遮蔽 contracts/shared/）
-_root = next((d for d in _p.parents if (d / 'core' / 'blackboard').is_dir()), None)
+_root = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 if _root:
     _root_str = str(_root)
     if _root_str in _sys.path:
         _sys.path.remove(_root_str)
     _sys.path.insert(0, _root_str)
 
-import json
-import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 # 契约笼子：导入 Pydantic 强类型模型
 from contracts.shared.handoff_contract import HandoffPackage

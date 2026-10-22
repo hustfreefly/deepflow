@@ -10,7 +10,6 @@ check_data_manager.py - DataManager 契约验证
 5. Provider 注册表
 """
 
-import ast
 import sys
 from pathlib import Path
 
@@ -27,8 +26,16 @@ def check_provider_interface_generic():
         content = f.read()
 
     # 检查 DataProvider 类定义
-    domain_terms = ["financials", "symbol", "stock", "revenue", "profit",
-                    "market", "price", "quote"]
+    domain_terms = [
+        "financials",
+        "symbol",
+        "stock",
+        "revenue",
+        "profit",
+        "market",
+        "price",
+        "quote",
+    ]
 
     # 找到 DataProvider 类
     class_start = content.find("class DataProvider(ABC):")
@@ -37,7 +44,7 @@ def check_provider_interface_generic():
         return False
 
     # 检查 abstract 方法签名
-    abstract_section = content[class_start:class_start+500]
+    abstract_section = content[class_start : class_start + 500]
 
     found_issues = []
     for term in domain_terms:
@@ -213,6 +220,7 @@ def check_yaml_config():
         return False
 
     import yaml
+
     with open(yaml_file) as f:
         config = yaml.safe_load(f)
 

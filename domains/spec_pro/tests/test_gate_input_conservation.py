@@ -12,15 +12,15 @@ Track B: gate_input_conservation 测试
 
 import sys as _sys
 from pathlib import Path as _Path
-
-_p = _Path(__file__).resolve()
-_r = next((d for d in _p.parents if (d / 'core' / 'blackboard').is_dir()), None)
-if _r and str(_r) not in _sys.path:
-    _sys.path.insert(0, str(_r))
-
 import json
 import pytest
 from unittest.mock import MagicMock
+
+_p = _Path(__file__).resolve()
+_r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
+if _r and str(_r) not in _sys.path:
+    _sys.path.insert(0, str(_r))
+
 
 from domains.spec_pro.contracts.gate_input_conservation import (
     gate_input_conservation,
@@ -34,19 +34,32 @@ from domains.spec_pro.contracts.gate_input_conservation import (
 # Test helpers
 # ============================================================================
 
+
 def _make_llm_call(responses: list) -> MagicMock:
     """创建一个按顺序返回 responses 的 mock LLM call"""
     mock = MagicMock(side_effect=responses)
     return mock
 
 
-SAMPLE_USER_INPUT = "2.5D封装设计团队组建框架：面向CoWoS-S/L的PDK驱动型团队（两年路线图）"
+SAMPLE_USER_INPUT = (
+    "2.5D封装设计团队组建框架：面向CoWoS-S/L的PDK驱动型团队（两年路线图）"
+)
 
 SAMPLE_ELEMENTS_ALL_COVERED = [
     {"id": "E1", "element": "CoWoS-S", "category": "technology", "criticality": "MUST"},
     {"id": "E2", "element": "CoWoS-L", "category": "technology", "criticality": "MUST"},
-    {"id": "E3", "element": "PDK驱动型团队", "category": "organization_principle", "criticality": "MUST"},
-    {"id": "E4", "element": "两年路线图", "category": "timeline_constraint", "criticality": "MUST"},
+    {
+        "id": "E3",
+        "element": "PDK驱动型团队",
+        "category": "organization_principle",
+        "criticality": "MUST",
+    },
+    {
+        "id": "E4",
+        "element": "两年路线图",
+        "category": "timeline_constraint",
+        "criticality": "MUST",
+    },
 ]
 
 SAMPLE_LIVING_SPEC_FULL = {
@@ -73,24 +86,45 @@ SAMPLE_LIVING_SPEC_FULL = {
 # Test 1: 全覆盖 → PASS
 # ============================================================================
 
+
 class TestFullCoverage:
     def test_all_elements_covered_returns_pass(self):
         """所有要素 COVERED → passed=True, declared_gaps=[]"""
         # Layer 1: 返回要素清单
-        extract_response = json.dumps({
-            "input_elements": SAMPLE_ELEMENTS_ALL_COVERED
-        })
+        extract_response = json.dumps({"input_elements": SAMPLE_ELEMENTS_ALL_COVERED})
 
         # Layer 2: 全部 COVERED
-        judge_response = json.dumps({
-            "conservation_results": [
-                {"id": "E1", "element": "CoWoS-S", "status": "COVERED", "evidence": "living_spec 明确提及"},
-                {"id": "E2", "element": "CoWoS-L", "status": "COVERED", "evidence": "living_spec 明确提及"},
-                {"id": "E3", "element": "PDK驱动型团队", "status": "COVERED", "evidence": "semantic_anchors 包含"},
-                {"id": "E4", "element": "两年路线图", "status": "COVERED", "evidence": "narrative 提及 24 个月"},
-            ],
-            "conservation_rate": 1.0,
-        })
+        judge_response = json.dumps(
+            {
+                "conservation_results": [
+                    {
+                        "id": "E1",
+                        "element": "CoWoS-S",
+                        "status": "COVERED",
+                        "evidence": "living_spec 明确提及",
+                    },
+                    {
+                        "id": "E2",
+                        "element": "CoWoS-L",
+                        "status": "COVERED",
+                        "evidence": "living_spec 明确提及",
+                    },
+                    {
+                        "id": "E3",
+                        "element": "PDK驱动型团队",
+                        "status": "COVERED",
+                        "evidence": "semantic_anchors 包含",
+                    },
+                    {
+                        "id": "E4",
+                        "element": "两年路线图",
+                        "status": "COVERED",
+                        "evidence": "narrative 提及 24 个月",
+                    },
+                ],
+                "conservation_rate": 1.0,
+            }
+        )
 
         llm_call = _make_llm_call([extract_response, judge_response])
 
@@ -111,26 +145,59 @@ class TestFullCoverage:
 # Test 2: MUST missing → raise ValueError
 # ============================================================================
 
+
 class TestMustMissing:
     def test_must_element_missing_raises_value_error(self):
         """MUST 要素 MISSING → raise ValueError（HARD_BLOCK）"""
         elements_with_must = [
-            {"id": "E1", "element": "CoWoS-S", "category": "technology", "criticality": "MUST"},
-            {"id": "E2", "element": "CoWoS-L", "category": "technology", "criticality": "MUST"},
-            {"id": "E3", "element": "PDK驱动型团队", "category": "organization_principle", "criticality": "MUST"},
+            {
+                "id": "E1",
+                "element": "CoWoS-S",
+                "category": "technology",
+                "criticality": "MUST",
+            },
+            {
+                "id": "E2",
+                "element": "CoWoS-L",
+                "category": "technology",
+                "criticality": "MUST",
+            },
+            {
+                "id": "E3",
+                "element": "PDK驱动型团队",
+                "category": "organization_principle",
+                "criticality": "MUST",
+            },
         ]
 
         extract_response = json.dumps({"input_elements": elements_with_must})
 
         # E2 (CoWoS-L) is MISSING — this is MUST
-        judge_response = json.dumps({
-            "conservation_results": [
-                {"id": "E1", "element": "CoWoS-S", "status": "COVERED", "evidence": "提及"},
-                {"id": "E2", "element": "CoWoS-L", "status": "MISSING", "evidence": "未提及"},
-                {"id": "E3", "element": "PDK驱动型团队", "status": "COVERED", "evidence": "提及"},
-            ],
-            "conservation_rate": 0.67,
-        })
+        judge_response = json.dumps(
+            {
+                "conservation_results": [
+                    {
+                        "id": "E1",
+                        "element": "CoWoS-S",
+                        "status": "COVERED",
+                        "evidence": "提及",
+                    },
+                    {
+                        "id": "E2",
+                        "element": "CoWoS-L",
+                        "status": "MISSING",
+                        "evidence": "未提及",
+                    },
+                    {
+                        "id": "E3",
+                        "element": "PDK驱动型团队",
+                        "status": "COVERED",
+                        "evidence": "提及",
+                    },
+                ],
+                "conservation_rate": 0.67,
+            }
+        )
 
         llm_call = _make_llm_call([extract_response, judge_response])
 
@@ -146,24 +213,47 @@ class TestMustMissing:
 # Test 3: SHOULD missing → declared_gaps
 # ============================================================================
 
+
 class TestShouldMissing:
     def test_should_element_missing_declared_gaps(self):
         """SHOULD 要素 MISSING → declared_gaps 显式记录，不阻断"""
         elements_with_should = [
-            {"id": "E1", "element": "CoWoS-S", "category": "technology", "criticality": "MUST"},
-            {"id": "E2", "element": "成本优化建议", "category": "quality_attribute", "criticality": "SHOULD"},
+            {
+                "id": "E1",
+                "element": "CoWoS-S",
+                "category": "technology",
+                "criticality": "MUST",
+            },
+            {
+                "id": "E2",
+                "element": "成本优化建议",
+                "category": "quality_attribute",
+                "criticality": "SHOULD",
+            },
         ]
 
         extract_response = json.dumps({"input_elements": elements_with_should})
 
         # E2 (SHOULD) is MISSING
-        judge_response = json.dumps({
-            "conservation_results": [
-                {"id": "E1", "element": "CoWoS-S", "status": "COVERED", "evidence": "提及"},
-                {"id": "E2", "element": "成本优化建议", "status": "MISSING", "evidence": "未提及"},
-            ],
-            "conservation_rate": 0.5,
-        })
+        judge_response = json.dumps(
+            {
+                "conservation_results": [
+                    {
+                        "id": "E1",
+                        "element": "CoWoS-S",
+                        "status": "COVERED",
+                        "evidence": "提及",
+                    },
+                    {
+                        "id": "E2",
+                        "element": "成本优化建议",
+                        "status": "MISSING",
+                        "evidence": "未提及",
+                    },
+                ],
+                "conservation_rate": 0.5,
+            }
+        )
 
         llm_call = _make_llm_call([extract_response, judge_response])
 
@@ -182,6 +272,7 @@ class TestShouldMissing:
 # ============================================================================
 # Test 4: LLM 调用失败 → raise（fail-closed）
 # ============================================================================
+
 
 class TestFailClosed:
     def test_extract_llm_failure_raises(self):
@@ -243,6 +334,7 @@ class TestFailClosed:
 # Test 5: JSON 解析工具
 # ============================================================================
 
+
 class TestParseLlmJson:
     def test_direct_json(self):
         raw = '{"key": "value"}'
@@ -264,6 +356,7 @@ class TestParseLlmJson:
 # ============================================================================
 # Test 6: 边界条件
 # ============================================================================
+
 
 class TestEdgeCases:
     def test_empty_user_input_raises(self):

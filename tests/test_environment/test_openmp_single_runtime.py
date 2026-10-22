@@ -16,10 +16,12 @@ import pytest
 pytestmark = pytest.mark.unit
 
 
-@pytest.mark.skipif(platform.system() != "Darwin", reason="libomp 双加载守卫仅覆盖 macOS")
+@pytest.mark.skipif(
+    platform.system() != "Darwin", reason="libomp 双加载守卫仅覆盖 macOS"
+)
 @pytest.mark.skipif(shutil.which("lsof") is None, reason="需要 lsof 检查已加载动态库")
 def test_numpy_torch_load_single_libomp():
-    child = r'''
+    child = r"""
 import os
 import subprocess
 import numpy
@@ -30,7 +32,7 @@ out = subprocess.check_output(["lsof", "-p", str(pid)], text=True, errors="ignor
 paths = sorted({line.split()[-1] for line in out.splitlines() if "libomp.dylib" in line})
 print("LIBOMP_PATHS", paths)
 assert len(paths) <= 1, f"duplicate libomp loaded: {paths}"
-'''
+"""
     env = os.environ.copy()
     env.pop("KMP_DUPLICATE_LIB_OK", None)
     subprocess.run([sys.executable, "-c", child], check=True, env=env, timeout=30)
