@@ -11,7 +11,7 @@ description: |
   目标不是“一次清零”，而是债务只降不升（ratchet）。
 interface:
   format_gate: "ruff format --check ."
-  error_rules: "ruff check --select E9,F63,F7,F82 ."
+  error_rules: "ruff check --select E9,F63,F7,F82,F402,E712 ."
   full_scan: "ruff check --statistics"
 behavior:
   format_gate:
@@ -29,8 +29,8 @@ boundaries:
   - "死代码先归档（_archive，gitignored），不直接删除有引用的文件"
 redlines:
   - id: RED-DQ-001
-    rule: "CI 必须全量跑 E9/F63/F7/F82，不允许只查改动文件"
-    check: "ci.yml 中存在 ruff check --select E9,F63,F7,F82 ."
+    rule: "CI 必须全量跑已锁规则，不允许只查改动文件"
+    check: "ci.yml 中存在 ruff check --select E9,F63,F7,F82,F402,E712 ."
   - id: RED-DQ-002
     rule: "禁止用 # noqa 冻结 F821 未定义名"
     check: "仓库中不存在 noqa: F821"
@@ -39,5 +39,5 @@ redlines:
     check: "ruff format --check . -> 0"
 baseline:
   date: '2026-10-22'
-  total: 344
-  note: "E9/F63/F7/F82 = 0；剩余为 E402/F841/E741/F401/E712/F402 等风格项，按轮次下降"
+  total: 327
+  note: "E9/F63/F7/F82/F402/E712 = 0；剩余为 E402/F841/E741/F401 等风格项，按轮次下降"
