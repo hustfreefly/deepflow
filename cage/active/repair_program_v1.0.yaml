@@ -1,0 +1,47 @@
+cage_version: "2.0.0"
+component: repair_program
+status: active
+module: repair_program
+version: "1.0.0"
+created: '2026-10-22'
+updated: '2026-10-22'
+complexity: complex
+description: |
+  测试健康修复计划契约。目标不是“让红变绿”，而是把 189 个失败
+  逐个归因到隔离性、夹具、产品缺陷或测试过期四类，再按类修复。
+interface:
+  failure_triage: "scripts/failure_triage.py --log <baseline.log> --json"
+  test_health: "cd .deepflow && python3 -m pytest -q"
+  ci_enforcement: ".github/workflows/ci.yml"
+  spawn_guard_auto: "plugin/hook 或书面平台边界"
+  ops_watch: "scripts/selfcheck.py --json"
+behavior:
+  failure_triage:
+    success: "每个失败用例被分类为 isolation-pass / isolation-fail / error"
+    failure: "存在未分类用例，或分类结果不可复现"
+  test_health:
+    success: "全量套件 0 failed（network 组单独运行）"
+    failure: "任一非 network 用例失败"
+  ci_enforcement:
+    success: "push/PR 自动跑契约闸门 + 全量测试"
+    failure: "CI 仅存在于本机脚本"
+  spawn_guard_auto:
+    success: "redteam 同模型请求在 spawn 前被自动拒绝"
+    failure: "只能靠人工执行 spawn_guard.py"
+  ops_watch:
+    success: "selfcheck 能发现 stale lock 与运行态未入库文件"
+    failure: "问题只能靠人工撞见"
+boundaries:
+  - "禁止用 skip/xfail/删除测试制造绿色"
+  - "每批修复必须在隔离分支红→绿并留证据"
+  - "生产配置/网关改动需显式授权"
+redlines:
+  - id: RED-REP-001
+    rule: "不得删除、skip 或 xfail 任何失败用例来变绿"
+    check: "git diff 中不出现 skip/xfail/删除测试函数"
+  - id: RED-REP-002
+    rule: "每批修复必须有红基线与绿验证"
+    check: "projects/repair-2026-10/<batch>/{red,green}.txt 存在"
+  - id: RED-REP-003
+    rule: "未分类的失败不得进入修复批次"
+    check: "failure_triage 输出中 unclassified=0"
