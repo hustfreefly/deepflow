@@ -59,6 +59,11 @@ jobs:
           set +e
           python -m pytest -q 2>&1 | tee /tmp/pytest.log
           rc=${PIPESTATUS[0]}
+          if [ -f /tmp/pytest.log ]; then
+            grep -E "^(FAILED|ERROR) " /tmp/pytest.log | head -10 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+          fi
           {
             echo "## Full suite (pytest)"
             echo '```'
