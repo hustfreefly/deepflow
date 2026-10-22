@@ -23,12 +23,11 @@ import json
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from core.config.path_config import PathConfig
+from core.blackboard import BlackboardManager
 
 logger = logging.getLogger(__name__)
 
-
-from core.config.path_config import PathConfig
-from core.blackboard import BlackboardManager
 
 # P0-1 契约修复: 导入 STAGE_PATH_REGISTRY 作为唯一事实源
 # 禁止在此文件维护独立的路径映射（消除双事实源分裂）

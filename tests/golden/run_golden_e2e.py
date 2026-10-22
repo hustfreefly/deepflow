@@ -17,12 +17,11 @@ Solution Pro E2E Golden Case 启动器
 
 import json
 import os
+from domains.solution_pro import run_solution_pro
 
 DEEPFLOW_ROOT = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
-
-from domains.solution_pro import run_solution_pro
 
 
 def main():

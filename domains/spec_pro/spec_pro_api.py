@@ -27,11 +27,10 @@ import argparse
 from pathlib import Path
 
 from core.config.path_config import PathConfig
-
-DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
-
 from domains.spec_pro import SpecProCoordinator
 from domains.spec_pro.blackboard import BlackboardManager
+
+DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)
 
 
 def save_coord_state(coord: SpecProCoordinator) -> str:

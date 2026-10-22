@@ -20,10 +20,9 @@ from dataclasses import dataclass
 
 import yaml
 from packaging import version
+from core.config.path_config import PathConfig
 
 logger = logging.getLogger(__name__)
-
-from core.config.path_config import PathConfig
 
 
 @dataclass

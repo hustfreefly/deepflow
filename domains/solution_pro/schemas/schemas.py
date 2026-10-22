@@ -22,6 +22,7 @@ V3.1 架构说明:
 from typing import Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from datetime import datetime
+from domains.solution_pro.config.domain_loader import get_expert_templates
 
 
 # ============================================================================
@@ -80,7 +81,6 @@ SUGGESTED_DOMAIN_CATEGORIES = [
 # 兼容现有引用：DOMAIN_CATEGORIES 变为 str 类型别名
 DOMAIN_CATEGORIES = str
 
-from domains.solution_pro.config.domain_loader import get_expert_templates
 
 # DEPRECATED: 使用 get_registry_for_domain(domain_id) 替代
 # 保留向后兼容，默认加载 software 域

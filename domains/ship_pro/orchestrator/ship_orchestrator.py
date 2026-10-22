@@ -21,6 +21,14 @@ import json
 from core.blackboard.context_injector import auto_bootstrap
 import logging
 import re
+from ..contracts import (
+    PlannerGate,
+    WorkerGate,
+    InformationConservationGate,
+    CompletenessGate,
+    HarnessV3,
+    GateResult,
+)
 
 
 def extract_json_from_completion(text: str) -> Optional[Dict[str, Any]]:
@@ -92,15 +100,6 @@ def extract_json_from_completion(text: str) -> Optional[Dict[str, Any]]:
     logger.warning(f"JSON 提取失败: text[:200] = {text[:200]}")
     return None
 
-
-from ..contracts import (
-    PlannerGate,
-    WorkerGate,
-    InformationConservationGate,
-    CompletenessGate,
-    HarnessV3,
-    GateResult,
-)
 
 logger = logging.getLogger(__name__)
 
