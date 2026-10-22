@@ -54,7 +54,7 @@ def get_session_label(events):
                 try:
                     d = json.loads(content)
                     return d.get("label", "?")[:80]
-                except:
+                except (json.JSONDecodeError, AttributeError):
                     pass
     return "?"
 

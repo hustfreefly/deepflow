@@ -4,6 +4,7 @@ Prompt分层重构验证脚本
 验证契约文件、分层Prompt、加载器是否完整
 """
 
+import sys
 from pathlib import Path
 
 from cage.prompt_loader import CagePromptLoader

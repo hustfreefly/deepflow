@@ -212,7 +212,7 @@ def _check_subagent_health(session_path: Path) -> list[str]:
                 content = log_file.read_text(encoding="utf-8")
                 if "error" in content.lower() or "exception" in content.lower():
                     issues.append(f"日志文件 {log_file.name} 包含错误")
-            except Exception:
+            except Exception as e:
                 logger.debug(f"monitoring check: {e}")
 
     return issues
@@ -437,7 +437,7 @@ def detect_changes(session_result: dict) -> list[str]:
             with open(progress_file, encoding="utf-8") as f:
                 old = json.load(f)
             old_stages = set(old.get("stages", {}).keys())
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as e:
             logger.debug(f"data read: {e}")
 
     new_stages = set(session_result["stages"].keys())

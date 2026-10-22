@@ -12,6 +12,7 @@ Solution Pro E2E Golden Case 验证脚本
     2 = FAIL（低于70%或关键断言失败）
 """
 
+import sys
 import json
 from pathlib import Path
 from datetime import datetime

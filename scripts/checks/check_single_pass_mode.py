@@ -3,6 +3,7 @@
 验证 PipelineEngine 单轮模式修复
 """
 
+import sys
 from unittest.mock import Mock, patch
 from pipeline_engine import PipelineEngine, PipelineState
 

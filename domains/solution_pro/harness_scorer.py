@@ -24,6 +24,9 @@ Harness Scorer 2.0.0
 from typing import Dict, Literal, Optional
 from dataclasses import dataclass
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 # P0-2: Import GateAConfig for dynamic scoring (lazy import for standalone compatibility)
 try:

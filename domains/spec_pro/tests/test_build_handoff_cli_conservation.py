@@ -9,6 +9,7 @@ Track B: build_handoff_cli.py 守恒 Gate fail-closed 校验测试
 """
 
 import sys as _sys
+from pathlib import Path
 from pathlib import Path as _Path
 
 _p = _Path(__file__).resolve()

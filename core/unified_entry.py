@@ -195,5 +195,14 @@ def run_legacy(domain: str, spawn_fn=None, **context) -> Dict[str, Any]:
     return entry.run_legacy(domain, spawn_fn=spawn_fn, **context)
 
 
+def main() -> None:
+    """CLI 入口：python -m core.unified_entry <domain> [input]"""
+    if len(sys.argv) < 2:
+        print("usage: python -m core.unified_entry <domain> [input]")
+        raise SystemExit(2)
+    user_input = sys.argv[2] if len(sys.argv) > 2 else ""
+    print(run(sys.argv[1], user_input=user_input))
+
+
 if __name__ == "__main__":
     main()

@@ -26,7 +26,7 @@ def load_session(fpath):
             continue
         try:
             events.append(json.loads(line))
-        except:
+        except json.JSONDecodeError:
             pass
     return events
 

@@ -126,7 +126,7 @@ def migrate_cage():
                     meta = yaml.safe_load(parts[1])
                     if meta and ("cage_version" in meta or "version" in meta):
                         continue
-            except Exception:
+            except Exception as e:
                 logger.debug(f"migration step: {e}")
 
         # 从文件名推断版本
@@ -217,7 +217,7 @@ def migrate_domains():
                     meta = yaml.safe_load(parts[1])
                     if meta and "component_version" in meta:
                         continue
-            except Exception:
+            except Exception as e:
                 logger.debug(f"migration step: {e}")
 
         # 从内容中推断
@@ -265,7 +265,7 @@ def migrate_domains():
                         meta = yaml.safe_load(parts[1])
                         if meta and ("component_version" in meta or "version" in meta):
                             continue
-                except Exception:
+                except Exception as e:
                     logger.debug(f"migration step: {e}")
 
             data = yaml.safe_load(content) or {}

@@ -3,6 +3,7 @@
 验证 Worker 完成等待机制修复
 """
 
+import sys
 import json
 import tempfile
 from pathlib import Path

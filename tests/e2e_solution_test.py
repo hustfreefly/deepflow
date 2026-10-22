@@ -19,6 +19,7 @@ DeepFlow Solution Domain - End-to-End Test Script
 """
 
 import os
+import sys
 import json
 import re
 import time

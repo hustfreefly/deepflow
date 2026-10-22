@@ -326,8 +326,8 @@ def create_checkpoint_from_orchestrator(orchestrator, stage: str) -> dict:
         "current_iteration": orchestrator.context.current_iteration,
         "scores": orchestrator.context.scores,
         "stage_outputs": orchestrator.context.stage_outputs,
-        "blackboard_path": fstr(
-            PathConfig.resolve().base_dir / "blackboard/{orchestrator.session_id}/"
+        "blackboard_path": str(
+            PathConfig.resolve().base_dir / f"blackboard/{orchestrator.session_id}/"
         ),
         "state": orchestrator.state.name
         if hasattr(orchestrator, "state")

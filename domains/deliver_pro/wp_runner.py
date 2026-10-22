@@ -1040,7 +1040,7 @@ cd {self.blackboard_path.parent.parent}
                 )
 
             # Retention check (Code-First Assembly requires >= 0.95)
-            retention = report_data.get("assembly_stats", {}).get(
+            retention = result.data.get("assembly_stats", {}).get(
                 "body_retention_ratio", 1.0
             )
             if retention < 0.95:

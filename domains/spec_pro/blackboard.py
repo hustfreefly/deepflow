@@ -10,6 +10,8 @@ Spec Pro 使用混合路径模式:
 - 动态路径: round_{NN}_parse.json 等（轮次号动态，在 s_dir 子目录下）
 """
 
+from pathlib import Path
+
 from core.blackboard.registry_base import DomainRegistry
 from core.blackboard.blackboard_manager import (
     BlackboardManager as CoreBlackboardManager,
