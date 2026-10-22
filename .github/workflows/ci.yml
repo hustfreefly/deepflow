@@ -54,4 +54,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Full suite (network excluded by pytest.ini)
-        run: python -m pytest -q
+        shell: bash
+        run: |
+          set +e
+          python -m pytest -q 2>&1 | tee /tmp/pytest.log
+          rc=${PIPESTATUS[0]}
+          {
+            echo "## Full suite (pytest)"
+            echo '```'
+            tail -n 120 /tmp/pytest.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
