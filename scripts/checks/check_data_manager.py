@@ -10,7 +10,6 @@ check_data_manager.py - DataManager 契约验证
 5. Provider 注册表
 """
 
-import ast
 import sys
 from pathlib import Path
 

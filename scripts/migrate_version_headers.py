@@ -9,7 +9,6 @@ DeepFlow 版本标识迁移脚本
 幂等: 已有 Front Matter 的文件会被跳过
 """
 
-import sys
 import re
 import yaml
 from pathlib import Path
@@ -331,7 +330,7 @@ def update_changelog(migration_summary: dict):
     # 在 ## [Unreleased] 之后插入
     new_content = content.replace("## [Unreleased]", "## [Unreleased]\n\n" + entry)
     changelog_path.write_text(new_content, encoding="utf-8")
-    print(f"  ✓ CHANGELOG.md 更新")
+    print("  ✓ CHANGELOG.md 更新")
 
 
 # ============================================================

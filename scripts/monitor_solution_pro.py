@@ -12,10 +12,8 @@ Solution Pro 全链路监控程序
 
 import sys
 import time
-import json
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -70,7 +68,7 @@ class SolutionProMonitor:
         self.session_failed = False
         self.failure_reason = None
 
-        print(f"🔍 Solution Pro 监控启动")
+        print("🔍 Solution Pro 监控启动")
         print(f"   Session ID: {session_id}")
         print(f"   轮询间隔: {interval}秒")
         print(f"   启动时间: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -81,7 +79,7 @@ class SolutionProMonitor:
         # 检查是否完成
         if self.bb.stage_exists("final_solution"):
             self.session_completed = True
-            print(f"✅ Session 完成！")
+            print("✅ Session 完成！")
             return True
 
         # 检查是否失败
@@ -220,7 +218,7 @@ class SolutionProMonitor:
         if self.session_completed:
             print("状态: ✅ 成功")
         elif self.session_failed:
-            print(f"状态: ❌ 失败")
+            print("状态: ❌ 失败")
             print(f"原因: {self.failure_reason}")
         else:
             print("状态: ⚠️  未完成")

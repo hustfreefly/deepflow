@@ -17,7 +17,6 @@ Output: JSON with {anomalies: [...], adjustment_instruction: "text or empty"}
 
 import json
 import os
-import sys
 import logging
 
 logger = logging.getLogger(__name__)

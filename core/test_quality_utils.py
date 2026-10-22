@@ -7,7 +7,6 @@ QualityUtils 契约笼子测试
 """
 
 import pytest
-import json
 
 from core.quality_utils import (
     check_schema,

@@ -16,10 +16,7 @@ DeepFlow Doctor V2 — LLM Analyzer (L2)
 """
 
 import json
-import os
-import sys
 from pathlib import Path
-from typing import Any
 
 
 def _get_api_config() -> dict:
@@ -188,7 +185,7 @@ def _build_user_prompt(
         if ts > 0 and events:
             context_events = _get_context_events(events, ts, window=5)
             if context_events:
-                parts.append(f"- 上下文事件:")
+                parts.append("- 上下文事件:")
                 for ce in context_events:
                     ce_type = ce.get("type", "?")
                     if ce_type == "tool_call":

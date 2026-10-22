@@ -177,7 +177,7 @@ def check_pipeline_engine():
 
     # 输出结果
     print(f"\n{'=' * 60}")
-    print(f"验证结果: PipelineEngine spawn 功能")
+    print("验证结果: PipelineEngine spawn 功能")
     print(f"{'=' * 60}")
 
     if not violations:
@@ -195,10 +195,10 @@ def check_pipeline_engine():
         print(f"    {v.message}")
 
     if p0_count > 0:
-        print(f"\n❌ 存在 P0 违规，必须修复")
+        print("\n❌ 存在 P0 违规，必须修复")
         return 1
     else:
-        print(f"\n⚠️ 存在 P1 违规，建议修复")
+        print("\n⚠️ 存在 P1 违规，建议修复")
         return 0
 
 

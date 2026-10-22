@@ -345,7 +345,7 @@ class ExpertPlanSchema(V2BaseSchema):
             # 检查covered_req_ids格式正确
             for req_id in self.covered_req_ids:
                 if not req_id or not req_id.strip():
-                    raise ValueError(f"[Cage P1-5f] Empty P0 REQ ID in covered_req_ids")
+                    raise ValueError("[Cage P1-5f] Empty P0 REQ ID in covered_req_ids")
         return self
 
 

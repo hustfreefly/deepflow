@@ -3,15 +3,12 @@
 test_data_manager.py - DataManager 契约测试
 """
 
-import json
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-import pytest
 
 pytestmark = pytest.mark.skip(reason="core.data module removed")
 

@@ -12,7 +12,11 @@ DEPRECATED: Pipeline Watcher — use watcher_scan.py  instead.
 See: .deepflow/contracts/shared/pipeline_watcher_v2_design.md (archived)
 """
 
-import argparse, fcntl, json, os, sys
+import argparse
+import fcntl
+import json
+import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -681,10 +685,10 @@ def _run_pipeline(cfg: Dict, base: Path, state: Path, args: Any, fmt: str) -> No
                 msg += f"\n\n🔗 自动触发下游管线: {next_pl}"
                 if next_pl == "ship_pro":
                     msg += f"\n请执行: `cd ~/.openclaw/workspace/.deepflow && python3 domains/ship_pro/scripts/run_pipeline.py prepare {base}/final_result.json {base}/ship_output`"
-                    msg += f"\n然后依次执行 task/gate 命令完成 Ship Pro 管线。"
+                    msg += "\n然后依次执行 task/gate 命令完成 Ship Pro 管线。"
                 elif next_pl == "solution_pro":
                     msg += f"\n请执行: `cd ~/.openclaw/workspace/.deepflow && python3 scripts/start_solution_pro.py '{base}'`"
-                    msg += f"\n然后创建 cron job 巡检并 yield 等待完成。"
+                    msg += "\n然后创建 cron job 巡检并 yield 等待完成。"
             _mark_remove(state, "completed", cron_id)
             emit("completed", msg, should_remove=True, fmt=fmt)
         elif status == "failed":

@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Phase 1 修复验证脚本：Blackboard 强制接入验证"""
 
-import os
 import sys
-import json
 from pathlib import Path
 
 # 测试配置
@@ -36,7 +34,7 @@ def check_coordinator_entry():
         print("✅ SYSTEM_PROMPT.md 已强制 Coordinator 入口")
         return True
     else:
-        print(f"❌ SYSTEM_PROMPT.md 缺少强制入口要求")
+        print("❌ SYSTEM_PROMPT.md 缺少强制入口要求")
         print(f"   - coordinator.start(): {'✅' if checks[0] else '❌'}")
         print(f"   - 禁止直接执行: {'✅' if checks[1] else '❌'}")
         print(f"   - WAITING_AGENT: {'✅' if checks[2] else '❌'}")

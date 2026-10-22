@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # 确保可以 import deepflow 根目录模块
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from transcript_parser import parse_transcript, parse_session_events
+from transcript_parser import parse_session_events
 
 
 def _events_for_session(info: dict) -> list[dict]:
@@ -47,9 +47,6 @@ def _events_for_session(info: dict) -> list[dict]:
 from pattern_detector import detect_issues, detect_pipeline_issues
 from causal_tracer import (
     build_session_tree,
-    get_session_family,
-    trace_causal_chain,
-    find_recent_pipeline_sessions,
 )
 from pipeline_scope import discover_pipeline_runs, filter_events_by_run, get_run_summary
 from prompt_auditor import audit_prompts, audit_bootstrap_coverage
@@ -472,7 +469,7 @@ def _append_t5_audit(session_reports: list[dict], args):
     all_t5 = prompt_issues + bootstrap_issues
 
     if not all_t5:
-        print(f"  ✅ T5: 文档审计通过，未发现教坏 LLM 的地方", file=sys.stderr)
+        print("  ✅ T5: 文档审计通过，未发现教坏 LLM 的地方", file=sys.stderr)
         return
 
     print(f"  ⚠️ T5: 发现 {len(all_t5)} 个文档问题", file=sys.stderr)
@@ -526,15 +523,15 @@ def _output_reports(session_reports: list[dict], args):
 def print_report_v2(reports: list[dict], quiet: bool = False):
     """V2 报告：包含 LLM 诊断 + 修复建议 + 反思。"""
     print(f"\n{'=' * 65}")
-    print(f"  🩺 DeepFlow Doctor V2 诊断报告")
+    print("  🩺 DeepFlow Doctor V2 诊断报告")
     print(f"  扫描 {len(reports)} 条管线")
 
     # 显示 scope 信息
     scopes = set(r.get("scope", "agent") for r in reports)
     if "pipeline" in scopes:
-        print(f"  🔬 Scope: pipeline (仅管线执行窗口)")
+        print("  🔬 Scope: pipeline (仅管线执行窗口)")
     elif "time-range" in scopes:
-        print(f"  🔬 Scope: time-range (自定义时间窗口)")
+        print("  🔬 Scope: time-range (自定义时间窗口)")
     print(f"{'=' * 65}")
 
     for report in reports:
@@ -565,7 +562,7 @@ def print_report_v2(reports: list[dict], quiet: bool = False):
             print(f"     Gate: {passed}/{len(agents)} pass | Total retries: {retries}")
 
         if diagnosis is None:
-            print(f"     L2: 未启用（--no-llm）")
+            print("     L2: 未启用（--no-llm）")
             for c in report["candidates"][:5]:
                 et = c.get("error_type", c.get("category", "?"))
                 print(
@@ -652,7 +649,7 @@ def print_report_v2(reports: list[dict], quiet: bool = False):
 
     # ── Global Summary ──
     print(f"\n{'=' * 65}")
-    print(f"  📊 全局汇总")
+    print("  📊 全局汇总")
     print(f"{'=' * 65}")
 
     total_tp = 0
@@ -678,7 +675,7 @@ def print_report_v2(reports: list[dict], quiet: bool = False):
         print(f"  误报率: {total_fp / total_candidates * 100:.0f}%")
 
     if all_top_fixes:
-        print(f"\n  🎯 优先修复清单:")
+        print("\n  🎯 优先修复清单:")
         for i, fix in enumerate(all_top_fixes[:5], 1):
             print(f"     {i}. {fix}")
 

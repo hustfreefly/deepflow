@@ -67,7 +67,7 @@ def render_living_spec_md(data: dict) -> str:
     # ── YAML Frontmatter ──
     meta = data.get("meta", {})
     lines.append("---")
-    lines.append(f"domain: spec_pro")
+    lines.append("domain: spec_pro")
     lines.append(f'version: "{meta.get("spec_version", "1.0")}"')
     lines.append(f'session: "{data.get("session_id", "unknown")}"')
     lines.append("---")

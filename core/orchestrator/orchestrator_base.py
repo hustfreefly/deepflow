@@ -4,13 +4,11 @@ DeepFlow 2.0.0 - 通用化 Pipeline Orchestrator 基类
 领域无关的执行引擎，通过配置驱动适配不同场景
 """
 
-import os
 import sys
 import json
 import uuid
 import time
 import asyncio
-import copy
 import logging
 import yaml
 from pathlib import Path
@@ -21,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 # 从 PathConfig 获取基础目录（支持环境变量覆盖）
 _DEEPFLOW_BASE = PathConfig.resolve().base_dir
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Any, List, Tuple, TypeVar, Generic
+from dataclasses import dataclass, field
+from typing import Optional, Dict, Any, List, Tuple
 from enum import Enum, auto
 from abc import ABC, abstractmethod
 
@@ -722,5 +720,5 @@ if __name__ == "__main__":
     # 测试基类导入
     print("✅ orchestrator_base.py loaded successfully")
     print(
-        f"Available classes: DomainConfig, BaseOrchestrator, PromptLoader, ModelChain, ConvergenceDetector"
+        "Available classes: DomainConfig, BaseOrchestrator, PromptLoader, ModelChain, ConvergenceDetector"
     )

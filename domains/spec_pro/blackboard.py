@@ -10,7 +10,6 @@ Spec Pro 使用混合路径模式:
 - 动态路径: round_{NN}_parse.json 等（轮次号动态，在 s_dir 子目录下）
 """
 
-import core.bootstrap  # 契约笼子: 通过 bootstrap 自动加入 sys.path
 from core.blackboard.registry_base import DomainRegistry
 from core.blackboard.blackboard_manager import (
     BlackboardManager as CoreBlackboardManager,
@@ -85,7 +84,6 @@ class BlackboardManager(CoreBlackboardManager):
 
     def write_round(self, round_num: int, stage_type: str, data: dict) -> "Path":
         """写入轮次文件"""
-        from pathlib import Path
 
         stage_name = f"round_{round_num:02d}_{stage_type}"
         self.write_stage(stage_name, data)

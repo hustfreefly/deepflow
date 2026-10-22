@@ -16,7 +16,6 @@ import argparse
 import json
 import os
 import sys
-from pathlib import Path
 
 
 def extract(base_path: str, session_id: str) -> dict:

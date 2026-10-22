@@ -26,7 +26,6 @@ Usage:
 """
 
 import json
-import sys
 import argparse
 import logging
 

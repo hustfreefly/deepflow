@@ -11,11 +11,9 @@ DeepFlow Doctor V2 — Full Pipeline Scan (精确版)
 """
 
 import json
-import sys
-import os
 import re
 from pathlib import Path
-from collections import defaultdict, Counter
+from collections import Counter
 from datetime import datetime
 
 SESSIONS_DIR = Path.home() / ".openclaw" / "agents" / "researcher" / "sessions"
@@ -311,7 +309,7 @@ def main():
             tool_error_counter[err["tool"]] += 1
 
     print(f"\n{'=' * 80}")
-    print(f"📊 全局统计")
+    print("📊 全局统计")
     print(f"{'=' * 80}")
     print(f"  总 Tool 调用:           {total_tools}")
     print(
@@ -322,19 +320,19 @@ def main():
     print(f"  🟣 LLM 困惑:           {total_confusion}")
     print(f"  🟡 静默降级:            {total_degradation}")
 
-    print(f"\n📊 错误类型分布:")
+    print("\n📊 错误类型分布:")
     for etype, count in error_type_counter.most_common():
         bar = "█" * min(count, 30)
         print(f"  {etype:25s} {count:3d} {bar}")
 
-    print(f"\n📊 出错工具分布:")
+    print("\n📊 出错工具分布:")
     for tool, count in tool_error_counter.most_common():
         bar = "█" * min(count, 30)
         print(f"  {tool:25s} {count:3d} {bar}")
 
     # ── Per-session detail ──
     print(f"\n{'=' * 80}")
-    print(f"🔍 逐 Session 详细分析")
+    print("🔍 逐 Session 详细分析")
     print(f"{'=' * 80}")
 
     for r in sorted(
@@ -354,13 +352,13 @@ def main():
         )
 
         if r["real_errors"]:
-            print(f"   🔴 错误明细:")
+            print("   🔴 错误明细:")
             for err in r["real_errors"]:
                 preview = err["error_preview"][:160].replace("\n", " ").strip()
                 print(f"     [{err['error_type']:20s}] {err['tool']:12s} → {preview}")
 
         if r["retry_chains"]:
-            print(f"   🟡 重试链:")
+            print("   🟡 重试链:")
             for chain in r["retry_chains"]:
                 flow = " → ".join(chain["types"])
                 tools = " → ".join(chain["tools"])
@@ -384,7 +382,7 @@ def main():
 
     # ── Root Cause Analysis ──
     print(f"\n{'=' * 80}")
-    print(f"🔬 系统性根因分析")
+    print("🔬 系统性根因分析")
     print(f"{'=' * 80}")
 
     # Cluster by root cause
@@ -430,8 +428,8 @@ def main():
                 p = match.group()
                 if ".deepflow" in p or "blackboard" in p or "stages" in p:
                     path_patterns[p[:100]] += 1
-        print(f"  根因: LLM 对 .deepflow 目录结构认知不准确")
-        print(f"  表现: 路径拼接错误、目录不存在、文件缺失")
+        print("  根因: LLM 对 .deepflow 目录结构认知不准确")
+        print("  表现: 路径拼接错误、目录不存在、文件缺失")
         for p, c in path_patterns.most_common(8):
             print(f"    [{c}x] {p}")
 
@@ -440,15 +438,15 @@ def main():
         for e in module_errors:
             preview = e["error_preview"][:200].replace("\n", " ")
             print(f"    [{e['tool']}] {preview}")
-        print(f"  根因: 子 Agent 环境缺少 PYTHONPATH 或依赖未安装")
+        print("  根因: 子 Agent 环境缺少 PYTHONPATH 或依赖未安装")
 
     print(f"\n  ━━━ 问题类别 3: 门控失败 ({len(gate_fails)} 次) ━━━")
     if gate_fails:
         for e in gate_fails[:5]:
             preview = e["error_preview"][:200].replace("\n", " ")
             print(f"    {preview}")
-        print(f"  根因: LLM 输出不符合 Pydantic schema → 需要 fix_and_rerun")
-        print(f"  评估: 这是设计预期行为，但过多失败说明 prompt/schema 对齐不足")
+        print("  根因: LLM 输出不符合 Pydantic schema → 需要 fix_and_rerun")
+        print("  评估: 这是设计预期行为，但过多失败说明 prompt/schema 对齐不足")
 
     print(f"\n  ━━━ 问题类别 4: 环境问题 ({len(env_errors)} 次) ━━━")
     if env_errors:
@@ -464,7 +462,7 @@ def main():
 
     # ── Waste estimation ──
     print(f"\n{'=' * 80}")
-    print(f"💸 Token 浪费估算")
+    print("💸 Token 浪费估算")
     print(f"{'=' * 80}")
     # Each error costs: the failed call (~1500 tokens) + recovery call (~2000 tokens) + confusion text (~500 tokens)
     error_waste = total_errors * 4000
@@ -479,12 +477,12 @@ def main():
     print(f"  重试链浪费:        ~{chain_waste:,} tokens")
     print(f"  门控重做浪费:      ~{gate_waste:,} tokens ({total_gates} gates × 8K)")
     print(f"  LLM 困惑浪费:     ~{confusion_waste:,} tokens ({total_confusion} × 2K)")
-    print(f"  ─────────────────────────")
+    print("  ─────────────────────────")
     print(f"  总浪费估算:        ~{total_waste:,} tokens")
 
     # ── Recommendations ──
     print(f"\n{'=' * 80}")
-    print(f"💡 系统性改进建议")
+    print("💡 系统性改进建议")
     print(f"{'=' * 80}")
 
     print("""

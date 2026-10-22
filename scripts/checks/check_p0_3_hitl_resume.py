@@ -3,7 +3,6 @@
 check_p0_3_hitl_resume.py - P0-3 HITL resume 契约验证
 """
 
-import ast
 import sys
 
 

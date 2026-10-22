@@ -63,7 +63,7 @@ def render_final_solution_md(data: dict) -> str:
         try:
             data = json.loads(data)
         except json.JSONDecodeError:
-            raise TypeError(f"data is a string that cannot be parsed as JSON")
+            raise TypeError("data is a string that cannot be parsed as JSON")
     if not isinstance(data, dict):
         raise TypeError(f"data must be dict, got {type(data).__name__}")
 

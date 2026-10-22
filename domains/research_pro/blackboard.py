@@ -13,7 +13,6 @@ Research Pro 阶段路径:
 - quality_review: 质量审查
 """
 
-import core.bootstrap  # 契约笼子: 通过 bootstrap 自动加入 sys.path
 from core.blackboard.registry_base import DomainRegistry
 from core.blackboard.blackboard_manager import (
     BlackboardManager as CoreBlackboardManager,

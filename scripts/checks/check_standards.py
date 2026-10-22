@@ -265,7 +265,7 @@ def main() -> None:
                 for v in violations:
                     print(f"  [{v.level}] 行 {v.line}: {v.message}")
             else:
-                print(f"  ✅ 无违规")
+                print("  ✅ 无违规")
 
         print(f"\n{'=' * 60}")
         print("汇总结果")

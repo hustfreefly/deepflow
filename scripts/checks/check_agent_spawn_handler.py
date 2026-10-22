@@ -10,7 +10,6 @@ check_agent_spawn_handler.py - AgentSpawnHandler契约验证
 5. 错误处理
 """
 
-import re
 import sys
 
 

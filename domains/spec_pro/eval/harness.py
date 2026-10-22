@@ -25,7 +25,7 @@ Date: 2026-06-20
 """
 
 import os
-from typing import Dict, Literal, Optional, List, Tuple
+from typing import Dict, Literal, Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime
 import json
@@ -943,7 +943,7 @@ if __name__ == "__main__":
         print("=" * 60)
         print(f"\n总分: {report.overall_score}/100")
         print(f"决策: {report.final_decision}")
-        print(f"\n维度评分:")
+        print("\n维度评分:")
         print(f"  清晰度: {report.clarity.score}/100 (权重 {WEIGHT_CLARITY})")
         print(f"  完整度: {report.completeness.score}/100 (权重 {WEIGHT_COMPLETENESS})")
         print(
@@ -952,13 +952,13 @@ if __name__ == "__main__":
         print(f"  一致度: {report.consistency.score}/100 (权重 {WEIGHT_CONSISTENCY})")
         print(f"  下游适配度: {report.fitness.score}/100 (权重 {WEIGHT_FITNESS})")
 
-        print(f"\n子门禁:")
+        print("\n子门禁:")
         print(f"  Spec质量: {report.spec_quality_gate.decision}")
         print(f"  推断审计: {report.inference_audit_gate.decision}")
         print(f"  轨迹审计: {report.trajectory_audit_gate.decision}")
 
         if report.improvements_if_more_time:
-            print(f"\n改进建议:")
+            print("\n改进建议:")
             for imp in report.improvements_if_more_time:
                 print(f"  - {imp}")
 
@@ -970,7 +970,7 @@ if __name__ == "__main__":
 
                 bb = BlackboardManager(session_id=session_id)
                 bb.write_stage("spec/harness_report", report.to_dict())
-                print(f"\n报告已保存到 Blackboard: spec/harness_report")
+                print("\n报告已保存到 Blackboard: spec/harness_report")
             except Exception as e:
                 print(f"\n警告: 无法写入 Blackboard: {e}")
         else:

@@ -9,7 +9,7 @@ Domain Loader — 领域配置加载器
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 

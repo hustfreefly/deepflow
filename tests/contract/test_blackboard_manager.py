@@ -1,6 +1,5 @@
 """Contract tests for blackboard_manager module."""
 
-import json
 import pytest
 from pathlib import Path
 from core.blackboard.blackboard_manager import BlackboardManager

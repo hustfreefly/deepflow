@@ -20,12 +20,10 @@ Main Agent 逐步调 exec 驱动流水线，每步都是简单的 Python 调用�
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
 
-from domains.deliver_pro.contracts import WorkPackage
 from domains.deliver_pro.wp_runner import DeliverWPRunner
 
 logger = logging.getLogger(__name__)
@@ -104,7 +102,7 @@ class DeliverRunner:
     def step1_analyze(self) -> dict[str, Any]:
         """Phase 1: 准备 Analyze Agent spawn 参数。"""
         params = self.orch.prepare_analyze_spawn()
-        logger.info(f"Step 1: Analyze spawn ready")
+        logger.info("Step 1: Analyze spawn ready")
         return params
 
     def step2_check_analyze(self) -> tuple[bool, dict]:
@@ -352,7 +350,6 @@ class DeliverRunner:
         """
         from domains.deliver_pro.contracts.validation_verdict import (
             ValidationVerdict,
-            ScoreDimension,
         )
 
         plan = self.orch.load_execution_plan()

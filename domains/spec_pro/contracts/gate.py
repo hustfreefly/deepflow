@@ -12,7 +12,7 @@ Spec Pro Gate 函数
         raise ValueError(f"LivingSpec 格式错误: {errors}")
 """
 
-from typing import Any, Tuple
+from typing import Tuple
 from pydantic import ValidationError
 
 from domains.spec_pro.contracts import (

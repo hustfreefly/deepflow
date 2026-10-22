@@ -65,12 +65,12 @@ class CompactedContext:
             lines.append("")
 
         if self.next_phase_brief:
-            lines.append(f"## ➡️ 下一 Phase 简报")
+            lines.append("## ➡️ 下一 Phase 简报")
             lines.append(self.next_phase_brief)
             lines.append("")
 
         if self.goal_alignment:
-            lines.append(f"## 🎯 目标对齐度")
+            lines.append("## 🎯 目标对齐度")
             lines.append(self.goal_alignment)
             lines.append("")
 

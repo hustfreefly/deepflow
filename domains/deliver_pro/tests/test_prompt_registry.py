@@ -1,18 +1,13 @@
 """Tests for Deliver Pro Prompt Registry."""
 
-import tempfile
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from domains.deliver_pro.prompt_registry import (
     load_prompt,
     list_prompts,
     clear_cache,
-    _load_template,
     _strip_front_matter,
     _render_template,
-    _PROMPTS_DIR,
     _template_cache,
 )
 

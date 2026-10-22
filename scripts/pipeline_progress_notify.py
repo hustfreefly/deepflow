@@ -280,8 +280,8 @@ def main():
 
             print(f"🔴 [{project_short}] 阶段失败：{current_name}\n")
             print(f"{bar} {completed_count}/{total} 阶段")
-            print(f"❗ orchestrator 执行中断")
-            print(f"💡 建议：检查日志 → 从断点继续\n")
+            print("❗ orchestrator 执行中断")
+            print("💡 建议：检查日志 → 从断点继续\n")
             print(f"⏱️ 已运行 {duration}")
             sys.exit(2)
 
@@ -310,7 +310,7 @@ def main():
         print(f"⚠️ [{project_short}] 阶段停滞：{current_name}\n")
         print(f"{bar} {completed_count}/{total} 阶段")
         print(f"❗ 已停滞 {idle_minutes} 分钟无更新")
-        print(f"💡 建议：检查 orchestrator 状态\n")
+        print("💡 建议：检查 orchestrator 状态\n")
         print(f"⏱️ 已运行 {duration}")
         sys.exit(2)
 

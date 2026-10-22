@@ -291,10 +291,10 @@ def check_orchestrator_agent():
         print(f"    {v.message}")
 
     if p0_count > 0:
-        print(f"\n❌ 存在 P0 违规，必须修复")
+        print("\n❌ 存在 P0 违规，必须修复")
         return 1
     else:
-        print(f"\n⚠️ 存在 P1 违规，建议修复")
+        print("\n⚠️ 存在 P1 违规，建议修复")
         return 0
 
 

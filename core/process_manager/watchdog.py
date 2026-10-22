@@ -164,7 +164,7 @@ def run_watchdog_once(session_dir: str, webhook_url: Optional[str] = None) -> No
     if alerts:
         print(f"WATCHDOG_SCAN: {len(alerts)} alerts found", flush=True)
     else:
-        print(f"WATCHDOG_SCAN: no alerts", flush=True)
+        print("WATCHDOG_SCAN: no alerts", flush=True)
 
 
 if __name__ == "__main__":

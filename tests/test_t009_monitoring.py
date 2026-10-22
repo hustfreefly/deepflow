@@ -8,7 +8,6 @@ AC-4: Logs JSON format, no Authorization header leak
 AC-5: otelcol_exporter_queue_size metric available
 """
 
-import json
 import os
 import re
 import unittest

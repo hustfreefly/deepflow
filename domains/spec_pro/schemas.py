@@ -15,7 +15,6 @@ Schema 结构说明：
 - 类型标记: 'str', 'int', 'float', 'bool', 'list', 'dict', 'any'
 """
 
-from typing import Any, Dict, List, Tuple
 
 
 # ============================================================================

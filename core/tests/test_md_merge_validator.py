@@ -12,7 +12,6 @@ from core.md_merge_validator import (
     validate_merge,
     detect_missing_content,
     _line_similarity,
-    REQUIRED_SECTIONS,
 )
 
 

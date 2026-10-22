@@ -12,11 +12,8 @@ DeepFlow Doctor — Full Pipeline Scan
 """
 
 import json
-import sys
-import os
 from pathlib import Path
-from collections import defaultdict, Counter
-from datetime import datetime
+from collections import Counter
 
 SESSIONS_DIR = Path.home() / ".openclaw" / "agents" / "researcher" / "sessions"
 
@@ -378,7 +375,7 @@ def main():
 
     # ── Summary ──
     print(f"\n{'=' * 80}")
-    print(f"📊 全局统计")
+    print("📊 全局统计")
     print(f"{'=' * 80}")
     print(f"  总 Tool 调用:        {total_tool_calls}")
     print(
@@ -390,19 +387,19 @@ def main():
     print(f"  T5 LLM 困惑:        {total_t5}")
     print(f"  重试链:              {total_chains}")
 
-    print(f"\n📊 错误类型分布:")
+    print("\n📊 错误类型分布:")
     for etype, count in error_type_counter.most_common(15):
         bar = "█" * count
         print(f"  {etype:25s} {count:3d} {bar}")
 
-    print(f"\n📊 LLM 困惑信号分布:")
+    print("\n📊 LLM 困惑信号分布:")
     for sig, count in confusion_signal_counter.most_common(15):
         bar = "█" * count
         print(f"  {sig:25s} {count:3d} {bar}")
 
     # ── Per-session detail (only sessions with issues) ──
     print(f"\n{'=' * 80}")
-    print(f"🔍 逐 Session 分析 (仅展示有问题的)")
+    print("🔍 逐 Session 分析 (仅展示有问题的)")
     print(f"{'=' * 80}")
 
     issue_sessions = [
@@ -434,13 +431,13 @@ def main():
         )
 
         if r["tool_errors"]:
-            print(f"\n   🔴 Tool Errors:")
+            print("\n   🔴 Tool Errors:")
             for err in r["tool_errors"][:10]:
                 preview = err["error_preview"][:150].replace("\n", " ")
                 print(f"     [{err['error_type']:20s}] {preview}")
 
         if r["retry_chains"]:
-            print(f"\n   🟡 Retry Chains:")
+            print("\n   🟡 Retry Chains:")
             for chain in r["retry_chains"][:5]:
                 types = " → ".join([e["type"] for e in chain["errors"]])
                 print(f"     链长 {chain['length']}: {types}")
@@ -449,7 +446,7 @@ def main():
             print(f"\n   🟢 T1 Self-Recovery: {len(r['t1_self_recovery'])} 次")
 
         if r["t3_silent_degradation"]:
-            print(f"\n   🟡 T3 Silent Degradation:")
+            print("\n   🟡 T3 Silent Degradation:")
             for d in r["t3_silent_degradation"][:5]:
                 print(
                     f"     [{d['signal']}] {d['preview'][:120].replace(chr(10), ' ')}"
@@ -464,7 +461,7 @@ def main():
 
     # ── Root cause analysis ──
     print(f"\n{'=' * 80}")
-    print(f"🔬 根因分析 (系统性问题)")
+    print("🔬 根因分析 (系统性问题)")
     print(f"{'=' * 80}")
 
     # Cluster errors by type
@@ -544,7 +541,7 @@ def main():
 
     # ── Waste estimation ──
     print(f"\n{'=' * 80}")
-    print(f"💸 浪费估算")
+    print("💸 浪费估算")
     print(f"{'=' * 80}")
 
     # Rough: each error + recovery = ~2000 tokens wasted

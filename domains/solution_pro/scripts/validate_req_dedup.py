@@ -155,7 +155,7 @@ def main():
             print(f"  req_mapping: {result['req_mapping_count']} 条")
 
         if result["issues"]:
-            print(f"  问题:")
+            print("  问题:")
             for issue in result["issues"]:
                 print(f"    - {issue}")
             all_passed = False

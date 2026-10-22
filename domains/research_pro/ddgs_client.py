@@ -10,9 +10,7 @@ DDGS 是 Research Pro 的 **备选搜索引擎**（fallback）。
 
 from __future__ import annotations
 
-import json
 import logging
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

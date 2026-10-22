@@ -4,9 +4,6 @@
 """
 
 import pytest
-import json
-import tempfile
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 
@@ -63,7 +60,6 @@ def test_cmd_resume_handles_missing_state():
 
 def test_resume_cli_parser_exists():
     """验证 resume 子命令已注册到 argparse"""
-    import argparse
     from domains.spec_pro.spec_pro_api import main
 
     # 验证 resume 命令被识别（不实际执行）

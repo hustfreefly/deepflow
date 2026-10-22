@@ -11,7 +11,6 @@ Covers:
 - Backward compat: bullet list format still parses
 """
 
-import pytest
 import sys
 import os
 

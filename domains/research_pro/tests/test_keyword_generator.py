@@ -3,7 +3,6 @@ ResearchPro 单元测试 — KeywordGenerator
 契约: cage/active/research_pro_v1.0.yaml (L1: keyword_generator)
 """
 
-import os
 import unittest
 from datetime import datetime
 

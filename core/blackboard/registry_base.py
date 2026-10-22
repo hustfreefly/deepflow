@@ -15,7 +15,7 @@ Date: 2026-06-22
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 class DomainRegistry:

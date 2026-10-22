@@ -4,11 +4,9 @@ Prompt分层重构验证脚本
 验证契约文件、分层Prompt、加载器是否完整
 """
 
-import os
 from pathlib import Path
 
 from cage.prompt_loader import CagePromptLoader
-import core.bootstrap
 
 
 def validate_contract():
@@ -166,7 +164,7 @@ def validate_loader():
     if next_step is not None:
         print(f"❌ get_next_step('worker_dispatch') 应返回None，实际: {next_step}")
         return False
-    print(f"✅ get_next_step('worker_dispatch') = None (最后一个)")
+    print("✅ get_next_step('worker_dispatch') = None (最后一个)")
 
     # 测试get_completion_signal
     signal = loader.get_completion_signal("data_collection")

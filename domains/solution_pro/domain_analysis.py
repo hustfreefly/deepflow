@@ -8,7 +8,6 @@ Solution Pro 领域分析模块（AI Native）
 """
 
 import logging
-from typing import Optional
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -104,11 +103,11 @@ def domain_profile_to_prompt_context(profile: DomainProfile) -> str:
         )
         return ""
     parts = [
-        f"## 领域分析结果",
+        "## 领域分析结果",
         f"- **领域**: {profile.domain_label}（{profile.domain_id}）",
         f"- **描述**: {profile.description}",
         f"- **任务分类**: {', '.join(profile.suggested_categories)}",
-        f"- **专家角色**:",
+        "- **专家角色**:",
     ]
 
     for role in profile.expert_roles:

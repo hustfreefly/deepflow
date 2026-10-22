@@ -1,6 +1,5 @@
 """URL 安全验证工具测试。"""
 
-import core.bootstrap
 import unittest
 from domains.research_pro.url_utils import (
     validate_safe_url,

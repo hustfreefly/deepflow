@@ -181,7 +181,7 @@ def analyze(changed_files: list[str] = None, since: str = None):
 
 def _print_report(report):
     print(f"\n{'=' * 60}")
-    print(f"  DeepFlow DocUpdate 影响报告")
+    print("  DeepFlow DocUpdate 影响报告")
     print(f"{'=' * 60}\n")
 
     print(f"📁 改动文件 ({len(report['changed_files'])} 个):")
@@ -275,6 +275,6 @@ if __name__ == "__main__":
 
     # 自动修复 🔴
     if auto and report.get("red"):
-        print(f"\n⚙️  自动修复 🔴 级别问题...")
+        print("\n⚙️  自动修复 🔴 级别问题...")
         fixed = auto_fix_red(report)
         print(f"  修复了 {fixed} 个文件")

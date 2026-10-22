@@ -5,7 +5,6 @@ PathConfig 单元测试
 
 import os
 import pytest
-import tempfile
 from pathlib import Path
 from core.config.path_config import PathConfig, validate_path_safety, _is_relative_to
 

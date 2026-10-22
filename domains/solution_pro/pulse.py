@@ -32,7 +32,6 @@ from core.utils.atomic_io import atomic_write_json
 
 from .contracts.pulse_report import (
     MODULE_REQUIRED_STAGES,
-    PHASES,
     REVIEW_AGENTS,
     ModuleDispatch,
     SolutionPulseAction,
@@ -601,7 +600,8 @@ class SolutionPulse:
                             md_content = render_final_solution_md(final_solution)
                             md_path = self.stages_dir / "final_solution.md"
                             md_path.parent.mkdir(parents=True, exist_ok=True)
-                            import tempfile, os
+                            import tempfile
+                            import os
 
                             fd, tmp = tempfile.mkstemp(dir=md_path.parent, suffix=".md")
                             try:
@@ -619,7 +619,8 @@ class SolutionPulse:
                         if solution_document and isinstance(solution_document, str):
                             doc_path = self.stages_dir / "solution_document.md"
                             doc_path.parent.mkdir(parents=True, exist_ok=True)
-                            import tempfile as _tf, os as _os
+                            import tempfile as _tf
+                            import os as _os
 
                             fd2, tmp2 = _tf.mkstemp(dir=doc_path.parent, suffix=".md")
                             try:

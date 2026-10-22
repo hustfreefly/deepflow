@@ -97,7 +97,6 @@ def discover_pipeline_runs(
                         pass
                 # 用文件 mtime 作为 started_at 的 fallback
                 if not started_at:
-                    import os
 
                     mtime = state_file.stat().st_mtime
                     started_at = datetime.fromtimestamp(

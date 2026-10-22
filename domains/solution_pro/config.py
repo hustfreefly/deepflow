@@ -22,7 +22,7 @@ _sys.path.insert(0, str(_r)) if _r and str(
 ) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 import yaml
 
 from core.config.path_config import PathConfig

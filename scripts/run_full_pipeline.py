@@ -23,7 +23,6 @@ FixFlow #13: 跨域 handoff 自动化 — DeepFlow 全管线入口
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -121,14 +120,14 @@ def cmd_solution(args):
     if not handoff_pkg.exists():
         # Fallback: no handoff package, pass explicit path
         cmd.extend(["--living-spec-path", str(living_spec.relative_to(DEEPFLOW_ROOT))])
-        print(f"⚠️  No handoff package found, passing --living-spec-path directly")
+        print("⚠️  No handoff package found, passing --living-spec-path directly")
     else:
-        print(f"✅ Handoff package found, Solution Pro will use handoff gate")
+        print("✅ Handoff package found, Solution Pro will use handoff gate")
 
     if args.constraints:
         cmd.extend(["--constraints", json.dumps(args.constraints)])
 
-    print(f"🚀 Solution Pro command:")
+    print("🚀 Solution Pro command:")
     print(f"   cd {DEEPFLOW_ROOT} && python3 {' '.join(cmd[1:])}")
 
     if not args.dry_run:
@@ -164,22 +163,22 @@ def cmd_ship(args):
     # 2. 调用 run_ship_pro
     result = run_ship_pro(project_name)
 
-    print(f"🚀 Ship Pro spawn params ready:")
+    print("🚀 Ship Pro spawn params ready:")
     print(f"   project: {result['project_name']}")
     print(f"   blackboard: {result['project_blackboard']}")
     print(f"   input: {json.dumps(result['input_summary'], ensure_ascii=False)}")
 
     # 3. 输出 spawn 命令（Main Agent 需要 sessions_spawn）
     spawn = result["spawn_params"]
-    print(f"\n📦 Main Agent 执行:")
-    print(f"   sessions_spawn(")
-    print(f"     task='<见 spawn_params>',")
-    print(f"     runtime='subagent',")
-    print(f"     mode='run',")
-    print(f"     label='ship_pro_orchestrator',")
+    print("\n📦 Main Agent 执行:")
+    print("   sessions_spawn(")
+    print("     task='<见 spawn_params>',")
+    print("     runtime='subagent',")
+    print("     mode='run',")
+    print("     label='ship_pro_orchestrator',")
     print(f"     cwd='{DEEPFLOW_ROOT}',")
-    print(f"     lightContext=True")
-    print(f"   )")
+    print("     lightContext=True")
+    print("   )")
 
     return result
 
@@ -197,13 +196,13 @@ def cmd_deliver(args):
         print(f"❌ Deliver Pro 无法启动: {e}")
         sys.exit(1)
 
-    print(f"🚀 Deliver Pro Pulse ready:")
+    print("🚀 Deliver Pro Pulse ready:")
     print(f"   project: {result['project_name']}")
     print(f"   blackboard: {result['blackboard_path']}")
     print(f"   ship_package: {result['ship_package_path']}")
-    print(f"\n📦 执行一次 Pulse:")
+    print("\n📦 执行一次 Pulse:")
     print(f"   {result['launch_command']}")
-    print(f"\n🕒 注册 cron:")
+    print("\n🕒 注册 cron:")
     print(f"   {result['cron_hint']}")
 
     return result

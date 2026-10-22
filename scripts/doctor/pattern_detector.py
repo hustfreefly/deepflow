@@ -10,8 +10,6 @@ DeepFlow Doctor — Pattern Detector
   🟡 T5: LLM 困惑 (Agent 误解 Prompt 指令，做出与预期相反的行为)
 """
 
-import re
-from typing import Any
 
 
 def detect_issues(events: list[dict], session_label: str = "") -> list[dict]:
@@ -122,7 +120,7 @@ def _detect_tool_error_recovery(events: list[dict]) -> list[dict]:
                     "category": "T1",
                     "severity": "red",
                     "sub_type": "T1a_recovered",
-                    "description": f"工具调用错误后自动恢复",
+                    "description": "工具调用错误后自动恢复",
                     "evidence": f"错误: {error_text[:150]}\n恢复: {success_call.get('input_preview', '')[:150]}",
                     "error_type": _classify_error(error_text),
                     "tool": error_call.get("tool", "unknown"),
@@ -148,7 +146,7 @@ def _detect_tool_error_recovery(events: list[dict]) -> list[dict]:
                 "category": "T1",
                 "severity": "red",
                 "sub_type": "T1b_standalone",
-                "description": f"工具调用错误（未恢复）",
+                "description": "工具调用错误（未恢复）",
                 "evidence": f"错误: {error_text[:200]}",
                 "error_type": _classify_error(error_text),
                 "tool": error_call.get("tool", "unknown"),

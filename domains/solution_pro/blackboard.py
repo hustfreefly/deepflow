@@ -13,8 +13,6 @@ Date: 2026-06-28
 - 本地 BlackboardManager 实现（已废弃）
 """
 
-import core.bootstrap  # 契约笼子: 通过 bootstrap 自动加入 sys.path
-from typing import Type
 
 from core.blackboard.registry_base import DomainRegistry
 from core.blackboard.blackboard_manager import (

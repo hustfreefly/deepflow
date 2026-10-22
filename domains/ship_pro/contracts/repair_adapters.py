@@ -5,7 +5,6 @@ Ship Pro - Repair Adapters (兼容性转换层)
 所有 adapter 均为纯函数，无副作用。
 """
 
-from typing import Any, Dict, List
 
 
 def legacy_array_to_worker_deliverable(worker_spec: dict, raw_array: list) -> dict:

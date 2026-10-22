@@ -21,7 +21,7 @@ PathManager 契约定义
 """
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, Literal
+from typing import Literal
 from pathlib import Path
 import re
 import unicodedata

@@ -4,13 +4,11 @@ DeepFlow 2.0.0 - 笼子契约验证器
 验证领域契约、阶段契约、Worker 契约和收敛规则是否符合规范
 """
 
-import os
 import sys
-import json
 import yaml
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 
 from core.config.path_config import PathConfig
 

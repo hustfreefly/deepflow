@@ -120,7 +120,7 @@ def main():
     # 读取 final 输出
     final_path = bb_path / "final_result.json"
     if not final_path.exists():
-        print(f"❌ final_result.json 不存在")
+        print("❌ final_result.json 不存在")
         sys.exit(1)
 
     try:

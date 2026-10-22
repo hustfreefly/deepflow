@@ -8,7 +8,6 @@ DeepFlow 2.0.0 - 笼子契约检查点管理器
 3. 检查点存储路径由领域契约定义
 """
 
-import os
 import sys
 import json
 import time
@@ -500,7 +499,7 @@ if __name__ == "__main__":
         # 测试加载检查点
         loaded = manager.load_checkpoint(session_id, checkpoint_id)
         if loaded:
-            print(f"📄 Loaded checkpoint metadata:")
+            print("📄 Loaded checkpoint metadata:")
             print(f"   session_id: {loaded.metadata.session_id}")
             print(f"   iteration: {loaded.metadata.iteration}")
             print(f"   stage: {loaded.metadata.current_stage}")
@@ -511,11 +510,11 @@ if __name__ == "__main__":
         # 测试验证 schema
         validation_errors = manager.validate_checkpoint_schema(loaded.to_dict())
         if validation_errors:
-            print(f"❌ Validation errors:")
+            print("❌ Validation errors:")
             for err in validation_errors:
                 print(f"   - {err}")
         else:
-            print(f"✅ Checkpoint schema validation passed\n")
+            print("✅ Checkpoint schema validation passed\n")
 
         # 测试列出检查点
         checkpoints = manager.list_checkpoints(session_id)

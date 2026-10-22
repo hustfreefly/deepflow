@@ -29,12 +29,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-import os
-import tempfile
 
 from domains.deliver_pro.contracts import (
     WorkPackage,
@@ -42,22 +39,16 @@ from domains.deliver_pro.contracts import (
     TaskNode,
     WorkerOutputMeta,
     ValidationVerdict,
-    ScoreDimension,
     FixDirective,
     PipelineState,
     PipelinePhase,
     DeliveryManifest,
-    ComponentStatus,
-    DeliveryStatus,
     RecoveryAction,
     WorkerError,
-    RecoveryStrategy,
-    IntegrationReport,
 )
 from core.blackboard.context_injector import auto_bootstrap
 from core.utils.atomic_io import atomic_write_json
 from domains.deliver_pro.prompt_registry import load_prompt
-from domains.deliver_pro.failure_recovery import WorkerFailureRecovery
 
 # ADR-009: MD Track Extractor (optional — graceful fallback if core/ not in path)
 try:
@@ -280,7 +271,7 @@ class DeliverWPRunner:
 
     # 第一行动提示（供 Orchestrator 在 spawn 时使用，非必选）
     ANALYZE_FIRST_ACTION_HINT = (
-        f"读取 bootstrap 后，你的下一个 action 必须是 exec: cat <wp_data_path>"
+        "读取 bootstrap 后，你的下一个 action 必须是 exec: cat <wp_data_path>"
     )
 
     def verify_analyze_output(self, plan_data: dict) -> tuple[bool, str]:

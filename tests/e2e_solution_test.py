@@ -22,13 +22,11 @@ import os
 import json
 import re
 import time
-from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 # 添加项目根路径到 sys.path
 from core.config.path_config import PathConfig
-import core.bootstrap
 
 DEEPFLOW_HOME = str(PathConfig.resolve().base_dir)
 
@@ -763,7 +761,7 @@ def print_report(summary: Dict[str, Any]):
 
         result = test_result["result"]
         if result["status"] == "completed":
-            print(f"Status: ✅ COMPLETED")
+            print("Status: ✅ COMPLETED")
             print(f"Duration: {result['duration_seconds']}s")
 
             quality = result.get("quality_check", {})
@@ -781,7 +779,7 @@ def print_report(summary: Dict[str, Any]):
                 if check.get("details"):
                     print(f"      Details: {check['details']}")
         else:
-            print(f"Status: ❌ FAILED")
+            print("Status: ❌ FAILED")
             print(f"Error: {result.get('error', 'Unknown error')}")
 
     print("\n" + "=" * 80)

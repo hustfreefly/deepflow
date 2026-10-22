@@ -23,7 +23,6 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 import requests
 
@@ -323,7 +322,7 @@ def cmd_unfreeze(args) -> int:
         blocked = project_dir / PULSE_BLOCKED_FILENAME
         if blocked.exists():
             blocked.unlink()
-            print(f"unfreeze: 同时清除了阻塞标记 _pulse_blocked.json")
+            print("unfreeze: 同时清除了阻塞标记 _pulse_blocked.json")
     if not removed_marker and not counters:
         print(f"not_frozen: {args.project} 无熔断标记/损坏计数器，无需操作")
         return 0

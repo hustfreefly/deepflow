@@ -29,7 +29,6 @@ _sys.path.insert(0, str(_r)) if _r and str(
 import json
 import logging
 import os
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
@@ -616,7 +615,7 @@ class SpecProCoordinator:
 
         session_dir = self._bb.session_dir
 
-        return f"""你是 Requirement Structuring Worker。
+        return """你是 Requirement Structuring Worker。
 
 你的任务是对 living_spec.confirmed 中的需求进行语义标注，为下游 Solution Pro 提供结构化元数据。
 
@@ -635,25 +634,25 @@ class SpecProCoordinator:
 ## 标注格式
 使用 JSON 格式输出，符合以下 Schema：
 ```json
-{{
+{
   "type": "array",
-  "items": {{
+  "items": {
     "type": "object",
     "required": ["original_text", "category", "priority"],
-    "properties": {{
-      "original_text": {{"type": "string"}},
-      "category": {{
+    "properties": {
+      "original_text": {"type": "string"},
+      "category": {
         "enum": ["core_objective", "capability", "prohibition", "quality_attribute", 
                  "constraint", "integration", "pain_point", "success_metric", 
                  "user", "scenario", "risk", "assumption"]
-      }},
-      "priority": {{"enum": ["P0", "P1", "P2"]}},
-      "dependencies": {{"type": "array", "items": {{"type": "string"}}}},
-      "potential_conflicts": {{"type": "array", "items": {{"type": "string"}}}},
-      "context_note": {{"type": "string"}}
-    }}
-  }}
-}}
+      },
+      "priority": {"enum": ["P0", "P1", "P2"]},
+      "dependencies": {"type": "array", "items": {"type": "string"}},
+      "potential_conflicts": {"type": "array", "items": {"type": "string"}},
+      "context_note": {"type": "string"}
+    }
+  }
+}
 ```
 
 ## 失败处理

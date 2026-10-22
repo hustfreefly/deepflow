@@ -95,7 +95,7 @@ def main():
             if len(lines) > 3:
                 print(f"  ... and {len(lines) - 3} more")
         print(
-            f"\n修复: 将 /Users/xxx/.openclaw/workspace/.deepflow 替换为 {{deepflow_root}}"
+            "\n修复: 将 /Users/xxx/.openclaw/workspace/.deepflow 替换为 {deepflow_root}"
         )
         return 1
     else:

@@ -7,7 +7,7 @@ import pytest
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 
 def test_finalize_writes_final_solution_md():

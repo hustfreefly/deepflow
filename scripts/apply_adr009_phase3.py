@@ -141,5 +141,5 @@ assert "self.generate_track_json()" in content, "Edit 3 verification failed"
 
 file_path.write_text(content, encoding="utf-8")
 new_len = len(content)
-print(f"\n✅ All 3 edits applied and verified.")
+print("\n✅ All 3 edits applied and verified.")
 print(f"   File size: {original_len} → {new_len} (+{new_len - original_len} chars)")

@@ -9,7 +9,6 @@ from core.quality.quality_gate import (
     GateDecision,
     QualityReport,
     ConvergenceResult,
-    ConvergenceResult,
 )
 
 

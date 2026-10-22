@@ -14,9 +14,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock
 
 from src.analysis.cache.redis_client import (
     RedisClient,
@@ -40,7 +39,6 @@ from src.analysis.cache.repositories import (
     SessionContextRepository,
     DistributedLock,
     LockAcquireError,
-    CacheStrategy,
     CacheStats,
     WriteThroughCache,
 )

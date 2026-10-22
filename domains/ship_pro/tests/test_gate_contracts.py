@@ -7,7 +7,6 @@ Ship Pro — Gate 契约笼子负向测试 (D4-FIX)
 - B1-ext: InformationConservationGate / HarnessV3 truthy string
 """
 
-import pytest
 from domains.ship_pro.contracts.gates import (
     GateResult,
     CompletenessGate,

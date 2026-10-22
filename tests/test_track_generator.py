@@ -5,8 +5,6 @@ Tests the shared utility that all domains use to generate track.json.
 """
 
 import json
-import pytest
-from pathlib import Path
 
 
 class TestGenerateTrackFromMd:

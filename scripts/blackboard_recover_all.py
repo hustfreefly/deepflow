@@ -2,7 +2,6 @@
 """从 session 日志中全量恢复 blackboard/ 目录下的所有文件"""
 
 import json
-import os
 import sys
 import re
 from pathlib import Path
@@ -129,7 +128,7 @@ def main():
         print(f"  📁 {case_name}: {len(files)} 个文件 ({total_size:,} bytes)")
 
     # Write all files
-    print(f"\n开始写入...")
+    print("\n开始写入...")
     restored = 0
     errors = 0
 
@@ -144,12 +143,12 @@ def main():
             print(f"  ❌ 写入失败 {rel_path}: {e}")
             errors += 1
 
-    print(f"\n=== 恢复完成 ===")
+    print("\n=== 恢复完成 ===")
     print(f"  ✅ 成功: {restored} 个文件")
     print(f"  ❌ 失败: {errors} 个文件")
 
     # Detailed manifest
-    print(f"\n=== 文件清单 ===")
+    print("\n=== 文件清单 ===")
     for case_name in sorted(cases.keys()):
         print(f"\n📁 {case_name}/")
         for path in sorted(cases[case_name]):

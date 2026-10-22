@@ -15,7 +15,7 @@ FixFlow 测试 A：修复必须可自动化验证。
 import json
 import re
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

@@ -6,9 +6,8 @@ from __future__ import annotations
 
 import json
 import pytest
-from pathlib import Path
 from contextlib import contextmanager
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 # ---------------------------------------------------------------------------

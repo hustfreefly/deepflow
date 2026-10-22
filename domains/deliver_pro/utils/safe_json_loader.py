@@ -158,7 +158,7 @@ class SafeJsonLoader:
                     state="write_in_progress",
                     error=f"mtime={mtime} is within {mtime_window}s window",
                 )
-        except OSError as e:
+        except OSError:
             # stat 失败不影响主流程，继续尝试读取
             pass
 

@@ -18,7 +18,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from typing import Optional, Dict, Any, List, Callable
+from typing import Optional, List, Callable
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -26,7 +26,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from frontend.backend.database import get_db, Task
 
 # DeepFlow imports
-from core.quality.entry_harness import EntryHarness
 
 # OpenClaw tool (injected by Main Agent or resolved at runtime)
 _spawn_fn: Optional[callable] = None
@@ -240,7 +239,7 @@ def process_pending_tasks(max_tasks: int = 1) -> List[str]:
     Returns:
         List of processed session_ids
     """
-    print(f"[Processor] Checking for pending tasks...")
+    print("[Processor] Checking for pending tasks...")
 
     try:
         db = get_db()

@@ -2,11 +2,10 @@
 ResearchPro 单元测试 — _SafeFetcher
 """
 
-import core.bootstrap
 
 import socket
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from domains.research_pro.safe_fetcher import (
     MAX_BODY_BYTES,

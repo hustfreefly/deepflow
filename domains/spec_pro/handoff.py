@@ -25,7 +25,7 @@ if _root:
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 # 契约笼子：导入 Pydantic 强类型模型
 from contracts.shared.handoff_contract import HandoffPackage

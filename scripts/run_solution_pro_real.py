@@ -17,7 +17,7 @@ from domains.solution_pro import run_solution_pro
 
 
 def main():
-    print(f"\n🏗️  Starting Solution Pro Pipeline\n")
+    print("\n🏗️  Starting Solution Pro Pipeline\n")
 
     user_input = "基于OpenClaw构建完整的AI Native Loop Engineering框架"
 
@@ -25,7 +25,7 @@ def main():
         result = run_solution_pro(user_input=user_input)
 
         print(f"\n{'=' * 60}")
-        print(f"🎉 Pipeline Complete!")
+        print("🎉 Pipeline Complete!")
         print(f"{'=' * 60}")
         print(
             f"Status: {result.get('status', 'UNKNOWN') if isinstance(result, dict) else result}"

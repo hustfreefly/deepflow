@@ -8,7 +8,6 @@ Unknown paths deliberately fall back to the full suite: never return an empty se
 import argparse
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent

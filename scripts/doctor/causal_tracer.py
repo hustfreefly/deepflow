@@ -12,7 +12,6 @@ DeepFlow Doctor — Causal Tracer
 """
 
 from pathlib import Path
-from typing import Any
 
 from session_store import build_tree as _store_build_tree
 

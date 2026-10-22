@@ -2,7 +2,6 @@
 
 import json
 import pytest
-from pathlib import Path
 
 from domains.deliver_pro.smart_assembler import SmartAssembler, assemble
 

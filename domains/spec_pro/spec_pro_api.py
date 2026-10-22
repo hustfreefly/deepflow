@@ -26,7 +26,6 @@ import json
 import argparse
 from pathlib import Path
 
-import core.bootstrap
 from core.config.path_config import PathConfig
 
 DEEPFLOW_BASE = str(PathConfig.resolve().base_dir)

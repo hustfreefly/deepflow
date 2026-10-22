@@ -35,7 +35,7 @@ _deepflow_root = next(
 if _deepflow_root and str(_deepflow_root) not in sys.path:
     sys.path.insert(0, str(_deepflow_root))
 
-from contracts.shared.e2e_contract import E2EValidator, STANDARD_PIPELINE
+from contracts.shared.e2e_contract import E2EValidator
 
 
 def main():

@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from pydantic import ValidationError
 import json
-from domains.ship_pro.ship_living_md import render_ship_package_md
 from core.blackboard.context_injector import auto_bootstrap
 import logging
 import re
@@ -1387,7 +1386,7 @@ Planner → **【你(Worker)】** → Consolidator → 用户
         # 收集 worker 输出文件路径(统一路径解析)
         worker_files = self._list_all_worker_output_files(stages_dir)
         if not worker_files:
-            raise ValueError(f"契约笼子: 无 worker 输出文件")
+            raise ValueError("契约笼子: 无 worker 输出文件")
 
         worker_file_paths = ", ".join(str(f) for f in worker_files)
         # B1-FIX: 统一从 stages/ 读取，与 gate judge 路径一致

@@ -14,11 +14,8 @@ pytest.skip(
     "Coordinator 已移除，待重写测试以匹配 PipelineOrchestrator", allow_module_level=True
 )
 
-from core.config.path_config import PathConfig
 
 import asyncio
-import json
-import time
 
 # ── 计数器 ──
 issues = []
@@ -113,7 +110,7 @@ async def run_e2e_test():
             print(f"   resume() → state={status.state}")
 
         elif status.state == "WAITING_HITL":
-            print(f"   ⏸️  HITL 暂停，跳过")
+            print("   ⏸️  HITL 暂停，跳过")
             break
         else:
             status = await coordinator._resume_execution(session_id)

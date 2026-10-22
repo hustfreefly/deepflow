@@ -2,7 +2,6 @@
 Pytest 配置文件。
 """
 
-import pytest
 
 
 def pytest_configure(config):

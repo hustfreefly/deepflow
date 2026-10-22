@@ -4,10 +4,8 @@ DeepFlow 2.0.0 - 检查点管理器
 负责保存、加载和恢复管线执行状态
 """
 
-import os
 import sys
 import json
-import time
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, Any, List
@@ -362,7 +360,7 @@ if __name__ == "__main__":
     # 加载检查点
     checkpoint = manager.load_checkpoint("test_session_001", "stage_2_search")
     if checkpoint:
-        print(f"\nLoaded checkpoint:")
+        print("\nLoaded checkpoint:")
         print(f"  Stage: {checkpoint.stage}")
         print(f"  Timestamp: {checkpoint.timestamp}")
         print(f"  State: {json.dumps(checkpoint.state, indent=2)}")
@@ -370,7 +368,7 @@ if __name__ == "__main__":
     # 恢复管线状态
     pipeline_state = manager.resume_from_checkpoint("test_session_001")
     if pipeline_state:
-        print(f"\nResumed pipeline state:")
+        print("\nResumed pipeline state:")
         print(f"  Current stage: {pipeline_state.current_stage}")
         print(f"  Current iteration: {pipeline_state.current_iteration}")
         print(f"  Scores: {pipeline_state.scores}")

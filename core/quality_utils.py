@@ -12,8 +12,7 @@ QualityUtils — 质量门控工具函数集合
 
 from __future__ import annotations
 
-import re
-from typing import Any, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 

@@ -5,7 +5,6 @@ P0-2 fix: NO_REPLY protection requires every sub-agent prompt to reference
 core/prompts/_shared_subagent_rules.md (which includes rule #8: never output NO_REPLY).
 """
 
-import os
 import re
 from pathlib import Path
 

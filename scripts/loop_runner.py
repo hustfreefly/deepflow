@@ -33,9 +33,8 @@ DeepFlow Pipeline Loop Runner — 端到端循环执行 + 检查 + 修复
 import argparse
 import json
 import sys
-import os
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
+from datetime import timezone, timedelta
 
 # Bootstrap
 DEEPFLOW_HOME = Path(__file__).resolve().parent.parent
@@ -288,9 +287,9 @@ def get_next_step(domain: str, base_path: str) -> dict:
     tasks_path = base / "tasks.json"
 
     if not plan_path.exists():
-        return {"action": "abort", "reason": f"execution_plan.json not found"}
+        return {"action": "abort", "reason": "execution_plan.json not found"}
     if not tasks_path.exists():
-        return {"action": "abort", "reason": f"tasks.json not found"}
+        return {"action": "abort", "reason": "tasks.json not found"}
 
     with open(plan_path) as f:
         plan = json.load(f)

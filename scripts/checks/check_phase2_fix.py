@@ -84,7 +84,7 @@ def check_architecture_domain():
         status = "✅" if exists and has_blackboard else "❌"
         print(f"  {status} {name}")
         if exists and not has_blackboard:
-            print(f"      ⚠️  缺少 Blackboard 指令")
+            print("      ⚠️  缺少 Blackboard 指令")
         all_passed = all_passed and exists and has_blackboard
 
     return all_passed

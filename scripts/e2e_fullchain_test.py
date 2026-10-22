@@ -25,7 +25,6 @@ E2E FullChain Test — DeepFlow 全链路测试
 import sys
 import os
 import json
-import time
 import argparse
 from pathlib import Path
 from datetime import datetime, timezone
@@ -184,7 +183,7 @@ def run_setup_mode() -> dict:
     }
 
     print(f"\n{'=' * 60}")
-    print(f"  E2E FullChain Setup Test")
+    print("  E2E FullChain Setup Test")
     print(f"  Project: {project_name}")
     print(f"{'=' * 60}\n")
 
@@ -283,7 +282,7 @@ def run_setup_mode() -> dict:
         print(f"  task: {len(sol_spawn.get('task', '').encode('utf-8'))}B")
         print(f"  requirements: {req_count}")
         print(f"  living_spec.md: {living_spec_size}B")
-        print(f"  → ✅ PASS (contract validated)")
+        print("  → ✅ PASS (contract validated)")
 
         results["stages"]["solution_pro"] = {
             "status": "PASS",
@@ -325,7 +324,7 @@ def run_setup_mode() -> dict:
         print(f"  project: {project_name}")
         print(f"  task: {len(ship_spawn.get('task', '').encode('utf-8'))}B")
         print(f"  input_summary: {json.dumps(input_summary)}")
-        print(f"  → ✅ PASS (contract validated)")
+        print("  → ✅ PASS (contract validated)")
 
         results["stages"]["ship_pro"] = {
             "status": "PASS",
@@ -363,7 +362,7 @@ def run_setup_mode() -> dict:
         print(f"  project: {project_name}")
         print(f"  ship_package: {del_result['ship_package_path']}")
         print(f"  launch_command: {del_result['launch_command']}")
-        print(f"  → ✅ PASS (Pulse handoff validated)")
+        print("  → ✅ PASS (Pulse handoff validated)")
 
         results["stages"]["deliver_pro"] = {
             "status": "PASS",
@@ -385,7 +384,7 @@ def run_setup_mode() -> dict:
             file_count = len([f for f in files if f.is_file()])
             print(f"  blackboard: {bb_dir}")
             print(f"  files: {file_count}")
-            print(f"  → ✅ PASS")
+            print("  → ✅ PASS")
             results["stages"]["doctor"] = {
                 "status": "PASS",
                 "file_count": file_count,
@@ -409,7 +408,7 @@ def run_setup_mode() -> dict:
     results["overall"] = "PASS" if all_pass else "FAIL"
 
     print(f"\n{'=' * 60}")
-    print(f"  📊 E2E FullChain Setup Results")
+    print("  📊 E2E FullChain Setup Results")
     print(f"{'=' * 60}")
     for stage_name, stage_data in results["stages"].items():
         status = stage_data.get("status", "UNKNOWN")
@@ -424,7 +423,7 @@ def run_setup_mode() -> dict:
         spawn_file.parent.mkdir(parents=True, exist_ok=True)
         spawn_file.write_text(json.dumps(results["spawn_params"], indent=2))
         print(f"\n  📁 spawn_params 已写入: {spawn_file}")
-        print(f"  → Agent 层可读取此文件执行 Phase 2 (orchestrator spawn)")
+        print("  → Agent 层可读取此文件执行 Phase 2 (orchestrator spawn)")
 
     return results
 
@@ -459,7 +458,7 @@ def run_verify_mode(project_name: str) -> dict:
     }
 
     print(f"\n{'=' * 60}")
-    print(f"  E2E FullChain Verification")
+    print("  E2E FullChain Verification")
     print(f"  Project: {project_name}")
     print(f"{'=' * 60}\n")
 
@@ -495,8 +494,8 @@ def run_verify_mode(project_name: str) -> dict:
     living_spec = bb_dir / "data" / "living_spec.md"
     sol_exists = final_solution.exists() and living_spec.exists()
     if sol_exists:
-        print(f"  final_solution.md: ✅")
-        print(f"  living_spec.md: ✅")
+        print("  final_solution.md: ✅")
+        print("  living_spec.md: ✅")
         print("  → ✅ PASS")
         results["checks"]["solution_pro"] = {"status": "PASS"}
     else:
@@ -544,7 +543,7 @@ def run_verify_mode(project_name: str) -> dict:
     results["overall"] = "PASS" if pass_count == total_count else "FAIL"
 
     print(f"\n{'=' * 60}")
-    print(f"  📊 E2E FullChain Verification Results")
+    print("  📊 E2E FullChain Verification Results")
     print(f"{'=' * 60}")
     for check_name, check_data in results["checks"].items():
         icon = "✅" if check_data.get("status") == "PASS" else "❌"
@@ -590,7 +589,7 @@ def main():
     else:
         # Summary already printed in run_*_mode
         # Print JSON at the end for Agent consumption
-        print(f"\n--- JSON ---")
+        print("\n--- JSON ---")
         print(json.dumps(results, indent=2, ensure_ascii=False))
 
 

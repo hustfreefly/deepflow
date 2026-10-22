@@ -21,9 +21,8 @@ Exit codes:
 
 import sqlite3
 import sys
-import time
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Dict, Any
 from datetime import datetime, timedelta
 
 # Add parent directory to path
@@ -91,7 +90,6 @@ def _retry_webhook_notification(task: Task) -> bool:
         True if retry should be considered successful
     """
     import httpx
-    import os
     from pathlib import Path
 
     # Load webhook configuration
@@ -108,7 +106,7 @@ def _retry_webhook_notification(task: Task) -> bool:
                     webhook_token = line.split("=", 1)[1].strip()
 
     if not webhook_url or not webhook_token:
-        print(f"[CronChecker] ⚠️  Webhook not configured, cannot retry")
+        print("[CronChecker] ⚠️  Webhook not configured, cannot retry")
         return False
 
     # Build webhook payload
@@ -138,7 +136,7 @@ def _retry_webhook_notification(task: Task) -> bool:
             return False
 
     except httpx.TimeoutException:
-        print(f"[CronChecker] ✗ Webhook retry timeout")
+        print("[CronChecker] ✗ Webhook retry timeout")
         return False
     except (httpx.HTTPError, OSError, ConnectionError) as e:
         print(f"[CronChecker] ✗ Webhook retry error: {e}")
@@ -228,7 +226,7 @@ def main():
         # Step 4: Generate summary
         summary = _generate_summary(db)
         print(f"[CronChecker] {'-' * 50}")
-        print(f"[CronChecker] Queue Summary:")
+        print("[CronChecker] Queue Summary:")
         print(f"[CronChecker]   Total tasks: {summary.get('total', 0)}")
         print(f"[CronChecker]   Pending: {summary.get('pending', 0)}")
         print(f"[CronChecker]   Running: {summary.get('running', 0)}")
@@ -250,15 +248,15 @@ def main():
                 )
                 print(f"[CronChecker]     Webhook retries: {task.webhook_retries}")
             print(f"[CronChecker] {'-' * 50}")
-            print(f"[CronChecker] These tasks need Main Agent to process via:")
+            print("[CronChecker] These tasks need Main Agent to process via:")
             print(
-                f"[CronChecker]   from core.agents.webhook_task_processor import process_pending_tasks"
+                "[CronChecker]   from core.agents.webhook_task_processor import process_pending_tasks"
             )
-            print(f"[CronChecker]   process_pending_tasks()")
+            print("[CronChecker]   process_pending_tasks()")
             return 2  # Exit code 2 = pending tasks found
 
         print(f"[CronChecker] {'=' * 50}")
-        print(f"[CronChecker] Check complete - no pending tasks")
+        print("[CronChecker] Check complete - no pending tasks")
         return 0
 
     except (sqlite3.Error, IOError) as e:

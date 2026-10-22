@@ -37,7 +37,7 @@ DEEPFLOW_HOME = os.path.expanduser("~/.openclaw/workspace/.deepflow")
 # 验证路径存在
 if not os.path.exists(DEEPFLOW_HOME):
     print(f"❌ DeepFlow 目录不存在: {DEEPFLOW_HOME}", file=sys.stderr)
-    print(f"💡 请确认 OpenClaw 工作空间已正确初始化", file=sys.stderr)
+    print("💡 请确认 OpenClaw 工作空间已正确初始化", file=sys.stderr)
     sys.exit(1)
 
 # 确保在正确的工作目录
@@ -45,7 +45,6 @@ os.chdir(DEEPFLOW_HOME)
 if DEEPFLOW_HOME not in sys.path:
     sys.path.insert(0, DEEPFLOW_HOME)
 
-import core.bootstrap
 from domains.solution_pro import run_solution_pro
 
 

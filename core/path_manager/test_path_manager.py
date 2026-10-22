@@ -10,18 +10,13 @@ PathManager 测试套件
 """
 
 import pytest
-from pathlib import Path
-import tempfile
-import shutil
 from concurrent.futures import ThreadPoolExecutor
-import time
 
 from core.path_manager import (
     PathManager,
     PathValidationError,
     PathNotFoundError,
     PathNotWritableError,
-    PathTraversalError,
 )
 
 

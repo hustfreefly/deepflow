@@ -465,7 +465,8 @@ class PipelineDesigner:
         多 provider 回退：按 _LLM_PROVIDERS 顺序尝试，首个可用 provider 成功即返回。
         所有 provider 均失败时返回 None（不抛异常）。
         """
-        import os, urllib.request
+        import os
+        import urllib.request
 
         prompt = self._build_designer_prompt(validated_input)
 

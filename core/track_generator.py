@@ -11,7 +11,6 @@ V2: Walk-based adaptive renderer for Spec Pro (replaces fixed mapping).
 import json
 import logging
 from pathlib import Path
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

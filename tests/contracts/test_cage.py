@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pytest
 
 from core.cage.active_contracts import (
     DEFAULT_CAGE_DIR,

@@ -23,14 +23,11 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 from domains.spec_pro import SpecProCoordinator
 from domains.spec_pro.merge_spec import (
     merge_conversation_digest,
-    merge_confirmed,
     merge_spec,
     apply_revisions,
 )
 from domains.spec_pro.eval.harness import (
-    run_harness,
     run_harness_v2,
-    StructuralGate,
     InferenceAuditGate,
 )
 from domains.spec_pro.response_normalizer import normalize_response

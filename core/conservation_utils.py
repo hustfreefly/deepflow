@@ -13,7 +13,6 @@ ConservationUtils — 信息守恒验证工具
 from __future__ import annotations
 
 import re
-from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator
 

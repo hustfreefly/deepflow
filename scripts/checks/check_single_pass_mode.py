@@ -4,8 +4,7 @@
 """
 
 from unittest.mock import Mock, patch
-from pipeline_engine import PipelineEngine, PipelineState, PipelineResult
-import core.bootstrap
+from pipeline_engine import PipelineEngine, PipelineState
 
 
 def test_single_pass_mode():

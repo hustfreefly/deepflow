@@ -15,12 +15,11 @@ pytest.skip(
 
 import asyncio
 import json
-import os
 
 
 async def main():
     user_input = "研究小米 SU7 市场反响"
-    print(f"🚀 启动 DeepFlow Pipeline 测试")
+    print("🚀 启动 DeepFlow Pipeline 测试")
     print(f"📝 输入: {user_input}")
     print(f"{'=' * 60}")
 
@@ -44,7 +43,7 @@ async def main():
         await coord.save_state(status.session_id)
 
         # 3. 输出结果
-        print(f"\n✅ Pipeline 启动成功\n")
+        print("\n✅ Pipeline 启动成功\n")
         print(f"session_id: {status.session_id}")
         print(f"domain: {status.domain}")
         print(f"状态: {status.state}")
@@ -64,7 +63,7 @@ async def main():
                 print(f"    timeout: {req['timeout']}s")
         else:
             print(
-                f"\npending_agents: [] (pipeline completed or no agent stages reached yet)"
+                "\npending_agents: [] (pipeline completed or no agent stages reached yet)"
             )
 
         # 输出 JSON 供上游解析
@@ -89,7 +88,7 @@ async def main():
             "blackboard_path": status.blackboard_path,
         }
         print(f"\n{'=' * 60}")
-        print(f"📦 JSON Result:")
+        print("📦 JSON Result:")
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     except Exception as e:

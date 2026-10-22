@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 # 添加脚本目录到 path
-import sys, os
+import sys
+import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 

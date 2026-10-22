@@ -8,7 +8,6 @@ import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-import core.bootstrap
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,6 @@ ConservationUtils 契约笼子测试
 - 每个函数覆盖：正常路径 + 异常路径 + 边界条件
 """
 
-import pytest
 import json
 
 from core.conservation_utils import (

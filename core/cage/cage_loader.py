@@ -4,7 +4,6 @@ DeepFlow 2.0.0 - 笼子契约加载器
 从 YAML 文件加载领域契约、阶段契约、Worker 契约和收敛规则
 """
 
-import os
 import sys
 import yaml
 from pathlib import Path
@@ -463,7 +462,7 @@ if __name__ == "__main__":
 
     # 打印领域契约
     domain = contracts["domain"]
-    print(f"📄 Domain Contract:")
+    print("📄 Domain Contract:")
     print(f"   cage_version: {domain.cage_version}")
     print(f"   domain: {domain.domain}")
     print(f"   stages: {domain.stages}")
@@ -493,7 +492,7 @@ if __name__ == "__main__":
     # 打印收敛规则
     conv = contracts["convergence"]
     if conv:
-        print(f"📄 Convergence Rules:")
+        print("📄 Convergence Rules:")
         print(f"   min_iterations: {conv.min_iterations}")
         print(f"   max_iterations: {conv.max_iterations}")
         print(f"   target_score: {conv.target_score}")

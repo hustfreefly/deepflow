@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """V3/V4 代码识别分析脚本"""
 
-import os
-import re
 import json
 from pathlib import Path
 from datetime import datetime
@@ -107,7 +105,7 @@ def analyze_file(filepath: Path) -> dict:
         if filepath.name in V4_CORE_FILES:
             result["used_by_v4"] = True
             result["duplicate_in_core"] = True
-            result["notes"] = f"根目录core/下的文件，与skills/deep-dive-v2.6/core/重复"
+            result["notes"] = "根目录core/下的文件，与skills/deep-dive-v2.6/core/重复"
 
         # 检查是否被其他文件导入
         if filepath.name == "pipeline_engine.py":

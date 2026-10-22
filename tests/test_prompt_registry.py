@@ -6,9 +6,9 @@ PromptRegistry 单元测试
 import threading
 from pathlib import Path
 import pytest
-from unittest.mock import patch, mock_open
+from unittest.mock import patch
 
-from core.prompt_registry import PromptRegistry, PromptInfo, get_prompt_info
+from core.prompt_registry import PromptRegistry, PromptInfo
 
 
 class TestPromptRegistry:

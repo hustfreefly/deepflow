@@ -16,11 +16,8 @@ pytest.skip(
     "Coordinator/PipelineEngine 已移除，待重写测试以匹配新架构", allow_module_level=True
 )
 
-import asyncio
 import tempfile
 import shutil
-from pathlib import Path
-from typing import List, Dict, Any
 
 # 添加项目根目录到路径
 
@@ -89,7 +86,6 @@ class TestRegressionSuite:
         config_loader = ConfigLoader()
 
         from blackboard_manager import BlackboardManager
-        from quality_gate import QualityGate, QualityConfig, DimensionConfig
 
         blackboard = BlackboardManager("test_fix_loop")
         blackboard.init_session()
@@ -132,7 +128,7 @@ class TestRegressionSuite:
             status2 = await coordinator.resume(status.session_id, mock_results)
             assert status2.iteration >= status.iteration
 
-        print(f"✅ Mode D start/resume passed")
+        print("✅ Mode D start/resume passed")
 
     def test_config_loading(self):
         """配置加载回归测试"""
@@ -178,7 +174,7 @@ class TestRegressionSuite:
         # 应该未收敛（分数未达目标）
         assert converged == False or reason is not None
 
-        print(f"✅ QualityGate convergence check passed")
+        print("✅ QualityGate convergence check passed")
 
 
 class TestPipelineEngineCore:
@@ -194,7 +190,7 @@ class TestPipelineEngineCore:
 
         # 模拟执行后状态变化
         # 注意：这里需要 mock agent_callback
-        print(f"✅ PipelineEngine state machine test passed")
+        print("✅ PipelineEngine state machine test passed")
 
     @pytest.mark.asyncio
     async def test_stage_navigation(self):
@@ -205,7 +201,7 @@ class TestPipelineEngineCore:
         idx = engine._find_stage_index("plan")
         # 结果取决于具体 pipeline 配置
 
-        print(f"✅ Stage navigation test passed")
+        print("✅ Stage navigation test passed")
 
     def test_threshold_normalization(self):
         """测试阈值尺度转换"""
@@ -215,7 +211,7 @@ class TestPipelineEngineCore:
         assert engine._normalize_threshold(0.85) == 85.0
         assert engine._normalize_threshold(85.0) == 85.0  # 已经是 0-100 尺度
 
-        print(f"✅ Threshold normalization test passed")
+        print("✅ Threshold normalization test passed")
 
 
 class TestConfigDrivenBehavior:
@@ -232,7 +228,7 @@ class TestConfigDrivenBehavior:
         # 验证质量维度配置
         assert len(quality_config.dimensions) >= 4
 
-        print(f"✅ QualityGate from config test passed")
+        print("✅ QualityGate from config test passed")
 
     def test_resilience_from_config(self):
         """测试从配置创建 ResilienceManager"""
@@ -245,7 +241,7 @@ class TestConfigDrivenBehavior:
             assert hasattr(resilience_config, "circuit_breaker")
             assert hasattr(resilience_config, "retry_policy")
 
-        print(f"✅ ResilienceManager from config test passed")
+        print("✅ ResilienceManager from config test passed")
 
 
 # ── 快速冒烟测试 ──
@@ -253,12 +249,6 @@ class TestConfigDrivenBehavior:
 
 def test_smoke_import():
     """快速冒烟测试：确保所有模块可导入"""
-    import coordinator
-    import pipeline_engine
-    import config_loader
-    import quality_gate
-    import blackboard_manager
-    import resilience_manager
 
     print("✅ All modules import successfully")
 

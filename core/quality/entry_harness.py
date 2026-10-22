@@ -16,10 +16,8 @@ Entry/Startup Harness
 """
 
 import json
-import os
 from typing import Any, Dict
 
-import core.bootstrap
 from core.config.path_config import PathConfig
 from core.blackboard import BlackboardManager
 from core.orchestrator.pipeline_orchestrator import PipelineOrchestrator

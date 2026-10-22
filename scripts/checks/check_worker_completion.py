@@ -4,12 +4,9 @@
 """
 
 import json
-import os
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
-from pipeline_engine import PipelineEngine, PipelineStage, PipelineState
-import core.bootstrap
+from pipeline_engine import PipelineEngine, PipelineStage
 
 
 def test_spawn_metadata_detection():
@@ -173,7 +170,7 @@ def test_timeout_handling():
     )
 
     if not result["success"] and "timeout" in str(result.get("output", {})).lower():
-        print(f"  ✅ 正确返回超时错误")
+        print("  ✅ 正确返回超时错误")
         print(f"  错误信息: {result['output']}")
         return True
     else:
@@ -227,7 +224,7 @@ def test_valid_worker_output():
             output_file.unlink()
 
         if result["success"] and result["output"].get("role") == "summarizer":
-            print(f"  ✅ 正确识别有效 summarizer 输出")
+            print("  ✅ 正确识别有效 summarizer 输出")
             return True
         else:
             print(f"  ❌ 未正确识别: {result}")

@@ -9,7 +9,6 @@ Ship Pro - 端到端测试
 """
 
 from pathlib import Path
-import json
 import tempfile
 import shutil
 import pytest
@@ -21,21 +20,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
 from domains.ship_pro.contracts import (
     PlannerOutput,
-    WorkerSpec,
     WorkerDeliverable,
-    WorkPackage,
     ShipPackage,
-    DependencyGraph,
     PlannerGate,
     WorkerGate,
-    InformationConservationGate,
     CompletenessGate,
-    HarnessV3,
 )
 from domains.ship_pro.orchestrator import (
     ShipOrchestrator,
     StateManager,
-    StateTransitionError,
 )
 
 

@@ -6,7 +6,6 @@ ValidationVerdict — Phase 4 Validate Judge 的判定结果。
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Literal
 

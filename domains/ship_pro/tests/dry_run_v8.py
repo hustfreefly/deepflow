@@ -206,8 +206,8 @@ def create_mock_worker_output(role: str, prefix: str, wp_count: int = 5):
                 * 2,
                 "acceptance_criteria": [
                     f"AC1: 支持功能 {i} 的 CRUD 操作",
-                    f"AC2: 并发测试通过（6 writer 无数据损坏）",
-                    f"AC3: 崩溃恢复测试（kill -9 后状态一致）",
+                    "AC2: 并发测试通过（6 writer 无数据损坏）",
+                    "AC3: 崩溃恢复测试（kill -9 后状态一致）",
                 ],
                 "deliverables": [
                     f"{role.lower()}_{i}.py",
@@ -322,8 +322,6 @@ def layer2_roles():
     from domains.ship_pro.pipeline_designer import (
         PipelineDesigner,
         PipelinePlan,
-        WorkerSpec,
-        WorkerContext,
         validate_solution_pro_input,
     )
     from domains.ship_pro.orchestrator.ship_orchestrator import ShipOrchestrator
@@ -735,7 +733,7 @@ def main():
     print(f"  总问题: {total_issues} 个")
 
     if issues:
-        print(f"\n  问题清单:")
+        print("\n  问题清单:")
         for issue in issues:
             print(f"    {FAIL} {issue}")
 

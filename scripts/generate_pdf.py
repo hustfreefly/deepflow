@@ -10,7 +10,6 @@ Usage:
 import sys
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"

@@ -11,7 +11,7 @@ Agent 完成后的 Python 后置验证层。
 V4 重构：调用 core.quality_utils 通用函数，减少重复逻辑。
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 import logging
 
 # V4: 导入通用函数

@@ -19,7 +19,6 @@ if _r and str(_r) not in _sys.path:
 import json
 import subprocess
 import tempfile
-import pytest
 from datetime import datetime
 
 from domains.spec_pro.coordinator import SpecProCoordinator

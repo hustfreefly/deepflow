@@ -28,8 +28,6 @@ AI Native 原则：
 import argparse
 import json
 import os
-import sys
-from pathlib import Path
 
 
 def copy_constraints(planning_data: dict, final_result: dict) -> dict:
@@ -107,7 +105,7 @@ def main():
         json.dump(final_result, f, indent=2, ensure_ascii=False)
 
     print(f"\n✅ 已复制到 {args.final_result}")
-    print(f"   Orchestrator 将在 Phase -1 中用 LLM 提取架构原则和平台能力")
+    print("   Orchestrator 将在 Phase -1 中用 LLM 提取架构原则和平台能力")
 
 
 if __name__ == "__main__":

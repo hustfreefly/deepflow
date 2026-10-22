@@ -249,7 +249,7 @@ class WorkerGate:
 
 ### 2. web_search 范围检查
 {f"要求的搜索范围: {web_search_scope}" if web_search_scope else "无搜索范围要求"}
-{f"搜索日志:\n" + json.dumps([l.get("query", "") for l in search_logs], ensure_ascii=False) if search_logs else "无搜索日志"}
+{"搜索日志:\n" + json.dumps([l.get("query", "") for l in search_logs], ensure_ascii=False) if search_logs else "无搜索日志"}
 {f'判断每次搜索是否在 "{web_search_scope}" 范围内。语义判断即可，不要求关键词精确匹配。' if web_search_scope else ""}
 
 ## 判断标准

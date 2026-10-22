@@ -10,7 +10,6 @@
 
 import pytest
 import json
-import tempfile
 from pathlib import Path
 
 
@@ -50,7 +49,7 @@ class TestMDFirstEnforcement:
     @pytest.mark.parametrize("stage_name", DELIVERY_STAGES)
     def test_read_stage_prefers_md(self, bb, stage_name):
         """read_stage 应优先读 .md 文件"""
-        md_content = f"# MD First Content\n\nThis is the truth source."
+        md_content = "# MD First Content\n\nThis is the truth source."
         bb.write_stage(stage_name, md_content)
 
         # read_stage 应返回 MD 内容（文本）
@@ -77,7 +76,7 @@ class TestMDFirstEnforcement:
     @pytest.mark.parametrize("stage_name", DELIVERY_STAGES)
     def test_md_takes_precedence_over_json(self, bb, stage_name):
         """当 .md 和 .json 同时存在时，.md 优先"""
-        md_content = f"# MD Truth\n\nMD is the source of truth."
+        md_content = "# MD Truth\n\nMD is the source of truth."
         json_data = {"test": "old_json_data"}
 
         # 同时写入 .md 和 .json
@@ -162,7 +161,7 @@ class TestNoJsonPrimaryWrite:
                     violations.append(f"{py_file.relative_to(source_dir)}: {pattern}")
 
         assert not violations, (
-            f"Found direct JSON write for delivery stages:\n"
+            "Found direct JSON write for delivery stages:\n"
             + "\n".join(violations)
             + "\nUse write_stage(stage_name, md_string) for MD-first output."
         )

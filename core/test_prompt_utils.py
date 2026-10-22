@@ -6,10 +6,7 @@ PromptUtils 契约笼子测试
 - 每个函数覆盖：正常路径 + 异常路径 + 边界条件
 """
 
-import os
 import pytest
-import tempfile
-from pathlib import Path
 
 from core.prompt_utils import (
     load_prompt,

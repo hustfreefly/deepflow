@@ -9,7 +9,6 @@ import tempfile
 import unittest
 import glob
 
-import core.bootstrap
 from domains.research_pro.source_registry import SourceRegistry, SUMMARY_MAX_LENGTH
 
 

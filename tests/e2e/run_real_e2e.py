@@ -35,10 +35,8 @@ SKILL_LIB = os.path.join(DEEPFLOW_ROOT, "skills", "deep-research", "lib")
 SKILL_ROOT = os.path.join(DEEPFLOW_ROOT, "skills", "deep-research")
 
 from orchestrator import ResearchProOrchestrator
-from source_registry import SourceRegistry
 from tier_classifier import TierClassifier
 from citation_verifier import CitationVerifier
-import core.bootstrap
 
 
 class ResearchProE2ETest:

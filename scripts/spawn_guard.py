@@ -7,7 +7,6 @@ Does not call sessions_spawn; validates a JSON request only.
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 ALLOWED_AGENTS = {"deepflow", "expert", "redteam", "researcher", "worker"}

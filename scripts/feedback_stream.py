@@ -18,7 +18,6 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Optional
 
 # Bootstrap
 DEEPFLOW_HOME = Path(__file__).resolve().parent.parent

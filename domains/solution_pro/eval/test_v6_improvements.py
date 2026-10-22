@@ -17,7 +17,7 @@ Do not import this file for new V2 workflows.
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import List
 import pytest
 
 pytest.skip(
@@ -207,7 +207,7 @@ def main():
         print(f"❌ 路径不存在: {bb_path}")
         sys.exit(1)
 
-    print(f"🧪 V6 改进测试")
+    print("🧪 V6 改进测试")
     print(f"   Blackboard 路径: {bb_path}")
     print()
 

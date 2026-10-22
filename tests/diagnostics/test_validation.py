@@ -10,15 +10,12 @@ Run tests with:
 """
 
 import json
-import os
-import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import pytest
 
 # Add src to path for imports
-from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DIAG_PKG = REPO_ROOT / "src" / "deepflow" / "diagnostics"
@@ -247,7 +244,6 @@ class TestFallbackExtractor:
 
     def test_extract_duration_from_stages(self, mock_data: MockDiagnosticsData):
         """Test duration extraction from stage files."""
-        import time
 
         session_dir = mock_data.create_session(
             "test_duration_session",

@@ -15,10 +15,8 @@ import json
 import logging
 import os
 import re
-import tempfile
 import time
 from pathlib import Path
-from typing import Any
 
 from core.utils.atomic_io import atomic_write_json
 
@@ -1153,7 +1151,6 @@ class DeliverOrchestrator:
             list of {"wp_id": str, "action": str, "spawn_params": dict|None}
             action: "analyze" | "spawn_workers" | "validate" | "package" | "done"
         """
-        import shutil
 
         self._last_tick_truncated = False
         results = []
@@ -3421,7 +3418,7 @@ class DeliverOrchestrator:
         """生成人类可读的 pipeline 进度报告。"""
         status = self.get_status()
         lines = [
-            f"## Deliver Pro Pipeline Status",
+            "## Deliver Pro Pipeline Status",
             f"Total: {status['total_wps']} | Done: {status['completed']} | Failed: {status['failed']} | In Progress: {status['in_progress']}",
             f"All Done: {status['all_done']}",
             "",

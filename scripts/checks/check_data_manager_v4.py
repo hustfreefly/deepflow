@@ -7,7 +7,7 @@ DataManager V4.0 契约验证脚本
 import json
 import os
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict
 
 
 class DataManagerContractVerifier:
@@ -190,7 +190,7 @@ class DataManagerContractVerifier:
     def run_all_checks(self) -> Dict:
         """运行所有检查"""
         print(f"\n{'=' * 60}")
-        print(f"DataManager V4.0 契约验证")
+        print("DataManager V4.0 契约验证")
         print(f"Session: {self.session_id}")
         print(f"{'=' * 60}")
 
@@ -213,12 +213,12 @@ class DataManagerContractVerifier:
         print(f"失败: {self.checks_failed}")
 
         if self.warnings:
-            print(f"\n警告:")
+            print("\n警告:")
             for w in self.warnings:
                 print(f"  ⚠️ {w}")
 
         if self.errors:
-            print(f"\n错误:")
+            print("\n错误:")
             for e in self.errors:
                 print(f"  ❌ {e}")
 

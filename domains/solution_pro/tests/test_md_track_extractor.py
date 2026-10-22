@@ -18,7 +18,6 @@ if _r and str(_r) not in _sys.path:
     _sys.path.insert(0, str(_r))
 
 import logging
-import pytest
 
 from core.md_track_extractor import (
     _extract_semantic_anchors,

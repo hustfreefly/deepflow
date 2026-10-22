@@ -19,16 +19,11 @@ from pathlib import Path
 import pytest
 
 from domains.solution_pro.contracts.pulse_report import (
-    ModuleDispatch,
     SolutionPulseReport,
     SolutionPulseState,
     SpawnConfirmation,
 )
 from domains.solution_pro.pulse import (
-    PULSE_ACTIONS_FILENAME,
-    PULSE_COMPLETED_FILENAME,
-    PULSE_FAILED_FILENAME,
-    PULSE_STATE_FILENAME,
     SolutionPulse,
 )
 

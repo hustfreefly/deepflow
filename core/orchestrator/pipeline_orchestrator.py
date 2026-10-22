@@ -28,7 +28,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import core.bootstrap
 from core.config.path_config import PathConfig
 from core.blackboard import BlackboardManager
 
@@ -237,7 +236,7 @@ class PipelineOrchestrator:
             print(f"  Parallel: {is_parallel}, Workers: {worker_list}")
 
             if not worker_entries:
-                print(f"  ⚠️ No workers defined, skipping")
+                print("  ⚠️ No workers defined, skipping")
                 continue
 
             # 准备 worker tasks
