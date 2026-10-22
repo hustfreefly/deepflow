@@ -1,0 +1,40 @@
+cage_version: "2.0.0"
+component: dev_toolchain
+status: active
+module: dev_toolchain
+version: "1.0.0"
+created: '2026-10-22'
+updated: '2026-10-22'
+complexity: medium
+description: |
+  研发武器库 P0 契约：测试选择、网络隔离、覆盖率闸门、任务度量。
+  四件武器都必须可执行、可验收，不接受“纸面能力”。
+interface:
+  select_tests: "scripts/impact.py --changed <paths> [--json]"
+  network_marker: "pytest.ini 注册 network marker；默认 -m not network"
+  coverage_gate: "scripts/ci/ci.sh --coverage"
+  record_metrics: "scripts/metrics.py record --file <jsonl> ..."
+behavior:
+  select_tests:
+    success: "core/cage/* -> tests/contracts；domains/<d>/* -> domains/<d>/tests"
+    failure: "未知路径回退全量（targets=[.]），绝不返回空集"
+  network_marker:
+    success: "默认套件排除 network；-m network 可单独运行"
+    failure: "未标记的真实联网用例进入默认套件即违约"
+  coverage_gate:
+    success: "覆盖率 >= 阈值时 exit 0"
+    failure: "低于阈值 exit 1"
+  record_metrics:
+    success: "追加一行合法 JSONL，字段完整"
+    failure: "缺字段或非法数值 exit 2，且不写文件"
+boundaries:
+  - "只读被测业务代码，不修改域逻辑"
+  - "metrics 只写显式指定的 JSONL，不碰 blackboard"
+  - "impact.py 不确定时宁可多跑，不可漏跑"
+redlines:
+  - id: RED-WP-001
+    rule: "impact.py 不得返回空测试集"
+    check: "unknown path -> full suite"
+  - id: RED-WP-002
+    rule: "默认测试不得依赖真实网络"
+    check: "pytest --collect-only -m \"not network\" 覆盖所有非网络用例"

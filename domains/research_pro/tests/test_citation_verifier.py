@@ -5,10 +5,14 @@ ResearchPro 单元测试 — CitationVerifier
 import os
 import tempfile
 import unittest
+
+import pytest
+
 from domains.research_pro.source_registry import SourceRegistry
 from domains.research_pro.citation_verifier import CITATION_FETCH_TIMEOUT, CitationVerifier
 
 
+@pytest.mark.network
 class TestCitationVerifier(unittest.TestCase):
     """CitationVerifier 单元测试。"""
 

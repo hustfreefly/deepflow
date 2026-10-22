@@ -14,6 +14,7 @@ for arg in "$@"; do
     --quick) MODE="quick" ;;
     --contract) MODE="contract" ;;
     --unit) MODE="unit" ;;
+    --coverage) MODE="coverage" ;;
     --full) MODE="full" ;;
     --help|-h)
       cat <<'EOF'
@@ -22,6 +23,7 @@ DeepFlow CI
   ./ci.sh --contract   # G3 contract cage only
   ./ci.sh --quick      # all tests except slow
   ./ci.sh --unit       # domains + tests except slow
+  ./ci.sh --coverage   # contract gate + full tests + coverage threshold
 EOF
       exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
@@ -49,6 +51,11 @@ case "$MODE" in
     run_contract
     echo "-- unit/domain tests --"
     python3 -m pytest tests domains -q -m "not slow"
+    ;;
+  coverage)
+    run_contract
+    echo "-- coverage gate --"
+    python3 -m pytest -q --cov=core --cov=domains --cov-report=term-missing --cov-fail-under="\${COVERAGE_MIN:-40}"
     ;;
   full)
     run_contract
