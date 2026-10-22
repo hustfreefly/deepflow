@@ -1,7 +1,7 @@
 # DeepFlow .gitignore
 
 # 运行时生成的测试结果
-blackboard/
+/blackboard/
 # Python 缓存
 __pycache__/
 *.pyc

@@ -2,7 +2,7 @@ cage_version: "2.0.0"
 component: dev_ops
 status: active
 module: dev_ops
-version: "1.0.0"
+version: "1.1.0"
 created: '2026-10-22'
 updated: '2026-10-22'
 complexity: medium
@@ -13,6 +13,9 @@ interface:
   worktree_bootstrap: "scripts/worktree.sh create|remove|list"
   selfcheck: "scripts/selfcheck.py --json"
   spawn_guard: "scripts/spawn_guard.py --request <json>"
+  runtime_state_sync: "worktree.sh 仅排除根 /blackboard；core/blackboard 源码入库"
+  memory_seed: "MEMORY.md 含项目术语，memory index 后可召回"
+  spawn_guard_gate: "G6 前必须跑 spawn_guard.py 并留输出"
 behavior:
   worktree_bootstrap:
     success: "create 后工作区可收集测试；remove 干净删除"
@@ -23,6 +26,15 @@ behavior:
   spawn_guard:
     success: "异构 model 且 task < 3KB 时 exit 0"
     failure: "缺 model exit 2；redteam 同模型 exit 3；task 超限 exit 4"
+  runtime_state_sync:
+    success: "新 worktree pytest --collect-only 无 error"
+    failure: "core/blackboard 被忽略或未入库即违约"
+  memory_seed:
+    success: "memory search 契约笼子 返回 >= 1 条"
+    failure: "0 hits 且语料缺失即违约"
+  spawn_guard_gate:
+    success: "redteam spawn 请求通过 guard 且 model != executor"
+    failure: "同模型或缺 model 即拒绝"
 boundaries:
   - "worktree 只创建在仓库同级目录，不写入 blackboard"
   - "selfcheck 只读，不修改仓库"
@@ -34,3 +46,9 @@ redlines:
   - id: RED-OPS-002
     rule: "redteam 复核模型必须 != 执行模型"
     check: "spawn_guard exit 3 on same model"
+  - id: RED-OPS-003
+    rule: "core/blackboard 源码不得被 .gitignore 误伤"
+    check: "git check-ignore core/blackboard/registry_base.py 无输出"
+  - id: RED-OPS-004
+    rule: "memory 语料必须包含项目核心术语"
+    check: "memory search 契约笼子 >= 1 hit"

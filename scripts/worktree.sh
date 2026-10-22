@@ -23,7 +23,7 @@ case "${1:-}" in
     base="${3:-main}"
     dest="$PARENT/.deepflow-$id"
     git -C "$ROOT" worktree add "$dest" -b "$id" "$base"
-    rsync -a --exclude '.git' --exclude 'blackboard' --exclude 'test_results' \
+    rsync -a --exclude '.git' --exclude '/blackboard' --exclude 'test_results' \
       --exclude '__pycache__' --exclude '.pytest_cache' --exclude 'node_modules' \
       "$ROOT/" "$dest/"
     if ! (cd "$dest" && python3 -m pytest --collect-only -q >/tmp/worktree-collect.log 2>&1); then
@@ -35,7 +35,8 @@ case "${1:-}" in
   remove)
     id="${2:?task id required}"
     dest="$PARENT/.deepflow-$id"
-    git -C "$ROOT" worktree remove "$dest"
+    # worktrees are disposable copies; runtime-state sync makes them dirty by design
+    git -C "$ROOT" worktree remove --force "$dest"
     git -C "$ROOT" branch -d "$id" 2>/dev/null || true
     ;;
   list)
