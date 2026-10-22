@@ -21,6 +21,7 @@
 | `version_mgmt_migration.yaml` | 全局 | — |
 | `dev_toolchain_v1.0.yaml` | 全局/研发工具链 | V1.0 |
 | `dev_quality_v1.0.yaml` | 全局/代码质量闸 | V1.0 |
+| `golden_behavior_v1.0.yaml` | 全局/行为回归 | V1.0 |
 
 > 已废弃: `ship_pro_v3.0.yaml` → `cage/active/_deprecated/`
 
