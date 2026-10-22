@@ -1,0 +1,9 @@
+{
+  "routed_to": "research_pro",
+  "citations": [
+    "https://example.com/agent-orchestration-2026",
+    "https://example.com/agent-benchmark-2026"
+  ],
+  "text": "## 结论\n\n2026 年主流 Agent 编排框架的格局已经基本收敛为四强：LangGraph、CrewAI、AutoGen 与 OpenAI Agents SDK，其中前三者在不同场景各占优势。[1] 调研显示，这四个框架是 2026 年采用频率最高的编排框架，团队的选择依据集中在三点：状态管理能力（statefulness）、可观测性（observability）与供应商锁定风险（vendor lock-in）。[1]\n\n## 关键证据\n\n在一项 120 任务的基准测试中，三者呈现出明显的场景分化：[2]\n\n- **LangGraph**：在复杂有状态工作流上领先，适合需要显式状态机与可回放执行轨迹的生产级编排。[2]\n- **CrewAI**：在快速的角色化原型构建上领先，适合短周期验证多角色协作假设。[2]\n- **AutoGen**：在多智能体对话模式上领先，适合以对话协商为核心的多 Agent 交互场景。[2]\n\n## 选型建议\n\n不存在单一最优框架，选型应以任务形态为锚点：复杂长流程与强状态需求选 LangGraph；需要快速验证角色分工选 CrewAI；以多 Agent 对话协作为主选 AutoGen；对生态绑定敏感、希望降低供应商锁定风险的团队可将 OpenAI Agents SDK 纳入对照评估。[1][2] 同时应把可观测性作为硬性评估项，因为它是 [1] 中列出的三大决策因素之一，而 [2] 的基准结果也主要体现能力分化，并未覆盖生产运维维度。\n\n## 来源\n\n[1] 2026 Agent Orchestration Landscape — https://example.com/agent-orchestration-2026\n[2] 2026 Agent Framework Benchmark — https://example.com/agent-benchmark-2026",
+  "generated": []
+}

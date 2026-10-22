@@ -1,0 +1,7 @@
+{
+  "retries": 2,
+  "blocker": true,
+  "stopped_at": "ship_gate",
+  "generated": [],
+  "text": "workers 模块的 worker 在 attempt 1 与 attempt 2 均返回空文件内容，两次重试均已消耗，retry_count = 2，已达重试上限（最多 2 次）。按重试策略不再发起第三次重试：连续两次空产出属于确定性失败信号而非瞬时抖动，继续无界重试只会重复同样的失败并放大耗时与 token 成本，且掩盖真实根因。已在 workers checkpoint 记录 blocker 并停止于 ship gate，未生成 ship_package.json。解除 blocker 所需动作：由人工/派单方裁决——检查该 worker 的 prompt 与输入契约（是否产出被截断或写入路径错误）、确认模型路由与超时配置，修复后重置 retry_count 并重新进入 workers 检查点。"
+}

@@ -1,0 +1,9 @@
+{
+  "routed_to": "research_pro",
+  "citations": [
+    "https://example.com/agent-orchestration-2026",
+    "https://example.com/agent-benchmark-2026"
+  ],
+  "text": "## 结论\n2026 年主流 Agent 编排框架高度集中于四个名字：LangGraph、CrewAI、AutoGen 与 OpenAI Agents SDK，团队选型主要围绕状态管理能力、可观测性与厂商锁定风险三个维度展开 [1]。在 120 项任务的基准测试中，三者呈现清晰的能力分工：LangGraph 在复杂有状态工作流上领先，CrewAI 在快速角色化原型上领先，AutoGen 在多智能体对话模式上领先 [2]。\n\n因此结论是：**不存在单一“最优”框架，选型应由任务形态决定**。复杂、长链路、强状态依赖的流程优先 LangGraph；需要快速搭出角色分工原型时优先 CrewAI；核心诉求是多智能体之间的对话协作时优先 AutoGen [1][2]。OpenAI Agents SDK 同样属于高频采用之列，但其取舍需重点评估厂商锁定成本 [1]。\n\n## 三条可执行判断\n1. **先定任务形态，再选框架**：状态复杂度、协作模式、原型速度决定候选集 [1][2]。\n2. **把可观测性作为硬性门槛**，而非事后补充 [1]。\n3. **厂商锁定是需要单独计价的风险项**，应在选型阶段量化 [1]。\n\n## 来源\n[1] 2026 Agent Orchestration Landscape — https://example.com/agent-orchestration-2026\n[2] 2026 Agent Framework Benchmark — https://example.com/agent-benchmark-2026",
+  "generated": []
+}
