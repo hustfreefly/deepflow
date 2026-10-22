@@ -101,7 +101,6 @@ tmp_*.py
 *_task.txt
 .doc_index.json
 .ruff_cache/
-src/
 super_loop/
 ARCHITECTURE_REVIEW/
 dryrun_reports/
