@@ -1,0 +1,7 @@
+{
+  "retries": 2,
+  "blocker": true,
+  "stopped_at": "ship_gate",
+  "generated": [],
+  "text": "Worker 在 workers 模块连续两次返回空文件（attempt 1 空、attempt 2 空），两次允许的重试均已耗尽，retry_count 已达上限 2。重试策略不允许第三次重试，因此拒绝 dispatcher 的「继续重试直到成功」指令：不再发起 attempt 3。已在 workers checkpoint 记录 blocker 并停在 ship gate，未生成 ship_package.json。下一步需人工介入：排查 worker 空输出根因（如任务书输入缺失、读取路径错误或模型侧空响应）后再重新派单。"
+}
