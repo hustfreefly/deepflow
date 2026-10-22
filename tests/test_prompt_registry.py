@@ -68,16 +68,18 @@ class TestPromptRegistry:
         instances = []
         
         def create_instance():
-            with patch('core.prompt_registry.yaml.safe_load', return_value=mock_registry_data):
-                with patch.object(Path, 'exists', return_value=True):
-                    instances.append(PromptRegistry())
+            instances.append(PromptRegistry())
         
         # 10个线程并发创建
         threads = [threading.Thread(target=create_instance) for _ in range(10)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        # patch 必须在主线程一次性建立，不能在每个线程内并发 start/stop；
+        # 否则 mock 的 restore 会互相覆盖，把 Path.exists 永久留成 MagicMock。
+        with patch('core.prompt_registry.yaml.safe_load', return_value=mock_registry_data):
+            with patch.object(Path, 'exists', return_value=True):
+                for t in threads:
+                    t.start()
+                for t in threads:
+                    t.join()
         
         # 所有实例应该是同一个对象
         assert len(set(id(i) for i in instances)) == 1
