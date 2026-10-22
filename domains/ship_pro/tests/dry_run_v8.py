@@ -9,6 +9,8 @@ Ship Pro - Dry Run
   L4: Orchestrator 预演（契约笼子 + 失败级联）
 """
 
+# ruff: noqa: F401  # L1 导入可达性检查：导入即断言
+
 import json
 import sys
 import tempfile

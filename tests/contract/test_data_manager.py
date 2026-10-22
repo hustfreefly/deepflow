@@ -17,7 +17,6 @@ try:
         DataProvider,
         DataQuery,
         DataResult,
-        DataRequest,
         DataFinding,
         ProviderRegistry,
         ConfigDrivenCollector,

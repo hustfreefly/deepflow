@@ -17,7 +17,6 @@ _r = next((d for d in _p.parents if (d / "core" / "blackboard").is_dir()), None)
 if _r and str(_r) not in _sys.path:
     _sys.path.insert(0, str(_r))
 
-import json
 import pytest
 from unittest.mock import MagicMock, patch
 import tempfile
@@ -130,7 +129,7 @@ class TestExtractRequirementsDeleted:
     def test_function_not_importable(self):
         """确认无法从 solution_pro 导入该函数"""
         with pytest.raises(ImportError):
-            from domains.solution_pro import _extract_requirements_from_input
+            from domains.solution_pro import _extract_requirements_from_input  # noqa: F401
 
 
 # ============================================================================

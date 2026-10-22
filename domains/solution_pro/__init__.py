@@ -32,11 +32,8 @@ _sys.path.insert(0, str(_r)) if _r and str(
     _r
 ) not in _sys.path else None  # 契约笼子: 自动发现 .deepflow 根目录
 import json
-import os
 import pathlib
-from datetime import datetime, timezone
 from typing import Optional  # 契约笼子：_try_load_handoff_package 返回类型
-from core.blackboard.context_injector import build_bootstrap_task
 from core.prompt_utils import render_prompt  # V4: 集成 PromptUtils
 from pathlib import Path
 
