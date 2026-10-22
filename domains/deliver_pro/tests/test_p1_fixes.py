@@ -225,12 +225,12 @@ class TestF2LabelConflict:
 
             labels = [a["label"] for a in report["actions"]]
             # T-001 的 label 应带时间戳后缀
-            t001_labels = [l for l in labels if "t-001" in l]
+            t001_labels = [label for label in labels if "t-001" in label]
             assert len(t001_labels) >= 1, f"Expected T-001 label, got {labels}"
             # 后缀应是 _{digits}
             import re
 
-            assert any(re.search(r"_\d{10,}$", l) for l in t001_labels), (
+            assert any(re.search(r"_\d{10,}$", label) for label in t001_labels), (
                 f"Expected timestamp suffix, got {t001_labels}"
             )
 
@@ -252,12 +252,12 @@ class TestF2LabelConflict:
                 report = orch.pulse()
 
             labels = [a["label"] for a in report["actions"]]
-            t001_labels = [l for l in labels if "t-001" in l]
+            t001_labels = [label for label in labels if "t-001" in label]
             assert len(t001_labels) >= 1
             # 不应有时间戳后缀
             import re
 
-            assert not any(re.search(r"_\d{10,}$", l) for l in t001_labels), (
+            assert not any(re.search(r"_\d{10,}$", label) for label in t001_labels), (
                 f"First spawn should not have suffix, got {t001_labels}"
             )
 
@@ -367,11 +367,11 @@ class TestF2LabelConflict:
                 report = orch.pulse()
 
             labels = [a["label"] for a in report["actions"]]
-            validate_labels = [l for l in labels if "validate" in l]
+            validate_labels = [label for label in labels if "validate" in label]
             assert len(validate_labels) >= 1, f"Expected validate label, got {labels}"
             import re
 
-            assert any(re.search(r"_\d{10,}$", l) for l in validate_labels), (
+            assert any(re.search(r"_\d{10,}$", label) for label in validate_labels), (
                 f"Expected timestamp suffix on validate label, got {validate_labels}"
             )
 
@@ -410,11 +410,11 @@ class TestF2LabelConflict:
                 report = orch.pulse()
 
             labels = [a["label"] for a in report["actions"]]
-            package_labels = [l for l in labels if "package" in l]
+            package_labels = [label for label in labels if "package" in label]
             assert len(package_labels) >= 1, f"Expected package label, got {labels}"
             import re
 
-            assert any(re.search(r"_\d{10,}$", l) for l in package_labels), (
+            assert any(re.search(r"_\d{10,}$", label) for label in package_labels), (
                 f"Expected timestamp suffix on package label, got {package_labels}"
             )
 
@@ -458,9 +458,9 @@ class TestF2LabelConflict:
             import re
 
             for tid in ["t-001", "t-002", "t-003"]:
-                tid_labels = [l for l in labels if tid in l]
+                tid_labels = [label for label in labels if tid in label]
                 assert len(tid_labels) >= 1, f"Expected {tid} label, got {labels}"
-                assert any(re.search(r"_\d{10,}$", l) for l in tid_labels), (
+                assert any(re.search(r"_\d{10,}$", label) for label in tid_labels), (
                     f"Expected timestamp suffix for {tid}, got {tid_labels}"
                 )
 

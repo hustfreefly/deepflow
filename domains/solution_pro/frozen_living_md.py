@@ -364,7 +364,9 @@ def parse_frozen_spec_md(md: str) -> dict:
             parts = sub.strip().split("\n")
             name = parts[0].strip()
             req_ids = [
-                l.strip("- ").strip() for l in parts[1:] if l.strip().startswith("- ")
+                line.strip("- ").strip()
+                for line in parts[1:]
+                if line.strip().startswith("- ")
             ]
             groups.append({"name": name, "req_ids": req_ids})
         result["requirement_groups"] = groups
@@ -497,7 +499,9 @@ def parse_frozen_spec_md(md: str) -> dict:
             parts = sub.strip().split("\n")
             name = parts[0].strip()
             items = [
-                l.strip("- ").strip() for l in parts[1:] if l.strip().startswith("- ")
+                line.strip("- ").strip()
+                for line in parts[1:]
+                if line.strip().startswith("- ")
             ]
             if items:
                 guardrails[name] = items
@@ -513,7 +517,9 @@ def parse_frozen_spec_md(md: str) -> dict:
             parts = sub.strip().split("\n")
             name = parts[0].strip()
             items = [
-                l.strip("- ").strip() for l in parts[1:] if l.strip().startswith("- ")
+                line.strip("- ").strip()
+                for line in parts[1:]
+                if line.strip().startswith("- ")
             ]
             if items:
                 hints[name] = items
@@ -567,7 +573,7 @@ def _parse_md_sections(body: str) -> dict[str, str]:
 
 def _extract_table_rows(text: str) -> list[list[str]]:
     rows = []
-    lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    lines = [line.strip() for line in text.split("\n") if line.strip().startswith("|")]
     if len(lines) < 3:
         return rows
     for line in lines[2:]:
@@ -580,7 +586,7 @@ def _extract_table_rows(text: str) -> list[list[str]]:
 def _parse_table_to_dicts(text: str) -> list[dict]:
     """Parse markdown table to list of dicts."""
     rows = _extract_table_rows(text)
-    lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    lines = [line.strip() for line in text.split("\n") if line.strip().startswith("|")]
     if len(lines) < 2:
         return []
     headers = [c.strip().lower().replace(" ", "_") for c in lines[0].split("|")[1:-1]]

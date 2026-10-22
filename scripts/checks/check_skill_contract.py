@@ -100,7 +100,7 @@ def check_frontmatter(content: str, expected_name: str) -> list[str]:
 def check_h1_title(content: str, domain_name: str) -> list[str]:
     """Check H1 title exists."""
     issues = []
-    h1_lines = [l for l in content.split("\n") if l.startswith("# ")]
+    h1_lines = [line for line in content.split("\n") if line.startswith("# ")]
     if not h1_lines:
         issues.append("[MUST] Missing H1 title (# ...)")
     elif (

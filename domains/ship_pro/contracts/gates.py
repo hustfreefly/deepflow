@@ -232,7 +232,9 @@ class WorkerGate:
         search_logs = worker_output.get("web_search_logs", [])
         search_log_text = (
             "搜索日志:\n"
-            + json.dumps([l.get("query", "") for l in search_logs], ensure_ascii=False)
+            + json.dumps(
+                [log.get("query", "") for log in search_logs], ensure_ascii=False
+            )
             if search_logs
             else "无搜索日志"
         )

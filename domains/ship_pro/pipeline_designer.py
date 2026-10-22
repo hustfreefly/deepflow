@@ -832,7 +832,7 @@ execution_order: [["Researcher"],["OutlineWriter"],["ChapterWriter"]]
             layers = arch.get("layers", [])
             if layers:
                 constraints.append(
-                    f"架构约束: 分层架构 {', '.join(str(l) for l in layers[:3])}"
+                    f"架构约束: 分层架构 {', '.join(str(layer) for layer in layers[:3])}"
                 )
 
         # 从 guardrails / must_constraints 提取（如果存在）

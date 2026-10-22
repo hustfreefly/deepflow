@@ -560,7 +560,7 @@ def _parse_md_sections(body: str) -> dict[str, str]:
 def _extract_table_rows(text: str) -> list[list[str]]:
     """Extract data rows from markdown table (skip header + separator)."""
     rows = []
-    lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    lines = [line.strip() for line in text.split("\n") if line.strip().startswith("|")]
     if len(lines) < 3:
         return rows
     for line in lines[2:]:
@@ -573,7 +573,7 @@ def _extract_table_rows(text: str) -> list[list[str]]:
 def _parse_table_to_dicts(text: str) -> list[dict]:
     """Parse a markdown table into list of dicts."""
     rows = _extract_table_rows(text)
-    lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    lines = [line.strip() for line in text.split("\n") if line.strip().startswith("|")]
     if len(lines) < 2:
         return []
     headers = [c.strip().lower().replace(" ", "_") for c in lines[0].split("|")[1:-1]]

@@ -377,9 +377,9 @@ def parse_ship_package_md(md: str) -> dict:
                 coverage_match.group(1).strip()
             )
         pending = [
-            l.strip().lstrip("- ")
-            for l in req_text.split("\n")
-            if l.strip().startswith("- ")
+            line.strip().lstrip("- ")
+            for line in req_text.split("\n")
+            if line.strip().startswith("- ")
         ]
         if pending:
             result["pending_req_ids"] = pending
@@ -448,9 +448,9 @@ def parse_ship_package_md(md: str) -> dict:
     mod_text = sections.get("modules", "")
     if mod_text:
         modules = [
-            l.strip().lstrip("- ")
-            for l in mod_text.split("\n")
-            if l.strip().startswith("- ")
+            line.strip().lstrip("- ")
+            for line in mod_text.split("\n")
+            if line.strip().startswith("- ")
         ]
         if modules:
             result["modules"] = modules
@@ -458,11 +458,11 @@ def parse_ship_package_md(md: str) -> dict:
     # S7d: integration_notes — N3-FIX
     in_text = sections.get("integration_notes", "")
     if in_text:
-        in_lines = [l.strip() for l in in_text.split("\n") if l.strip()]
+        in_lines = [line.strip() for line in in_text.split("\n") if line.strip()]
         if in_lines:
             # If all lines start with "- ", treat as list; otherwise as text
-            if all(l.startswith("- ") for l in in_lines):
-                result["integration_notes"] = [l[2:].strip() for l in in_lines]
+            if all(line.startswith("- ") for line in in_lines):
+                result["integration_notes"] = [line[2:].strip() for line in in_lines]
             else:
                 result["integration_notes"] = "\n".join(in_lines)
 
@@ -502,7 +502,9 @@ def _parse_work_packages(text: str) -> list[dict]:
     wps = []
 
     # ── Phase 1: Parse summary table ──
-    table_lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    table_lines = [
+        line.strip() for line in text.split("\n") if line.strip().startswith("|")
+    ]
     if len(table_lines) >= 3:
         for line in table_lines[2:]:
             cells = [c.strip() for c in line.split("|")[1:-1]]
@@ -645,7 +647,9 @@ def _parse_work_packages(text: str) -> list[dict]:
 
 def _parse_execution_order(text: str) -> dict:
     layers = []
-    table_lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    table_lines = [
+        line.strip() for line in text.split("\n") if line.strip().startswith("|")
+    ]
     if len(table_lines) >= 3:
         for line in table_lines[2:]:
             cells = [c.strip() for c in line.split("|")[1:-1]]
@@ -661,7 +665,9 @@ def _parse_kv_table(text: str) -> dict[str, str]:
     Handles both meta_info (| field | value |) and statistics (| metric | value |) tables.
     """
     result: dict[str, str] = {}
-    table_lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    table_lines = [
+        line.strip() for line in text.split("\n") if line.strip().startswith("|")
+    ]
     # Skip header + separator (first 2 lines)
     for line in table_lines[2:]:
         cells = [c.strip() for c in line.split("|")[1:-1]]
@@ -672,7 +678,9 @@ def _parse_kv_table(text: str) -> dict[str, str]:
 
 def _parse_anchor_table(text: str) -> list[dict]:
     anchors = []
-    table_lines = [l.strip() for l in text.split("\n") if l.strip().startswith("|")]
+    table_lines = [
+        line.strip() for line in text.split("\n") if line.strip().startswith("|")
+    ]
     if len(table_lines) >= 3:
         for line in table_lines[2:]:
             cells = [c.strip() for c in line.split("|")[1:-1]]
